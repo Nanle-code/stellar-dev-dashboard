@@ -218,4 +218,32 @@ export async function exportTransactionXDR(params) {
   return transaction.toXDR()
 }
 
+export async function fetchPaymentPaths({ sourceAsset, destAsset, amount, mode = 'strict-send', network = 'testnet' }) {
+  const horizonUrl = NETWORKS[network].horizonUrl
+
+  function assetParams(asset, prefix) {
+    if (asset.type === 'native') {
+      return `${prefix}_asset_type=native`
+    }
+    return `${prefix}_asset_type=credit_alphanum${asset.code.length <= 4 ? '4' : '12'}&${prefix}_asset_code=${asset.code}&${prefix}_asset_issuer=${asset.issuer}`
+  }
+
+  function assetString(asset) {
+    if (asset.type === 'native') return 'native'
+    return `${asset.code}:${asset.issuer}`
+  }
+
+  let url
+  if (mode === 'strict-send') {
+    url = `${horizonUrl}/paths/strict-send?${assetParams(sourceAsset, 'source')}&source_amount=${amount}&destination_assets=${encodeURIComponent(assetString(destAsset))}`
+  } else {
+    url = `${horizonUrl}/paths/strict-receive?${assetParams(destAsset, 'destination')}&destination_amount=${amount}&source_assets=${encodeURIComponent(assetString(sourceAsset))}`
+  }
+
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Horizon error: ${res.status}`)
+  const data = await res.json()
+  return data._embedded?.records || []
+}
+
 export { StellarSdk }

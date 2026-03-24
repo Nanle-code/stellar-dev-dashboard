@@ -2,13 +2,14 @@ import React from 'react'
 import { useStore } from '../../lib/store'
 
 const NAV_ITEMS = [
-  { id: 'overview',     label: 'Overview',       icon: '◈' },
-  { id: 'account',      label: 'Account',         icon: '◉' },
-  { id: 'transactions', label: 'Transactions',    icon: '⇄' },
-  { id: 'contracts',    label: 'Contracts',       icon: '◻' },
-  { id: 'network',      label: 'Network',         icon: '◎' },
-  { id: 'builder',      label: 'Builder',         icon: '⚒' },
-  { id: 'faucet',       label: 'Faucet',          icon: '⬡' },
+  { id: 'overview', label: 'Overview', icon: '◈' },
+  { id: 'account', label: 'Account', icon: '◉' },
+  { id: 'compare', label: 'Compare', icon: '◫' },
+  { id: 'transactions', label: 'Transactions', icon: '⇄' },
+  { id: 'contracts', label: 'Contracts', icon: '◻' },
+  { id: 'network', label: 'Network', icon: '◎' },
+  { id: 'builder', label: 'Builder', icon: '⚒' },
+  { id: 'faucet', label: 'Faucet', icon: '⬡' },
 ]
 
 export default function Sidebar() {

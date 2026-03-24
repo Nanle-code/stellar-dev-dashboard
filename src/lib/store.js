@@ -58,4 +58,30 @@ export const useStore = create((set, get) => ({
   setContractData: (data) => set({ contractData: data, contractError: null }),
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
+
+  // Comparison
+  comparisonKeys: ['', '', ''],
+  comparisonData: [null, null, null],
+  comparisonLoading: [false, false, false],
+  comparisonErrors: [null, null, null],
+  setComparisonKey: (index, key) => set((state) => {
+    const newKeys = [...state.comparisonKeys]
+    newKeys[index] = key
+    return { comparisonKeys: newKeys }
+  }),
+  setComparisonData: (index, data) => set((state) => {
+    const newData = [...state.comparisonData]
+    newData[index] = data
+    return { comparisonData: newData }
+  }),
+  setComparisonLoading: (index, loading) => set((state) => {
+    const newLoading = [...state.comparisonLoading]
+    newLoading[index] = loading
+    return { comparisonLoading: newLoading }
+  }),
+  setComparisonError: (index, error) => set((state) => {
+    const newErrors = [...state.comparisonErrors]
+    newErrors[index] = error
+    return { comparisonErrors: newErrors }
+  }),
 }))

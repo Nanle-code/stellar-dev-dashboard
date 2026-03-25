@@ -51,6 +51,15 @@ export async function fetchOperations(publicKey, network = 'testnet', limit = 20
   return ops.records
 }
 
+export async function fetchAccountOffers(publicKey, network = 'testnet') {
+  const server = getServer(network)
+  const offers = await server
+    .offers()
+    .forAccount(publicKey)
+    .call()
+  return offers.records
+}
+
 export async function fetchNetworkStats(network = 'testnet') {
   const server = getServer(network)
   const [ledger, feeStats] = await Promise.all([

@@ -13,7 +13,7 @@ const NAV_ITEMS = [
 ]
 
 export default function Sidebar() {
-  const { activeTab, setActiveTab, network, setNetwork, connectedAddress } = useStore()
+  const { activeTab, setActiveTab, network, setNetwork, connectedAddress, theme, toggleTheme } = useStore()
 
   return (
     <aside style={{
@@ -159,8 +159,37 @@ export default function Sidebar() {
         fontSize: '10px',
         color: 'var(--text-muted)',
         letterSpacing: '0.5px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}>
-        v0.1.0 · Stellar Dev Dashboard
+        <span>v0.1.0 · Stellar Dev Dashboard</span>
+        <button
+          onClick={toggleTheme}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: 'var(--radius-sm)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'var(--transition)',
+          }}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = 'var(--text-primary)'
+            e.currentTarget.style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = 'var(--text-secondary)'
+            e.currentTarget.style.background = 'transparent'
+          }}
+        >
+          {theme === 'light' ? '☾' : '☀'}
+        </button>
       </div>
     </aside>
   )

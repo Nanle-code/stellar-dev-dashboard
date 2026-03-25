@@ -1,6 +1,17 @@
 import { create } from 'zustand'
 
 export const useStore = create((set, get) => ({
+  // Theme
+  theme: typeof localStorage !== 'undefined' ? localStorage.getItem('stellar-dashboard-theme') || 'dark' : 'dark',
+  toggleTheme: () => set((state) => {
+    const newTheme = state.theme === 'light' ? 'dark' : 'light'
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('stellar-dashboard-theme', newTheme)
+    }
+    document.documentElement.setAttribute('data-theme', newTheme)
+    return { theme: newTheme }
+  }),
+
   // Network
   network: 'testnet',
   setNetwork: (network) => {

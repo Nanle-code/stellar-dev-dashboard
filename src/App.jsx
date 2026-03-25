@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import Sidebar from './components/layout/Sidebar'
 import ConnectPanel from './components/dashboard/ConnectPanel'
 import Overview from './components/dashboard/Overview'
@@ -23,7 +23,11 @@ const TABS = {
 }
 
 export default function App() {
-  const { connectedAddress, activeTab } = useStore()
+  const { connectedAddress, activeTab, theme } = useStore()
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
 
   const ActiveComponent = TABS[activeTab] || Overview
 

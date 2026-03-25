@@ -1,6 +1,11 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useStore } from '../../lib/store'
-import { shortAddress, formatXLM } from '../../lib/stellar'
+import { shortAddress, formatXLM, fetchAccountOffers } from '../../lib/stellar'
+
+function formatAsset(assetType, assetCode) {
+  if (assetType === 'native') return 'XLM'
+  return assetCode || 'Unknown'
+}
 
 function InfoRow({ label, value, mono = true, accent }) {
   return (
@@ -26,6 +31,20 @@ function InfoRow({ label, value, mono = true, accent }) {
 
 export default function Account() {
   const { accountData, connectedAddress, network } = useStore()
+  const [offers, setOffers] = useState([])
+  const [offersLoading, setOffersLoading] = useState(false)
+  const [offersError, setOffersError] = useState(null)
+
+  useEffect(() => {
+    if (connectedAddress) {
+      setOffersLoading(true)
+      setOffersError(null)
+      fetchAccountOffers(connectedAddress, network)
+        .then(res => setOffers(res))
+        .catch(err => setOffersError(err.message))
+        .finally(() => setOffersLoading(false))
+    }
+  }, [connectedAddress, network])
 
   if (!accountData) return (
     <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>No account loaded</div>
@@ -117,6 +136,52 @@ export default function Account() {
           ))}
         </div>
       )}
+
+      {/* Open Offers */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
+          Open Offers
+        </div>
+        {offersLoading ? (
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>Loading offers...</div>
+        ) : offersError ? (
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--red)' }}>Error: {offersError}</div>
+        ) : offers.length === 0 ? (
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>No open offers</div>
+        ) : (
+          <div>
+            {offers.map((offer, i) => (
+              <div key={offer.id} style={{
+                padding: '12px 18px',
+                borderBottom: i < offers.length - 1 ? '1px solid var(--border)' : 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Offer ID: {offer.id}</span>
+                  <a
+                    href={`https://stellar.expert/explorer/${network}/offer/${offer.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '11px', color: 'var(--cyan)' }}
+                  >
+                    View ↗
+                  </a>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Selling:</span> {formatXLM(offer.amount)} {formatAsset(offer.selling.asset_type, offer.selling.asset_code)}</div>
+                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Buying:</span> {formatAsset(offer.buying.asset_type, offer.buying.asset_code)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Price:</span> {offer.price}</div>
+                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Ratio:</span> {offer.price_r.n}/{offer.price_r.d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

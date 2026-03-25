@@ -15,7 +15,18 @@ export const useStore = create((set, get) => ({
   // Network
   network: 'testnet',
   setNetwork: (network) => {
-    set({ network, accountData: null, transactions: [], operations: [] })
+    set({
+      network,
+      accountData: null,
+      transactions: [],
+      operations: [],
+      txNextCursor: null,
+      txHasMore: false,
+      txPagingLoading: false,
+      opsNextCursor: null,
+      opsHasMore: false,
+      opsPagingLoading: false,
+    })
   },
 
   // Wallet / Account
@@ -34,13 +45,35 @@ export const useStore = create((set, get) => ({
   transactions: [],
   txLoading: false,
   setTransactions: (txs) => set({ transactions: txs }),
+  appendTransactions: (txs) => set((state) => {
+    const existing = new Set(state.transactions.map(tx => tx.id))
+    const merged = [...state.transactions, ...txs.filter(tx => !existing.has(tx.id))]
+    return { transactions: merged }
+  }),
   setTxLoading: (v) => set({ txLoading: v }),
+  txNextCursor: null,
+  txHasMore: false,
+  txPagingLoading: false,
+  setTxNextCursor: (cursor) => set({ txNextCursor: cursor }),
+  setTxHasMore: (hasMore) => set({ txHasMore: hasMore }),
+  setTxPagingLoading: (v) => set({ txPagingLoading: v }),
 
   // Operations
   operations: [],
   opsLoading: false,
   setOperations: (ops) => set({ operations: ops }),
+  appendOperations: (ops) => set((state) => {
+    const existing = new Set(state.operations.map(op => op.id))
+    const merged = [...state.operations, ...ops.filter(op => !existing.has(op.id))]
+    return { operations: merged }
+  }),
   setOpsLoading: (v) => set({ opsLoading: v }),
+  opsNextCursor: null,
+  opsHasMore: false,
+  opsPagingLoading: false,
+  setOpsNextCursor: (cursor) => set({ opsNextCursor: cursor }),
+  setOpsHasMore: (hasMore) => set({ opsHasMore: hasMore }),
+  setOpsPagingLoading: (v) => set({ opsPagingLoading: v }),
 
   // Network stats
   networkStats: null,

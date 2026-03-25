@@ -27,13 +27,27 @@ export interface StoreState {
   transactions: Horizon.ServerApi.TransactionRecord[]
   txLoading: boolean
   setTransactions: (txs: Horizon.ServerApi.TransactionRecord[]) => void
+  appendTransactions: (txs: Horizon.ServerApi.TransactionRecord[]) => void
   setTxLoading: (v: boolean) => void
+  txNextCursor: string | null
+  txHasMore: boolean
+  txPagingLoading: boolean
+  setTxNextCursor: (cursor: string | null) => void
+  setTxHasMore: (hasMore: boolean) => void
+  setTxPagingLoading: (v: boolean) => void
 
   // Operations
   operations: Horizon.ServerApi.OperationRecord[]
   opsLoading: boolean
   setOperations: (ops: Horizon.ServerApi.OperationRecord[]) => void
+  appendOperations: (ops: Horizon.ServerApi.OperationRecord[]) => void
   setOpsLoading: (v: boolean) => void
+  opsNextCursor: string | null
+  opsHasMore: boolean
+  opsPagingLoading: boolean
+  setOpsNextCursor: (cursor: string | null) => void
+  setOpsHasMore: (hasMore: boolean) => void
+  setOpsPagingLoading: (v: boolean) => void
 
   // Network stats
   networkStats: NetworkStats | null
@@ -68,7 +82,18 @@ export const useStore = create<StoreState>((set) => ({
   // Network
   network: 'testnet',
   setNetwork: (network) => {
-    set({ network, accountData: null, transactions: [], operations: [] })
+    set({
+      network,
+      accountData: null,
+      transactions: [],
+      operations: [],
+      txNextCursor: null,
+      txHasMore: false,
+      txPagingLoading: false,
+      opsNextCursor: null,
+      opsHasMore: false,
+      opsPagingLoading: false,
+    })
   },
 
   // Wallet / Account
@@ -85,13 +110,35 @@ export const useStore = create<StoreState>((set) => ({
   transactions: [],
   txLoading: false,
   setTransactions: (txs) => set({ transactions: txs }),
+  appendTransactions: (txs) => set((state) => {
+    const existing = new Set(state.transactions.map(tx => tx.id))
+    const merged = [...state.transactions, ...txs.filter(tx => !existing.has(tx.id))]
+    return { transactions: merged }
+  }),
   setTxLoading: (v) => set({ txLoading: v }),
+  txNextCursor: null,
+  txHasMore: false,
+  txPagingLoading: false,
+  setTxNextCursor: (cursor) => set({ txNextCursor: cursor }),
+  setTxHasMore: (hasMore) => set({ txHasMore: hasMore }),
+  setTxPagingLoading: (v) => set({ txPagingLoading: v }),
 
   // Operations
   operations: [],
   opsLoading: false,
   setOperations: (ops) => set({ operations: ops }),
+  appendOperations: (ops) => set((state) => {
+    const existing = new Set(state.operations.map(op => op.id))
+    const merged = [...state.operations, ...ops.filter(op => !existing.has(op.id))]
+    return { operations: merged }
+  }),
   setOpsLoading: (v) => set({ opsLoading: v }),
+  opsNextCursor: null,
+  opsHasMore: false,
+  opsPagingLoading: false,
+  setOpsNextCursor: (cursor) => set({ opsNextCursor: cursor }),
+  setOpsHasMore: (hasMore) => set({ opsHasMore: hasMore }),
+  setOpsPagingLoading: (v) => set({ opsPagingLoading: v }),
 
   // Network stats
   networkStats: null,

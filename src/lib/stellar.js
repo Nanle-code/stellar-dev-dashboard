@@ -29,26 +29,46 @@ export async function fetchAccount(publicKey, network = 'testnet') {
   return await server.loadAccount(publicKey)
 }
 
-export async function fetchTransactions(publicKey, network = 'testnet', limit = 20) {
+export async function fetchTransactions(publicKey, network = 'testnet', limit = 20, cursor = null) {
   const server = getServer(network)
-  const txs = await server
+  const request = server
     .transactions()
     .forAccount(publicKey)
     .order('desc')
     .limit(limit)
-    .call()
-  return txs.records
+
+  if (cursor) request.cursor(cursor)
+
+  const txs = await request.call()
+  const records = txs.records || []
+  const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
+
+  return {
+    records,
+    nextCursor,
+    hasMore: records.length === limit && !!nextCursor,
+  }
 }
 
-export async function fetchOperations(publicKey, network = 'testnet', limit = 20) {
+export async function fetchOperations(publicKey, network = 'testnet', limit = 20, cursor = null) {
   const server = getServer(network)
-  const ops = await server
+  const request = server
     .operations()
     .forAccount(publicKey)
     .order('desc')
     .limit(limit)
-    .call()
-  return ops.records
+
+  if (cursor) request.cursor(cursor)
+
+  const ops = await request.call()
+  const records = ops.records || []
+  const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
+
+  return {
+    records,
+    nextCursor,
+    hasMore: records.length === limit && !!nextCursor,
+  }
 }
 
 export async function fetchAccountOffers(publicKey, network = 'testnet') {

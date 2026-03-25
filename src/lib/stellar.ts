@@ -53,31 +53,65 @@ export async function fetchAccount(
 export async function fetchTransactions(
   publicKey: string,
   network: NetworkName = 'testnet',
-  limit = 20
-): Promise<StellarSdk.Horizon.ServerApi.TransactionRecord[]> {
+  limit = 20,
+  cursor: string | null = null
+): Promise<{ records: StellarSdk.Horizon.ServerApi.TransactionRecord[]; nextCursor: string | null; hasMore: boolean }> {
   const server = getServer(network)
-  const txs = await server
+  const request = server
     .transactions()
     .forAccount(publicKey)
     .order('desc')
     .limit(limit)
-    .call()
-  return txs.records
+
+  if (cursor) request.cursor(cursor)
+
+  const txs = await request.call()
+  const records = txs.records || []
+  const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
+
+  return {
+    records,
+    nextCursor,
+    hasMore: records.length === limit && !!nextCursor,
+  }
 }
 
 export async function fetchOperations(
   publicKey: string,
   network: NetworkName = 'testnet',
-  limit = 20
-): Promise<StellarSdk.Horizon.ServerApi.OperationRecord[]> {
+  limit = 20,
+  cursor: string | null = null
+): Promise<{ records: StellarSdk.Horizon.ServerApi.OperationRecord[]; nextCursor: string | null; hasMore: boolean }> {
   const server = getServer(network)
-  const ops = await server
+  const request = server
     .operations()
     .forAccount(publicKey)
     .order('desc')
     .limit(limit)
+
+  if (cursor) request.cursor(cursor)
+
+  const ops = await request.call()
+  const records = ops.records || []
+  const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
+
+  return {
+    records,
+    nextCursor,
+    hasMore: records.length === limit && !!nextCursor,
+  }
+}
+
+export async function fetchAccountOffers(
+  publicKey: string,
+  network: NetworkName = 'testnet'
+): Promise<StellarSdk.Horizon.ServerApi.OfferRecord[]> {
+  const server = getServer(network)
+  const offers = await server
+    .offers()
+    .forAccount(publicKey)
     .call()
-  return ops.records
+  return offers.records
 }
 
 export const OPERATION_LABELS: Record<string, string> = {
@@ -117,6 +151,8 @@ function titleCaseLabel(value: string): string {
 
 export function getOperationLabel(type: string): string {
   return OPERATION_LABELS[type] || titleCaseLabel(type)
+}
+
 export async function fetchAccountCreationDate(
   publicKey: string,
   network: NetworkName = 'testnet'
@@ -140,19 +176,6 @@ export async function fetchAccountCreationDate(
   }
 }
 
-export function streamLedgers(
-  callback: (ledger: any) => void,
-  network: NetworkName = 'testnet'
-): any {
-  const server = getServer(network)
-  return server
-    .ledgers()
-    .cursor('now')
-    .stream({
-      onmessage: (ledger) => callback(ledger),
-      onerror: (error) => console.error('Ledger stream error:', error),
-    })
-}
 
 // ─── Network stats ────────────────────────────────────────────────────────────
 

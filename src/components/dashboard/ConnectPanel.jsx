@@ -9,6 +9,8 @@ export default function ConnectPanel() {
     network, setConnectedAddress, setAccountData,
     setAccountLoading, setTransactions, setTxLoading,
     setOperations, setOpsLoading, setActiveTab,
+    setTxNextCursor, setTxHasMore,
+    setOpsNextCursor, setOpsHasMore,
   } = useStore()
 
   async function handleConnect() {
@@ -28,14 +30,35 @@ export default function ConnectPanel() {
       // Fetch tx & ops in background
       setTxLoading(true)
       setOpsLoading(true)
-      fetchTransactions(addr, network).then(txs => {
-        setTransactions(txs)
-        setTxLoading(false)
-      })
-      fetchOperations(addr, network).then(ops => {
-        setOperations(ops)
-        setOpsLoading(false)
-      })
+      fetchTransactions(addr, network)
+        .then(({ records, nextCursor, hasMore }) => {
+          setTransactions(records)
+          setTxNextCursor(nextCursor)
+          setTxHasMore(hasMore)
+        })
+        .catch(() => {
+          setTransactions([])
+          setTxNextCursor(null)
+          setTxHasMore(false)
+        })
+        .finally(() => {
+          setTxLoading(false)
+        })
+
+      fetchOperations(addr, network)
+        .then(({ records, nextCursor, hasMore }) => {
+          setOperations(records)
+          setOpsNextCursor(nextCursor)
+          setOpsHasMore(hasMore)
+        })
+        .catch(() => {
+          setOperations([])
+          setOpsNextCursor(null)
+          setOpsHasMore(false)
+        })
+        .finally(() => {
+          setOpsLoading(false)
+        })
     } catch (e) {
       setError('Account not found on ' + network)
     } finally {

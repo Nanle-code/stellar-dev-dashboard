@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+import { format } from 'date-fns'
 import { useStore } from '../../lib/store'
-import { shortAddress, formatXLM, fetchAccountOffers } from '../../lib/stellar'
+import { shortAddress, formatXLM, fetchAccountCreationDate, fetchAccountOffers } from '../../lib/stellar'
 
 function formatAsset(assetType, assetCode) {
   if (assetType === 'native') return 'XLM'
@@ -34,15 +35,52 @@ export default function Account() {
   const [offers, setOffers] = useState([])
   const [offersLoading, setOffersLoading] = useState(false)
   const [offersError, setOffersError] = useState(null)
+  const [createdAt, setCreatedAt] = useState(null)
+  const [createdAtLoading, setCreatedAtLoading] = useState(false)
 
   useEffect(() => {
-    if (connectedAddress) {
-      setOffersLoading(true)
+    if (!connectedAddress) {
+      setOffers([])
+      setOffersLoading(false)
       setOffersError(null)
-      fetchAccountOffers(connectedAddress, network)
-        .then(res => setOffers(res))
-        .catch(err => setOffersError(err.message))
-        .finally(() => setOffersLoading(false))
+      setCreatedAt(null)
+      setCreatedAtLoading(false)
+      return
+    }
+
+    let isActive = true
+
+    setOffersLoading(true)
+    setOffersError(null)
+    setCreatedAtLoading(true)
+    setCreatedAt(null)
+
+    fetchAccountCreationDate(connectedAddress, network)
+      .then((date) => {
+        if (!isActive) return
+        setCreatedAt(date)
+      })
+      .finally(() => {
+        if (!isActive) return
+        setCreatedAtLoading(false)
+      })
+
+    fetchAccountOffers(connectedAddress, network)
+      .then((res) => {
+        if (!isActive) return
+        setOffers(res)
+      })
+      .catch((err) => {
+        if (!isActive) return
+        setOffersError(err.message)
+      })
+      .finally(() => {
+        if (!isActive) return
+        setOffersLoading(false)
+      })
+
+    return () => {
+      isActive = false
     }
   }, [connectedAddress, network])
 
@@ -54,17 +92,18 @@ export default function Account() {
   const signers = accountData.signers || []
   const flags = accountData.flags || {}
   const thresholds = accountData.thresholds || {}
+  const createdValue = createdAtLoading ? 'Loading...' : createdAt ? format(new Date(createdAt), 'MMM d, yyyy') : 'Unknown'
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Account Detail</div>
 
-      {/* Identity */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Identity</div>
         <InfoRow label="Public Key" value={connectedAddress} />
         <InfoRow label="Account ID" value={accountData.account_id} />
         <InfoRow label="Sequence" value={accountData.sequence} />
+        <InfoRow label="Created" value={createdValue} mono={false} />
         <InfoRow label="XLM Balance" value={xlm ? formatXLM(xlm.balance) + ' XLM' : '—'} accent="var(--cyan)" />
         <InfoRow label="Subentry Count" value={accountData.subentry_count} />
         <div style={{ padding: '10px 18px' }}>
@@ -85,7 +124,6 @@ export default function Account() {
         </div>
       </div>
 
-      {/* Thresholds */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Thresholds</div>
         <InfoRow label="Low" value={thresholds.low_threshold} />
@@ -93,7 +131,6 @@ export default function Account() {
         <InfoRow label="High" value={thresholds.high_threshold} />
       </div>
 
-      {/* Flags */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Flags</div>
         {Object.entries(flags).map(([key, val]) => (
@@ -117,7 +154,6 @@ export default function Account() {
         ))}
       </div>
 
-      {/* Signers */}
       {signers.length > 0 && (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
@@ -137,7 +173,6 @@ export default function Account() {
         </div>
       )}
 
-      {/* Open Offers */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
           Open Offers
@@ -156,7 +191,7 @@ export default function Account() {
                 borderBottom: i < offers.length - 1 ? '1px solid var(--border)' : 'none',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '8px'
+                gap: '8px',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Offer ID: {offer.id}</span>

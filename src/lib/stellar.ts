@@ -80,6 +80,43 @@ export async function fetchOperations(
   return ops.records
 }
 
+export async function fetchAccountCreationDate(
+  publicKey: string,
+  network: NetworkName = 'testnet'
+): Promise<string | null> {
+  const server = getServer(network)
+
+  try {
+    const ops = await server
+      .operations()
+      .forAccount(publicKey)
+      .order('asc')
+      .limit(1)
+      .call()
+
+    const operation = ops.records[0]
+    if (operation?.type !== 'create_account') return null
+
+    return operation.created_at || null
+  } catch {
+    return null
+  }
+}
+
+export function streamLedgers(
+  callback: (ledger: any) => void,
+  network: NetworkName = 'testnet'
+): any {
+  const server = getServer(network)
+  return server
+    .ledgers()
+    .cursor('now')
+    .stream({
+      onmessage: (ledger) => callback(ledger),
+      onerror: (error) => console.error('Ledger stream error:', error),
+    })
+}
+
 // ─── Network stats ────────────────────────────────────────────────────────────
 
 export interface NetworkStats {

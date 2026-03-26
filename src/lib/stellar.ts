@@ -80,6 +80,22 @@ export async function fetchOperations(
   return ops.records
 }
 
+// ─── Offers ───────────────────────────────────────────────────────────────────
+
+export async function fetchAccountOffers(
+  publicKey: string,
+  network: NetworkName = 'testnet'
+): Promise<StellarSdk.Horizon.ServerApi.OfferRecord[]> {
+  const server = getServer(network)
+  const offers = await server
+    .offers()
+    .forAccount(publicKey)
+    .call()
+  return offers.records
+}
+
+// ─── Operation labels ───────────────────────────────────────────────────────────
+
 export const OPERATION_LABELS: Record<string, string> = {
   create_account: 'Create Account',
   payment: 'Payment',
@@ -117,6 +133,8 @@ function titleCaseLabel(value: string): string {
 
 export function getOperationLabel(type: string): string {
   return OPERATION_LABELS[type] || titleCaseLabel(type)
+}
+
 export async function fetchAccountCreationDate(
   publicKey: string,
   network: NetworkName = 'testnet'
@@ -141,15 +159,19 @@ export async function fetchAccountCreationDate(
 }
 
 export function streamLedgers(
-  callback: (ledger: any) => void,
+  callback: (ledger: StellarSdk.Horizon.ServerApi.LedgerRecord) => void,
   network: NetworkName = 'testnet'
-): any {
+): () => void {
   const server = getServer(network)
   return server
     .ledgers()
     .cursor('now')
     .stream({
-      onmessage: (ledger) => callback(ledger),
+      onmessage: (page) => {
+        if (page?.records?.length) {
+          page.records.forEach((ledger) => callback(ledger))
+        }
+      },
       onerror: (error) => console.error('Ledger stream error:', error),
     })
 }
@@ -173,19 +195,6 @@ export async function fetchNetworkStats(network: NetworkName = 'testnet'): Promi
   }
 }
 
-export function streamLedgers(
-  callback: (ledger: StellarSdk.Horizon.ServerApi.LedgerRecord) => void,
-  network: NetworkName = 'testnet'
-): () => void {
-  const server = getServer(network)
-  return server
-    .ledgers()
-    .cursor('now')
-    .stream({
-      onmessage: (ledger) => callback(ledger as unknown as StellarSdk.Horizon.ServerApi.LedgerRecord),
-      onerror: () => {},
-    })
-}
 
 // ─── Faucet ───────────────────────────────────────────────────────────────────
 
@@ -698,3 +707,4 @@ export async function fetchPaymentPaths(
 }
 
 export { StellarSdk }
+

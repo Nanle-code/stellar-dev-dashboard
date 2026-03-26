@@ -167,7 +167,11 @@ export function streamLedgers(
     .ledgers()
     .cursor('now')
     .stream({
-      onmessage: (ledger) => callback(ledger),
+      onmessage: (page) => {
+        if (page?.records?.length) {
+          page.records.forEach((ledger) => callback(ledger))
+        }
+      },
       onerror: (error) => console.error('Ledger stream error:', error),
     })
 }

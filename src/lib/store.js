@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { getStoredValue, setStoredValue } from './storage'
 import { broadcastStateChange, onStateChange } from '../utils/stateSync'
 
+import { THEMES, THEME_STORAGE_KEY } from '../styles/themes'
+
 // Keys that will be persisted to IndexedDB
 const PERSISTED_KEYS = ['connectedAddress', 'network', 'theme', 'activeTab']
 
@@ -49,11 +51,11 @@ const persistMiddleware = (config) => (set, get, api) => {
 
 export const useStore = create(persistMiddleware((set, get) => ({
   // Theme
-  theme: typeof localStorage !== 'undefined' ? localStorage.getItem('stellar-dashboard-theme') || 'dark' : 'dark',
+  theme: typeof localStorage !== 'undefined' ? localStorage.getItem(THEME_STORAGE_KEY) || THEMES.DARK : THEMES.DARK,
   toggleTheme: () => set((state) => {
-    const newTheme = state.theme === 'light' ? 'dark' : 'light'
+    const newTheme = state.theme === THEMES.LIGHT ? THEMES.DARK : THEMES.LIGHT
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('stellar-dashboard-theme', newTheme)
+      localStorage.setItem(THEME_STORAGE_KEY, newTheme)
     }
     document.documentElement.setAttribute('data-theme', newTheme)
     return { theme: newTheme }

@@ -9,6 +9,13 @@ import NetworkStats from './components/dashboard/NetworkStats'
 import Faucet from './components/dashboard/Faucet'
 import Builder from './components/dashboard/Builder'
 import Compare from './components/dashboard/Compare'
+import WalletConnect from './components/dashboard/WalletConnect'
+import TransactionSigner from './components/dashboard/TransactionSigner'
+import PriceTicker from './components/dashboard/PriceTicker'
+import PortfolioValue from './components/dashboard/PortfolioValue'
+import NetworkMetricsChart from './components/charts/NetworkMetricsChart'
+import AccountActivityChart from './components/charts/AccountActivityChart'
+import BalanceHistoryChart from './components/charts/BalanceHistoryChart'
 import { useStore } from './lib/store'
 
 const TABS = {
@@ -20,6 +27,17 @@ const TABS = {
   builder: Builder,
   faucet: Faucet,
   compare: Compare,
+  wallet: WalletConnect,
+  signer: TransactionSigner,
+  portfolio: PortfolioValue,
+  charts: () => (
+    <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Charts & Analytics</div>
+      <NetworkMetricsChart />
+      <AccountActivityChart />
+      <BalanceHistoryChart />
+    </div>
+  ),
 }
 
 export default function App() {
@@ -41,6 +59,9 @@ export default function App() {
         maxWidth: '1100px',
         width: '100%',
       }}>
+        <div style={{ marginBottom: '16px' }}>
+          <PriceTicker />
+        </div>
         {!connectedAddress ? (
           <ConnectPanel />
         ) : (

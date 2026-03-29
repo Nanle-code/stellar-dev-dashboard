@@ -114,20 +114,6 @@ export async function fetchAccountOffers(
   return offers.records
 }
 
-// ─── Offers ───────────────────────────────────────────────────────────────────
-
-export async function fetchAccountOffers(
-  publicKey: string,
-  network: NetworkName = 'testnet'
-): Promise<StellarSdk.Horizon.ServerApi.OfferRecord[]> {
-  const server = getServer(network)
-  const offers = await server
-    .offers()
-    .forAccount(publicKey)
-    .call()
-  return offers.records
-}
-
 // ─── Operation labels ───────────────────────────────────────────────────────────
 
 export const OPERATION_LABELS: Record<string, string> = {

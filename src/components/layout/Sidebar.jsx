@@ -11,6 +11,10 @@ const NAV_ITEMS = [
   { id: 'network', label: 'Network', icon: '◎' },
   { id: 'builder', label: 'Builder', icon: '⚒' },
   { id: 'faucet', label: 'Faucet', icon: '⬡' },
+  { id: 'wallet', label: 'Wallet', icon: '⊡' },
+  { id: 'signer', label: 'Signer', icon: '✎' },
+  { id: 'portfolio', label: 'Portfolio', icon: '◐' },
+  { id: 'charts', label: 'Charts', icon: '▤' },
 ]
 
 export default function Sidebar() {

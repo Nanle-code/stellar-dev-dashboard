@@ -1,6 +1,53 @@
 import { create } from 'zustand'
+import { getStoredValue, setStoredValue } from './storage'
+import { broadcastStateChange, onStateChange } from '../utils/stateSync'
 
-export const useStore = create((set, get) => ({
+// Keys that will be persisted to IndexedDB
+const PERSISTED_KEYS = ['connectedAddress', 'network', 'theme', 'activeTab']
+
+// Persistence middleware – saves selected keys to IndexedDB and syncs across tabs
+const persistMiddleware = (config) => (set, get, api) => {
+  const persistedSet = (...args) => {
+    set(...args)
+    const state = get()
+    PERSISTED_KEYS.forEach((key) => {
+      if (state[key] !== undefined) {
+        setStoredValue(`store:${key}`, state[key])
+        broadcastStateChange(`store:${key}`, state[key])
+      }
+    })
+  }
+
+  // Hydrate from IndexedDB on init
+  Promise.all(
+    PERSISTED_KEYS.map((key) =>
+      getStoredValue(`store:${key}`).then((val) => (val !== null ? { [key]: val } : {}))
+    )
+  ).then((results) => {
+    const hydrated = Object.assign({}, ...results)
+    if (Object.keys(hydrated).length > 0) {
+      set(hydrated)
+      if (hydrated.theme) {
+        document.documentElement.setAttribute('data-theme', hydrated.theme)
+      }
+    }
+  })
+
+  // Listen for changes from other tabs
+  onStateChange((key, value) => {
+    const storeKey = key.replace('store:', '')
+    if (PERSISTED_KEYS.includes(storeKey) && value !== undefined) {
+      set({ [storeKey]: value })
+      if (storeKey === 'theme') {
+        document.documentElement.setAttribute('data-theme', value)
+      }
+    }
+  })
+
+  return config(persistedSet, get, api)
+}
+
+export const useStore = create(persistMiddleware((set, get) => ({
   // Theme
   theme: typeof localStorage !== 'undefined' ? localStorage.getItem('stellar-dashboard-theme') || 'dark' : 'dark',
   toggleTheme: () => set((state) => {
@@ -128,4 +175,27 @@ export const useStore = create((set, get) => ({
     newErrors[index] = error
     return { comparisonErrors: newErrors }
   }),
-}))
+
+  // Price feed state
+  prices: {},
+  pricesLoading: false,
+  pricesError: null,
+  setPrices: (prices) => set({ prices, pricesError: null }),
+  setPricesLoading: (v) => set({ pricesLoading: v }),
+  setPricesError: (e) => set({ pricesError: e }),
+
+  // Wallet state
+  walletConnected: false,
+  walletType: null,
+  walletPublicKey: null,
+  setWalletConnected: (connected, type, publicKey) => set({
+    walletConnected: connected,
+    walletType: type || null,
+    walletPublicKey: publicKey || null,
+  }),
+  disconnectWallet: () => set({
+    walletConnected: false,
+    walletType: null,
+    walletPublicKey: null,
+  }),
+})))

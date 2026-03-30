@@ -1,765 +1,218 @@
-import * as StellarSdk from '@stellar/stellar-sdk'
+/**
+ * Stellar Service with Caching and Rate Limiting
+ * All API calls are cached and rate-limited
+ */
 
-export const NETWORKS = {
-  mainnet: {
-    name: 'Mainnet',
-    horizonUrl: 'https://horizon.stellar.org',
-    sorobanUrl: 'https://soroban-rpc.stellar.org',
-    passphrase: StellarSdk.Networks.PUBLIC,
-  },
-  testnet: {
-    name: 'Testnet',
-    horizonUrl: 'https://horizon-testnet.stellar.org',
-    sorobanUrl: 'https://soroban-testnet.stellar.org',
-    passphrase: StellarSdk.Networks.TESTNET,
-    faucetUrl: 'https://friendbot.stellar.org',
-  },
-}
+import { Server } from 'stellar-sdk';
+import cache from './cache';
+import rateLimiter from './rateLimiter';
 
-export function getServer(network = 'testnet') {
-  return new StellarSdk.Horizon.Server(NETWORKS[network].horizonUrl)
-}
+// Initialize Stellar server
+const server = new Server(process.env.NEXT_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org');
 
-export function getSorobanServer(network = 'testnet') {
-  return new StellarSdk.SorobanRpc.Server(NETWORKS[network].sorobanUrl)
-}
+// Cache TTLs (in milliseconds)
+const CACHE_TTL = {
+  ACCOUNT: 60000,      // 1 minute
+  TRANSACTIONS: 30000, // 30 seconds
+  LEDGER: 5000,        // 5 seconds
+  ASSET: 300000,       // 5 minutes
+  NETWORK: 3600000,    // 1 hour
+};
 
-export async function fetchAccount(publicKey, network = 'testnet') {
-  const server = getServer(network)
-  return await server.loadAccount(publicKey)
-}
-
-export async function fetchTransactions(publicKey, network = 'testnet', limit = 20, cursor = null) {
-  const server = getServer(network)
-  const request = server
-    .transactions()
-    .forAccount(publicKey)
-    .order('desc')
-    .limit(limit)
-
-  if (cursor) request.cursor(cursor)
-
-  const txs = await request.call()
-  const records = txs.records || []
-  const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
-
-  return {
-    records,
-    nextCursor,
-    hasMore: records.length === limit && !!nextCursor,
+/**
+ * Rate-limited API call wrapper
+ * @param {string} identifier - User ID or IP for rate limiting
+ * @param {Function} apiCall - The API function to call
+ * @returns {Promise} API response
+ */
+async function rateLimitedCall(identifier, apiCall) {
+  const rateLimit = rateLimiter.check(identifier);
+  
+  if (!rateLimit.allowed) {
+    const error = new Error('Rate limit exceeded');
+    error.retryAfter = rateLimit.retryAfter;
+    error.statusCode = 429;
+    throw error;
   }
+  
+  return apiCall();
 }
 
-export async function fetchOperations(publicKey, network = 'testnet', limit = 20, cursor = null) {
-  const server = getServer(network)
-  const request = server
-    .operations()
-    .forAccount(publicKey)
-    .order('desc')
-    .limit(limit)
-
-  if (cursor) request.cursor(cursor)
-
-  const ops = await request.call()
-  const records = ops.records || []
-  const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
-
-  return {
-    records,
-    nextCursor,
-    hasMore: records.length === limit && !!nextCursor,
+/**
+ * Cached API call wrapper
+ * @param {string} cacheKey - Unique cache key
+ * @param {Function} apiCall - The API function to call
+ * @param {number} ttl - Time to live in milliseconds
+ * @returns {Promise} Cached or fresh data
+ */
+async function cachedCall(cacheKey, apiCall, ttl = CACHE_TTL.ACCOUNT) {
+  // Check cache first
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
+  
+  // Fetch fresh data
+  const data = await apiCall();
+  
+  // Store in cache
+  cache.set(cacheKey, data, ttl);
+  
+  return data;
 }
 
-export async function fetchAccountOffers(publicKey, network = 'testnet') {
-  const server = getServer(network)
-  const offers = await server
-    .offers()
-    .forAccount(publicKey)
-    .call()
-  return offers.records
+/**
+ * Get account details with caching and rate limiting
+ * @param {string} accountId - Stellar account ID
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Account details
+ */
+export async function getAccount(accountId, identifier = 'anonymous') {
+  const cacheKey = cache.generateKey('account', { id: accountId });
+  
+  return rateLimitedCall(identifier, () => 
+    cachedCall(cacheKey, () => server.loadAccount(accountId), CACHE_TTL.ACCOUNT)
+  );
 }
 
-export const OPERATION_LABELS = {
-  create_account: 'Create Account',
-  payment: 'Payment',
-  path_payment_strict_send: 'Path Payment (Send)',
-  path_payment_strict_receive: 'Path Payment (Receive)',
-  manage_buy_offer: 'Buy Offer',
-  manage_sell_offer: 'Sell Offer',
-  create_passive_sell_offer: 'Create Passive Sell Offer',
-  set_options: 'Set Options',
-  change_trust: 'Change Trust',
-  allow_trust: 'Allow Trust',
-  account_merge: 'Account Merge',
-  manage_data: 'Manage Data',
-  bump_sequence: 'Bump Sequence',
-  create_claimable_balance: 'Create Claimable Balance',
-  claim_claimable_balance: 'Claim Claimable Balance',
-  begin_sponsoring_future_reserves: 'Begin Sponsoring Future Reserves',
-  end_sponsoring_future_reserves: 'End Sponsoring Future Reserves',
-  revoke_sponsorship: 'Revoke Sponsorship',
-  clawback: 'Clawback',
-  clawback_claimable_balance: 'Clawback Claimable Balance',
-  set_trust_line_flags: 'Set Trustline Flags',
-  liquidity_pool_deposit: 'Liquidity Pool Deposit',
-  liquidity_pool_withdraw: 'Liquidity Pool Withdraw',
-  invoke_host_function: 'Contract Call',
-  extend_footprint_ttl: 'Extend Footprint TTL',
-  restore_footprint: 'Restore Footprint',
+/**
+ * Get account transactions with caching and pagination
+ * @param {string} accountId - Stellar account ID
+ * @param {number} limit - Number of transactions
+ * @param {string} cursor - Pagination cursor
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Transactions
+ */
+export async function getTransactions(accountId, limit = 20, cursor = null, identifier = 'anonymous') {
+  const cacheKey = cache.generateKey('transactions', { id: accountId, limit, cursor });
+  
+  return rateLimitedCall(identifier, () =>
+    cachedCall(cacheKey, async () => {
+      let txQuery = server.transactions().forAccount(accountId).order('desc').limit(limit);
+      if (cursor) {
+        txQuery = txQuery.cursor(cursor);
+      }
+      return txQuery.call();
+    }, CACHE_TTL.TRANSACTIONS)
+  );
 }
 
-function titleCaseLabel(value) {
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase())
-}
-
-export function getOperationLabel(type) {
-  return OPERATION_LABELS[type] || titleCaseLabel(type)
-export async function fetchAccountCreationDate(publicKey, network = 'testnet') {
-  const server = getServer(network)
-
-  try {
-    const ops = await server
-      .operations()
-      .forAccount(publicKey)
-      .order('asc')
-      .limit(1)
-      .call()
-
-    const operation = ops.records[0]
-    if (operation?.type !== 'create_account') return null
-
-    return operation.created_at || null
-  } catch {
-    return null
-  }
-}
-
-export async function fetchNetworkStats(network = 'testnet') {
-  const server = getServer(network)
-  const [ledger, feeStats] = await Promise.all([
-    server.ledgers().order('desc').limit(1).call(),
-    server.feeStats(),
-  ])
-  return {
-    latestLedger: ledger.records[0],
-    feeStats,
-  }
-}
-
-export function streamLedgers(callback, network = 'testnet') {
-  const server = getServer(network)
-  return server
-    .ledgers()
-    .cursor('now')
-    .stream({
-      onmessage: (ledger) => callback(ledger),
-      onerror: (error) => console.error('Ledger stream error:', error),
-    })
-}
-
-export async function fundTestnetAccount(publicKey) {
-  const res = await fetch(
-    `${NETWORKS.testnet.faucetUrl}?addr=${publicKey}`
-  )
-  if (!res.ok) throw new Error('Faucet request failed')
-  return await res.json()
-}
-
-export async function fetchContractInfo(contractId, network = 'testnet') {
-  const server = getSorobanServer(network)
-  try {
-    const instance = await server.getContractData(
-      contractId,
-      StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
-      StellarSdk.SorobanRpc.Durability.Persistent
+/**
+ * Get payment operations with caching
+ * @param {string} accountId - Stellar account ID
+ * @param {number} limit - Number of operations
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Payments
+ */
+export async function getPayments(accountId, limit = 20, identifier = 'anonymous') {
+  const cacheKey = cache.generateKey('payments', { id: accountId, limit });
+  
+  return rateLimitedCall(identifier, () =>
+    cachedCall(cacheKey, () => 
+      server.payments().forAccount(accountId).order('desc').limit(limit).call(),
+      CACHE_TTL.TRANSACTIONS
     )
-    return instance
-  } catch (e) {
-    throw new Error(`Contract not found: ${e.message}`)
-  }
+  );
 }
 
-function getLedgerKeyType(key) {
-  const kind = key.switch()
-  return kind?.name || kind?.toString?.() || 'unknown'
+/**
+ * Get ledger details with caching
+ * @param {number} ledgerSequence - Ledger sequence number
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Ledger details
+ */
+export async function getLedger(ledgerSequence, identifier = 'anonymous') {
+  const cacheKey = cache.generateKey('ledger', { sequence: ledgerSequence });
+  
+  return rateLimitedCall(identifier, () =>
+    cachedCall(cacheKey, () => server.ledgers().ledger(ledgerSequence).call(), CACHE_TTL.LEDGER)
+  );
 }
 
-function serializeLedgerKey(key) {
-  return {
-    type: getLedgerKeyType(key),
-    xdr: key.toXDR('base64'),
-  }
+/**
+ * Get current ledger (latest) with caching
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Latest ledger
+ */
+export async function getCurrentLedger(identifier = 'anonymous') {
+  return rateLimitedCall(identifier, () =>
+    cachedCall('current_ledger', () => server.ledgers().limit(1).order('desc').call(), CACHE_TTL.LEDGER)
+  );
 }
 
-function serializeScVal(value) {
-  try {
-    return StellarSdk.scValToNative(value)
-  } catch {
-    return value.toXDR('base64')
-  }
-}
-
-function serializeDiagnosticEvent(event) {
-  const contractEvent = event.event()
-  const body = contractEvent.body().v0()
-  const contractId = contractEvent.contractId()
-
-  return {
-    inSuccessfulContractCall: event.inSuccessfulContractCall(),
-    type: contractEvent.type().name || contractEvent.type().toString(),
-    contractId: contractId ? StellarSdk.Address.fromScAddress(contractId).toString() : null,
-    topics: body.topics().map(serializeScVal),
-    value: serializeScVal(body.data()),
-  }
-}
-
-function parseContractArgument({ type, value }, index) {
-  const trimmedValue = value?.trim?.() ?? ''
-
-  if (trimmedValue === '') {
-    throw new Error(`Argument ${index + 1} is empty`)
-  }
-
-  switch (type) {
-    case 'string':
-      return StellarSdk.nativeToScVal(trimmedValue, { type: 'string' })
-    case 'int': {
-      let parsed
-      try {
-        parsed = BigInt(trimmedValue)
-      } catch {
-        throw new Error(`Argument ${index + 1} must be a valid integer`)
-      }
-      return StellarSdk.nativeToScVal(parsed, { type: 'i128' })
-    }
-    case 'address':
-      try {
-        return StellarSdk.Address.fromString(trimmedValue).toScVal()
-      } catch {
-        throw new Error(`Argument ${index + 1} must be a valid Stellar address`)
-      }
-    case 'bool':
-      if (trimmedValue !== 'true' && trimmedValue !== 'false') {
-        throw new Error(`Argument ${index + 1} must be true or false`)
-      }
-      return StellarSdk.nativeToScVal(trimmedValue === 'true', { type: 'bool' })
-    default:
-      throw new Error(`Unsupported argument type: ${type}`)
-  }
-}
-
-async function buildContractInvocationTransaction({
-  contractId,
-  functionName,
-  args = [],
-  sourceAccount,
-  network = 'testnet',
-}) {
-  if (!isValidContractId(contractId)) {
-    throw new Error('Invalid contract address')
-  }
-
-  if (!functionName?.trim()) {
-    throw new Error('Function name is required')
-  }
-
-  if (!isValidPublicKey(sourceAccount)) {
-    throw new Error('A valid source account is required')
-  }
-
-  const horizon = getServer(network)
-  const account = await horizon.loadAccount(sourceAccount)
-  const contract = new StellarSdk.Contract(contractId.trim())
-  const parsedArgs = args.map(parseContractArgument)
-
-  return new StellarSdk.TransactionBuilder(account, {
-    fee: StellarSdk.BASE_FEE.toString(),
-    networkPassphrase: NETWORKS[network].passphrase,
-  })
-    .setTimeout(30)
-    .addOperation(contract.call(functionName.trim(), ...parsedArgs))
-    .build()
-}
-
-export async function simulateContractCall({
-  contractId,
-  functionName,
-  args = [],
-  sourceAccount,
-  network = 'testnet',
-}) {
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction({
-    contractId,
-    functionName,
-    args,
-    sourceAccount,
-    network,
-  })
-
-  const simulation = await server.simulateTransaction(transaction)
-
-  if (simulation.error) {
-    throw new Error(simulation.error)
-  }
-
-  const footprint = simulation.transactionData
-    ? {
-        readOnly: simulation.transactionData.getReadOnly().map(serializeLedgerKey),
-        readWrite: simulation.transactionData.getReadWrite().map(serializeLedgerKey),
-        minResourceFee: simulation.minResourceFee,
-      }
-    : null
-
-  return {
-    xdr: transaction.toXDR(),
-    latestLedger: simulation.latestLedger,
-    cost: simulation.cost,
-    result: simulation.result ? serializeScVal(simulation.result.retval) : null,
-    events: (simulation.events || []).map(serializeDiagnosticEvent),
-    footprint,
-  }
-}
-
-export async function invokeContract({
-  contractId,
-  functionName,
-  args = [],
-  secretKey,
-  network = 'testnet',
-}) {
-  if (network !== 'testnet') {
-    throw new Error('Transaction submission is only enabled on Testnet')
-  }
-
-  if (!secretKey?.trim()) {
-    throw new Error('Secret key is required to submit a transaction')
-  }
-
-  let keypair
-  try {
-    keypair = StellarSdk.Keypair.fromSecret(secretKey.trim())
-  } catch {
-    throw new Error('Invalid secret key')
-  }
-
-  const sourceAccount = keypair.publicKey()
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction({
-    contractId,
-    functionName,
-    args,
-    sourceAccount,
-    network,
-  })
-  const prepared = await server.prepareTransaction(transaction)
-
-  prepared.sign(keypair)
-
-  const response = await server.sendTransaction(prepared)
-
-  return {
-    hash: response.hash,
-    status: response.status,
-    errorResult: response.errorResult ? response.errorResult.toXDR('base64') : null,
-    diagnosticEvents: (response.diagnosticEvents || []).map(event => event.toXDR('base64')),
-  }
-}
-
-function normalizeContractValue(value) {
-  if (typeof value === 'bigint') return value.toString()
-  if (value instanceof Uint8Array) return Array.from(value)
-  if (Array.isArray(value)) return value.map(normalizeContractValue)
-
-  if (value && typeof value === 'object') {
-    if (typeof value.toString === 'function' && value.constructor && value.constructor.name === 'Address') {
-      return value.toString()
-    }
-
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, normalizeContractValue(entry)])
+/**
+ * Get asset details with caching
+ * @param {string} assetCode - Asset code
+ * @param {string} assetIssuer - Asset issuer address
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Asset details
+ */
+export async function getAsset(assetCode, assetIssuer, identifier = 'anonymous') {
+  const cacheKey = cache.generateKey('asset', { code: assetCode, issuer: assetIssuer });
+  
+  return rateLimitedCall(identifier, () =>
+    cachedCall(cacheKey, () => 
+      server.assets().forCode(assetCode).forIssuer(assetIssuer).call(),
+      CACHE_TTL.ASSET
     )
-  }
-
-  return value
+  );
 }
 
-function formatLedgerKey(key) {
-  return {
-    type: key.switch().name,
-    xdr: key.toXDR('base64'),
-  }
+/**
+ * Get network statistics with caching
+ * @param {string} identifier - Rate limit identifier
+ * @returns {Promise} Network stats
+ */
+export async function getNetworkStats(identifier = 'anonymous') {
+  return rateLimitedCall(identifier, () =>
+    cachedCall('network_stats', async () => {
+      const [ledger, operations] = await Promise.all([
+        getCurrentLedger(identifier),
+        server.operations().limit(1).order('desc').call(),
+      ]);
+      
+      return {
+        currentLedger: ledger.records[0]?.sequence || 0,
+        lastOperationTime: operations.records[0]?.created_at || null,
+        networkPassphrase: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'Testnet',
+      };
+    }, CACHE_TTL.NETWORK)
+  );
 }
 
-function formatFootprint(transactionData) {
-  if (!transactionData) return { readOnly: [], readWrite: [] }
-
-  return {
-    readOnly: transactionData.getReadOnly().map(formatLedgerKey),
-    readWrite: transactionData.getReadWrite().map(formatLedgerKey),
-  }
-}
-
-function toContractScVal(arg, index) {
-  const value = arg.value?.trim?.() ?? ''
-
-  switch (arg.type) {
-    case 'string':
-      return StellarSdk.nativeToScVal(value)
-    case 'int':
-      if (!value) throw new Error(`Argument ${index + 1}: Enter an integer value`)
-      try {
-        return StellarSdk.nativeToScVal(BigInt(value), { type: 'i128' })
-      } catch {
-        throw new Error(`Argument ${index + 1}: Invalid integer value`)
+/**
+ * Clear cache for specific pattern
+ * @param {string} pattern - Key pattern to clear
+ */
+export function clearCache(pattern = null) {
+  if (pattern) {
+    const keys = cache.keys();
+    keys.forEach(key => {
+      if (key.startsWith(pattern)) {
+        cache.delete(key);
       }
-    case 'address':
-      if (!value) throw new Error(`Argument ${index + 1}: Enter an address`)
-      try {
-        return StellarSdk.Address.fromString(value).toScVal()
-      } catch {
-        throw new Error(`Argument ${index + 1}: Invalid Stellar address`)
-      }
-    case 'bool':
-      if (value !== 'true' && value !== 'false') {
-        throw new Error(`Argument ${index + 1}: Boolean values must be true or false`)
-      }
-      return StellarSdk.nativeToScVal(value === 'true')
-    default:
-      throw new Error(`Argument ${index + 1}: Unsupported argument type`)
-  }
-}
-
-async function buildContractInvocationTransaction({
-  sourceAccount,
-  contractId,
-  functionName,
-  args = [],
-  network = 'testnet',
-  fee = StellarSdk.BASE_FEE,
-}) {
-  if (!sourceAccount || !isValidPublicKey(sourceAccount)) {
-    throw new Error('Enter a valid source account public key')
-  }
-
-  if (!contractId || !isValidContractId(contractId)) {
-    throw new Error('Enter a valid contract ID')
-  }
-
-  if (!functionName?.trim()) {
-    throw new Error('Enter a contract function name')
-  }
-
-  const account = await getServer(network).loadAccount(sourceAccount)
-  const contract = new StellarSdk.Contract(contractId)
-  const scArgs = args.map(toContractScVal)
-
-  return new StellarSdk.TransactionBuilder(account, {
-    fee: String(fee),
-    networkPassphrase: NETWORKS[network].passphrase,
-  })
-    .addOperation(contract.call(functionName.trim(), ...scArgs))
-    .setTimeout(30)
-    .build()
-}
-
-function formatSimulation(simulation) {
-  const isSuccess = StellarSdk.SorobanRpc.Api.isSimulationSuccess(simulation)
-  const isRestore = StellarSdk.SorobanRpc.Api.isSimulationRestore(simulation)
-
-  return {
-    success: isSuccess,
-    error: simulation.error || null,
-    latestLedger: simulation.latestLedger,
-    cost: simulation.cost || null,
-    minResourceFee: simulation.minResourceFee || null,
-    result: simulation.result ? normalizeContractValue(StellarSdk.scValToNative(simulation.result.retval)) : null,
-    resultXdr: simulation.result?.retval?.toXDR('base64') || null,
-    auth: simulation.result?.auth?.map((entry) => entry.toXDR('base64')) || [],
-    events: StellarSdk.humanizeEvents(simulation.events || []).map(normalizeContractValue),
-    footprint: isSuccess ? formatFootprint(simulation.transactionData) : { readOnly: [], readWrite: [] },
-    stateChanges: simulation.stateChanges?.map((change) => ({
-      type: change.type,
-      key: change.key.toXDR('base64'),
-      before: change.before ? change.before.toXDR('base64') : null,
-      after: change.after ? change.after.toXDR('base64') : null,
-    })) || [],
-    restoreRequired: isRestore,
-    restorePreamble: isRestore ? {
-      minResourceFee: simulation.restorePreamble.minResourceFee,
-      footprint: formatFootprint(simulation.restorePreamble.transactionData),
-    } : null,
-  }
-}
-
-async function waitForTransaction(server, hash, attempts = 12, delayMs = 1500) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const response = await server.getTransaction(hash)
-
-    if (response.status !== StellarSdk.SorobanRpc.Api.GetTransactionStatus.NOT_FOUND) {
-      return response
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, delayMs))
-  }
-
-  return null
-}
-
-function formatSubmittedTransaction(transaction) {
-  if (!transaction) return null
-
-  const diagnosticEvents = transaction.diagnosticEventsXdr
-    ? StellarSdk.humanizeEvents(transaction.diagnosticEventsXdr).map(normalizeContractValue)
-    : []
-
-  return {
-    status: transaction.status,
-    ledger: transaction.ledger,
-    createdAt: transaction.createdAt,
-    returnValue: transaction.returnValue
-      ? normalizeContractValue(StellarSdk.scValToNative(transaction.returnValue))
-      : null,
-    returnValueXdr: transaction.returnValue?.toXDR('base64') || null,
-    events: diagnosticEvents,
-    resultXdr: transaction.resultXdr?.toXDR('base64') || null,
-  }
-}
-
-export async function simulateContractCall({
-  sourceAccount,
-  contractId,
-  functionName,
-  args = [],
-  network = 'testnet',
-}) {
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction({
-    sourceAccount,
-    contractId,
-    functionName,
-    args,
-    network,
-  })
-  const simulation = await server.simulateTransaction(transaction)
-
-  return {
-    transactionXdr: transaction.toXDR(),
-    ...formatSimulation(simulation),
-  }
-}
-
-export async function invokeContract({
-  contractId,
-  functionName,
-  args = [],
-  secretKey,
-  sourceAccount,
-  network = 'testnet',
-}) {
-  if (network !== 'testnet') {
-    throw new Error('Submitting contract invocations is only enabled on Testnet')
-  }
-
-  const trimmedSecret = secretKey?.trim()
-  if (!trimmedSecret || !StellarSdk.StrKey.isValidEd25519SecretSeed(trimmedSecret)) {
-    throw new Error('Enter a valid Stellar secret key')
-  }
-
-  const keypair = StellarSdk.Keypair.fromSecret(trimmedSecret)
-  const derivedSourceAccount = keypair.publicKey()
-
-  if (sourceAccount && sourceAccount !== derivedSourceAccount) {
-    throw new Error('Source account must match the provided secret key')
-  }
-
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction({
-    sourceAccount: derivedSourceAccount,
-    contractId,
-    functionName,
-    args,
-    network,
-  })
-
-  const preparedTransaction = await server.prepareTransaction(transaction)
-  preparedTransaction.sign(keypair)
-
-  const sendResponse = await server.sendTransaction(preparedTransaction)
-
-  if (sendResponse.status === 'ERROR') {
-    throw new Error(sendResponse.errorResult
-      ? sendResponse.errorResult.toXDR('base64')
-      : 'Soroban RPC rejected the transaction')
-  }
-
-  const finalized = await waitForTransaction(server, sendResponse.hash)
-
-  if (finalized?.status === StellarSdk.SorobanRpc.Api.GetTransactionStatus.FAILED) {
-    throw new Error(finalized.resultXdr?.toXDR('base64') || 'Submitted transaction failed')
-  }
-
-  return {
-    hash: sendResponse.hash,
-    sendStatus: sendResponse.status,
-    latestLedger: sendResponse.latestLedger,
-    transactionXdr: preparedTransaction.toXDR(),
-    transaction: formatSubmittedTransaction(finalized),
-    pending: !finalized,
-  }
-}
-
-export function isValidPublicKey(key) {
-  return StellarSdk.StrKey.isValidEd25519PublicKey(key)
-}
-
-export function isValidContractId(id) {
-  try {
-    StellarSdk.Address.fromString(id)
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function formatXLM(amount) {
-  return parseFloat(amount).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 7,
-  })
-}
-
-export function shortAddress(addr, chars = 6) {
-  if (!addr) return ''
-  return `${addr.slice(0, chars)}…${addr.slice(-chars)}`
-}
-
-export async function buildTransaction({ sourceAccount, operations, memo, baseFee, timeBounds, network }) {
-  const server = getServer(network)
-  const account = await server.loadAccount(sourceAccount)
-
-  const txBuilder = new StellarSdk.TransactionBuilder(account, {
-    fee: baseFee.toString(),
-    networkPassphrase: NETWORKS[network].passphrase,
-  })
-
-  // Add time bounds if specified
-  if (timeBounds.minTime || timeBounds.maxTime) {
-    txBuilder.setTimeout(
-      timeBounds.maxTime ? parseInt(timeBounds.maxTime) - Math.floor(Date.now() / 1000) : 0
-    )
-  }
-
-  // Add operations
-  operations.forEach(op => {
-    if (op.type === 'payment') {
-      txBuilder.addOperation(StellarSdk.Operation.payment({
-        destination: op.destination,
-        asset: StellarSdk.Asset.native(),
-        amount: op.amount
-      }))
-    } else if (op.type === 'createAccount') {
-      txBuilder.addOperation(StellarSdk.Operation.createAccount({
-        destination: op.destination,
-        startingBalance: op.startingBalance
-      }))
-    }
-  })
-
-  // Add memo if specified
-  if (memo) {
-    txBuilder.addMemo(StellarSdk.Memo.text(memo))
-  }
-
-  return txBuilder.build()
-}
-
-export async function simulateTransaction(params) {
-  try {
-    const transaction = await buildTransaction(params)
-
-    // For simulation, we'll validate the transaction structure and estimate fees
-    // In a real implementation, you might use Soroban RPC for more detailed simulation
-
-    // Basic validation
-    if (!isValidPublicKey(params.sourceAccount)) {
-      throw new Error('Invalid source account')
-    }
-
-    // Validate operations
-    const errors = []
-    params.operations.forEach((op, index) => {
-      if (op.type === 'payment') {
-        if (!isValidPublicKey(op.destination)) {
-          errors.push(`Operation ${index + 1}: Invalid destination address`)
-        }
-        if (!op.amount || parseFloat(op.amount) <= 0) {
-          errors.push(`Operation ${index + 1}: Invalid amount`)
-        }
-      } else if (op.type === 'createAccount') {
-        if (!isValidPublicKey(op.destination)) {
-          errors.push(`Operation ${index + 1}: Invalid destination address`)
-        }
-        if (!op.startingBalance || parseFloat(op.startingBalance) < 1) {
-          errors.push(`Operation ${index + 1}: Starting balance must be at least 1 XLM`)
-        }
-      }
-    })
-
-    // Calculate estimated fee (base fee * number of operations)
-    const estimatedFee = params.baseFee * params.operations.length
-
-    return {
-      fee: estimatedFee,
-      operationCount: transaction.operations.length,
-      success: errors.length === 0,
-      errors,
-      xdr: transaction.toXDR()
-    }
-  } catch (error) {
-    return {
-      fee: 0,
-      operationCount: params.operations.length,
-      success: false,
-      errors: [error.message]
-    }
-  }
-}
-
-export async function exportTransactionXDR(params) {
-  const transaction = await buildTransaction(params)
-  return transaction.toXDR()
-}
-
-export async function fetchPaymentPaths({ sourceAsset, destAsset, amount, mode = 'strict-send', network = 'testnet' }) {
-  const horizonUrl = NETWORKS[network].horizonUrl
-
-  function assetParams(asset, prefix) {
-    if (asset.type === 'native') {
-      return `${prefix}_asset_type=native`
-    }
-    return `${prefix}_asset_type=credit_alphanum${asset.code.length <= 4 ? '4' : '12'}&${prefix}_asset_code=${asset.code}&${prefix}_asset_issuer=${asset.issuer}`
-  }
-
-  function assetString(asset) {
-    if (asset.type === 'native') return 'native'
-    return `${asset.code}:${asset.issuer}`
-  }
-
-  let url
-  if (mode === 'strict-send') {
-    url = `${horizonUrl}/paths/strict-send?${assetParams(sourceAsset, 'source')}&source_amount=${amount}&destination_assets=${encodeURIComponent(assetString(destAsset))}`
+    });
   } else {
-    url = `${horizonUrl}/paths/strict-receive?${assetParams(destAsset, 'destination')}&destination_amount=${amount}&source_assets=${encodeURIComponent(assetString(sourceAsset))}`
+    cache.clear();
   }
-
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Horizon error: ${res.status}`)
-  const data = await res.json()
-  return data._embedded?.records || []
 }
 
-export { StellarSdk }
+/**
+ * Get cache statistics
+ * @returns {object} Cache stats
+ */
+export function getCacheStats() {
+  return cache.getStats();
+}
+
+export default {
+  getAccount,
+  getTransactions,
+  getPayments,
+  getLedger,
+  getCurrentLedger,
+  getAsset,
+  getNetworkStats,
+  clearCache,
+  getCacheStats,
+};

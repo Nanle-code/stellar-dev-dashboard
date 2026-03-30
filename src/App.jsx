@@ -1,4 +1,7 @@
 import React, { useEffect } from "react";
+import { I18nProvider } from "./components/I18nProvider";
+import "./i18n/index.js";
+
 import Sidebar from "./components/layout/Sidebar";
 import ConnectPanel from "./components/dashboard/ConnectPanel";
 import Overview from "./components/dashboard/Overview";
@@ -23,26 +26,11 @@ import DEXExplorer from "./components/dashboard/DEXExplorer";
 import ExplorerEmbed from "./components/dashboard/ExplorerEmbed";
 import RealTimeLedger from "./components/dashboard/RealTimeLedger";
 import { useStore } from "./lib/store";
+import { useTranslation } from "./hooks/useTranslation";
 
-const TABS = {
-  overview: Overview,
-  account: Account,
-  transactions: Transactions,
-  contracts: Contracts,
-  network: NetworkStats,
-  builder: Builder,
-  faucet: Faucet,
-  compare: AccountComparison,
-  wallet: WalletConnect,
-  signer: TransactionSigner,
-  portfolio: PortfolioValue,
-  txBuilder: TransactionBuilder,
-  contractInteraction: ContractInteraction,
-  contractABI: ContractABI,
-  dex: DEXExplorer,
-  explorers: ExplorerEmbed,
-  realtime: RealTimeLedger,
-  charts: () => (
+const ChartsTab = () => {
+  const { t } = useTranslation();
+  return (
     <div
       className="animate-in"
       style={{ display: "flex", flexDirection: "column", gap: "24px" }}
@@ -54,16 +42,37 @@ const TABS = {
           fontWeight: 700,
         }}
       >
-        Charts & Analytics
+        {t("charts.title")}
       </div>
       <NetworkMetricsChart />
       <AccountActivityChart />
       <BalanceHistoryChart />
     </div>
-  ),
+  );
 };
 
-export default function App() {
+const TABS = {
+  overview: Overview,
+  account: Account,
+  transactions: Transactions,
+  contracts: Contracts,
+  network: NetworkStats,
+  builder: Builder,
+  faucet: Faucet,
+  compare: Compare,
+  wallet: WalletConnect,
+  signer: TransactionSigner,
+  portfolio: PortfolioValue,
+  txBuilder: TransactionBuilder,
+  contractInteraction: ContractInteraction,
+  contractABI: ContractABI,
+  dex: DEXExplorer,
+  explorers: ExplorerEmbed,
+  realtime: RealTimeLedger,
+  charts: ChartsTab,
+};
+
+function DashboardLayout() {
   const { connectedAddress, activeTab, theme } = useStore();
 
   useEffect(() => {
@@ -97,5 +106,13 @@ export default function App() {
         {!connectedAddress ? <ConnectPanel /> : <ActiveComponent />}
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <I18nProvider>
+      <DashboardLayout />
+    </I18nProvider>
   );
 }

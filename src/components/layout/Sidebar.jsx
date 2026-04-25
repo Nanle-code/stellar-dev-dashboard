@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useStore } from '../../lib/store'
 import CopyableValue from '../dashboard/CopyableValue'
+import { NETWORKS, updateCustomNetworkConfig } from '../../lib/stellar'
 
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: '◈' },
@@ -53,6 +54,18 @@ export default function Sidebar({ isMobile = false }) {
     transform: isMobile ? (isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
     transition: 'transform var(--transition)',
     boxShadow: isMobile && isMobileMenuOpen ? '4px 0 20px rgba(0, 0, 0, 0.3)' : 'none',
+  }
+
+  const customInputStyle = {
+    width: '100%',
+    padding: '6px 10px',
+    fontSize: '10px',
+    fontFamily: 'var(--font-mono)',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--text-primary)',
+    outline: 'none',
   }
 
   return (
@@ -123,32 +136,55 @@ export default function Sidebar({ isMobile = false }) {
 
         {/* Network toggle */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '1px' }}>NETWORK</div>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {['testnet', 'mainnet'].map(n => (
-              <button
-                key={n}
-                onClick={() => setNetwork(n)}
-                className="touch-target-sm"
-                style={{
-                  flex: 1,
-                  padding: '8px 0',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  background: network === n ? 'var(--cyan-glow)' : 'transparent',
-                  border: `1px solid ${network === n ? 'var(--cyan)' : 'var(--border)'}`,
-                  color: network === n ? 'var(--cyan)' : 'var(--text-muted)',
-                  borderRadius: 'var(--radius-sm)',
-                  transition: 'var(--transition)',
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                {n === 'testnet' ? 'Test' : 'Main'}
-              </button>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '1px' }}>NETWORK</div>
+          <select
+            value={network}
+            onChange={(e) => setNetwork(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--bg-hover)',
+              border: '1px solid var(--cyan-dim)',
+              color: 'var(--cyan)',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              outline: 'none',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              appearance: 'none',
+            }}
+          >
+            {Object.entries(NETWORKS).map(([id, config]) => (
+              <option key={id} value={id} style={{ background: 'var(--bg-surface)' }}>
+                {config.name}
+              </option>
             ))}
-          </div>
+          </select>
+
+          {network === 'custom' && (
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <input
+                placeholder="Horizon URL"
+                defaultValue={NETWORKS.custom.horizonUrl}
+                style={customInputStyle}
+                onChange={(e) => updateCustomNetworkConfig({ horizonUrl: e.target.value.trim() })}
+              />
+              <input
+                placeholder="Soroban RPC URL"
+                defaultValue={NETWORKS.custom.sorobanUrl}
+                style={customInputStyle}
+                onChange={(e) => updateCustomNetworkConfig({ sorobanUrl: e.target.value.trim() })}
+              />
+              <input
+                placeholder="Network Passphrase"
+                defaultValue={NETWORKS.custom.passphrase}
+                style={customInputStyle}
+                onChange={(e) => updateCustomNetworkConfig({ passphrase: e.target.value.trim() })}
+              />
+            </div>
+          )}
         </div>
 
         {/* Nav */}

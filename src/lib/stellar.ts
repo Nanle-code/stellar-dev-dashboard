@@ -2,12 +2,12 @@ import * as StellarSdk from '@stellar/stellar-sdk'
 
 // ─── Network config ───────────────────────────────────────────────────────────
 
-export type NetworkName = 'mainnet' | 'testnet'
+export type NetworkName = 'mainnet' | 'testnet' | 'futurenet' | 'local' | 'custom'
 
 export interface NetworkConfig {
   name: string
   horizonUrl: string
-  sorobanUrl: string
+  sorobanUrl?: string
   passphrase: string
   faucetUrl?: string
 }
@@ -26,18 +26,50 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     passphrase: StellarSdk.Networks.TESTNET,
     faucetUrl: 'https://friendbot.stellar.org',
   },
+  futurenet: {
+    name: 'Futurenet',
+    horizonUrl: 'https://horizon-futurenet.stellar.org',
+    sorobanUrl: 'https://soroban-futurenet.stellar.org',
+    passphrase: StellarSdk.Networks.FUTURENET,
+    faucetUrl: 'https://friendbot-futurenet.stellar.org',
+  },
+  local: {
+    name: 'Local',
+    horizonUrl: 'http://localhost:8000',
+    sorobanUrl: 'http://localhost:8000/soroban/rpc',
+    passphrase: 'Standalone Network ; February 2017',
+  },
+  custom: {
+    name: 'Custom',
+    horizonUrl: '',
+    sorobanUrl: '',
+    passphrase: '',
+  },
 }
 
 const COINGECKO_XLM_PRICE_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd'
 
 // ─── Servers ──────────────────────────────────────────────────────────────────
 
+export function getNetworkDetails(network: NetworkName): NetworkConfig {
+  return NETWORKS[network]
+}
+
+export function updateCustomNetworkConfig(config: Partial<NetworkConfig>) {
+  Object.assign(NETWORKS.custom, config)
+}
+
 export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.Server {
-  return new StellarSdk.Horizon.Server(NETWORKS[network].horizonUrl)
+  const config = NETWORKS[network]
+  return new StellarSdk.Horizon.Server(config.horizonUrl || NETWORKS.testnet.horizonUrl)
 }
 
 export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {
-  return new StellarSdk.SorobanRpc.Server(NETWORKS[network].sorobanUrl)
+  const config = NETWORKS[network]
+  if (network === 'custom' && !config.sorobanUrl) {
+    throw new Error('Custom Soroban RPC URL not configured')
+  }
+  return new StellarSdk.SorobanRpc.Server(config.sorobanUrl || NETWORKS.testnet.sorobanUrl!)
 }
 
 // ─── Account ──────────────────────────────────────────────────────────────────

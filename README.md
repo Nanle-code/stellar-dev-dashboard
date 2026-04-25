@@ -231,7 +231,7 @@ All global state lives in a single Zustand store (`src/lib/store.ts`). The store
 
 | Slice | What it holds |
 |---|---|
-| `network` | `'mainnet'` or `'testnet'` — switching resets account/tx/ops data |
+| `network` | `'mainnet'`, `'testnet'`, `'futurenet'`, `'local'`, or `'custom'` — switching resets account/tx/ops data |
 | `connectedAddress` | The currently viewed public key |
 | `accountData` | Full `Horizon.AccountResponse` |
 | `transactions` / `operations` | Arrays with cursor-based pagination state |
@@ -255,6 +255,9 @@ Defined in `src/lib/stellar.ts`:
 |---|---|---|
 | Testnet | `https://horizon-testnet.stellar.org` | `https://soroban-testnet.stellar.org` |
 | Mainnet | `https://horizon.stellar.org` | `https://soroban-rpc.stellar.org` |
+| Futurenet | `https://horizon-futurenet.stellar.org` | `https://soroban-futurenet.stellar.org` |
+| Local | `http://localhost:8000` | `http://localhost:8000/soroban/rpc` |
+| Custom | *User defined* | *User defined* |
 
 The network switcher in the sidebar calls `setNetwork()` which resets all account-specific state.
 

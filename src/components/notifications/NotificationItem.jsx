@@ -1,75 +1,75 @@
-import React, { useEffect, useState } from 'react';
-import { CheckCircle2, XCircle, AlertCircle, Info, X } from 'lucide-react';
-import '../../styles/accessibility.css'; // Just to make sure we have access to sr-only if needed
+import React, { useEffect, useState, useRef } from 'react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 
-const ICONS = {
-  success: <CheckCircle2 className="w-5 h-5 text-green" />,
-  error: <XCircle className="w-5 h-5 text-red" />,
-  warning: <AlertCircle className="w-5 h-5 text-amber" />,
-  info: <Info className="w-5 h-5 text-cyan" />
-};
-
-const BORDERS = {
-  success: 'border-green',
-  error: 'border-red',
-  warning: 'border-amber',
-  info: 'border-cyan'
+const TYPE_ICONS = {
+  success: CheckCircle2,
+  error: XCircle,
+  warning: AlertTriangle,
+  info: Info,
 };
 
 const NotificationItem = ({ notification, onClose }) => {
-  const [isExiting, setIsExiting] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const timerRef = useRef(null);
 
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      onClose(notification.id);
-    }, 300); // Matches transition duration
+  const dismiss = () => {
+    if (exiting) return;
+    setExiting(true);
+    setTimeout(() => onClose(notification.id), 260);
   };
 
   useEffect(() => {
-    if (notification.timeout !== 0) {
-      const timer = setTimeout(() => {
-        setIsExiting(true);
-      }, notification.timeout - 300);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
+    if (!notification.timeout || notification.timeout <= 0) return;
+
+    timerRef.current = setTimeout(dismiss, notification.timeout);
+    return () => clearTimeout(timerRef.current);
+  }, []); // intentionally run once
+
+  const Icon = TYPE_ICONS[notification.type] || Info;
 
   return (
     <div
       role="alert"
-      className={`pointer-events-auto flex w-full max-w-md bg-bg-surface overflow-hidden rounded-lg shadow-lg ring-1 ring-border border-l-4 ${
-        BORDERS[notification.type] || BORDERS.info
-      } transition-all duration-300 ease-in-out ${
-        isExiting ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'
-      }`}
+      className={`notification-item${exiting ? ' exiting' : ''}`}
+      data-type={notification.type}
+      style={{ position: 'relative', overflow: 'hidden' }}
+      onMouseEnter={() => {
+        // pause auto-dismiss on hover
+        if (timerRef.current) clearTimeout(timerRef.current);
+      }}
+      onMouseLeave={() => {
+        if (!notification.timeout || notification.timeout <= 0 || exiting) return;
+        timerRef.current = setTimeout(dismiss, 2000);
+      }}
     >
-      <div className="p-4 flex items-start w-full">
-        <div className="flex-shrink-0 pt-0.5">
-          {ICONS[notification.type] || ICONS.info}
-        </div>
-        <div className="ml-3 w-0 flex-1 flex flex-col pt-0.5">
-          <p className="text-sm font-medium text-text-primary">
-            {notification.title}
-          </p>
-          {notification.message && (
-            <p className="mt-1 text-sm text-text-secondary">
-              {notification.message}
-            </p>
-          )}
-        </div>
-        <div className="ml-4 flex flex-shrink-0">
-          <button
-            type="button"
-            className="inline-flex rounded-md text-text-muted hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-cyan"
-            onClick={handleClose}
-          >
-            <span className="sr-only">Close</span>
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+      <div className="notification-icon">
+        <Icon size={16} />
       </div>
+
+      <div className="notification-body">
+        <div className="notification-title">{notification.title}</div>
+        {notification.message && (
+          <div className="notification-message">{notification.message}</div>
+        )}
+      </div>
+
+      <button
+        className="notification-close"
+        onClick={dismiss}
+        aria-label="Dismiss notification"
+      >
+        <X size={14} />
+      </button>
+
+      {notification.timeout > 0 && !exiting && (
+        <div
+          className="notification-progress"
+          style={{
+            width: '100%',
+            animation: `notif-shrink ${notification.timeout}ms linear forwards`,
+          }}
+        />
+      )}
     </div>
   );
 };

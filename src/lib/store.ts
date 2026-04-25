@@ -5,6 +5,7 @@ import type {
   PaymentPathRecord,
 } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
+import { notificationManager } from './notifications'
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -80,6 +81,12 @@ export interface StoreState {
   setContractData: (data: SorobanRpc.Api.LedgerEntryResult) => void
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
+
+  // Notifications
+  notifications: any[]
+  addNotification: (notification: any) => void
+  removeNotification: (id: string) => void
+  clearNotifications: () => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -177,4 +184,16 @@ export const useStore = create<StoreState>((set) => ({
   setContractData: (data) => set({ contractData: data, contractError: null }),
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
+
+  // Notifications
+  notifications: [],
+  addNotification: (notification) => set((state) => ({
+    notifications: [notification, ...state.notifications].slice(0, 10)
+  })),
+  removeNotification: (id) => set((state) => ({
+    notifications: state.notifications.filter((n: any) => n.id !== id)
+  })),
+  clearNotifications: () => set({ notifications: [] }),
 }))
+
+notificationManager._bindStore(useStore)

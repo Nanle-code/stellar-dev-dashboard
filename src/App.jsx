@@ -28,6 +28,8 @@ import ExplorerEmbed from "./components/dashboard/ExplorerEmbed";
 import RealTimeLedger from "./components/dashboard/RealTimeLedger";
 import { AssetDiscovery } from "./components/assets";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { NotificationContainer, NotificationHistory } from "./components/notifications";
+import "./styles/notifications.css";
 import { useStore } from "./lib/store";
 import { useTranslation } from "./hooks/useTranslation";
 import { useResponsive } from "./hooks/useResponsive";
@@ -202,6 +204,8 @@ function DashboardLayout() {
             {!connectedAddress ? <ConnectPanel /> : <ActiveComponent />}
           </ErrorBoundary>
         </main>
+        <NotificationContainer />
+        <NotificationHistory />
       </div>
     </ErrorBoundary>
   );

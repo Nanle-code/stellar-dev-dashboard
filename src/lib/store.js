@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { getStoredValue, setStoredValue } from './storage'
 import { broadcastStateChange, onStateChange } from '../utils/stateSync'
+import { notificationManager } from './notifications'
 
 import { THEMES, THEME_STORAGE_KEY } from '../styles/themes'
 
@@ -218,11 +219,12 @@ export const useStore = create(persistMiddleware((set, get) => ({
   // Notifications
   notifications: [],
   addNotification: (notification) => set((state) => ({
-    notifications: [...state.notifications, notification]
+    notifications: [notification, ...state.notifications].slice(0, 10)
   })),
   removeNotification: (id) => set((state) => ({
     notifications: state.notifications.filter(n => n.id !== id)
   })),
+  clearNotifications: () => set({ notifications: [] }),
 
   // Streaming
   streamStatus: 'disconnected',
@@ -236,3 +238,6 @@ export const useStore = create(persistMiddleware((set, get) => ({
   clearStreamLedgers: () => set({ streamLedgers: [] }),
   setStreamError: (e) => set({ streamError: e }),
 })))
+
+// let the notification manager push directly into the store
+notificationManager._bindStore(useStore)

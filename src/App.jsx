@@ -29,11 +29,13 @@ import ExplorerEmbed from "./components/dashboard/ExplorerEmbed";
 import RealTimeLedger from "./components/dashboard/RealTimeLedger";
 import { AssetDiscovery } from "./components/assets";
 import { MultisigManager } from "./components/multisig";
+import AuditLog from "./components/dashboard/AuditLog";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useStore } from "./lib/store";
 import { useTranslation } from "./hooks/useTranslation";
 import { useResponsive } from "./hooks/useResponsive";
 import { initializeErrorReporting, addBreadcrumb } from "./lib/errorReporting";
+import { installSecurityEventListeners, trackSecurityEvent, SecurityEventType } from "./lib/securityEvents";
 import { TourLauncher } from "./components/tutorial";
 
 const ChartsTab = () => {
@@ -81,6 +83,7 @@ const TABS = {
   charts: ChartsTab,
   assets: AssetDiscovery,
   multisig: MultisigManager,
+  audit: AuditLog,
 };
 
 function DashboardLayout() {
@@ -102,6 +105,7 @@ function DashboardLayout() {
     });
 
     addBreadcrumb('Application initialized', 'info', { theme, isMobile });
+    installSecurityEventListeners();
   }, [theme, isMobile]);
 
   // Close mobile menu when resizing to desktop
@@ -140,6 +144,10 @@ function DashboardLayout() {
   // Track tab changes
   useEffect(() => {
     addBreadcrumb(`Navigated to ${activeTab} tab`, 'navigation', { activeTab });
+    trackSecurityEvent(SecurityEventType.CONFIG_CHANGED, {
+      target: 'activeTab',
+      metadata: { activeTab },
+    });
   }, [activeTab]);
 
   const ActiveComponent = TABS[activeTab] || Overview;

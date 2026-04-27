@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { id: 'multisig', label: 'Multisig', icon: '⊕' },
   { id: 'portfolio', label: 'Portfolio', icon: '◐' },
   { id: 'charts', label: 'Charts', icon: '▤' },
+  { id: 'audit', label: 'Audit', icon: '⊟' },
 ]
 
 export default function Sidebar({ isMobile = false }) {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../../lib/store'
+import ContractDeployerView from '../deployment/ContractDeployer'
 import {
   fetchContractInfo,
   invokeContract,
@@ -133,6 +134,7 @@ function ResultBlock({ label, data }) {
 }
 
 export default function Contracts() {
+  const [mode, setMode] = useState('inspect')
   const {
     network,
     contractId,
@@ -307,6 +309,11 @@ export default function Contracts() {
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Soroban Contracts</div>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={() => setMode('inspect')}>Inspect & Invoke</button>
+        <button onClick={() => setMode('deploy')}>Deploy</button>
+      </div>
+      {mode === 'deploy' && <ContractDeployerView />}
 
       <Panel
         title="Development Suite"

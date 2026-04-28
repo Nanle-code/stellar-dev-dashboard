@@ -82,13 +82,19 @@ export interface StoreState {
   setContractData: (data: SorobanRpc.Api.LedgerEntryResult) => void
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
+  deploymentStatus: Record<string, unknown> | null
+  setDeploymentStatus: (s: Record<string, unknown> | null) => void
+  savedSearches: string[]
+  setSavedSearches: (s: string[]) => void
+  multiSigMode: boolean
+  setMultiSigMode: (v: boolean) => void
 }
 
 // ─── Persisted keys ───────────────────────────────────────────────────────────
 // Only lightweight UI preferences are persisted — large data (txs, ops) is
 // re-fetched on load and never written to IndexedDB.
 
-const PERSIST_KEYS: Array<keyof StoreState> = ['network', 'theme', 'activeTab']
+const PERSIST_KEYS: Array<keyof StoreState> = ['network', 'theme', 'activeTab', 'savedSearches', 'multiSigMode']
 const STORE_PERSIST_KEY = 'store:preferences'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -186,6 +192,12 @@ export const useStore = create<StoreState>((set, get) => ({
   setContractData: (data) => set({ contractData: data, contractError: null }),
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
+  deploymentStatus: null,
+  setDeploymentStatus: (s) => set({ deploymentStatus: s }),
+  savedSearches: [],
+  setSavedSearches: (s) => set({ savedSearches: s }),
+  multiSigMode: false,
+  setMultiSigMode: (v) => set({ multiSigMode: v }),
 }))
 
 // ─── Persistence middleware ───────────────────────────────────────────────────

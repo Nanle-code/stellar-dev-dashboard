@@ -3,6 +3,8 @@ import { useStore } from '../../lib/store'
 import { shortAddress, getOperationLabel, fetchTransactions, fetchOperations } from '../../lib/stellar'
 import CopyableValue from './CopyableValue'
 import { format } from 'date-fns'
+import GlobalSearch from '../search/GlobalSearch'
+import useSearch from '../../hooks/useSearch'
 
 export default function Transactions() {
   const {
@@ -28,6 +30,8 @@ export default function Transactions() {
     network,
   } = useStore()
   const [view, setView] = useState('transactions')
+  const [query, setQuery] = useState('')
+  const filteredTransactions = useSearch(transactions, query)
 
   async function handleLoadMoreTransactions() {
     if (!connectedAddress || !txHasMore || !txNextCursor || txPagingLoading) return
@@ -76,7 +80,8 @@ export default function Transactions() {
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+        <GlobalSearch value={query} onChange={setQuery} />
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>History</div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <Tab id="transactions" label="Transactions" />
@@ -92,11 +97,11 @@ export default function Transactions() {
           </div>
           {txLoading ? (
             <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}><div className="spinner" /></div>
-          ) : transactions.length === 0 ? (
+          ) : filteredTransactions.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>No transactions found</div>
           ) : (
             <>
-              {transactions.map((tx, i) => (
+              {filteredTransactions.map((tx, i) => (
                 <div key={tx.id} style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr auto',
@@ -267,3 +272,4 @@ export default function Transactions() {
     </div>
   )
 }
+

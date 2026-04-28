@@ -1,6 +1,9 @@
 import React from 'react';
 import ErrorFallback from './ErrorFallback';
 import { handleGlobalError, retryWithBackoff } from '../utils/errorHandler';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('ErrorBoundary');
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -27,6 +30,11 @@ class ErrorBoundary extends React.Component {
       props: this.props,
       retryCount: this.state.retryCount
     });
+
+    logger.error('Caught error in ErrorBoundary', {
+      errorBoundary: this.constructor.name,
+      retryCount: this.state.retryCount,
+    }, error);
 
     this.setState({ errorDetails });
   }

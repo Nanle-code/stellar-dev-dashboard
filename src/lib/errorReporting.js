@@ -3,6 +3,10 @@
  * In a real application, this could be integrated with Sentry, LogRocket, Bugsnag, etc.
  */
 
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('ErrorReporting')
+
 // Error reporting configuration
 const ERROR_REPORTING_CONFIG = {
   enabled: true,
@@ -120,8 +124,14 @@ export const reportError = (error, errorInfo = null) => {
     }
   };
 
-  // Log to console for development
+  // Log to console and structured logger
   console.error('[Error Reporting Service] Error captured:', errorReport);
+  logger.error('Error captured and queued for reporting', {
+    errorId: errorReport.id,
+    category: errorReport.category,
+    severity: errorReport.severity,
+    url: userContext.url,
+  }, error);
 
   // Add to queue for batching
   errorQueue.push(errorReport);

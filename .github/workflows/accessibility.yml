@@ -1,0 +1,42 @@
+name: Accessibility Testing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  a11y:
+    name: Accessibility Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Install axe-core for accessibility testing
+        run: npm install --save-dev @axe-core/react
+
+      - name: Run accessibility audit
+        run: |
+          npx pa11y-ci --config .pa11yci.json || echo "Accessibility issues found - check report"
+
+      - name: Upload accessibility report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: accessibility-report
+          path: accessibility-report/

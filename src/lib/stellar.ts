@@ -1,4 +1,14 @@
 import * as StellarSdk from '@stellar/stellar-sdk'
+import { Cache, TTL } from './cache.js'
+
+// ─── Cache setup ──────────────────────────────────────────────────────────────
+
+const stellarCache = new Cache({
+  namespace: 'stellar',
+  persist: true,
+  maxSize: 500,
+  defaultTTL: TTL.ACCOUNT
+})
 
 // ─── Network config ───────────────────────────────────────────────────────────
 
@@ -78,8 +88,14 @@ export async function fetchAccount(
   publicKey: string,
   network: NetworkName = 'testnet'
 ): Promise<StellarSdk.Horizon.AccountResponse> {
+  const cacheKey = `account:${publicKey}:${network}`
+  const cached = stellarCache.get(cacheKey)
+  if (cached) return cached
+
   const server = getServer(network)
-  return server.loadAccount(publicKey)
+  const account = await server.loadAccount(publicKey)
+  stellarCache.set(cacheKey, account, TTL.ACCOUNT, ['account', publicKey])
+  return account
 }
 
 // ─── Transactions & Operations ────────────────────────────────────────────────
@@ -90,6 +106,10 @@ export async function fetchTransactions(
   limit = 20,
   cursor: string | null = null
 ): Promise<{ records: StellarSdk.Horizon.ServerApi.TransactionRecord[]; nextCursor: string | null; hasMore: boolean }> {
+  const cacheKey = `transactions:${publicKey}:${network}:${limit}:${cursor || 'null'}`
+  const cached = stellarCache.get(cacheKey)
+  if (cached) return cached
+
   const server = getServer(network)
   const request = server
     .transactions()
@@ -103,11 +123,13 @@ export async function fetchTransactions(
   const records = txs.records || []
   const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
 
-  return {
+  const result = {
     records,
     nextCursor,
     hasMore: records.length === limit && !!nextCursor,
   }
+  stellarCache.set(cacheKey, result, TTL.TRANSACTIONS, ['transactions', publicKey])
+  return result
 }
 
 export async function fetchOperations(
@@ -116,6 +138,10 @@ export async function fetchOperations(
   limit = 20,
   cursor: string | null = null
 ): Promise<{ records: StellarSdk.Horizon.ServerApi.OperationRecord[]; nextCursor: string | null; hasMore: boolean }> {
+  const cacheKey = `operations:${publicKey}:${network}:${limit}:${cursor || 'null'}`
+  const cached = stellarCache.get(cacheKey)
+  if (cached) return cached
+
   const server = getServer(network)
   const request = server
     .operations()
@@ -129,23 +155,31 @@ export async function fetchOperations(
   const records = ops.records || []
   const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null
 
-  return {
+  const result = {
     records,
     nextCursor,
     hasMore: records.length === limit && !!nextCursor,
   }
+  stellarCache.set(cacheKey, result, TTL.OPERATIONS, ['operations', publicKey])
+  return result
 }
 
 export async function fetchAccountOffers(
   publicKey: string,
   network: NetworkName = 'testnet'
 ): Promise<StellarSdk.Horizon.ServerApi.OfferRecord[]> {
+  const cacheKey = `offers:${publicKey}:${network}`
+  const cached = stellarCache.get(cacheKey)
+  if (cached) return cached
+
   const server = getServer(network)
   const offers = await server
     .offers()
     .forAccount(publicKey)
     .call()
-  return offers.records
+  const records = offers.records || []
+  stellarCache.set(cacheKey, records, TTL.ACCOUNT, ['offers', publicKey])
+  return records
 }
 
 // ─── Operation labels ───────────────────────────────────────────────────────────
@@ -238,15 +272,21 @@ export interface NetworkStats {
 }
 
 export async function fetchNetworkStats(network: NetworkName = 'testnet'): Promise<NetworkStats> {
+  const cacheKey = `network-stats:${network}`
+  const cached = stellarCache.get(cacheKey)
+  if (cached) return cached
+
   const server = getServer(network)
   const [ledger, feeStats] = await Promise.all([
     server.ledgers().order('desc').limit(1).call(),
     server.feeStats(),
   ])
-  return {
+  const result = {
     latestLedger: ledger.records[0],
     feeStats,
   }
+  stellarCache.set(cacheKey, result, TTL.LEDGER, ['network-stats', network])
+  return result
 }
 
 export interface XLMPrice {

@@ -1,12 +1,13 @@
 import React from 'react'
 import { useStore } from '../../lib/store'
 
+// Mirrors the most-used tabs; full nav is in the sidebar (hamburger menu).
 const QUICK_NAV = [
-  { id: 'overview', label: 'Home', icon: '◈' },
-  { id: 'transactions', label: 'Txns', icon: '⇄' },
-  { id: 'contracts', label: 'Contracts', icon: '◻' },
-  { id: 'assets', label: 'Assets', icon: '💎' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
+  { id: 'overview',      label: 'Home',    icon: '◈' },
+  { id: 'transactions',  label: 'Txns',    icon: '⇄' },
+  { id: 'dex',           label: 'DEX',     icon: '⇌' },
+  { id: 'wallet',        label: 'Wallet',  icon: '⊡' },
+  { id: 'settings',      label: 'Settings', icon: '⚙' },
 ]
 
 export default function MobileNavigation() {

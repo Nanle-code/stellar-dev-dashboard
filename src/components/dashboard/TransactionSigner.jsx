@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useStore } from '../../lib/store'
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter'
+import { signXdrWithLedger, isLedgerSupported, getActiveLedgerSession } from '../../lib/wallet/ledger'
+import { NETWORKS } from '../../lib/stellar'
 import Card from './Card'
 
 export default function TransactionSigner() {
@@ -10,6 +12,9 @@ export default function TransactionSigner() {
   const [signing, setSigning] = useState(false)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [ledgerPrompt, setLedgerPrompt] = useState(false)
+
+  const networkPassphrase = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
 
   const handleSign = async () => {
     if (!xdr.trim()) {
@@ -23,24 +28,62 @@ export default function TransactionSigner() {
 
     try {
       let result = null
-      const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET'
 
       if (walletType === 'freighter') {
+        const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET'
         result = await signTransactionWithFreighter(xdr.trim(), networkName)
       } else if (walletType === 'ledger') {
-        setError('Ledger signing requires the device to be connected. Use the Builder tab to build and sign transactions.')
-        setSigning(false)
-        return
+        await _signWithLedger()
+        return // _signWithLedger manages its own state
       } else {
-        setError('No wallet connected. Connect a wallet first.')
-        setSigning(false)
-        return
+        throw new Error('No wallet connected. Connect a wallet first.')
       }
 
       setSignedXdr(result)
     } catch (err) {
       setError(err.message)
     } finally {
+      setSigning(false)
+    }
+  }
+
+  const _signWithLedger = async () => {
+    // Check browser support first
+    const supported = await isLedgerSupported()
+    if (!supported) {
+      setError(
+        'WebUSB/WebHID is not supported in this browser. ' +
+        'Please use Chrome or a Chromium-based browser to sign with Ledger.'
+      )
+      setSigning(false)
+      return
+    }
+
+    // If we already have a live stellarApp session from WalletConnect, use it.
+    // Otherwise, prompt the user to reconnect via the Wallet tab.
+    const { stellarApp, publicKey } = getActiveLedgerSession()
+    if (!stellarApp) {
+      setError(
+        'Ledger session not found. Please connect your Ledger in the Wallet tab first, ' +
+        'then return here to sign.'
+      )
+      setSigning(false)
+      return
+    }
+
+    try {
+      setLedgerPrompt(true)
+      const signed = await signXdrWithLedger(
+        xdr.trim(),
+        networkPassphrase,
+        stellarApp,
+        publicKey || walletPublicKey
+      )
+      setSignedXdr(signed)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLedgerPrompt(false)
       setSigning(false)
     }
   }
@@ -85,17 +128,37 @@ export default function TransactionSigner() {
           <span style={{ fontFamily: 'var(--font-mono)' }}>
             {walletPublicKey?.slice(0, 8)}…{walletPublicKey?.slice(-8)}
           </span>
+          <span style={{ marginLeft: 'auto', opacity: 0.7 }}>{walletType}</span>
         </div>
+
+        {/* Ledger device prompt banner */}
+        {ledgerPrompt && (
+          <div style={{
+            padding: '12px',
+            background: 'var(--amber-glow, rgba(245,158,11,0.1))',
+            border: '1px solid var(--amber, #f59e0b)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '12px',
+            color: 'var(--amber, #f59e0b)',
+            display: 'flex', alignItems: 'center', gap: '8px',
+          }}>
+            <span style={{ fontSize: '18px' }}>🔐</span>
+            Review and confirm the transaction on your Ledger device…
+          </div>
+        )}
 
         {/* XDR input */}
         <div>
-          <label style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+          <label style={{
+            fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px',
+            textTransform: 'uppercase', display: 'block', marginBottom: '6px',
+          }}>
             TRANSACTION XDR
           </label>
           <textarea
             value={xdr}
             onChange={(e) => setXdr(e.target.value)}
-            placeholder="Paste the transaction XDR envelope here..."
+            placeholder="Paste the unsigned transaction XDR envelope here…"
             rows={5}
             style={{
               width: '100%',
@@ -135,7 +198,7 @@ export default function TransactionSigner() {
           {signing ? (
             <>
               <div className="spinner" />
-              Signing…
+              {ledgerPrompt ? 'Waiting for Ledger…' : 'Signing…'}
             </>
           ) : (
             'Sign Transaction'

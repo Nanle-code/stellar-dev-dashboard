@@ -1,50 +1,76 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useStore } from '../../lib/store'
 import CopyableValue from '../dashboard/CopyableValue'
 import { NETWORKS, updateCustomNetworkConfig } from '../../lib/stellar'
 
-const NAV_ITEMS = [
-  { id: 'overview', label: 'Overview', icon: '◈' },
-  { id: 'account', label: 'Account', icon: '◉' },
-  { id: 'compare', label: 'Compare', icon: '◫' },
-  { id: 'transactions', label: 'Transactions', icon: '⇄' },
-  { id: 'contracts', label: 'Contracts', icon: '◻' },
-  { id: 'assets', label: 'Assets', icon: '💎' },
-  { id: 'anchors', label: 'Anchors', icon: '⚓' },
-  { id: 'search', label: 'Search', icon: '🔍' },
-  { id: 'network', label: 'Network', icon: '◎' },
-  { id: 'realtime', label: 'Real-Time', icon: '◉' },
-  { id: 'liveActivity', label: 'Live Activity', icon: '⚡' },
-  { id: 'cacheStats', label: 'Cache Stats', icon: '⊞' },
-  { id: 'builder', label: 'Builder', icon: '⚒' },
-  { id: 'faucet', label: 'Faucet', icon: '⬡' },
-  { id: 'wallet', label: 'Wallet', icon: '⊡' },
-  { id: 'signer', label: 'Signer', icon: '✎' },
-  { id: 'multisig', label: 'Multisig', icon: '⊕' },
-  { id: 'portfolio', label: 'Portfolio', icon: '◐' },
-  { id: 'charts', label: 'Charts', icon: '▤' },
-  { id: 'analytics', label: 'Analytics', icon: '◍' },
-  { id: 'systemHealth', label: 'Health', icon: '⚕' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-  { id: 'audit', label: 'Audit', icon: '⊟' },
+// All TABS from App.tsx are represented here, grouped for clarity.
+const NAV_GROUPS = [
+  {
+    label: 'Explore',
+    items: [
+      { id: 'overview',     label: 'Overview',    icon: '◈' },
+      { id: 'account',      label: 'Account',     icon: '◉' },
+      { id: 'compare',      label: 'Compare',     icon: '◫' },
+      { id: 'transactions', label: 'Transactions', icon: '⇄' },
+      { id: 'assets',       label: 'Assets',      icon: '💎' },
+      { id: 'anchors',      label: 'Anchors',     icon: '⚓' },
+      { id: 'search',       label: 'Search',      icon: '🔍' },
+      { id: 'explorers',    label: 'Explorers',   icon: '🌐' },
+    ],
+  },
+  {
+    label: 'Build',
+    items: [
+      { id: 'contracts',           label: 'Contracts',           icon: '◻' },
+      { id: 'contractInteraction', label: 'Contract Interaction', icon: '⚡' },
+      { id: 'contractABI',         label: 'Contract ABI',        icon: '📄' },
+      { id: 'txBuilder',           label: 'TX Builder',          icon: '🔨' },
+      { id: 'builder',             label: 'Builder',             icon: '⚒' },
+      { id: 'faucet',              label: 'Faucet',              icon: '⬡' },
+    ],
+  },
+  {
+    label: 'Network',
+    items: [
+      { id: 'network',      label: 'Network',      icon: '◎' },
+      { id: 'dex',          label: 'DEX Explorer', icon: '⇌' },
+      { id: 'realtime',     label: 'Real-Time',    icon: '◉' },
+      { id: 'liveActivity', label: 'Live Activity', icon: '⚡' },
+    ],
+  },
+  {
+    label: 'Advanced',
+    items: [
+      { id: 'wallet',       label: 'Wallet',       icon: '⊡' },
+      { id: 'signer',       label: 'Signer',       icon: '✎' },
+      { id: 'multisig',     label: 'Multisig',     icon: '⊕' },
+      { id: 'portfolio',    label: 'Portfolio',    icon: '◐' },
+      { id: 'charts',       label: 'Charts',       icon: '▤' },
+      { id: 'analytics',    label: 'Analytics',    icon: '◍' },
+      { id: 'systemHealth', label: 'Health',       icon: '⚕' },
+      { id: 'cacheStats',   label: 'Cache Stats',  icon: '⊞' },
+      { id: 'audit',        label: 'Audit',        icon: '⊟' },
+      { id: 'settings',     label: 'Settings',     icon: '⚙' },
+    ],
+  },
 ]
 
 export default function Sidebar({ isMobile = false }) {
-  const { 
-    activeTab, 
-    setActiveTab, 
-    network, 
-    setNetwork, 
-    connectedAddress, 
-    theme, 
+  const {
+    activeTab,
+    setActiveTab,
+    network,
+    setNetwork,
+    connectedAddress,
+    theme,
     toggleTheme,
     isMobileMenuOpen,
-    setMobileMenuOpen
+    setMobileMenuOpen,
   } = useStore()
 
   const handleNavClick = (tabId) => {
     setActiveTab(tabId)
-    setMobileMenuOpen(false) // Close mobile menu after navigation
+    setMobileMenuOpen(false)
   }
 
   const sidebarStyles = {
@@ -55,8 +81,8 @@ export default function Sidebar({ isMobile = false }) {
     display: 'flex',
     flexDirection: 'column',
     position: 'fixed',
-    left: 0, 
-    top: 0, 
+    left: 0,
+    top: 0,
     bottom: 0,
     zIndex: 1000,
     transform: isMobile ? (isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
@@ -78,23 +104,16 @@ export default function Sidebar({ isMobile = false }) {
 
   return (
     <>
-      {/* Mobile menu overlay */}
       {isMobile && (
-        <div 
+        <div
           className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`}
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
-      
+
       <aside style={sidebarStyles}>
-        {/* Mobile close button */}
         {isMobile && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            zIndex: 1001,
-          }}>
+          <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 1001 }}>
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="touch-target"
@@ -122,10 +141,7 @@ export default function Sidebar({ isMobile = false }) {
         )}
 
         {/* Logo */}
-        <div style={{
-          padding: '24px 20px 20px',
-          borderBottom: '1px solid var(--border)',
-        }}>
+        <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--border)' }}>
           <div style={{
             fontFamily: 'var(--font-display)',
             fontSize: '18px',
@@ -195,63 +211,78 @@ export default function Sidebar({ isMobile = false }) {
           )}
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
-          {NAV_ITEMS.map((item, i) => {
-            const isActive = activeTab === item.id
-            const isDisabled = item.id === 'faucet' && network === 'mainnet'
-            return (
-              <button
-                key={item.id}
-                onClick={() => !isDisabled && handleNavClick(item.id)}
-                disabled={isDisabled}
-                className="touch-target"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  marginBottom: '2px',
-                  background: isActive ? 'var(--cyan-glow)' : 'transparent',
-                  border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
-                  borderRadius: 'var(--radius-md)',
-                  color: isActive ? 'var(--cyan)' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)',
-                  fontSize: '13px',
-                  fontFamily: 'var(--font-mono)',
-                  cursor: isDisabled ? 'not-allowed' : 'pointer',
-                  transition: 'var(--transition)',
-                  textAlign: 'left',
-                  opacity: isDisabled ? 0.4 : 1,
-                  animationDelay: `${i * 0.04}s`,
-                }}
-                onMouseEnter={e => {
-                  if (!isActive && !isDisabled) {
-                    e.currentTarget.style.background = 'var(--bg-hover)'
-                    e.currentTarget.style.color = 'var(--text-primary)'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive && !isDisabled) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                  }
-                }}
-              >
-                <span style={{ fontSize: '16px', opacity: 0.9 }}>{item.icon}</span>
-                {item.label}
-                {isActive && (
-                  <span style={{
-                    marginLeft: 'auto',
-                    width: '5px', height: '5px',
-                    borderRadius: '50%',
-                    background: 'var(--cyan)',
-                    boxShadow: '0 0 6px var(--cyan)',
-                  }} />
-                )}
-              </button>
-            )
-          })}
+        {/* Grouped Nav */}
+        <nav style={{ flex: 1, padding: '8px 10px', overflowY: 'auto' }} aria-label="Main navigation">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} style={{ marginBottom: '4px' }}>
+              <div style={{
+                fontSize: '9px',
+                fontWeight: 700,
+                letterSpacing: '1.2px',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+                padding: '10px 16px 4px',
+              }}>
+                {group.label}
+              </div>
+              {group.items.map((item, i) => {
+                const isActive = activeTab === item.id
+                const isDisabled = item.id === 'faucet' && network === 'mainnet'
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => !isDisabled && handleNavClick(item.id)}
+                    disabled={isDisabled}
+                    aria-current={isActive ? 'page' : undefined}
+                    className="touch-target"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      width: '100%',
+                      padding: '10px 16px',
+                      marginBottom: '1px',
+                      background: isActive ? 'var(--cyan-glow)' : 'transparent',
+                      border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
+                      borderRadius: 'var(--radius-md)',
+                      color: isActive ? 'var(--cyan)' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+                      fontSize: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      transition: 'var(--transition)',
+                      textAlign: 'left',
+                      opacity: isDisabled ? 0.4 : 1,
+                      animationDelay: `${i * 0.04}s`,
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive && !isDisabled) {
+                        e.currentTarget.style.background = 'var(--bg-hover)'
+                        e.currentTarget.style.color = 'var(--text-primary)'
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive && !isDisabled) {
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.color = 'var(--text-secondary)'
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: '14px', opacity: 0.9 }}>{item.icon}</span>
+                    {item.label}
+                    {isActive && (
+                      <span style={{
+                        marginLeft: 'auto',
+                        width: '5px', height: '5px',
+                        borderRadius: '50%',
+                        background: 'var(--cyan)',
+                        boxShadow: '0 0 6px var(--cyan)',
+                      }} />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Bottom address */}

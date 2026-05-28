@@ -46,7 +46,17 @@
         "dex": "Explorador DEX",
         "explorers": "Exploradores",
         "realtime": "Libro Mayor en Tiempo Real",
-        "charts": "Gráficos y Análisis"
+        "charts": "Gráficos y Análisis",
+        "assets": "Activos",
+        "anchors": "Anclas",
+        "search": "Buscar",
+        "liveActivity": "Actividad en Vivo",
+        "cacheStats": "Estadísticas de Caché",
+        "multisig": "Multifirma",
+        "analytics": "Analíticas",
+        "systemHealth": "Salud del Sistema",
+        "audit": "Registro de Auditoría",
+        "compare": "Comparar"
     },
     "connect": {
         "title": "Conectar a la Red Stellar",

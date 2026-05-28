@@ -46,7 +46,17 @@
         "dex": "DEX Explorer",
         "explorers": "Explorers",
         "realtime": "Real-Time Ledger",
-        "charts": "Charts & Analytics"
+        "charts": "Charts & Analytics",
+        "assets": "Assets",
+        "anchors": "Anchors",
+        "search": "Search",
+        "liveActivity": "Live Activity",
+        "cacheStats": "Cache Stats",
+        "multisig": "Multisig",
+        "analytics": "Analytics",
+        "systemHealth": "System Health",
+        "audit": "Audit Log",
+        "compare": "Compare"
     },
     "connect": {
         "title": "Connect to Stellar Network",

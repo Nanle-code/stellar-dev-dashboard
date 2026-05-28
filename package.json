@@ -33,6 +33,11 @@
     "recharts": "^2.12.7",
     "zustand": "^4.5.4"
   },
+  "optionalDependencies": {
+    "@ledgerhq/hw-transport-webusb": "^6.29.4",
+    "@ledgerhq/hw-transport-webhid": "^6.29.4",
+    "@stellar/ledger": "^1.0.0"
+  },
   "devDependencies": {
     "@babel/preset-env": "^7.29.3",
     "@babel/preset-react": "^7.24.7",

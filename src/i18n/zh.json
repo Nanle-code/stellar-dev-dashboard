@@ -46,7 +46,17 @@
         "dex": "DEX 浏览器",
         "explorers": "浏览器",
         "realtime": "实时账本",
-        "charts": "图表与分析"
+        "charts": "图表与分析",
+        "assets": "资产",
+        "anchors": "锚点",
+        "search": "搜索",
+        "liveActivity": "实时活动",
+        "cacheStats": "缓存统计",
+        "multisig": "多重签名",
+        "analytics": "分析",
+        "systemHealth": "系统健康",
+        "audit": "审计日志",
+        "compare": "比较"
     },
     "connect": {
         "title": "连接到 Stellar 网络",

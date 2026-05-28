@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../lib/store'
 import CopyableValue from '../dashboard/CopyableValue'
 import { NETWORKS, updateCustomNetworkConfig } from '../../lib/stellar'
@@ -30,9 +31,9 @@ const NAV_ITEMS = [
 ]
 
 export default function Sidebar({ isMobile = false }) {
+  const navigate = useNavigate()
   const { 
     activeTab, 
-    setActiveTab, 
     network, 
     setNetwork, 
     connectedAddress, 
@@ -43,7 +44,7 @@ export default function Sidebar({ isMobile = false }) {
   } = useStore()
 
   const handleNavClick = (tabId) => {
-    setActiveTab(tabId)
+    navigate(`/${tabId}`)
     setMobileMenuOpen(false) // Close mobile menu after navigation
   }
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, type ComponentType, type CSSProperties } from 'react'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { I18nProvider } from './components/I18nProvider'
 import './i18n/index.js'
 import './styles/responsive.css'
@@ -170,6 +171,7 @@ function NotificationBell({ onClick }: { onClick: () => void }) {
 }
 
 function DashboardLayout() {
+  const navigate = useNavigate()
   const {
     connectedAddress,
     activeTab,
@@ -287,14 +289,14 @@ function DashboardLayout() {
   const handleSearchResult = (result: SearchResult | null | undefined): void => {
     if (!result) return
     if (result.type === 'transaction' || result.type === 'operation') {
-      setActiveTab('transactions')
+      navigate('/transactions')
       return
     }
     if (result.type === 'account') {
-      setActiveTab('account')
+      navigate('/account')
       return
     }
-    setActiveTab('overview')
+    navigate('/overview')
   }
 
   return (
@@ -374,10 +376,39 @@ function DashboardLayout() {
   )
 }
 
+function RouterSync() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { connectedAddress, activeTab, setActiveTab } = useStore()
+
+  const pathTab = location.pathname === '/' ? 'overview' : location.pathname.slice(1)
+
+  useEffect(() => {
+    if (pathTab === 'connect') return
+    if (TABS[pathTab] && pathTab !== activeTab) {
+      setActiveTab(pathTab)
+    }
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!connectedAddress && pathTab !== 'connect') {
+      navigate('/connect', { replace: true })
+    } else if (connectedAddress && pathTab === 'connect') {
+      navigate(`/${activeTab}`, { replace: true })
+    }
+  }, [connectedAddress, location.pathname])
+
+  return null
+}
+
 export default function App() {
   return (
     <I18nProvider>
-      <DashboardLayout />
+      <RouterSync />
+      <Routes>
+        <Route path="/connect" element={<DashboardLayout />} />
+        <Route path="/*" element={<DashboardLayout />} />
+      </Routes>
     </I18nProvider>
   )
 }

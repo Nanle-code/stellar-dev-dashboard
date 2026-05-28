@@ -260,6 +260,11 @@ export const useStore = create<StoreState>((set, get) => ({
   })),
 }))
 
+// ─── Expose store for e2e testing ────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  (window as any).__store = useStore
+}
+
 // ─── Persistence middleware ───────────────────────────────────────────────────
 
 if (typeof window !== 'undefined') {

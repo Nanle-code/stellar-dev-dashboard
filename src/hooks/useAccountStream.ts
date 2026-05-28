@@ -13,6 +13,8 @@ import type {
   AccountStreamEvent,
   StreamStatus,
 } from '../lib/websocket/StreamTypes'
+import { evaluateEventRules, ALERT_RULE_TYPE, ALERT_CHANNEL } from '../lib/alerts'; // Import new evaluation function and types
+} from '../lib/websocket/StreamTypes'
 
 export interface UseAccountStreamOptions {
   channels?: AccountStreamChannel[]
@@ -49,11 +51,21 @@ export function useAccountStream(
   const [status, setStatus] = useState<StreamStatus>('idle')
   const [lastEventAt, setLastEventAt] = useState<number | null>(null)
   const [errored, setErrored] = useState(false)
+  const [activeAlertRules, setActiveAlertRules] = useState<AlertRule[]>([]); // New state for active alert rules
 
   // Latest channels list — kept in a ref so we don't re-subscribe on prop churn
   // when the array is reference-new but value-equal.
   const channelsRef = useRef<AccountStreamChannel[]>(channels)
   channelsRef.current = channels
+
+  useEffect(() => {
+    // Load alert rules from IndexedDB on mount
+    async function loadRules() {
+      const rules = await getAlertRules();
+      setActiveAlertRules(rules);
+    }
+    loadRules();
+  }, []); // Empty dependency array means this runs once on mount
 
   useEffect(() => {
     if (!accountId) {
@@ -76,6 +88,10 @@ export function useAccountStream(
         if (emitNotifications) {
           const notif = summarizeEvent(event, accountId)
           if (notif) notificationStore.push(notif)
+
+          // Evaluate custom alert rules
+          const triggeredAlerts = evaluateEventRules(event, activeAlertRules, accountId);
+          triggeredAlerts.forEach(alert => notificationStore.push(alert));
         }
       },
       {
@@ -104,7 +120,7 @@ export function useAccountStream(
     return () => {
       for (const cleanup of unsubscribers) cleanup()
     }
-  }, [accountId, network, channels, options.cursor, bufferSize, emitNotifications])
+  }, [accountId, network, channels, options.cursor, bufferSize, emitNotifications, activeAlertRules]) // Add activeAlertRules to dependencies
 
   return { events, status, lastEventAt, errored }
 }

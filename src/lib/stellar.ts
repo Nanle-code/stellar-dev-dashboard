@@ -78,6 +78,24 @@ export async function fetchTransactions(
   }
 }
 
+/**
+ * Fetch full transaction details and operations for a specific hash
+ */
+export async function fetchTransactionDetails(
+  txHash: string,
+  network: NetworkName = 'testnet'
+): Promise<{
+  transaction: StellarSdk.Horizon.ServerApi.TransactionRecord;
+  operations: StellarSdk.Horizon.ServerApi.OperationRecord[];
+}> {
+  const server = getServer(network)
+  const [transaction, operationsResponse] = await Promise.all([
+    server.transactions().transaction(txHash).call(),
+    server.operations().forTransaction(txHash).call()
+  ])
+  return { transaction, operations: operationsResponse.records }
+}
+
 export async function fetchOperations(
   publicKey: string,
   network: NetworkName = 'testnet',

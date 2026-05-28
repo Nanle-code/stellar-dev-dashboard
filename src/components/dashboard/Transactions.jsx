@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { useStore } from '../../lib/store'
 import { shortAddress, getOperationLabel, fetchTransactions, fetchOperations } from '../../lib/stellar'
+import { getTransactionUrl } from '../../lib/externalExplorers'
 import CopyableValue from './CopyableValue'
 import { format } from 'date-fns'
+import TransactionDetail from './TransactionDetail'
 
 export default function Transactions() {
   const {
@@ -28,6 +30,7 @@ export default function Transactions() {
     network,
   } = useStore()
   const [view, setView] = useState('transactions')
+  const [selectedTxHash, setSelectedTxHash] = useState(null)
 
   async function handleLoadMoreTransactions() {
     if (!connectedAddress || !txHasMore || !txNextCursor || txPagingLoading) return
@@ -97,7 +100,9 @@ export default function Transactions() {
           ) : (
             <>
               {transactions.map((tx, i) => (
-                <div key={tx.id} style={{
+                <div key={tx.id} 
+                onClick={() => setSelectedTxHash(tx.hash)}
+                style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr auto',
                   gap: '12px',
@@ -105,6 +110,7 @@ export default function Transactions() {
                   padding: '12px 18px',
                   borderBottom: i < transactions.length - 1 ? '1px solid var(--border)' : 'none',
                   transition: 'var(--transition)',
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -120,11 +126,12 @@ export default function Transactions() {
                       >
                         {tx.hash}
                       </CopyableValue>
-                      <a
-                        href={`https://stellar.expert/explorer/${network}/tx/${tx.hash}`}
+                      <a 
+                        href={getTransactionUrl('stellarExpert', network, tx.hash)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0 }}
+                        style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0, textDecoration: 'none' }}
+                        onClick={e => e.stopPropagation()}
                       >
                         ↗
                       </a>
@@ -264,6 +271,12 @@ export default function Transactions() {
           )}
         </div>
       )}
+
+      <TransactionDetail 
+        txHash={selectedTxHash}
+        network={network}
+        onClose={() => setSelectedTxHash(null)}
+      />
     </div>
   )
 }

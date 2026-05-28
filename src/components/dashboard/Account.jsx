@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useStore } from '../../lib/store'
 import { shortAddress, formatXLM, fetchAccountCreationDate, fetchAccountOffers } from '../../lib/stellar'
-import CopyableValue from './CopyableValue'
-import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates'
+import CopyableValue from './CopyableValue'import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates'
 
 function formatAsset(assetType, assetCode) {
   if (assetType === 'native') return 'XLM'
@@ -307,6 +306,29 @@ export default function Account() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Claimable Balances shortcut */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>Claimable Balances</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>View and simulate claiming pending balances</div>
+        </div>
+        <button
+          onClick={() => useStore.getState().setActiveTab('claimableBalances')}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--cyan-dim)',
+            background: 'var(--cyan-glow)',
+            color: 'var(--cyan)',
+            fontSize: '12px',
+            fontFamily: 'var(--font-mono)',
+            cursor: 'pointer',
+          }}
+        >
+          View ⊛
+        </button>
       </div>
     </div>
   )

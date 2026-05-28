@@ -193,7 +193,7 @@ class AuditTrail {
   }
 
   sanitizeParams(params) {
-    // Remove sensitive data like private keys, passwords, etc.
+    // Remove sensitive data like private keys, passwords, API keys, etc.
     const sanitized = { ...params };
     const sensitiveKeys = ['secret', 'privateKey', 'password', 'token'];
     
@@ -202,6 +202,17 @@ class AuditTrail {
         sanitized[key] = '[REDACTED]';
       }
     });
+
+    // Redact sensitive HTTP headers (Authorization, x-api-key, etc.)
+    if (sanitized.headers && typeof sanitized.headers === 'object') {
+      const redactedHeaders = { ...sanitized.headers };
+      Object.keys(redactedHeaders).forEach(h => {
+        if (/^(authorization|x-api-key|api-key)$/i.test(h)) {
+          redactedHeaders[h] = '[REDACTED]';
+        }
+      });
+      sanitized.headers = redactedHeaders;
+    }
     
     return sanitized;
   }

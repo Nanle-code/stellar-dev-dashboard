@@ -441,6 +441,7 @@ export function streamLedgers(
 export interface NetworkStats {
   latestLedger: StellarSdk.Horizon.ServerApi.LedgerRecord
   feeStats: StellarSdk.Horizon.HorizonApi.FeeStatsResponse
+  baseReserve: number // in stroops
 }
 
 export async function fetchNetworkStats(network: NetworkName = 'testnet'): Promise<NetworkStats> {
@@ -459,9 +460,76 @@ export async function fetchNetworkStats(network: NetworkName = 'testnet'): Promi
   const result = {
     latestLedger: ledger.records[0],
     feeStats,
+    baseReserve: parseInt(ledger.records[0].base_reserve || '5000000', 10),
   }
   stellarCache.set(cacheKey, result, TTL.LEDGER, ['network-stats', network])
   return result
+}
+
+export interface AccountReserves {
+  baseReserve: number // in XLM
+  signerReserve: number // in XLM
+  assetReserve: number // in XLM
+  offerReserve: number // in XLM
+  sponsoredReserves: number // in XLM
+  totalLocked: number // in XLM
+  availableBalance: number // in XLM
+  totalBalance: number // in XLM
+}
+
+export function calculateAccountReserves(
+  account: StellarSdk.Horizon.AccountResponse,
+  baseReserveStroops: number,
+  offerCount: number = 0
+): AccountReserves {
+  const baseReserveXLM = baseReserveStroops / 10_000_000
+  const subentryCount = account.subentry_count || 0
+  
+  // Count signers (excluding master key which is the account itself)
+  const signers = account.signers || []
+  const additionalSigners = signers.filter(s => s.key !== account.account_id).length
+  
+  // Count trustlines (non-native assets)
+  const trustlines = account.balances?.filter(b => b.asset_type !== 'native')?.length || 0
+  
+  // Calculate reserves
+  // Base reserve: 2 * baseReserve (for account entry + base subentry)
+  const baseReserve = 2 * baseReserveXLM
+  
+  // Per subentry reserve: subentries * baseReserve
+  const subentryReserve = subentryCount * baseReserveXLM
+  
+  // Per signer reserve: additional signers * baseReserve
+  const signerReserve = additionalSigners * baseReserveXLM
+  
+  // Per asset/trustline reserve: trustlines * baseReserve
+  const assetReserve = trustlines * baseReserveXLM
+  
+  // Per offer reserve: offers * baseReserve
+  const offerReserve = offerCount * baseReserveXLM
+  
+  // Sponsored reserves (if any - would need to be fetched from ledger entries)
+  const sponsoredReserves = 0 // TODO: Implement sponsored reserves calculation if needed
+  
+  // Total locked balance
+  const totalLocked = baseReserve + subentryReserve + signerReserve + assetReserve + offerReserve + sponsoredReserves
+  
+  // Get XLM balance
+  const xlmBalance = parseFloat(account.balances?.find(b => b.asset_type === 'native')?.balance || '0')
+  
+  // Available spendable balance
+  const availableBalance = Math.max(0, xlmBalance - totalLocked)
+  
+  return {
+    baseReserve,
+    signerReserve,
+    assetReserve,
+    offerReserve,
+    sponsoredReserves,
+    totalLocked,
+    availableBalance,
+    totalBalance: xlmBalance,
+  }
 }
 
 export interface XLMPrice {

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useStore } from '../../lib/store'
-import { shortAddress, formatXLM, fetchAccountCreationDate, fetchAccountOffers } from '../../lib/stellar'
-import CopyableValue from './CopyableValue'import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates'
+import { shortAddress, formatXLM, fetchAccountCreationDate, fetchAccountOffers, fetchNetworkStats, calculateAccountReserves } from '../../lib/stellar'
+import CopyableValue from './CopyableValue'
+import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates'
 
 function formatAsset(assetType, assetCode) {
   if (assetType === 'native') return 'XLM'
@@ -53,6 +54,8 @@ export default function Account() {
   const [offersError, setOffersError] = useState(null)
   const [createdAt, setCreatedAt] = useState(null)
   const [createdAtLoading, setCreatedAtLoading] = useState(false)
+  const [networkStats, setNetworkStats] = useState(null)
+  const [reserves, setReserves] = useState(null)
 
   useEffect(() => {
     if (!connectedAddress) {
@@ -61,6 +64,8 @@ export default function Account() {
       setOffersError(null)
       setCreatedAt(null)
       setCreatedAtLoading(false)
+      setNetworkStats(null)
+      setReserves(null)
       return
     }
 
@@ -70,6 +75,17 @@ export default function Account() {
     setOffersError(null)
     setCreatedAtLoading(true)
     setCreatedAt(null)
+    setNetworkStats(null)
+    setReserves(null)
+
+    fetchNetworkStats(network)
+      .then((stats) => {
+        if (!isActive) return
+        setNetworkStats(stats)
+      })
+      .catch((err) => {
+        console.error('Failed to fetch network stats:', err)
+      })
 
     fetchAccountCreationDate(connectedAddress, network)
       .then((date) => {
@@ -99,6 +115,20 @@ export default function Account() {
       isActive = false
     }
   }, [connectedAddress, network])
+
+  // Calculate reserves when accountData or networkStats changes
+  useEffect(() => {
+    if (accountData && networkStats) {
+      const calculatedReserves = calculateAccountReserves(
+        accountData,
+        networkStats.baseReserve,
+        offers.length
+      )
+      setReserves(calculatedReserves)
+    } else {
+      setReserves(null)
+    }
+  }, [accountData, networkStats, offers.length])
 
   if (!accountData) return (
     <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>No account loaded</div>
@@ -152,6 +182,43 @@ export default function Account() {
           </a>
         </div>
       </div>
+
+      {reserves && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Reserve Breakdown</span>
+              <a
+                href="https://developers.stellar.org/docs/learn/fundamentals/fees-and-reserves/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '11px', color: 'var(--cyan)' }}
+              >
+                Learn more ↗
+              </a>
+            </div>
+          </div>
+          <InfoRow label="Base Reserve" value={formatXLM(reserves.baseReserve) + ' XLM'} />
+          <InfoRow label="Per-Signer Reserve" value={formatXLM(reserves.signerReserve) + ' XLM'} />
+          <InfoRow label="Per-Asset Reserve" value={formatXLM(reserves.assetReserve) + ' XLM'} />
+          <InfoRow label="Per-Offer Reserve" value={formatXLM(reserves.offerReserve) + ' XLM'} />
+          <InfoRow label="Sponsored Reserves" value={formatXLM(reserves.sponsoredReserves) + ' XLM'} />
+          <div style={{ padding: '10px 18px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Total Locked</span>
+              <span style={{ fontSize: '12px', color: 'var(--red)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                {formatXLM(reserves.totalLocked)} XLM
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Available Spendable</span>
+              <span style={{ fontSize: '12px', color: 'var(--green)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                {formatXLM(reserves.availableBalance)} XLM
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>

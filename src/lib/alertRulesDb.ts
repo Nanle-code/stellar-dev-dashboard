@@ -3,8 +3,10 @@
  * Extends the existing storage pattern from src/lib/storage.js
  */
 
-import { openDB, type IDBPDatabase } from 'idb'
 import type { AlertRule, AlertNotification } from '../types/alerts'
+
+// Use native IndexedDB instead of idb library to avoid adding new dependencies
+type IDBPDatabase = IDBDatabase
 
 const DB_NAME = 'stellar-dev-dashboard'
 const DB_VERSION = 3 // Increment from existing version 2
@@ -15,8 +17,15 @@ let dbPromise: Promise<IDBPDatabase> | null = null
 
 function initDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
+    dbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION)
+
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve(request.result)
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result
+
         // Create alert-rules store if it doesn't exist
         if (!db.objectStoreNames.contains(RULES_STORE)) {
           const rulesStore = db.createObjectStore(RULES_STORE, { keyPath: 'id' })
@@ -33,7 +42,7 @@ function initDb(): Promise<IDBPDatabase> {
           notifStore.createIndex('triggeredAt', 'triggeredAt', { unique: false })
           notifStore.createIndex('accountAddress', 'accountAddress', { unique: false })
         }
-      },
+      }
     })
   }
   return dbPromise
@@ -43,25 +52,41 @@ function initDb(): Promise<IDBPDatabase> {
 
 export async function saveRule(rule: AlertRule): Promise<void> {
   const db = await initDb()
-  const tx = db.transaction(RULES_STORE, 'readwrite')
-  await tx.store.put(rule)
-  await tx.done
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, 'readwrite')
+    const store = tx.objectStore(RULES_STORE)
+    const request = store.put(rule)
+    
+    request.onerror = () => reject(request.error)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function deleteRule(ruleId: string): Promise<void> {
   const db = await initDb()
-  const tx = db.transaction(RULES_STORE, 'readwrite')
-  await tx.store.delete(ruleId)
-  await tx.done
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, 'readwrite')
+    const store = tx.objectStore(RULES_STORE)
+    const request = store.delete(ruleId)
+    
+    request.onerror = () => reject(request.error)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function getRules(userId: string): Promise<AlertRule[]> {
   const db = await initDb()
-  const tx = db.transaction(RULES_STORE, 'readonly')
-  const index = tx.store.index('userId')
-  const rules = await index.getAll(userId)
-  await tx.done
-  return rules
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, 'readonly')
+    const store = tx.objectStore(RULES_STORE)
+    const index = store.index('userId')
+    const request = index.getAll(userId)
+    
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
 }
 
 export async function getEnabledRules(userId: string): Promise<AlertRule[]> {
@@ -75,27 +100,41 @@ export async function updateRuleEvaluationTime(
   lastTriggeredAt?: number
 ): Promise<void> {
   const db = await initDb()
-  const tx = db.transaction(RULES_STORE, 'readwrite')
-  const rule = await tx.store.get(ruleId)
-  
-  if (rule) {
-    rule.lastEvaluatedAt = lastEvaluatedAt
-    if (lastTriggeredAt !== undefined) {
-      rule.lastTriggeredAt = lastTriggeredAt
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(RULES_STORE, 'readwrite')
+    const store = tx.objectStore(RULES_STORE)
+    const getRequest = store.get(ruleId)
+    
+    getRequest.onsuccess = () => {
+      const rule = getRequest.result
+      if (rule) {
+        rule.lastEvaluatedAt = lastEvaluatedAt
+        if (lastTriggeredAt !== undefined) {
+          rule.lastTriggeredAt = lastTriggeredAt
+        }
+        store.put(rule)
+      }
     }
-    await tx.store.put(rule)
-  }
-  
-  await tx.done
+    
+    getRequest.onerror = () => reject(getRequest.error)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 // ─── Alert Notifications ──────────────────────────────────────────────────────
 
 export async function saveNotification(notification: AlertNotification): Promise<void> {
   const db = await initDb()
-  const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
-  await tx.store.put(notification)
-  await tx.done
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
+    const store = tx.objectStore(NOTIFICATIONS_STORE)
+    const request = store.put(notification)
+    
+    request.onerror = () => reject(request.error)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function getNotifications(
@@ -103,66 +142,97 @@ export async function getNotifications(
   unreadOnly = false
 ): Promise<AlertNotification[]> {
   const db = await initDb()
-  const tx = db.transaction(NOTIFICATIONS_STORE, 'readonly')
-  const index = tx.store.index('accountAddress')
-  const notifications = await index.getAll(userId)
-  await tx.done
-  
-  const sorted = notifications.sort((a, b) => b.triggeredAt - a.triggeredAt)
-  
-  if (unreadOnly) {
-    return sorted.filter(n => !n.read)
-  }
-  
-  return sorted
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTIFICATIONS_STORE, 'readonly')
+    const store = tx.objectStore(NOTIFICATIONS_STORE)
+    const index = store.index('accountAddress')
+    const request = index.getAll(userId)
+    
+    request.onsuccess = () => {
+      const notifications = request.result
+      const sorted = notifications.sort((a, b) => b.triggeredAt - a.triggeredAt)
+      
+      if (unreadOnly) {
+        resolve(sorted.filter(n => !n.read))
+      } else {
+        resolve(sorted)
+      }
+    }
+    
+    request.onerror = () => reject(request.error)
+  })
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
   const db = await initDb()
-  const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
-  const notification = await tx.store.get(notificationId)
-  
-  if (notification) {
-    notification.read = true
-    await tx.store.put(notification)
-  }
-  
-  await tx.done
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
+    const store = tx.objectStore(NOTIFICATIONS_STORE)
+    const getRequest = store.get(notificationId)
+    
+    getRequest.onsuccess = () => {
+      const notification = getRequest.result
+      if (notification) {
+        notification.read = true
+        store.put(notification)
+      }
+    }
+    
+    getRequest.onerror = () => reject(getRequest.error)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   const notifications = await getNotifications(userId, true)
   const db = await initDb()
-  const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
   
-  for (const notification of notifications) {
-    notification.read = true
-    await tx.store.put(notification)
-  }
-  
-  await tx.done
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
+    const store = tx.objectStore(NOTIFICATIONS_STORE)
+    
+    for (const notification of notifications) {
+      notification.read = true
+      store.put(notification)
+    }
+    
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function deleteNotification(notificationId: string): Promise<void> {
   const db = await initDb()
-  const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
-  await tx.store.delete(notificationId)
-  await tx.done
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
+    const store = tx.objectStore(NOTIFICATIONS_STORE)
+    const request = store.delete(notificationId)
+    
+    request.onerror = () => reject(request.error)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 export async function clearOldNotifications(userId: string, olderThanMs: number): Promise<void> {
   const cutoff = Date.now() - olderThanMs
   const notifications = await getNotifications(userId)
   const db = await initDb()
-  const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
   
-  for (const notification of notifications) {
-    if (notification.triggeredAt < cutoff) {
-      await tx.store.delete(notification.id)
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTIFICATIONS_STORE, 'readwrite')
+    const store = tx.objectStore(NOTIFICATIONS_STORE)
+    
+    for (const notification of notifications) {
+      if (notification.triggeredAt < cutoff) {
+        store.delete(notification.id)
+      }
     }
-  }
-  
-  await tx.done
+    
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 // Initialize the database on module load

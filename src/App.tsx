@@ -1,4 +1,4 @@
-import React, { useEffect, useState, type ComponentType, type CSSProperties } from 'react'
+import React, { useEffect, useState, Suspense, type ComponentType, type CSSProperties } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { I18nProvider } from './components/I18nProvider'
 import './i18n/index.js'
@@ -7,41 +7,7 @@ import './styles/responsive.css'
 import Sidebar from './components/layout/Sidebar'
 import MobileHeader from './components/layout/MobileHeader'
 import ConnectPanel from './components/dashboard/ConnectPanel'
-import Overview from './components/dashboard/Overview'
-import Account from './components/dashboard/Account'
-import Transactions from './components/dashboard/Transactions'
-import Contracts from './components/dashboard/Contracts'
-import NetworkStats from './components/dashboard/NetworkStats'
-import Faucet from './components/dashboard/Faucet'
-import Builder from './components/dashboard/Builder'
-import Compare from './components/dashboard/AccountComparison'
-import WalletConnect from './components/dashboard/WalletConnect'
-import TransactionSigner from './components/dashboard/TransactionSigner'
-import PriceTicker from './components/dashboard/PriceTicker'
-import PortfolioValue from './components/dashboard/PortfolioValue'
-import NetworkMetricsChart from './components/charts/NetworkMetricsChart'
-import AccountActivityChart from './components/charts/AccountActivityChart'
-import BalanceHistoryChart from './components/charts/BalanceHistoryChart'
-import AdvancedChartSuite from './components/charts/AdvancedChartSuite'
-import TransactionBuilder from './components/dashboard/TransactionBuilder'
-import ContractInteraction from './components/dashboard/ContractInteraction'
-import ContractABI from './components/dashboard/ContractABI'
-import AdvancedTransactionSimulation from './components/dashboard/AdvancedTransactionSimulation'
-import TransactionSimulator from './components/dashboard/TransactionSimulator'
-import DEXExplorer from './components/dashboard/DEXExplorer'
-import ExplorerEmbed from './components/dashboard/ExplorerEmbed'
-import RealTimeLedger from './components/dashboard/RealTimeLedger'
-import Analytics from './components/dashboard/Analytics'
-import SystemHealth from './components/dashboard/SystemHealth'
-import Settings from './components/dashboard/Settings'
-import { AssetDiscovery } from './components/assets'
-import { MultisigManager } from './components/multisig'
-import AuditLog from './components/dashboard/AuditLog'
-import { AnchorIntegration } from './components/anchors'
-import AdvancedSearch from './components/dashboard/AdvancedSearch'
-import CacheStats from './components/dashboard/CacheStats'
-import LiveActivityFeed from './components/dashboard/LiveActivityFeed'
-import ClaimableBalances from './components/dashboard/ClaimableBalances'
+import ChunkLoadingFallback from './components/ChunkLoadingFallback'
 import RealTimeNotificationCenter from './components/notifications/RealTimeNotificationCenter'
 import { useRealTimeNotifications } from './hooks/useRealTimeNotifications'
 import { pruneCaches } from './lib/cacheManager'
@@ -61,6 +27,43 @@ import GlobalSearch from './components/search/GlobalSearch'
 import UserPreferences from './components/preferences/UserPreferences'
 import MobileNavigation from './components/layout/MobileNavigation'
 import KeyboardNavigation from './components/accessibility/KeyboardNavigation'
+import PriceTicker from './components/dashboard/PriceTicker'
+
+// Route-based lazy-loaded components
+const Overview = React.lazy(() => import('./components/dashboard/Overview'))
+const Account = React.lazy(() => import('./components/dashboard/Account'))
+const Transactions = React.lazy(() => import('./components/dashboard/Transactions'))
+const Contracts = React.lazy(() => import('./components/dashboard/Contracts'))
+const NetworkStats = React.lazy(() => import('./components/dashboard/NetworkStats'))
+const Faucet = React.lazy(() => import('./components/dashboard/Faucet'))
+const Builder = React.lazy(() => import('./components/dashboard/Builder'))
+const Compare = React.lazy(() => import('./components/dashboard/AccountComparison'))
+const WalletConnect = React.lazy(() => import('./components/dashboard/WalletConnect'))
+const TransactionSigner = React.lazy(() => import('./components/dashboard/TransactionSigner'))
+const PortfolioValue = React.lazy(() => import('./components/dashboard/PortfolioValue'))
+const NetworkMetricsChart = React.lazy(() => import('./components/charts/NetworkMetricsChart'))
+const AccountActivityChart = React.lazy(() => import('./components/charts/AccountActivityChart'))
+const BalanceHistoryChart = React.lazy(() => import('./components/charts/BalanceHistoryChart'))
+const AdvancedChartSuite = React.lazy(() => import('./components/charts/AdvancedChartSuite'))
+const TransactionBuilder = React.lazy(() => import('./components/dashboard/TransactionBuilder'))
+const ContractInteraction = React.lazy(() => import('./components/dashboard/ContractInteraction'))
+const ContractABI = React.lazy(() => import('./components/dashboard/ContractABI'))
+const AdvancedTransactionSimulation = React.lazy(() => import('./components/dashboard/AdvancedTransactionSimulation'))
+const TransactionSimulator = React.lazy(() => import('./components/dashboard/TransactionSimulator'))
+const DEXExplorer = React.lazy(() => import('./components/dashboard/DEXExplorer'))
+const ExplorerEmbed = React.lazy(() => import('./components/dashboard/ExplorerEmbed'))
+const RealTimeLedger = React.lazy(() => import('./components/dashboard/RealTimeLedger'))
+const Analytics = React.lazy(() => import('./components/dashboard/Analytics'))
+const SystemHealth = React.lazy(() => import('./components/dashboard/SystemHealth'))
+const Settings = React.lazy(() => import('./components/dashboard/Settings'))
+const AssetDiscovery = React.lazy(() => import('./components/assets').then(m => ({ default: m.AssetDiscovery })))
+const MultisigManager = React.lazy(() => import('./components/multisig').then(m => ({ default: m.MultisigManager })))
+const AuditLog = React.lazy(() => import('./components/dashboard/AuditLog'))
+const AnchorIntegration = React.lazy(() => import('./components/anchors').then(m => ({ default: m.AnchorIntegration })))
+const AdvancedSearch = React.lazy(() => import('./components/dashboard/AdvancedSearch'))
+const CacheStats = React.lazy(() => import('./components/dashboard/CacheStats'))
+const LiveActivityFeed = React.lazy(() => import('./components/dashboard/LiveActivityFeed'))
+const ClaimableBalances = React.lazy(() => import('./components/dashboard/ClaimableBalances'))
 
 interface SearchResult {
   type?: string
@@ -82,10 +85,18 @@ const ChartsTab: ComponentType = () => {
       >
         {t('charts.title')}
       </div>
-      <NetworkMetricsChart />
-      <AccountActivityChart />
-      <BalanceHistoryChart />
-      <AdvancedChartSuite />
+      <Suspense fallback={<ChunkLoadingFallback />}>
+        <NetworkMetricsChart />
+      </Suspense>
+      <Suspense fallback={<ChunkLoadingFallback />}>
+        <AccountActivityChart />
+      </Suspense>
+      <Suspense fallback={<ChunkLoadingFallback />}>
+        <BalanceHistoryChart />
+      </Suspense>
+      <Suspense fallback={<ChunkLoadingFallback />}>
+        <AdvancedChartSuite />
+      </Suspense>
     </div>
   )
 }
@@ -348,7 +359,13 @@ function DashboardLayout() {
             <PriceTicker />
           </div>
           <ErrorBoundary onRetry={handleRetry} maxRetries={2}>
-            {!connectedAddress ? <ConnectPanel /> : <ActiveComponent />}
+            {!connectedAddress ? (
+              <ConnectPanel />
+            ) : (
+              <Suspense fallback={<ChunkLoadingFallback />}>
+                <ActiveComponent />
+              </Suspense>
+            )}
           </ErrorBoundary>
         </main>
         <TourLauncher />

@@ -24,16 +24,24 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     // Enhanced error handling with categorization
+    const isChunkError = 
+      error?.message?.includes('chunk') || 
+      error?.message?.includes('Failed to fetch') ||
+      error?.message?.includes('loading chunk');
+    
     const errorDetails = handleGlobalError(error, 'ErrorBoundary', {
       componentStack: errorInfo.componentStack,
       errorBoundary: this.constructor.name,
       props: this.props,
-      retryCount: this.state.retryCount
+      retryCount: this.state.retryCount,
+      isChunkError
     });
 
     logger.error('Caught error in ErrorBoundary', {
       errorBoundary: this.constructor.name,
       retryCount: this.state.retryCount,
+      isChunkError,
+      message: error?.message,
     }, error);
 
     this.setState({ errorDetails });
@@ -51,10 +59,25 @@ class ErrorBoundary extends React.Component {
   retryWithBackoff = async () => {
     const { onRetry } = this.props;
     const { retryCount } = this.state;
+    const isChunkError = 
+      this.state.error?.message?.includes('chunk') || 
+      this.state.error?.message?.includes('Failed to fetch') ||
+      this.state.error?.message?.includes('loading chunk');
 
     this.setState({ isRetrying: true });
 
     try {
+      if (isChunkError) {
+        // For chunk loading errors, clear service worker cache and reload
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(name => caches.delete(name)));
+        }
+        // Do a hard refresh to clear browser cache
+        window.location.reload();
+        return;
+      }
+      
       if (onRetry) {
         await retryWithBackoff(onRetry, 3, 'ErrorBoundary');
       }

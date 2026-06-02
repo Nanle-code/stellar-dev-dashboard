@@ -13,8 +13,10 @@ import {
   generateDeploymentPlan,
   getContractTemplates,
   simulateSorobanTests,
+  initDebugSession,
 } from '../../lib/contractDevelopment'
 import TemplateLibrary from '../templates/TemplateLibrary'
+import ContractDebugger from './ContractDebugger.jsx'
 
 const ARGUMENT_TYPES = [
   { value: 'string', label: 'String' },
@@ -168,6 +170,7 @@ export default function Contracts() {
   const [testEditor, setTestEditor] = useState(() => buildContractWorkspace('token').tests)
   const [devResult, setDevResult] = useState(null)
   const [deployPlan, setDeployPlan] = useState(null)
+  const [debugSession, setDebugSession] = useState(null)
 
   const isMainnet = network === 'mainnet'
   const inspectInputError = inspectInput.trim() !== '' && !isValidContractId(inspectInput.trim())
@@ -230,6 +233,12 @@ export default function Contracts() {
       profile: network === 'mainnet' ? 'mainnet-safe' : 'testnet-debug',
     })
     setDevResult(result)
+  }
+
+  function handleStartDebug() {
+    const template = contractTemplates.find(t => t.id === templateId)
+    const session = initDebugSession(sourceEditor, template?.entrypoint || 'transfer')
+    setDebugSession(session)
   }
 
   function handleGenerateDeployPlan() {
@@ -381,6 +390,7 @@ export default function Contracts() {
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <ActionButton label="Run Local Tests" onClick={handleRunLocalTests} />
+            <ActionButton label="Debug" tone="secondary" onClick={handleStartDebug} />
             <ActionButton label="Generate Deploy Plan" tone="secondary" onClick={handleGenerateDeployPlan} />
           </div>
 
@@ -565,6 +575,15 @@ export default function Contracts() {
 
       {submitResult && (
         <ResultBlock label="Submission Result" data={submitResult} />
+      )}
+
+      {debugSession && (
+        <ContractDebugger 
+          session={debugSession}
+          setSession={setDebugSession}
+          sourceCode={sourceEditor}
+          onClose={() => setDebugSession(null)}
+        />
       )}
 
       {!contractData && !contractLoading && !contractError && (

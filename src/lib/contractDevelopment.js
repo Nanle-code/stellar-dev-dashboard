@@ -329,3 +329,112 @@ export function downloadScaffold(templateId) {
 
   return bundle
 }
+
+/**
+ * Initialize a simulated debugging session for a contract.
+ */
+export function initDebugSession(sourceCode, entrypoint, args = []) {
+  const lines = sourceCode.split('\n')
+  const executableLines = []
+  
+  lines.forEach((line, index) => {
+    const trimmed = line.trim()
+    // Heuristic for executable lines in Rust/Soroban
+    if (
+      trimmed &&
+      !trimmed.startsWith('//') &&
+      !trimmed.startsWith('#') &&
+      !trimmed.startsWith('use') &&
+      !trimmed.startsWith('pub struct') &&
+      !trimmed.startsWith('impl') &&
+      !trimmed.endsWith('{') &&
+      !trimmed.endsWith('}') &&
+      trimmed !== 'let env = Env::default();'
+    ) {
+      executableLines.push(index + 1)
+    }
+  })
+
+  // Find the entrypoint function to start the stack
+  const entrypointLine = lines.findIndex(l => l.includes(`fn ${entrypoint}`)) + 1
+
+  return {
+    sessionId: randomId('debug'),
+    currentLine: executableLines.find(l => l > entrypointLine) || executableLines[0] || 1,
+    executableLines,
+    breakpoints: [],
+    callStack: [
+      { function: entrypoint, line: entrypointLine || 1 }
+    ],
+    state: {
+      env: 'Env::default()',
+      storage: {},
+      variables: args.reduce((acc, arg) => ({ ...acc, [arg.name]: arg.value }), {})
+    },
+    status: 'paused',
+    logs: [`Debug session started for entrypoint: ${entrypoint}`]
+  }
+}
+
+/**
+ * Step through the contract execution in a simulated session.
+ */
+export function stepDebugSession(session, sourceCode) {
+  if (session.status === 'finished') return session
+
+  const { currentLine, executableLines } = session
+  const currentIndex = executableLines.indexOf(currentLine)
+  
+  if (currentIndex === -1 || currentIndex === executableLines.length - 1) {
+    return {
+      ...session,
+      status: 'finished',
+      logs: [...session.logs, 'Execution finished.']
+    }
+  }
+
+  const nextLine = executableLines[currentIndex + 1]
+  const lines = sourceCode.split('\n')
+  const lineContent = lines[currentLine - 1] || ''
+  
+  const newState = { 
+    ...session.state,
+    variables: { ...session.state.variables }
+  }
+
+  // Simulated state updates based on common patterns
+  if (lineContent.includes('let ')) {
+    const varMatch = lineContent.match(/let\s+(?:mut\s+)?([a-zA-Z0-9_]+)/)
+    if (varMatch) {
+      const varName = varMatch[1]
+      // Deterministic simulation values
+      newState.variables[varName] = `Val(${currentLine})`
+    }
+  }
+
+  if (lineContent.includes('storage().set')) {
+    const keyMatch = lineContent.match(/Symbol::short\("([a-zA-Z0-9_]+)"\)/)
+    if (keyMatch) {
+      newState.storage[keyMatch[1]] = `StoredVal(${currentLine})`
+    }
+  }
+
+  return {
+    ...session,
+    currentLine: nextLine,
+    state: newState,
+    callStack: session.callStack.map((frame, i) => i === 0 ? { ...frame, line: nextLine } : frame),
+    logs: [...session.logs, `Stepped to line ${nextLine}: ${lines[nextLine - 1]?.trim()}`]
+  }
+}
+
+/**
+ * Toggle a breakpoint for a specific line.
+ */
+export function toggleBreakpoint(session, line) {
+  const breakpoints = session.breakpoints.includes(line)
+    ? session.breakpoints.filter(b => b !== line)
+    : [...session.breakpoints, line]
+  
+  return { ...session, breakpoints }
+}

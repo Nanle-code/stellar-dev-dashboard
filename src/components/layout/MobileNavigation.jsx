@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../lib/store'
 
 // Mirrors the most-used tabs; full nav is in the sidebar (hamburger menu).
@@ -11,7 +12,8 @@ const QUICK_NAV = [
 ]
 
 export default function MobileNavigation() {
-  const { activeTab, setActiveTab } = useStore()
+  const navigate = useNavigate()
+  const { activeTab } = useStore()
 
   return (
     <nav
@@ -24,7 +26,7 @@ export default function MobileNavigation() {
         return (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => navigate(`/${item.id}`)}
             aria-label={item.label}
             aria-current={isActive ? 'page' : undefined}
             style={{

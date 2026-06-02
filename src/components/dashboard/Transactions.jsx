@@ -7,6 +7,7 @@ import GlobalSearch from '../search/GlobalSearch'
 import SearchFilters from '../search/SearchFilters'
 import useSearch from '../../hooks/useSearch'
 import { applyTransactionFilters, applyOperationFilters } from '../../lib/filters'
+import TransactionDetail from './TransactionDetail'
 
 export default function Transactions() {
   const {
@@ -35,6 +36,7 @@ export default function Transactions() {
   const [view, setView] = useState('transactions')
   const { query, setQuery, filters, setFilters } = useSearch()
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedTxHash, setSelectedTxHash] = useState(null)
 
   const filteredTransactions = useMemo(() => {
     let list = transactions
@@ -182,7 +184,9 @@ export default function Transactions() {
                   padding: '12px 18px',
                   borderBottom: i < filteredTransactions.length - 1 ? '1px solid var(--border)' : 'none',
                   transition: 'var(--transition)',
+                  cursor: 'pointer',
                 }}
+                onClick={() => setSelectedTxHash(tx.hash)}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
@@ -343,6 +347,8 @@ export default function Transactions() {
           )}
         </div>
       )}
+
+      <TransactionDetail txHash={selectedTxHash} onClose={() => setSelectedTxHash(null)} />
     </div>
   )
 }

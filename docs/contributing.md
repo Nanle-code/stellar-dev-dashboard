@@ -112,7 +112,7 @@ npm run test:e2e        # headless
 npm run test:e2e:ui     # Playwright UI mode
 ```
 
-E2E tests live in `tests/`.
+E2E tests live in `tests/e2e/`. They rely on Playwright's network route interception (`page.route()`) to mock responses from Horizon and Soroban RPC. This guarantees fast, deterministic tests without needing valid testnet credentials or environment variables.
 
 ---
 

@@ -27,6 +27,8 @@ export interface Notification { // ported
   type: string
   title: string
   [key: string]: unknown
+  read?: boolean
+  timestamp?: number
 }
 
 export interface StreamLedger { // ported
@@ -158,8 +160,14 @@ export interface StoreState {
 
   // Notifications (ported)
   notifications: Notification[]
+  notificationHistory: Notification[]
+  unreadNotificationCount: number
   addNotification: (notification: Notification) => void
   removeNotification: (id: string) => void
+  addNotificationHistory: (notification: Notification) => void
+  markNotificationRead: (id: string) => void
+  markAllNotificationsRead: () => void
+  clearNotificationHistory: () => void
 
   // Streaming (ported)
   streamStatus: string
@@ -174,6 +182,7 @@ export interface StoreState {
 // ─── Persisted keys ───────────────────────────────────────────────────────────
 const PERSIST_KEYS: Array<keyof StoreState> = [
   'network', 'theme', 'activeTab', 'savedSearches', 'multiSigMode', 'searchFilters',
+  'notificationHistory', 'unreadNotificationCount'
 ]
 const STORE_PERSIST_KEY = 'store:preferences'
 
@@ -379,12 +388,33 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // Notifications (ported)
   notifications: [],
+  notificationHistory: [],
+  unreadNotificationCount: 0,
   addNotification: (notification) => set((state) => ({
     notifications: [...state.notifications, notification]
   })),
   removeNotification: (id) => set((state) => ({
     notifications: state.notifications.filter(n => n.id !== id)
   })),
+  addNotificationHistory: (notification) => set((state) => ({
+    notificationHistory: [{...notification, read: false}, ...state.notificationHistory],
+    unreadNotificationCount: state.unreadNotificationCount + 1
+  })),
+  markNotificationRead: (id) => set((state) => {
+    const history = state.notificationHistory.map(n => 
+      n.id === id && !n.read ? { ...n, read: true } : n
+    )
+    const unreadCount = history.filter(n => !n.read).length
+    return { notificationHistory: history, unreadNotificationCount: unreadCount }
+  }),
+  markAllNotificationsRead: () => set((state) => ({
+    notificationHistory: state.notificationHistory.map(n => ({ ...n, read: true })),
+    unreadNotificationCount: 0
+  })),
+  clearNotificationHistory: () => set({
+    notificationHistory: [],
+    unreadNotificationCount: 0
+  }),
 
   // Streaming (ported)
   streamStatus: 'disconnected',

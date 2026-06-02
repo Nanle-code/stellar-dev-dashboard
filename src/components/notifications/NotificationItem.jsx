@@ -1,19 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, XCircle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, Info, X, Activity, TrendingUp, Wallet } from 'lucide-react';
 import '../../styles/accessibility.css'; // Just to make sure we have access to sr-only if needed
 
 const ICONS = {
   success: <CheckCircle2 className="w-5 h-5 text-green" />,
   error: <XCircle className="w-5 h-5 text-red" />,
   warning: <AlertCircle className="w-5 h-5 text-amber" />,
-  info: <Info className="w-5 h-5 text-cyan" />
+  info: <Info className="w-5 h-5 text-cyan" />,
+  tx_confirm: <CheckCircle2 className="w-5 h-5 text-green" />,
+  account_change: <Wallet className="w-5 h-5 text-cyan" />,
+  network_event: <Activity className="w-5 h-5 text-cyan" />,
+  price_alert: <TrendingUp className="w-5 h-5 text-amber" />
 };
 
 const BORDERS = {
   success: 'border-green',
   error: 'border-red',
   warning: 'border-amber',
-  info: 'border-cyan'
+  info: 'border-cyan',
+  tx_confirm: 'border-green',
+  account_change: 'border-cyan',
+  network_event: 'border-cyan',
+  price_alert: 'border-amber'
 };
 
 const NotificationItem = ({ notification, onClose }) => {

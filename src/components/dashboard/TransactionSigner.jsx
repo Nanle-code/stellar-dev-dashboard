@@ -1,10 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useStore } from '../../lib/store'
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter'
 import { signXdrWithLedger, isLedgerSupported, getActiveLedgerSession } from '../../lib/wallet/ledger'
 import { NETWORKS } from '../../lib/stellar'
 import { measureAsync } from '../../lib/performanceMonitoring'
+import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences'
 import Card from './Card'
+import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation'
 
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore()
@@ -14,6 +16,16 @@ export default function TransactionSigner() {
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
   const [ledgerPrompt, setLedgerPrompt] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES)
+
+  useEffect(() => {
+    async function fetchPreferences() {
+      const prefs = await loadPreferences()
+      setPreferences(prefs)
+    }
+    fetchPreferences()
+  }, [])
 
   const networkPassphrase = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
 
@@ -23,6 +35,15 @@ export default function TransactionSigner() {
       return
     }
 
+    if (preferences.transactionConfirmation.enabled) {
+      setShowConfirmation(true)
+      return
+    }
+
+    await doSign()
+  }
+
+  const doSign = async () => {
     setSigning(true)
     setError(null)
     setSignedXdr(null)
@@ -50,6 +71,15 @@ export default function TransactionSigner() {
     } finally {
       setSigning(false)
     }
+  }
+
+  const handleConfirm = async () => {
+    setShowConfirmation(false)
+    await doSign()
+  }
+
+  const handleCancelConfirmation = () => {
+    setShowConfirmation(false)
   }
 
   const _signWithLedger = async () => {
@@ -118,6 +148,19 @@ export default function TransactionSigner() {
           <span style={{ fontSize: '11px' }}>Use the Wallet tab to connect Freighter or Ledger.</span>
         </div>
       </Card>
+    )
+  }
+
+  if (showConfirmation) {
+    return (
+      <EnhancedTransactionConfirmation
+        transactionXdr={xdr}
+        network={network}
+        preferences={preferences}
+        onConfirm={handleConfirm}
+        onCancel={handleCancelConfirmation}
+        sourceAccount={walletPublicKey}
+      />
     )
   }
 

@@ -48,6 +48,13 @@ export interface UserPreferences {
   fontSize: 'small' | 'medium' | 'large'
   customNetworkProfiles?: NetworkProfile[]
   activeCustomProfile?: string
+  transactionConfirmation: {
+    enabled: boolean
+    largeTransactionThreshold: number // in XLM
+    cooldownPeriod: number // in seconds
+    requireEmailConfirmation: boolean
+    confirmationEmail: string
+  }
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -65,6 +72,13 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   fontSize: 'medium',
   customNetworkProfiles: [],
   activeCustomProfile: undefined,
+  transactionConfirmation: {
+    enabled: true,
+    largeTransactionThreshold: 1000, // in XLM
+    cooldownPeriod: 30, // in seconds
+    requireEmailConfirmation: false,
+    confirmationEmail: '',
+  },
 }
 
 const PREFS_KEY = 'user-preferences-v2'

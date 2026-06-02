@@ -19,20 +19,22 @@ const MAX_RECONNECT_ATTEMPTS = 10
  *   any          → disconnected  (on explicit .disconnect())
  */
 class StreamManager {
+  private _closeStream: (() => void) | null = null
+  private _status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error' = 'disconnected'
+  private _reconnectAttempts = 0
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private _network: any | null = null
+  private _ledgerSubscribers: Set<(ledger: any) => void> = new Set()
+  private _statusSubscribers: Set<(status: any) => void> = new Set()
+
   constructor() {
-    /** @type {(() => void) | null} */
     this._closeStream = null
-    /** @type {'disconnected'|'connecting'|'connected'|'reconnecting'|'error'} */
     this._status = 'disconnected'
     this._reconnectAttempts = 0
-    /** @type {ReturnType<typeof setTimeout> | null} */
     this._reconnectTimer = null
-    /** @type {string | null} */
     this._network = null
 
-    /** Ledger callbacks */
     this._ledgerSubscribers = new Set()
-    /** Status-change callbacks */
     this._statusSubscribers = new Set()
   }
 
@@ -44,9 +46,9 @@ class StreamManager {
    * @param {(ledger: object) => void} callback
    * @returns {() => void}
    */
-  subscribe(callback) {
+  subscribe(callback: (ledger: any) => void): () => void {
     this._ledgerSubscribers.add(callback)
-    return () => this._ledgerSubscribers.delete(callback)
+    return () => { this._ledgerSubscribers.delete(callback); }
   }
 
   /**
@@ -55,9 +57,9 @@ class StreamManager {
    * @param {(status: string) => void} callback
    * @returns {() => void}
    */
-  onStatusChange(callback) {
+  onStatusChange(callback: (status: any) => void): () => void {
     this._statusSubscribers.add(callback)
-    return () => this._statusSubscribers.delete(callback)
+    return () => { this._statusSubscribers.delete(callback); }
   }
 
   /** @returns {'disconnected'|'connecting'|'connected'|'reconnecting'|'error'} */
@@ -70,7 +72,7 @@ class StreamManager {
    * Disconnects any existing stream first.
    * @param {string} [network='testnet']
    */
-  connect(network = 'testnet') {
+  connect(network: any = 'testnet') {
     if (this._network !== network && this._closeStream) {
       this.disconnect()
     }
@@ -109,7 +111,7 @@ class StreamManager {
   _openStream() {
     this._setStatus('connecting')
     try {
-      const server = getServer(this._network)
+      const server = getServer(this._network as any)
       this._closeStream = server
         .ledgers()
         .cursor('now')

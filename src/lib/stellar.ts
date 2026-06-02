@@ -2,7 +2,7 @@ import * as StellarSdk from '@stellar/stellar-sdk'
 import { Cache, TTL } from './cache.js'
 import { rateLimiter } from './rateLimiter.js'
 import auditTrail from './auditTrail.js'
-import { getCircuitBreaker } from './errorHandling/CircuitBreaker'
+import { getCircuitBreaker, type CircuitState } from './errorHandling/CircuitBreaker'
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 

@@ -29,6 +29,7 @@
   "include": [
     "src/**/*.d.ts",
     "src/lib/**/*.ts",
+    "src/utils/**/*.ts",
     "src/hooks/**/*.ts",
     "src/components/**/*.ts",
     "src/components/**/*.tsx",

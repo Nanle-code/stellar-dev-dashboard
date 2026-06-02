@@ -19,18 +19,33 @@ const STORES = {
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
 };
 
+interface ApiCacheRecord {
+  key: string;
+  value: unknown;
+  expiresAt: number;
+  tag: string;
+  cachedAt: number;
+}
+
+interface OfflineOp {
+  id?: number;
+  type: string;
+  payload: unknown;
+  queuedAt: number;
+}
+
 // ─── DB open ──────────────────────────────────────────────────────────────────
 
-let _db = null;
+let _db: IDBDatabase | null = null;
 
-function openDB() {
+function openDB(): Promise<IDBDatabase> {
   if (_db) return Promise.resolve(_db);
 
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
-      const db = event.target.result;
+      const db = (event.target as IDBOpenDBRequest).result;
 
       if (!db.objectStoreNames.contains(STORES.APP_STATE)) {
         db.createObjectStore(STORES.APP_STATE);
@@ -66,18 +81,18 @@ function openDB() {
 
 // ─── Generic transaction helper ───────────────────────────────────────────────
 
-async function tx(storeName, mode, fn) {
-  const db       = await openDB();
-  const trans    = db.transaction(storeName, mode);
-  const store    = trans.objectStore(storeName);
-  return new Promise((resolve, reject) => {
-    const req = fn(store);
+async function tx<T = void>(storeName: string, mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T> | void): Promise<T | void> {
+  const db = await openDB();
+  const trans = db.transaction(storeName, mode);
+  const store = trans.objectStore(storeName);
+  return new Promise<T | void>((resolve, reject) => {
+    const req = fn(store) as IDBRequest<T> | void;
     if (req && typeof req.onsuccess !== 'undefined') {
       req.onsuccess = () => resolve(req.result);
-      req.onerror   = () => reject(req.error);
+      req.onerror = () => reject(req.error);
     } else {
       trans.oncomplete = () => resolve();
-      trans.onerror    = () => reject(trans.error);
+      trans.onerror = () => reject(trans.error);
     }
   });
 }
@@ -127,7 +142,7 @@ export async function clearStorage() {
  */
 export async function getCachedApiResponse(key) {
   try {
-    const record = await tx(STORES.API_CACHE, 'readonly', (s) => s.get(key));
+    const record = await tx<ApiCacheRecord | undefined>(STORES.API_CACHE, 'readonly', (s) => s.get(key));
     if (!record) return null;
     if (Date.now() > record.expiresAt) {
       // Expired — delete lazily
@@ -173,9 +188,9 @@ export async function invalidateCacheByTag(tag) {
 
     await new Promise((resolve, reject) => {
       req.onsuccess = (e) => {
-        const cursor = e.target.result;
+        const cursor = (e.target as IDBRequest).result;
         if (cursor) { cursor.delete(); cursor.continue(); }
-        else resolve();
+        else resolve(undefined);
       };
       req.onerror = () => reject(req.error);
     });
@@ -195,9 +210,9 @@ export async function pruneExpiredApiCache() {
 
     await new Promise((resolve, reject) => {
       req.onsuccess = (e) => {
-        const cursor = e.target.result;
+        const cursor = (e.target as IDBRequest).result;
         if (cursor) { cursor.delete(); cursor.continue(); }
-        else resolve();
+        else resolve(undefined);
       };
       req.onerror = () => reject(req.error);
     });
@@ -210,7 +225,7 @@ export async function pruneExpiredApiCache() {
  * Add an operation to the offline queue (e.g. a transaction to submit later).
  * @param {{ type: string, payload: * }} op
  */
-export async function enqueueOfflineOp(op) {
+export async function enqueueOfflineOp(op: Omit<OfflineOp, 'queuedAt' | 'id'>) {
   try {
     await tx(STORES.OFFLINE_Q, 'readwrite', (s) => s.add({ ...op, queuedAt: Date.now() }));
   } catch { /* ignore */ }
@@ -218,11 +233,12 @@ export async function enqueueOfflineOp(op) {
 
 /**
  * Read all queued offline operations.
- * @returns {Promise<Array>}
+ * @returns {Promise<Array<OfflineOp>>}
  */
-export async function getOfflineQueue() {
+export async function getOfflineQueue(): Promise<OfflineOp[]> {
   try {
-    return await tx(STORES.OFFLINE_Q, 'readonly', (s) => s.getAll()) ?? [];
+    const res = await tx<OfflineOp[]>(STORES.OFFLINE_Q, 'readonly', (s) => s.getAll());
+    return (res as OfflineOp[] | undefined) ?? [];
   } catch { return []; }
 }
 
@@ -230,7 +246,7 @@ export async function getOfflineQueue() {
  * Remove a processed operation from the queue by its auto-increment id.
  * @param {number} id
  */
-export async function dequeueOfflineOp(id) {
+export async function dequeueOfflineOp(id: number) {
   try {
     await tx(STORES.OFFLINE_Q, 'readwrite', (s) => s.delete(id));
   } catch { /* ignore */ }

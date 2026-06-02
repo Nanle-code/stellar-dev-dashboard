@@ -12,6 +12,27 @@ import {
   AuditSeverity,
   subscribeAudit,
 } from '../utils/audit.js';
+import type {
+  AuditSeverity as AuditSeverityType,
+  AuditCategory as AuditCategoryType,
+  AuditOutcome,
+} from '../utils/audit.js';
+
+export interface SecurityEventOptions {
+  actor?: string;
+  target?: string;
+  outcome?: AuditOutcome;
+  metadata?: Record<string, unknown>;
+  severityOverride?: AuditSeverityType;
+}
+
+interface SecurityAlert {
+  kind: string;
+  actor: string;
+  count: number;
+  windowMs: number;
+  action?: string;
+}
 
 // ─── Canonical security event types ──────────────────────────────────────────
 
@@ -91,31 +112,31 @@ function categoryFor(eventType) {
 
 // ─── Anomaly detection state ─────────────────────────────────────────────────
 
-const _failedAuthByActor = new Map();         // actor -> timestamps
-const _ratelimitHitsByAction = new Map();     // action -> timestamps
+const _failedAuthByActor = new Map<string, number[]>();         // actor -> timestamps
+const _ratelimitHitsByAction = new Map<string, number[]>();     // action -> timestamps
 const FAILED_AUTH_WINDOW_MS = 5 * 60_000;
 const FAILED_AUTH_THRESHOLD = 5;
 const RATE_LIMIT_WINDOW_MS = 10 * 60_000;
 const RATE_LIMIT_THRESHOLD = 10;
 
-const _alertSubscribers = new Set();
+const _alertSubscribers = new Set<(alert: SecurityAlert) => void>();
 
-export function subscribeSecurityAlerts(handler) {
+export function subscribeSecurityAlerts(handler: (alert: SecurityAlert) => void) {
   _alertSubscribers.add(handler);
   return () => _alertSubscribers.delete(handler);
 }
 
-function emitAlert(alert) {
+function emitAlert(alert: SecurityAlert) {
   for (const fn of _alertSubscribers) {
     try { fn(alert); } catch { /* swallow */ }
   }
 }
 
-function pruneOlderThan(arr, cutoff) {
+function pruneOlderThan(arr: number[], cutoff: number) {
   return arr.filter((t) => t >= cutoff);
 }
 
-function checkAnomalies(eventType, payload) {
+function checkAnomalies(eventType: string, payload: { actor?: string; metadata?: Record<string, unknown> }) {
   const now = Date.now();
 
   if (eventType === SecurityEventType.AUTH_LOGIN_FAILED) {
@@ -146,7 +167,7 @@ function checkAnomalies(eventType, payload) {
   }
 
   if (eventType === SecurityEventType.RATE_LIMIT_HIT) {
-    const action = payload.metadata?.action || 'unknown';
+    const action = typeof payload.metadata?.action === 'string' ? payload.metadata.action : 'unknown';
     const list = pruneOlderThan(
       _ratelimitHitsByAction.get(action) ?? [],
       now - RATE_LIMIT_WINDOW_MS,
@@ -187,7 +208,7 @@ function checkAnomalies(eventType, payload) {
  * }} [opts]
  * @returns {Promise<object>}
  */
-export function trackSecurityEvent(eventType, opts = {}) {
+export function trackSecurityEvent(eventType: string, opts: SecurityEventOptions = {}) {
   const severity = opts.severityOverride ?? SEVERITY_MAP[eventType] ?? AuditSeverity.INFO;
   const category = categoryFor(eventType);
 

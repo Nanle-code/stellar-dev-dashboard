@@ -1,9 +1,9 @@
-function toNumber(value, fallback = 0) {
-  const parsed = Number(value);
+function toNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value as any);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export function applyTransactionFilters(transactions = [], filters = {}) {
+export function applyTransactionFilters(transactions: any[] = [], filters: any = {}) {
   return transactions.filter((tx) => {
     if (filters.status === "success" && !tx.successful) return false;
     if (filters.status === "failed" && tx.successful) return false;
@@ -22,7 +22,7 @@ export function applyTransactionFilters(transactions = [], filters = {}) {
   });
 }
 
-export function applyOperationFilters(operations = [], filters = {}) {
+export function applyOperationFilters(operations: any[] = [], filters: any = {}) {
   return operations.filter((op) => {
     if (filters.type && filters.type !== "all" && op.type !== filters.type) {
       return false;
@@ -34,7 +34,7 @@ export function applyOperationFilters(operations = [], filters = {}) {
   });
 }
 
-export function applyAssetFilters(assets = [], filters = {}) {
+export function applyAssetFilters(assets: any[] = [], filters: any = {}) {
   return assets.filter((asset) => {
     if (filters.verifiedOnly && !asset.is_verified) return false;
     if (filters.minHolders && toNumber(asset.num_accounts) < toNumber(filters.minHolders)) {

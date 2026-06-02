@@ -20,7 +20,9 @@ export const AuditSeverity = Object.freeze({
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical',
-});
+}) as const;
+
+export type AuditSeverity = (typeof AuditSeverity)[keyof typeof AuditSeverity];
 
 export const AuditCategory = Object.freeze({
   AUTH: 'auth',
@@ -34,18 +36,66 @@ export const AuditCategory = Object.freeze({
   SECURITY: 'security',
   ADMIN: 'admin',
   SYSTEM: 'system',
-});
+}) as const;
+
+export type AuditCategory = (typeof AuditCategory)[keyof typeof AuditCategory];
+
+export type AuditOutcome = 'success' | 'failure' | 'denied';
+
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  category: AuditCategory;
+  severity: AuditSeverity;
+  actor: string | null;
+  target: string | null;
+  outcome: AuditOutcome;
+  metadata: Record<string, unknown>;
+  sessionId: string;
+  url: string | null;
+  userAgent: string | null;
+  prevHash: string;
+  hash: string;
+}
+
+export interface RecordAuditOptions {
+  action?: string;
+  category?: AuditCategory;
+  severity?: AuditSeverity;
+  actor?: string | null;
+  target?: string | null;
+  outcome?: AuditOutcome;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AuditQueryOptions {
+  category?: AuditCategory;
+  severity?: AuditSeverity;
+  actor?: string;
+  search?: string;
+  since?: string | number;
+  until?: string | number;
+  limit?: number;
+}
+
+export interface AuditStats {
+  total: number;
+  bySeverity: Partial<Record<AuditSeverity, number>>;
+  byCategory: Partial<Record<AuditCategory, number>>;
+  byOutcome: Record<AuditOutcome, number>;
+}
 
 const STORAGE_KEY = 'audit-log';
 const MAX_RING_SIZE = 1000;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const _ring = [];
+const _ring: AuditEntry[] = [];
 let _lastHash = '0';
 let _sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 let _hydrated = false;
-const _subscribers = new Set();
+const _subscribers = new Set<(entry: AuditEntry) => void>();
 
 // ─── Hashing (browser SubtleCrypto with fallback) ─────────────────────────────
 
@@ -74,14 +124,14 @@ const SENSITIVE_FIELD_NAMES = new Set([
   'password', 'passphrase', 'token', 'apiKey', 'authorization',
 ]);
 
-export function redactSensitive(value) {
+export function redactSensitive(value: unknown): unknown {
   if (value == null) return value;
   if (typeof value === 'string') {
     return value.replace(SECRET_KEY_PATTERN, '[REDACTED_SECRET_KEY]');
   }
   if (Array.isArray(value)) return value.map(redactSensitive);
   if (typeof value === 'object') {
-    const out = {};
+    const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
       if (SENSITIVE_FIELD_NAMES.has(k)) {
         out[k] = '[REDACTED]';
@@ -102,7 +152,7 @@ async function hydrate() {
   try {
     const stored = await getStoredValue(STORAGE_KEY);
     if (Array.isArray(stored) && stored.length) {
-      _ring.push(...stored.slice(-MAX_RING_SIZE));
+      _ring.push(...(stored.slice(-MAX_RING_SIZE) as AuditEntry[]));
       _lastHash = _ring[_ring.length - 1]?.hash ?? '0';
     }
   } catch {
@@ -124,12 +174,12 @@ hydrate();
 
 // ─── Subscriptions ───────────────────────────────────────────────────────────
 
-export function subscribeAudit(handler) {
+export function subscribeAudit(handler: (entry: AuditEntry) => void) {
   _subscribers.add(handler);
   return () => _subscribers.delete(handler);
 }
 
-function notify(entry) {
+function notify(entry: AuditEntry) {
   for (const fn of _subscribers) {
     try { fn(entry); } catch { /* swallow subscriber errors */ }
   }
@@ -147,7 +197,7 @@ export async function recordAudit({
   target = null,
   outcome = 'success',
   metadata = {},
-} = {}) {
+}: RecordAuditOptions = {}): Promise<AuditEntry> {
   if (!action || typeof action !== 'string') {
     throw new Error('audit.record requires a string action');
   }
@@ -162,7 +212,7 @@ export async function recordAudit({
     actor,
     target,
     outcome,
-    metadata: redactSensitive(metadata),
+    metadata: redactSensitive(metadata) as Record<string, unknown>,
     sessionId: _sessionId,
     url: typeof window !== 'undefined' ? window.location.href : null,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,

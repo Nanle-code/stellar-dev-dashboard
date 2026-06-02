@@ -3,16 +3,79 @@
  * Implements token bucket algorithm with intelligent request batching and queue management
  */
 
+type RequestPriority = 'high' | 'medium' | 'low';
+
+type ThrottleMode = 'aggressive' | 'conservative';
+
+interface RequestPayload {
+  url: string;
+  options?: RequestInit;
+  priority?: RequestPriority;
+  maxRetries?: number;
+  method?: string;
+}
+
+interface QueuedRequest {
+  id: string;
+  request: RequestPayload;
+  identifier: string;
+  timestamp: number;
+  resolve?: (value: Response | PromiseLike<Response>) => void;
+  reject?: (reason?: any) => void;
+  priority: RequestPriority;
+  endpoint: string;
+  retryCount: number;
+  maxRetries: number;
+}
+
+interface RateLimitBucket {
+  tokens: number;
+  lastRefill: number;
+  endpointUsage: Map<string, number>;
+}
+
+interface RateLimiterStats {
+  totalRequests: number;
+  queuedRequests: number;
+  batchedRequests: number;
+  rejectedRequests: number;
+  droppedRequests: number;
+  averageResponseTime: number;
+  endpointUsage: Map<string, number>;
+}
+
+interface RateLimiterOptions {
+  windowMs?: number;
+  maxRequests?: number;
+  batchSize?: number;
+  batchTimeout?: number;
+  throttleMode?: ThrottleMode;
+  maxQueueSize?: number;
+}
+
 class RateLimiter {
-  constructor(options = {}) {
-    this.windowMs = options.windowMs || 60000; // Default: 1 minute
-    this.maxRequests = options.maxRequests || 30; // Default: 30 requests per minute
+  private windowMs: number;
+  private maxRequests: number;
+  private buckets: Map<string, RateLimitBucket>;
+  private requestQueue: Map<string, QueuedRequest[]>;
+  private batchSize: number;
+  private batchTimeout: number;
+  private throttleMode: ThrottleMode;
+  private maxQueueSize: number;
+  private priorityQueues: Record<RequestPriority, QueuedRequest[]>;
+  private cleanupInterval: ReturnType<typeof setInterval>;
+  private processingInterval: ReturnType<typeof setInterval>;
+  private statistics: RateLimiterStats;
+
+  constructor(options: RateLimiterOptions = {}) {
+    this.windowMs = options.windowMs ?? 60000; // Default: 1 minute
+    this.maxRequests = options.maxRequests ?? 30; // Default: 30 requests per minute
     this.buckets = new Map(); // Store tokens per user/IP
     this.requestQueue = new Map(); // Request queues per endpoint type
-    this.batchSize = options.batchSize || 10; // Max batch size for request batching
-    this.batchTimeout = options.batchTimeout || 100; // Max wait time for batching (ms)
-    this.throttleMode = options.throttleMode || 'aggressive'; // 'aggressive' | 'conservative'
-    this.maxQueueSize = options.maxQueueSize || 100; // Maximum items in queue before dropping
+    this.batchSize = options.batchSize ?? 10; // Max batch size for request batching
+    this.batchTimeout = options.batchTimeout ?? 100; // Max wait time for batching (ms)
+    this.throttleMode = options.throttleMode ?? 'aggressive'; // 'aggressive' | 'conservative'
+    this.maxQueueSize = options.maxQueueSize ?? 100; // Maximum items in queue before dropping
     this.priorityQueues = {
       high: [],
       medium: [],
@@ -45,6 +108,7 @@ class RateLimiter {
       bucket = {
         tokens: this.maxRequests - 1,
         lastRefill: now,
+        endpointUsage: new Map()
       };
       this.buckets.set(identifier, bucket);
       

@@ -13,6 +13,10 @@ export interface SearchFilters {
   minFee: string
   maxFee: string
   type: string
+  minAmount: string
+  maxAmount: string
+  startDate: string
+  endDate: string
 }
 
 export interface ComparisonSlot { // ported
@@ -35,6 +39,17 @@ export interface StreamLedger { // ported
 }
 
 const THEME_STORAGE_KEY = 'stellar-dashboard-theme'
+export const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+  status: 'all',
+  memoOnly: false,
+  minFee: '',
+  maxFee: '',
+  type: 'all',
+  minAmount: '',
+  maxAmount: '',
+  startDate: '',
+  endDate: '',
+}
 
 export interface StoreState {
   // Network
@@ -311,13 +326,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setPricesError: (error) => set({ pricesError: error }),
 
   // Search Filters
-  searchFilters: {
-    status: 'all',
-    memoOnly: false,
-    minFee: '',
-    maxFee: '',
-    type: 'all',
-  },
+  searchFilters: DEFAULT_SEARCH_FILTERS,
   setSearchFilters: (filters) => set((state) => ({
     searchFilters: { ...state.searchFilters, ...filters }
   })),
@@ -412,6 +421,9 @@ if (typeof window !== 'undefined') {
       const slice: Partial<StoreState> = {}
       for (const key of PERSIST_KEYS) {
         if (key in saved) (slice as Record<string, unknown>)[key] = saved[key as string]
+      }
+      if (slice.searchFilters) {
+        slice.searchFilters = { ...DEFAULT_SEARCH_FILTERS, ...slice.searchFilters }
       }
       if (Object.keys(slice).length > 0) useStore.setState(slice)
     }

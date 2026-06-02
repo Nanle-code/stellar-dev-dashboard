@@ -1,47 +1,11 @@
 import { http, HttpResponse } from 'msw';
+import { buildAccountFixture, buildLedgerFixture, buildTransactionsResponse } from '../__factories__';
 
 const HORIZON_BASE = 'https://horizon-testnet.stellar.org';
 
-const mockAccount = {
-  id: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-  account_id: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-  sequence: '1234567890',
-  subentry_count: 0,
-  balances: [
-    { balance: '100.0000000', asset_type: 'native', buying_liabilities: '0.0000000', selling_liabilities: '0.0000000' },
-  ],
-  thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
-  flags: { auth_required: false, auth_revocable: false, auth_immutable: false },
-  signers: [
-    { public_key: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN', weight: 1, type: 'ed25519_public_key' },
-  ],
-};
-
-const mockTransactions = {
-  _embedded: {
-    records: [
-      {
-        id: 'tx1',
-        hash: 'abc123',
-        ledger: 1000,
-        created_at: '2024-01-01T00:00:00Z',
-        source_account: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-        fee_charged: '100',
-        operation_count: 1,
-        successful: true,
-      },
-    ],
-  },
-};
-
-const mockLedger = {
-  id: 'ledger1',
-  sequence: 50000000,
-  closed_at: '2024-01-01T00:00:00Z',
-  transaction_count: 42,
-  operation_count: 100,
-  base_fee_in_stroops: 100,
-};
+const mockAccount = buildAccountFixture();
+const mockTransactions = buildTransactionsResponse();
+const mockLedger = buildLedgerFixture();
 
 export const handlers = [
   // Account endpoint

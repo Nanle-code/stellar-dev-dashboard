@@ -165,6 +165,15 @@ const COINGECKO_XLM_PRICE_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd';
 const CUSTOM_NETWORK_HEADERS_KEY = 'stellar-custom-network-headers';
 
+function endpointShape(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.pathname || '/'
+  } catch {
+    return 'unknown'
+  }
+}
+
 function getSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
   return window.sessionStorage || null;
@@ -340,6 +349,8 @@ export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.
     getServerOptions(network)
   );
 }
+
+export const ee = getServer
 
 export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {
   const config = NETWORKS[network];
@@ -631,7 +642,7 @@ export async function fetchAccountCreationDate(
 }
 
 export function streamLedgers(
-  callback: (ledger: StellarSdk.Horizon.ServerApi.LedgerRecord) => void,
+  callback: (_ledger: StellarSdk.Horizon.ServerApi.LedgerRecord) => void,
   network: NetworkName = 'testnet'
 ): () => void {
   const server = getServer(network);
@@ -1127,6 +1138,7 @@ export function isValidEd25519PublicKey(key: string): boolean {
  * Check if address is a valid muxed account (M...)
  */
 export function isValidMuxedAccount(key: string): boolean {
+  if (!key || typeof key !== 'string') return false
   try {
     return StellarSdk.StrKey.isValidEd25519PublicKey(key) || key.startsWith('M');
   } catch {
@@ -1135,7 +1147,7 @@ export function isValidMuxedAccount(key: string): boolean {
 }
 
 /**
- * Check if address is a federated address (name*domain)
+ * Check if address is a federated address (name*domain or name@domain)
  */
 export function isFederatedAddress(input: string): boolean {
   return typeof input === 'string' && /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input);
@@ -1163,7 +1175,7 @@ export function parseMuxedAccount(
  */
 export async function resolveFederatedAddress(
   federatedAddress: string,
-  network: NetworkName = 'testnet'
+  _network: NetworkName = 'testnet'
 ): Promise<{ accountId: string; memoId?: string; memoType?: string } | null> {
   try {
     const server = getServer(network);

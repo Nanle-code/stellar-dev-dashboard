@@ -1,4 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { sendEmail, sendWebhook, sendSMS } from "../lib/notificationChannels";
+
+// Helper to dispatch alerts via appropriate channels
+function dispatchAlert(alert) {
+  // Simple mapping: critical -> email, warning -> webhook, info -> SMS (optional)
+  if (alert.severity === "critical") {
+    // Example payload; in real use, fill appropriate fields
+    sendEmail({ to: "admin@example.com", subject: alert.title, body: alert.description });
+  } else if (alert.severity === "warning") {
+    sendWebhook({ url: "https://example.com/webhook", data: alert });
+  } else if (alert.severity === "info") {
+    sendSMS({ to: "+1234567890", message: `${alert.title}: ${alert.description}` });
+  }
+}
+
 import {
   collectHealthSnapshot,
   collectSystemHealthSnapshot,
@@ -55,7 +69,9 @@ export function useMonitoring(pollIntervalMs = 15000) {
   const score = useMemo(() => computeHealthScore(snapshot), [snapshot]);
 
   useEffect(() => {
-    alertCenter.push(evaluateAlertRules(snapshot, score));
+    const newAlerts = evaluateAlertRules(snapshot, score);
+    alertCenter.push(newAlerts);
+    newAlerts.forEach(dispatchAlert);
   }, [snapshot, score]);
 
   return {

@@ -1,4 +1,5 @@
 import { reportError } from '../lib/errorReporting';
+import { ErrorDetails } from '../types/error';
 
 /**
  * Error categories for better error handling and user experience
@@ -11,7 +12,9 @@ export const ERROR_CATEGORIES = {
   PERMISSION: 'permission',
   RATE_LIMIT: 'rate_limit',
   UNKNOWN: 'unknown'
-};
+} as const;
+
+export type ErrorCategory = typeof ERROR_CATEGORIES[keyof typeof ERROR_CATEGORIES];
 
 /**
  * Error severity levels
@@ -21,12 +24,19 @@ export const ERROR_SEVERITY = {
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical'
-};
+} as const;
+
+export type ErrorSeverity = typeof ERROR_SEVERITY[keyof typeof ERROR_SEVERITY];
+
+interface StellarErrorClassification {
+  category: ErrorCategory;
+  severity: ErrorSeverity;
+}
 
 /**
  * Stellar-specific error patterns
  */
-const STELLAR_ERROR_PATTERNS = {
+const STELLAR_ERROR_PATTERNS: Record<string, StellarErrorClassification> = {
   'account not found': { category: ERROR_CATEGORIES.STELLAR, severity: ERROR_SEVERITY.MEDIUM },
   'invalid public key': { category: ERROR_CATEGORIES.VALIDATION, severity: ERROR_SEVERITY.LOW },
   'insufficient balance': { category: ERROR_CATEGORIES.STELLAR, severity: ERROR_SEVERITY.MEDIUM },
@@ -41,7 +51,7 @@ const STELLAR_ERROR_PATTERNS = {
 /**
  * Network error patterns
  */
-const NETWORK_ERROR_PATTERNS = {
+const NETWORK_ERROR_PATTERNS: Record<string, StellarErrorClassification> = {
   'network error': { category: ERROR_CATEGORIES.NETWORK, severity: ERROR_SEVERITY.HIGH },
   'timeout': { category: ERROR_CATEGORIES.NETWORK, severity: ERROR_SEVERITY.MEDIUM },
   'connection refused': { category: ERROR_CATEGORIES.NETWORK, severity: ERROR_SEVERITY.HIGH },
@@ -49,15 +59,33 @@ const NETWORK_ERROR_PATTERNS = {
   'cors': { category: ERROR_CATEGORIES.NETWORK, severity: ERROR_SEVERITY.HIGH },
 };
 
+interface ResponseError extends Error {
+  code?: string | number;
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+      detail?: string;
+      extras?: {
+        result_codes?: {
+          transaction?: string;
+          operations?: string[];
+        };
+      };
+    };
+  };
+}
+
 /**
  * Enhanced error categorization and analysis
  */
-export const categorizeError = (error) => {
+export const categorizeError = (error: unknown): StellarErrorClassification => {
   const errorMessage = formatErrorMessage(error).toLowerCase();
-  const errorCode = error?.code || error?.response?.status;
+  const err = error as ResponseError | null | undefined;
+  const errorCode = err?.code || err?.response?.status;
   
   // Check HTTP status codes first
-  if (errorCode) {
+  if (typeof errorCode === 'number') {
     if (errorCode >= 400 && errorCode < 500) {
       if (errorCode === 401) return { category: ERROR_CATEGORIES.AUTHENTICATION, severity: ERROR_SEVERITY.HIGH };
       if (errorCode === 403) return { category: ERROR_CATEGORIES.PERMISSION, severity: ERROR_SEVERITY.HIGH };
@@ -88,11 +116,17 @@ export const categorizeError = (error) => {
   return { category: ERROR_CATEGORIES.UNKNOWN, severity: ERROR_SEVERITY.MEDIUM };
 };
 
+export interface UserFriendlyErrorMessage {
+  title: string;
+  message: string;
+  action: string;
+}
+
 /**
  * Get user-friendly error messages based on category
  */
-export const getUserFriendlyMessage = (error, category) => {
-  const messages = {
+export const getUserFriendlyMessage = (error: unknown, category: ErrorCategory): UserFriendlyErrorMessage => {
+  const messages: Record<ErrorCategory, UserFriendlyErrorMessage> = {
     [ERROR_CATEGORIES.NETWORK]: {
       title: 'Connection Problem',
       message: 'Unable to connect to Stellar network. Please check your internet connection and try again.',
@@ -115,12 +149,12 @@ export const getUserFriendlyMessage = (error, category) => {
     },
     [ERROR_CATEGORIES.PERMISSION]: {
       title: 'Permission Denied',
-      message: 'You don\'t have permission to perform this action.',
+      message: "You don't have permission to perform this action.",
       action: 'Contact Support'
     },
     [ERROR_CATEGORIES.RATE_LIMIT]: {
       title: 'Too Many Requests',
-      message: 'You\'re making requests too quickly. Please wait a moment and try again.',
+      message: "You're making requests too quickly. Please wait a moment and try again.",
       action: 'Wait and Retry'
     },
     [ERROR_CATEGORIES.UNKNOWN]: {
@@ -133,11 +167,16 @@ export const getUserFriendlyMessage = (error, category) => {
   return messages[category] || messages[ERROR_CATEGORIES.UNKNOWN];
 };
 
+export interface HelpLink {
+  label: string;
+  url: string;
+}
+
 /**
  * Get contextual help links based on error category
  */
-export const getHelpLinks = (category) => {
-  const helpLinks = {
+export const getHelpLinks = (category: ErrorCategory): HelpLink[] => {
+  const helpLinks: Record<ErrorCategory, HelpLink[]> = {
     [ERROR_CATEGORIES.NETWORK]: [
       { label: 'Network Status', url: 'https://status.stellar.org/' },
       { label: 'Connection Troubleshooting', url: 'https://developers.stellar.org/docs/troubleshooting' }
@@ -172,21 +211,20 @@ export const getHelpLinks = (category) => {
 /**
  * Determine if an error is retryable
  */
-export const isRetryableError = (error, category) => {
+export const isRetryableError = (error: unknown, category: ErrorCategory): boolean => {
   const retryableCategories = [
     ERROR_CATEGORIES.NETWORK,
     ERROR_CATEGORIES.RATE_LIMIT,
     ERROR_CATEGORIES.UNKNOWN
   ];
 
-  // Check if category is retryable
   if (retryableCategories.includes(category)) {
     return true;
   }
 
-  // Check specific error codes
-  const errorCode = error?.code || error?.response?.status;
-  if (errorCode && [408, 429, 500, 502, 503, 504].includes(errorCode)) {
+  const err = error as ResponseError | null | undefined;
+  const errorCode = err?.code || err?.response?.status;
+  if (typeof errorCode === 'number' && [408, 429, 500, 502, 503, 504].includes(errorCode)) {
     return true;
   }
 
@@ -196,16 +234,14 @@ export const isRetryableError = (error, category) => {
 /**
  * Get retry delay based on attempt number and error type
  */
-export const getRetryDelay = (attemptNumber, category) => {
-  const baseDelays = {
+export const getRetryDelay = (attemptNumber: number, category: ErrorCategory): number => {
+  const baseDelays: Record<string, number> = {
     [ERROR_CATEGORIES.NETWORK]: 1000,
     [ERROR_CATEGORIES.RATE_LIMIT]: 5000,
     [ERROR_CATEGORIES.UNKNOWN]: 2000
   };
 
   const baseDelay = baseDelays[category] || 1000;
-  
-  // Exponential backoff with jitter
   const exponentialDelay = baseDelay * Math.pow(2, attemptNumber - 1);
   const jitter = Math.random() * 0.1 * exponentialDelay;
   
@@ -215,14 +251,18 @@ export const getRetryDelay = (attemptNumber, category) => {
 /**
  * Enhanced error handler with categorization and retry logic
  */
-export const handleGlobalError = (error, context = 'Global Handler', options = {}) => {
+export const handleGlobalError = (
+  error: unknown,
+  context = 'Global Handler',
+  options: Record<string, unknown> = {}
+): ErrorDetails => {
   const errorMessage = formatErrorMessage(error);
   const { category, severity } = categorizeError(error);
   const userFriendlyMessage = getUserFriendlyMessage(error, category);
   const helpLinks = getHelpLinks(category);
   const isRetryable = isRetryableError(error, category);
   
-  const errorDetails = {
+  const errorDetails: ErrorDetails = {
     originalError: error,
     message: errorMessage,
     category,
@@ -232,15 +272,13 @@ export const handleGlobalError = (error, context = 'Global Handler', options = {
     isRetryable,
     context,
     timestamp: new Date().toISOString(),
-    userAgent: navigator.userAgent,
-    url: window.location.href,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+    url: typeof window !== 'undefined' ? window.location.href : 'unknown',
     ...options
   };
 
   console.error(`[${context}] ${errorMessage}`, errorDetails);
-  
-  // Send to error reporting service with enhanced details
-  reportError(error, errorDetails);
+  reportError(error, errorDetails as Record<string, unknown>);
   
   return errorDetails;
 };
@@ -248,8 +286,12 @@ export const handleGlobalError = (error, context = 'Global Handler', options = {
 /**
  * Retry mechanism with exponential backoff
  */
-export const retryWithBackoff = async (fn, maxAttempts = 3, context = 'Retry') => {
-  let lastError;
+export const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  context = 'Retry'
+): Promise<T> => {
+  let lastError: unknown;
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -275,40 +317,42 @@ export const retryWithBackoff = async (fn, maxAttempts = 3, context = 'Retry') =
 /**
  * Normalizes different types of errors into a single user-friendly string.
  */
-export const formatErrorMessage = (error) => {
+export const formatErrorMessage = (error: unknown): string => {
   if (typeof error === 'string') {
     return error;
   }
   
+  const err = error as ResponseError | null | undefined;
+  
   // Stellar SDK specific errors
-  if (error?.response?.data?.extras?.result_codes) {
-    const codes = error.response.data.extras.result_codes;
+  if (err?.response?.data?.extras?.result_codes) {
+    const codes = err.response.data.extras.result_codes;
     return `Transaction failed: ${codes.transaction || codes.operations?.join(', ') || 'Unknown error'}`;
   }
   
   // Horizon API errors
-  if (error?.response?.data?.detail) {
-    return error.response.data.detail;
+  if (err?.response?.data?.detail) {
+    return err.response.data.detail;
   }
   
   // Standard API errors
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
+  if (err?.response?.data?.message) {
+    return err.response.data.message;
   }
   
   // Network errors
-  if (error?.code === 'NETWORK_ERROR' || error?.message?.includes('Network Error')) {
+  if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network Error')) {
     return 'Network connection failed. Please check your internet connection.';
   }
   
   // Timeout errors
-  if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+  if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
     return 'Request timed out. Please try again.';
   }
   
   // Native JS error
-  if (error?.message) {
-    return error.message;
+  if (err?.message) {
+    return err.message;
   }
   
   return 'An unexpected error occurred. Please try again later.';

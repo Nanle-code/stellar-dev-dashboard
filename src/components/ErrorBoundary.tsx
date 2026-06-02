@@ -1,34 +1,48 @@
-import React from 'react';
+import React, { Component, ReactElement, ReactNode } from 'react';
 import ErrorFallback from './ErrorFallback';
-import { handleGlobalError, retryWithBackoff } from '../utils/errorHandler';
+import { handleGlobalError, retryWithBackoff as retryUtil } from '../utils/errorHandler';
 import { createLogger } from '../utils/logger';
+import { ErrorDetails } from '../types/error';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: ReactElement;
+  onRetry?: () => Promise<void>;
+  maxRetries?: number;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+  errorDetails: ErrorDetails | null;
+  retryCount: number;
+  isRetrying: boolean;
+}
 
 const logger = createLogger('ErrorBoundary');
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
+export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { 
-      hasError: false, 
-      error: null, 
+    this.state = {
+      hasError: false,
+      error: null,
       errorDetails: null,
       retryCount: 0,
-      isRetrying: false
+      isRetrying: false,
     };
   }
 
-  static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI.
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
-    // Enhanced error handling with categorization
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     const errorDetails = handleGlobalError(error, 'ErrorBoundary', {
       componentStack: errorInfo.componentStack,
       errorBoundary: this.constructor.name,
       props: this.props,
-      retryCount: this.state.retryCount
+      retryCount: this.state.retryCount,
     });
 
     logger.error('Caught error in ErrorBoundary', {
@@ -40,51 +54,44 @@ class ErrorBoundary extends React.Component {
   }
 
   resetErrorBoundary = () => {
-    this.setState({ 
-      hasError: false, 
-      error: null, 
+    this.setState({
+      hasError: false,
+      error: null,
       errorDetails: null,
-      isRetrying: false
+      isRetrying: false,
     });
-  }
+  };
 
   retryWithBackoff = async () => {
     const { onRetry } = this.props;
     const { retryCount } = this.state;
-
     this.setState({ isRetrying: true });
-
     try {
       if (onRetry) {
-        await retryWithBackoff(onRetry, 3, 'ErrorBoundary');
+        await retryUtil(onRetry, 3, 'ErrorBoundary');
       }
-      
-      // Reset error state on successful retry
-      this.setState({ 
-        hasError: false, 
-        error: null, 
+      this.setState({
+        hasError: false,
+        error: null,
         errorDetails: null,
         retryCount: retryCount + 1,
-        isRetrying: false
+        isRetrying: false,
       });
     } catch (retryError) {
-      // Handle retry failure
-      const retryErrorDetails = handleGlobalError(retryError, 'ErrorBoundary Retry', {
+      const retryErrorDetails = handleGlobalError(retryError as Error, 'ErrorBoundary Retry', {
         originalError: this.state.error,
-        retryAttempt: retryCount + 1
+        retryAttempt: retryCount + 1,
       });
-
-      this.setState({ 
+      this.setState({
         errorDetails: retryErrorDetails,
         retryCount: retryCount + 1,
-        isRetrying: false
+        isRetrying: false,
       });
     }
-  }
+  };
 
   render() {
     if (this.state.hasError) {
-      // Custom fallback component
       if (this.props.fallback) {
         return React.cloneElement(this.props.fallback, {
           error: this.state.error,
@@ -92,26 +99,21 @@ class ErrorBoundary extends React.Component {
           resetErrorBoundary: this.resetErrorBoundary,
           retryWithBackoff: this.retryWithBackoff,
           isRetrying: this.state.isRetrying,
-          retryCount: this.state.retryCount
+          retryCount: this.state.retryCount,
         });
       }
-
-      // Default enhanced fallback
       return (
-        <ErrorFallback 
+        <ErrorFallback
           error={this.state.error}
           errorDetails={this.state.errorDetails}
           resetErrorBoundary={this.resetErrorBoundary}
           retryWithBackoff={this.retryWithBackoff}
           isRetrying={this.state.isRetrying}
           retryCount={this.state.retryCount}
-          maxRetries={this.props.maxRetries || 3}
+          maxRetries={this.props.maxRetries ?? 3}
         />
       );
     }
-
-    return this.props.children;
+    return this.props.children as ReactNode;
   }
 }
-
-export default ErrorBoundary;

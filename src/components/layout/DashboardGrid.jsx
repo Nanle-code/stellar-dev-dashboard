@@ -1,20 +1,23 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Maximize2, X } from 'lucide-react';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { addBreadcrumb } from '../../lib/errorReporting';
 
 /**
- * Customizable dashboard grid with drag-and-drop and resizable widgets
+ * Customizable responsive dashboard grid with drag-and-drop and resizable widgets.
+ * Width resizing persists as a grid column span so layouts stay fluid at every breakpoint.
  */
-export default function DashboardGrid({ 
-  widgets = [], 
-  onLayoutChange, 
+export default function DashboardGrid({
+  widgets = [],
+  onLayoutChange,
   onWidgetResize,
   onWidgetRemove,
   editable = false,
   columns = { mobile: 1, tablet: 2, desktop: 3 },
   gap = 16,
-  minWidgetHeight = 200
+  minWidgetHeight = 200,
+  rowHeight = 80,
 }) {
   const [layout, setLayout] = useState(widgets);
   const [draggedWidget, setDraggedWidget] = useState(null);
@@ -22,180 +25,227 @@ export default function DashboardGrid({
   const [resizingWidget, setResizingWidget] = useState(null);
   const [resizeStartPos, setResizeStartPos] = useState({ x: 0, y: 0 });
   const [resizeStartSize, setResizeStartSize] = useState({ width: 0, height: 0 });
-  
+
   const gridRef = useRef(null);
   const { isMobile, isTablet } = useResponsive();
   const { handleError } = useErrorHandler('DashboardGrid');
 
-  // Get responsive column count
-  const getColumnCount = () => {
-    if (isMobile) return columns.mobile;
-    if (isTablet) return columns.tablet;
-    return columns.desktop;
-  };
+  useEffect(() => {
+    setLayout(widgets);
+  }, [widgets]);
 
-  const columnCount = getColumnCount();
+  const columnCount = isMobile ? columns.mobile : isTablet ? columns.tablet : columns.desktop;
 
-  // Handle layout changes
+  const clampSpan = useCallback((span) => {
+    if (isMobile) return 1;
+    const parsed = Number(span) || 1;
+    return Math.min(Math.max(parsed, 1), columnCount);
+  }, [columnCount, isMobile]);
+
+  const getGridColumnWidth = useCallback(() => {
+    const gridWidth = gridRef.current?.getBoundingClientRect().width || 0;
+    if (!gridWidth || columnCount <= 0) return 0;
+    return (gridWidth - gap * (columnCount - 1)) / columnCount;
+  }, [columnCount, gap]);
+
   const updateLayout = useCallback((newLayout) => {
     setLayout(newLayout);
     onLayoutChange?.(newLayout);
-    addBreadcrumb('Dashboard layout updated', 'user_action', { 
+    addBreadcrumb('Dashboard layout updated', 'user_action', {
       widgetCount: newLayout.length,
-      editable 
+      editable,
     });
   }, [onLayoutChange, editable]);
 
-  // Drag and drop handlers
-  const handleDragStart = (e, widget, index) => {
+  const handleDragStart = (event, widget, index) => {
     if (!editable) return;
-    
+
     setDraggedWidget({ widget, index });
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.target.outerHTML);
-    
-    // Add drag styling
-    e.target.style.opacity = '0.5';
-    
-    addBreadcrumb('Widget drag started', 'user_action', { 
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', widget.id);
+    event.currentTarget.style.opacity = '0.5';
+
+    addBreadcrumb('Widget drag started', 'user_action', {
       widgetId: widget.id,
-      widgetType: widget.type 
+      widgetType: widget.type,
     });
   };
 
-  const handleDragEnd = (e) => {
-    e.target.style.opacity = '1';
+  const handleDragEnd = (event) => {
+    event.currentTarget.style.opacity = '1';
     setDraggedWidget(null);
     setDragOverIndex(null);
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (event, index) => {
     if (!editable || !draggedWidget) return;
-    
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
     setDragOverIndex(index);
   };
 
-  const handleDrop = (e, dropIndex) => {
+  const handleDrop = (event, dropIndex) => {
     if (!editable || !draggedWidget) return;
-    
-    e.preventDefault();
-    
+
+    event.preventDefault();
+
     const { index: dragIndex } = draggedWidget;
     if (dragIndex === dropIndex) return;
 
     const newLayout = [...layout];
     const [draggedItem] = newLayout.splice(dragIndex, 1);
     newLayout.splice(dropIndex, 0, draggedItem);
-    
+
     updateLayout(newLayout);
     setDragOverIndex(null);
-    
-    addBreadcrumb('Widget dropped', 'user_action', { 
+
+    addBreadcrumb('Widget dropped', 'user_action', {
       from: dragIndex,
       to: dropIndex,
-      widgetId: draggedItem.id
+      widgetId: draggedItem.id,
     });
   };
 
-  // Resize handlers
-  const handleResizeStart = (e, widget, index) => {
+  const handleResizeStart = (event, widget, index) => {
     if (!editable) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const rect = e.target.closest('.widget-container').getBoundingClientRect();
-    setResizingWidget({ widget, index });
-    setResizeStartPos({ x: e.clientX, y: e.clientY });
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rect = event.currentTarget.closest('.widget-container').getBoundingClientRect();
+    setResizingWidget({
+      widget,
+      index,
+      initialSpan: clampSpan(widget.span || 1),
+    });
+    setResizeStartPos({ x: event.clientX, y: event.clientY });
     setResizeStartSize({ width: rect.width, height: rect.height });
-    
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
-    
-    addBreadcrumb('Widget resize started', 'user_action', { 
-      widgetId: widget.id 
+
+    addBreadcrumb('Widget resize started', 'user_action', {
+      widgetId: widget.id,
     });
   };
 
-  const handleResizeMove = useCallback((e) => {
+  const handleResizeMove = useCallback((event) => {
     if (!resizingWidget) return;
-    
-    const deltaX = e.clientX - resizeStartPos.x;
-    const deltaY = e.clientY - resizeStartPos.y;
-    
-    const newWidth = Math.max(200, resizeStartSize.width + deltaX);
-    const newHeight = Math.max(minWidgetHeight, resizeStartSize.height + deltaY);
-    
+
+    const deltaX = event.clientX - resizeStartPos.x;
+    const deltaY = event.clientY - resizeStartPos.y;
+    const columnWidth = getGridColumnWidth();
+    const resizedWidth = Math.max(columnWidth || 1, resizeStartSize.width + deltaX);
+    const spanFromWidth = columnWidth
+      ? Math.round((resizedWidth + gap) / (columnWidth + gap))
+      : resizingWidget.initialSpan;
+    const nextSpan = clampSpan(spanFromWidth);
+    const nextHeight = Math.max(minWidgetHeight, Math.round(resizeStartSize.height + deltaY));
+
     const widgetElement = document.querySelector(`[data-widget-id="${resizingWidget.widget.id}"]`);
     if (widgetElement) {
-      widgetElement.style.width = `${newWidth}px`;
-      widgetElement.style.height = `${newHeight}px`;
+      widgetElement.style.gridColumn = `span ${nextSpan}`;
+      widgetElement.style.height = `${nextHeight}px`;
+      widgetElement.style.gridRow = `span ${Math.max(1, Math.ceil((nextHeight + gap) / (rowHeight + gap)))}`;
     }
-  }, [resizingWidget, resizeStartPos, resizeStartSize, minWidgetHeight]);
+  }, [
+    resizingWidget,
+    resizeStartPos,
+    resizeStartSize,
+    getGridColumnWidth,
+    gap,
+    rowHeight,
+    clampSpan,
+    minWidgetHeight,
+  ]);
 
   const handleResizeEnd = useCallback(() => {
     if (!resizingWidget) return;
-    
-    const widgetElement = document.querySelector(`[data-widget-id="${resizingWidget.widget.id}"]`);
-    if (widgetElement) {
+
+    try {
+      const widgetElement = document.querySelector(`[data-widget-id="${resizingWidget.widget.id}"]`);
+      if (!widgetElement) return;
+
       const rect = widgetElement.getBoundingClientRect();
+      const columnWidth = getGridColumnWidth();
+      const nextSpan = columnWidth
+        ? clampSpan(Math.round((rect.width + gap) / (columnWidth + gap)))
+        : resizingWidget.initialSpan;
+      const nextHeight = Math.max(minWidgetHeight, Math.round(rect.height));
       const updatedWidget = {
         ...resizingWidget.widget,
-        width: rect.width,
-        height: rect.height
+        span: nextSpan,
+        height: nextHeight,
       };
-      
+
       const newLayout = [...layout];
       newLayout[resizingWidget.index] = updatedWidget;
       updateLayout(newLayout);
-      
-      onWidgetResize?.(updatedWidget, { width: rect.width, height: rect.height });
-      
-      addBreadcrumb('Widget resized', 'user_action', { 
-        widgetId: updatedWidget.id,
-        newSize: { width: rect.width, height: rect.height }
-      });
-    }
-    
-    setResizingWidget(null);
-    document.removeEventListener('mousemove', handleResizeMove);
-    document.removeEventListener('mouseup', handleResizeEnd);
-  }, [resizingWidget, layout, updateLayout, onWidgetResize, handleResizeMove]);
+      onWidgetResize?.(updatedWidget, { span: nextSpan, height: nextHeight });
 
-  // Cleanup resize listeners
+      addBreadcrumb('Widget resized', 'user_action', {
+        widgetId: updatedWidget.id,
+        newSize: { span: nextSpan, height: nextHeight },
+      });
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setResizingWidget(null);
+    }
+  }, [
+    resizingWidget,
+    layout,
+    updateLayout,
+    onWidgetResize,
+    getGridColumnWidth,
+    gap,
+    clampSpan,
+    minWidgetHeight,
+    handleError,
+  ]);
+
   useEffect(() => {
+    if (!resizingWidget) return undefined;
+
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+    document.body.style.userSelect = 'none';
+
     return () => {
       document.removeEventListener('mousemove', handleResizeMove);
       document.removeEventListener('mouseup', handleResizeEnd);
+      document.body.style.userSelect = '';
     };
-  }, [handleResizeMove, handleResizeEnd]);
+  }, [resizingWidget, handleResizeMove, handleResizeEnd]);
 
-  // Remove widget
   const handleRemoveWidget = (widget, index) => {
     if (!editable) return;
-    
+
     const newLayout = layout.filter((_, i) => i !== index);
     updateLayout(newLayout);
     onWidgetRemove?.(widget);
-    
-    addBreadcrumb('Widget removed', 'user_action', { 
+
+    addBreadcrumb('Widget removed', 'user_action', {
       widgetId: widget.id,
-      widgetType: widget.type 
+      widgetType: widget.type,
     });
   };
 
   const gridStyles = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+    gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+    gridAutoRows: `${rowHeight}px`,
+    gridAutoFlow: 'row',
     gap: `${gap}px`,
     width: '100%',
     minHeight: '200px',
-    position: 'relative'
+    position: 'relative',
+    alignItems: 'stretch',
+    transition: 'grid-template-columns 180ms ease, gap 180ms ease',
   };
 
   const getWidgetStyles = (widget, index) => {
+    const height = Math.max(Number(widget.height) || minWidgetHeight, minWidgetHeight);
+    const rowSpan = Math.max(1, Math.ceil((height + gap) / (rowHeight + gap)));
+    const isResizing = resizingWidget?.index === index;
     const baseStyles = {
       position: 'relative',
       minHeight: `${minWidgetHeight}px`,
@@ -203,21 +253,23 @@ export default function DashboardGrid({
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)',
       overflow: 'hidden',
-      transition: 'var(--transition)',
+      transition: isResizing
+        ? 'border-color 120ms ease, box-shadow 120ms ease'
+        : 'grid-column 180ms ease, grid-row 180ms ease, height 180ms ease, border-color 120ms ease, box-shadow 120ms ease',
       cursor: editable ? 'move' : 'default',
-      width: widget.width ? `${widget.width}px` : 'auto',
-      height: widget.height ? `${widget.height}px` : 'auto',
-      gridColumn: widget.span ? `span ${Math.min(widget.span, columnCount)}` : 'span 1'
+      width: '100%',
+      minWidth: 0,
+      height: `${height}px`,
+      gridColumn: `span ${clampSpan(widget.span)}`,
+      gridRow: `span ${rowSpan}`,
     };
 
-    // Drag over styling
     if (dragOverIndex === index && draggedWidget?.index !== index) {
       baseStyles.borderColor = 'var(--cyan)';
       baseStyles.boxShadow = '0 0 0 2px var(--cyan-glow)';
     }
 
-    // Resizing styling
-    if (resizingWidget?.index === index) {
+    if (isResizing) {
       baseStyles.borderColor = 'var(--amber)';
       baseStyles.boxShadow = '0 0 0 2px var(--amber-glow)';
     }
@@ -226,10 +278,11 @@ export default function DashboardGrid({
   };
 
   return (
-    <div 
+    <div
       ref={gridRef}
       style={gridStyles}
       className="dashboard-grid"
+      data-columns={columnCount}
     >
       {layout.map((widget, index) => (
         <div
@@ -237,63 +290,60 @@ export default function DashboardGrid({
           data-widget-id={widget.id}
           className="widget-container"
           style={getWidgetStyles(widget, index)}
-          draggable={editable}
-          onDragStart={(e) => handleDragStart(e, widget, index)}
+          draggable={editable && !resizingWidget}
+          onDragStart={(event) => handleDragStart(event, widget, index)}
           onDragEnd={handleDragEnd}
-          onDragOver={(e) => handleDragOver(e, index)}
-          onDrop={(e) => handleDrop(e, index)}
-          onMouseEnter={e => {
+          onDragOver={(event) => handleDragOver(event, index)}
+          onDrop={(event) => handleDrop(event, index)}
+          onMouseEnter={(event) => {
             if (editable) {
-              e.currentTarget.style.borderColor = 'var(--cyan)';
+              event.currentTarget.style.borderColor = 'var(--cyan)';
             }
           }}
-          onMouseLeave={e => {
+          onMouseLeave={(event) => {
             if (editable && dragOverIndex !== index && resizingWidget?.index !== index) {
-              e.currentTarget.style.borderColor = 'var(--border)';
+              event.currentTarget.style.borderColor = 'var(--border)';
             }
           }}
         >
-          {/* Widget Header */}
           {editable && (
-            <div style={{
-              position: 'absolute',
-              top: '8px',
-              right: '8px',
-              display: 'flex',
-              gap: '4px',
-              zIndex: 10,
-              opacity: 0,
-              transition: 'opacity var(--transition)'
-            }}
-            className="widget-controls"
+            <div
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                display: 'flex',
+                gap: '4px',
+                zIndex: 10,
+                opacity: 0,
+                transition: 'opacity var(--transition)',
+              }}
+              className="widget-controls"
             >
-              {/* Resize Handle */}
               <button
-                onMouseDown={(e) => handleResizeStart(e, widget, index)}
+                onMouseDown={(event) => handleResizeStart(event, widget, index)}
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '24px',
+                  height: '24px',
                   background: 'var(--bg-elevated)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-sm)',
-                  cursor: 'nw-resize',
+                  cursor: 'nwse-resize',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '10px',
-                  color: 'var(--text-muted)'
+                  color: 'var(--text-muted)',
                 }}
                 title="Resize widget"
               >
-                ⤡
+                <Maximize2 size={12} />
               </button>
-              
-              {/* Remove Button */}
+
               <button
                 onClick={() => handleRemoveWidget(widget, index)}
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '24px',
+                  height: '24px',
                   background: 'var(--red-glow)',
                   border: '1px solid var(--red)',
                   borderRadius: 'var(--radius-sm)',
@@ -301,26 +351,23 @@ export default function DashboardGrid({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '10px',
-                  color: 'var(--red)'
+                  color: 'var(--red)',
                 }}
                 title="Remove widget"
               >
-                ✕
+                <X size={12} />
               </button>
             </div>
           )}
 
-          {/* Widget Content */}
           <div style={{
             width: '100%',
             height: '100%',
-            pointerEvents: editable ? 'none' : 'auto'
+            pointerEvents: editable ? 'none' : 'auto',
           }}>
             {widget.component}
           </div>
 
-          {/* Show controls on hover */}
           <style jsx>{`
             .widget-container:hover .widget-controls {
               opacity: 1;
@@ -329,10 +376,10 @@ export default function DashboardGrid({
         </div>
       ))}
 
-      {/* Empty state */}
       {layout.length === 0 && (
         <div style={{
           gridColumn: `span ${columnCount}`,
+          gridRow: 'span 4',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -343,14 +390,14 @@ export default function DashboardGrid({
           borderRadius: 'var(--radius-lg)',
           color: 'var(--text-muted)',
           textAlign: 'center',
-          padding: '40px 20px'
+          padding: '40px 20px',
         }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>+</div>
           <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
             No Widgets Added
           </div>
           <div style={{ fontSize: '14px', lineHeight: 1.5, maxWidth: '300px' }}>
-            {editable 
+            {editable
               ? 'Add widgets to customize your dashboard layout.'
               : 'Enable edit mode to add and arrange widgets.'
             }

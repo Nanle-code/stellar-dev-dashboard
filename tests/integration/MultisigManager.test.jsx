@@ -9,6 +9,10 @@ vi.mock('../../src/lib/storage', () => ({
 vi.mock('../../src/utils/stateSync', () => ({
   broadcastStateChange: vi.fn(),
   onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(undefined),
+  loadSyncedState: vi.fn().mockResolvedValue(null),
+  resolveStateConflict: vi.fn((local) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
 }));
 vi.mock('../../src/hooks/useNotifications', () => ({
   useNotifications: () => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }),

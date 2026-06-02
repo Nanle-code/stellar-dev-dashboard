@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useResponsive } from '../../hooks/useResponsive'
 import { useStore } from '../../lib/store'
 import { getServer } from '../../lib/stellar'
 import { formatCompactNumber, TOOLTIP_STYLE, AXIS_TICK_STYLE, CHART_COLORS } from '../../lib/chartUtils'
@@ -19,6 +20,7 @@ const SERIES = [
 
 export default function NetworkMetricsChart() {
   const { network } = useStore()
+  const { isMobile } = useResponsive()
   const [ledgerData, setLedgerData] = useState([])
   const [loading, setLoading] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
@@ -138,17 +140,19 @@ export default function NetworkMetricsChart() {
           {/* Tx count bar chart with brush */}
           <div>
             <div style={sectionLabel}>Transactions per Ledger</div>
-            <div ref={txChartRef} style={{ height: '240px' }}>
+            <div ref={txChartRef} style={{ height: isMobile ? 200 : 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={ledgerData}
                   onClick={(e) => e?.activePayload?.[0] && setSelected(e.activePayload[0].payload)}
+                  margin={{ top: isMobile ? 8 : 0, right: isMobile ? 10 : 0, left: 0, bottom: isMobile ? 0 : 0 }}
+                  barCategoryGap={isMobile ? '25%' : '15%'}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="label" tick={AXIS_TICK_STYLE} interval="preserveStartEnd" />
-                  <YAxis tick={AXIS_TICK_STYLE} domain={[0, maxTx]} tickFormatter={formatCompactNumber} />
+                  <XAxis dataKey="label" tick={AXIS_TICK_STYLE} interval="preserveStartEnd" minTickGap={isMobile ? 8 : 15} />
+                  <YAxis tick={AXIS_TICK_STYLE} domain={[0, maxTx]} tickFormatter={formatCompactNumber} width={isMobile ? 40 : 60} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 6 : 0 }} />
                   {!isHidden('txCount') && (
                     <Bar dataKey="txCount" name="Successful" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} />
                   )}
@@ -157,9 +161,9 @@ export default function NetworkMetricsChart() {
                   )}
                   <Brush
                     dataKey="label"
-                    height={20}
+                    height={isMobile ? 16 : 20}
                     stroke={CHART_COLORS.cyan}
-                    travellerWidth={8}
+                    travellerWidth={isMobile ? 6 : 8}
                     fill="rgba(0, 229, 255, 0.05)"
                   />
                 </BarChart>
@@ -171,15 +175,16 @@ export default function NetworkMetricsChart() {
           {!isHidden('opCount') && (
             <div>
               <div style={sectionLabel}>Operations per Ledger</div>
-              <div ref={opsChartRef} style={{ height: '220px' }}>
+              <div ref={opsChartRef} style={{ height: isMobile ? 180 : 220 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={ledgerData}
                     onClick={(e) => e?.activePayload?.[0] && setSelected(e.activePayload[0].payload)}
+                    margin={{ top: isMobile ? 8 : 0, right: isMobile ? 10 : 0, left: 0, bottom: isMobile ? 0 : 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="label" tick={AXIS_TICK_STYLE} interval="preserveStartEnd" />
-                    <YAxis tick={AXIS_TICK_STYLE} tickFormatter={formatCompactNumber} />
+                    <XAxis dataKey="label" tick={AXIS_TICK_STYLE} interval="preserveStartEnd" minTickGap={isMobile ? 8 : 15} />
+                    <YAxis tick={AXIS_TICK_STYLE} tickFormatter={formatCompactNumber} width={isMobile ? 40 : 60} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
                     <Area
                       type="monotone" dataKey="opCount" name="Operations"
@@ -188,9 +193,9 @@ export default function NetworkMetricsChart() {
                     />
                     <Brush
                       dataKey="label"
-                      height={20}
+                      height={isMobile ? 16 : 20}
                       stroke={CHART_COLORS.cyan}
-                      travellerWidth={8}
+                      travellerWidth={isMobile ? 6 : 8}
                       fill="rgba(0, 229, 255, 0.05)"
                     />
                   </AreaChart>

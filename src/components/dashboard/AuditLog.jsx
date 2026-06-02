@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useResponsive } from '../../hooks/useResponsive';
 import {
   Shield,
   AlertTriangle,
-  CheckCircle,
   Download,
   Trash2,
   Search,
@@ -97,6 +97,8 @@ export default function AuditLog() {
     setEvents(filteredEvents.slice(0, 500)); // Limit to 500 for display
     setStats(auditTrail.getStatistics());
   }, [filters, refreshKey]);
+
+  const { isMobile } = useResponsive()
 
   const refresh = () => {
     setRefreshKey(prev => prev + 1);
@@ -321,6 +323,12 @@ export default function AuditLog() {
           <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
             No audit events match the current filters.
           </div>
+        ) : isMobile ? (
+          <div style={{ display: 'grid', gap: '12px', padding: '12px' }}>
+            {events.map((event) => (
+              <AuditMobileCard key={event.id} event={event} />
+            ))}
+          </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
@@ -418,6 +426,80 @@ function AuditRow({ event }) {
         </tr>
       )}
     </>
+  );
+}
+
+function AuditMobileCard({ event }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      onClick={() => setOpen((previous) => !previous)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          setOpen((previous) => !previous);
+        }
+      }}
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '16px',
+        cursor: 'pointer',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+        transition: 'var(--transition)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-muted)' }}>
+            {new Date(event.timestamp).toLocaleTimeString()}
+          </div>
+          <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: TYPE_COLORS[event.type] || 'var(--text-secondary)' }}>{event.type}</span>
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                border: `1px solid ${SEVERITY_COLORS[event.severity] || 'var(--border)'}`,
+                color: SEVERITY_COLORS[event.severity] || 'var(--text-secondary)',
+                fontSize: '10px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+              }}
+            >
+              {event.severity}
+            </span>
+          </div>
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'right' }}>{event.userId || '—'}</div>
+      </div>
+      <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>{event.message}</div>
+      {open && (
+        <div style={{ marginTop: '14px', padding: '14px', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+          <div style={{ marginBottom: '10px', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+            Details
+          </div>
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-secondary)' }}>
+            {JSON.stringify(
+              {
+                id: event.id,
+                sessionId: event.sessionId,
+                metadata: event.metadata,
+                userAgent: event.userAgent,
+                location: event.location,
+              },
+              null,
+              2,
+            )}
+          </pre>
+        </div>
+      )}
+    </div>
   );
 }
 

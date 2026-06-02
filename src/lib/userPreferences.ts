@@ -20,6 +20,8 @@ export interface WidgetLayout {
   type: string
   span: number
   order: number
+  height?: number
+  width?: number
   visible?: boolean // Added for Issue #198 visibility toggles
 }
 

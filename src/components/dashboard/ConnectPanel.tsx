@@ -8,6 +8,8 @@ import {
   fetchOperations,
   resolveAddress,
 } from '../../lib/stellar'
+import { stellarCacheManager } from '../../lib/cacheManager'
+import { getOnlineStatus } from '../../utils/offline'
 import { useResponsive } from '../../hooks/useResponsive'
 import { ResponsiveGrid } from '../layout/ResponsiveContainer'
 
@@ -79,16 +81,44 @@ export default function ConnectPanel() {
       })
 
       // Fetch account data for the master account
-      const account = await fetchAccount(resolved.accountId, network)
+      let account
+      const online = getOnlineStatus()
+
+      if (!online) {
+        // Offline — try to serve from cache
+        const cached = await stellarCacheManager.getWithFallback(
+          `account:${resolved.accountId}:${network}`,
+        )
+        if (cached.value) {
+          account = cached.value
+        } else {
+          setError('You are offline and no cached data is available for this account.')
+          setAddressInfo(null)
+          setAccountLoading(false)
+          return
+        }
+      } else {
+        account = await fetchAccount(resolved.accountId, network)
+      }
+
       setConnectedAddress(resolved.accountId)
       setAccountData(account)
       setActiveTab('overview')
+
+      // Persist account data for offline reads (TTL 5 min)
+      if (online) {
+        stellarCacheManager
+          .set(`account:${resolved.accountId}:${network}`, account, 300_000, ['account'])
+          .catch(() => {})
+      }
       announceToScreenReader('Connected to account ' + resolved.accountId.slice(0, 8) + '...')
+
+      if (!online) return  // skip background fetches when offline
 
       setTxLoading(true)
       setOpsLoading(true)
       
-      fetchTransactions(resolved.accountId, network)
+      fetchTransactions(resolved.accountId, network, 50)
         .then(({ records, nextCursor, hasMore }) => {
           setTransactions(records)
           setTxNextCursor(nextCursor)
@@ -103,7 +133,7 @@ export default function ConnectPanel() {
           setTxLoading(false)
         })
 
-      fetchOperations(resolved.accountId, network)
+      fetchOperations(resolved.accountId, network, 50)
         .then(({ records, nextCursor, hasMore }) => {
           setOperations(records)
           setOpsNextCursor(nextCursor)

@@ -28,11 +28,7 @@
   },
   "include": [
     "src/**/*.d.ts",
-    "src/lib/**/*.ts",
-    "src/hooks/**/*.ts",
-    "src/components/**/*.ts",
-    "src/components/**/*.tsx",
-    "src/App.tsx",
-    "src/types/**/*.ts"
+    "src/**/*.ts",
+    "src/**/*.tsx"
   ]
 }

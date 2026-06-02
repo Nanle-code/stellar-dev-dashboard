@@ -18,39 +18,48 @@ const NAV_ITEMS = [
   { id: 'assets', label: 'Assets', icon: '💎' },
   { id: 'anchors', label: 'Anchors', icon: '⚓' },
   { id: 'search', label: 'Search', icon: '🔍' },
-  
+
   { type: 'header', label: 'NETWORK' },
   { id: 'network', label: 'Network Info', icon: '◎' },
   { id: 'realtime', label: 'Real-Time', icon: '◉' },
   { id: 'liveActivity', label: 'Live Activity', icon: '⚡' },
   { id: 'cacheStats', label: 'Cache Stats', icon: '⊞' },
   
+  { id: 'performance', label: 'Performance', icon: 'P' },
+  
   { type: 'header', label: 'BUILD' },
   { id: 'builder', label: 'Builder', icon: '⚒' },
   { id: 'txSimulator', label: 'Simulator', icon: '▷' },
-  { id: 'advancedSim', label: 'Advanced', icon: '⚡' },
+  { id: 'advancedSim', label: 'Advanced Sim', icon: '⚡' },
   { id: 'faucet', label: 'Faucet', icon: '⬡' },
+  
+  { type: 'header', label: 'EXPLORE' },
+  { id: 'dex', label: 'DEX', icon: '⇌' },
+  { id: 'pathExplorer', label: 'Path Explorer', icon: '⇢' },
+  { id: 'explorers', label: 'Explorer Links', icon: '⊞' },
   
   { type: 'header', label: 'TOOLS' },
   { id: 'wallet', label: 'Wallet', icon: '⊡' },
   { id: 'signer', label: 'Signer', icon: '✎' },
   { id: 'multisig', label: 'Multisig', icon: '⊕' },
+  { id: 'alertRules', label: 'Alerts', icon: '🔔' },
   { id: 'portfolio', label: 'Portfolio', icon: '◐' },
   { id: 'charts', label: 'Charts', icon: '▤' },
   { id: 'analytics', label: 'Analytics', icon: '◍' },
   { id: 'systemHealth', label: 'Health', icon: '⚕' },
+  { id: 'dataExport', label: 'Export', icon: '⬇' },
   { id: 'settings', label: 'Settings', icon: '⚙' },
   { id: 'audit', label: 'Audit', icon: '⊟' },
 ]
 
 export default function Sidebar({ isMobile = false }) {
   const navigate = useNavigate()
-  const { 
-    activeTab, 
-    network, 
-    setNetwork, 
-    connectedAddress, 
-    theme, 
+  const {
+    activeTab,
+    network,
+    setNetwork,
+    connectedAddress,
+    theme,
     toggleTheme,
     isMobileMenuOpen,
     setMobileMenuOpen,
@@ -59,16 +68,13 @@ export default function Sidebar({ isMobile = false }) {
   const [customProfiles, setCustomProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState(null)
 
-  // Load custom profiles on mount (Issue #188)
   useEffect(() => {
     if (network === 'custom') {
       loadCustomNetworkProfiles().then(profiles => {
         setCustomProfiles(profiles)
-        // Load active profile
         getActiveProfile().then(profile => {
           if (profile) {
             setActiveProfileId(profile.id)
-            // Populate the network config
             updateCustomNetworkConfig({
               horizonUrl: profile.horizonUrl,
               sorobanUrl: profile.sorobanUrl,
@@ -82,10 +88,9 @@ export default function Sidebar({ isMobile = false }) {
 
   const handleNavClick = (tabId) => {
     navigate(`/${tabId}`)
-    setMobileMenuOpen(false) // Close mobile menu after navigation
+    setMobileMenuOpen(false)
   }
 
-  // Restore custom API key from sessionStorage on mount
   useEffect(() => {
     const saved = sessionStorage.getItem(SESSION_API_KEY)
     if (saved) {
@@ -95,6 +100,7 @@ export default function Sidebar({ isMobile = false }) {
 
   const sidebarStyles = {
     width: isMobile ? 'var(--sidebar-width-mobile)' : 'var(--sidebar-width)',
+    maxWidth: isMobile ? 'calc(100vw - 24px)' : 'none',
     minHeight: '100vh',
     background: 'var(--bg-surface)',
     borderRight: '1px solid var(--border)',
@@ -122,29 +128,27 @@ export default function Sidebar({ isMobile = false }) {
     outline: 'none',
   }
 
-  const updateCustomHeader = (name, value) => {
-    setCustomHeaderName(name)
-    setCustomHeaderValue(value)
-    updateCustomNetworkConfig({
-      headers: name.trim() && value.trim() ? { [name.trim()]: value.trim() } : {},
-    })
-  }
-
   return (
     <>
       {isMobile && (
         <div
           className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`}
           onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      <aside style={sidebarStyles}>
+      <aside
+        style={sidebarStyles}
+        aria-label="Main navigation"
+        id="sidebar"
+      >
         {isMobile && (
           <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 1001 }}>
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="touch-target"
+              aria-label="Close navigation menu"
               style={{
                 background: 'var(--bg-hover)',
                 border: '1px solid var(--border)',
@@ -154,14 +158,6 @@ export default function Sidebar({ isMobile = false }) {
                 cursor: 'pointer',
                 transition: 'var(--transition)',
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'var(--text-primary)'
-                e.currentTarget.style.background = 'var(--bg-elevated)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = 'var(--text-secondary)'
-                e.currentTarget.style.background = 'var(--bg-hover)'
-              }}
             >
               ✕
             </button>
@@ -170,28 +166,39 @@ export default function Sidebar({ isMobile = false }) {
 
         {/* Logo */}
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '18px',
-            fontWeight: 800,
-            color: 'var(--cyan)',
-            letterSpacing: '-0.5px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            <span style={{ fontSize: '22px' }}>✦</span>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '18px',
+              fontWeight: 800,
+              color: 'var(--cyan)',
+              letterSpacing: '-0.5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+            role="img"
+            aria-label="Stellar Dev Dashboard"
+          >
+            <span aria-hidden="true" style={{ fontSize: '22px' }}>✦</span>
             STELLAR<br />
             <span style={{ color: 'var(--text-secondary)', fontWeight: 400, fontSize: '13px' }}>DEV DASHBOARD</span>
           </div>
         </div>
 
-        {/* Network toggle */}
+        {/* Network selector */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '1px' }}>NETWORK</div>
+          <label
+            htmlFor="network-select"
+            style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '1px', display: 'block' }}
+          >
+            NETWORK
+          </label>
           <select
+            id="network-select"
             value={network}
             onChange={(e) => setNetwork(e.target.value)}
+            aria-label="Select Stellar network"
             style={{
               width: '100%',
               padding: '10px',
@@ -217,56 +224,66 @@ export default function Sidebar({ isMobile = false }) {
 
           {network === 'custom' && (
             <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {/* Profile Selector (Issue #188) */}
               {customProfiles.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                  <label
+                    htmlFor="profile-select"
+                    style={{ fontSize: '9px', color: 'var(--text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}
+                  >
                     Quick Switch
-                  </div>
+                  </label>
                   <select
+                    id="profile-select"
                     value={activeProfileId || ''}
-                    onChange={(e) => handleSwitchProfile(e.target.value)}
-                    style={{
-                      ...customInputStyle,
-                      fontSize: '11px',
-                    }}
+                    onChange={(e) => switchToCustomProfile(e.target.value)}
+                    style={{ ...customInputStyle, fontSize: '11px' }}
+                    aria-label="Switch network profile"
                   >
                     <option value="">Select Profile...</option>
                     {customProfiles.map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {profile.name}
-                      </option>
+                      <option key={profile.id} value={profile.id}>{profile.name}</option>
                     ))}
                   </select>
                 </div>
               )}
-              
+              <label htmlFor="horizon-url" className="sr-only">Horizon URL</label>
               <input
+                id="horizon-url"
                 placeholder="Horizon URL"
                 key={`horizon-${activeProfileId}`}
                 defaultValue={NETWORKS.custom.horizonUrl}
                 style={customInputStyle}
+                aria-label="Custom Horizon URL"
                 onChange={(e) => updateCustomNetworkConfig({ horizonUrl: e.target.value.trim() })}
               />
+              <label htmlFor="soroban-url" className="sr-only">Soroban RPC URL</label>
               <input
+                id="soroban-url"
                 placeholder="Soroban RPC URL"
                 key={`soroban-${activeProfileId}`}
                 defaultValue={NETWORKS.custom.sorobanUrl}
                 style={customInputStyle}
+                aria-label="Custom Soroban RPC URL"
                 onChange={(e) => updateCustomNetworkConfig({ sorobanUrl: e.target.value.trim() })}
               />
+              <label htmlFor="network-passphrase" className="sr-only">Network Passphrase</label>
               <input
+                id="network-passphrase"
                 placeholder="Network Passphrase"
                 key={`passphrase-${activeProfileId}`}
                 defaultValue={NETWORKS.custom.passphrase}
                 style={customInputStyle}
+                aria-label="Custom network passphrase"
                 onChange={(e) => updateCustomNetworkConfig({ passphrase: e.target.value.trim() })}
               />
+              <label htmlFor="api-key" className="sr-only">API Key</label>
               <input
+                id="api-key"
                 type="password"
                 placeholder="API Key (optional)"
                 defaultValue={sessionStorage.getItem(SESSION_API_KEY) || ''}
                 style={customInputStyle}
+                aria-label="Custom network API key (optional)"
                 onChange={(e) => {
                   const val = e.target.value.trim()
                   if (val) {
@@ -283,90 +300,114 @@ export default function Sidebar({ isMobile = false }) {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
-          {NAV_ITEMS.map((item, i) => {
-            if (item.type === 'header') {
+        <nav
+          aria-label="Dashboard sections"
+          style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}
+        >
+          <ul role="list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {NAV_ITEMS.map((item, i) => {
+              if (item.type === 'header') {
+                return (
+                  <li key={`header-${i}`} role="presentation">
+                    <div
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        color: 'var(--text-muted)',
+                        padding: '16px 16px 8px',
+                        letterSpacing: '1.2px',
+                        textTransform: 'uppercase',
+                        opacity: 0.8,
+                      }}
+                      aria-hidden="true"
+                    >
+                      {item.label}
+                    </div>
+                  </li>
+                )
+              }
+
+              const isActive = activeTab === item.id
+              const isDisabled = item.id === 'faucet' && network === 'mainnet'
+
               return (
-                <div key={`header-${i}`} style={{
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  color: 'var(--text-muted)',
-                  padding: '16px 16px 8px',
-                  letterSpacing: '1.2px',
-                  textTransform: 'uppercase',
-                  opacity: 0.8
-                }}>
-                  {item.label}
-                </div>
+                <li key={item.id} role="presentation">
+                  <button
+                    onClick={() => !isDisabled && handleNavClick(item.id)}
+                    disabled={isDisabled}
+                    className="touch-target"
+                    aria-current={isActive ? 'page' : undefined}
+                    aria-disabled={isDisabled ? 'true' : undefined}
+                    aria-label={`${item.label}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      width: '100%',
+                      padding: '10px 16px',
+                      marginBottom: '1px',
+                      background: isActive ? 'var(--cyan-glow)' : 'transparent',
+                      border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
+                      borderRadius: 'var(--radius-md)',
+                      color: isActive ? 'var(--cyan)' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+                      fontSize: '13px',
+                      fontFamily: 'var(--font-mono)',
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      transition: 'var(--transition)',
+                      textAlign: 'left',
+                      opacity: isDisabled ? 0.4 : 1,
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive && !isDisabled) {
+                        e.currentTarget.style.background = 'var(--bg-hover)'
+                        e.currentTarget.style.color = 'var(--text-primary)'
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive && !isDisabled) {
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.color = 'var(--text-secondary)'
+                      }
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ fontSize: '15px', opacity: 0.9 }}>{item.icon}</span>
+                    {item.label}
+                    {isActive && (
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          marginLeft: 'auto',
+                          width: '5px', height: '5px',
+                          borderRadius: '50%',
+                          background: 'var(--cyan)',
+                          boxShadow: '0 0 6px var(--cyan)',
+                        }}
+                      />
+                    )}
+                  </button>
+                </li>
               )
-            }
-            const isActive = activeTab === item.id
-            const isDisabled = item.id === 'faucet' && network === 'mainnet'
-            return (
-              <button
-                key={item.id}
-                onClick={() => !isDisabled && handleNavClick(item.id)}
-                disabled={isDisabled}
-                className="touch-target"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  width: '100%',
-                  padding: '10px 16px',
-                  marginBottom: '1px',
-                  background: isActive ? 'var(--cyan-glow)' : 'transparent',
-                  border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
-                  borderRadius: 'var(--radius-md)',
-                  color: isActive ? 'var(--cyan)' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)',
-                  fontSize: '13px',
-                  fontFamily: 'var(--font-mono)',
-                  cursor: isDisabled ? 'not-allowed' : 'pointer',
-                  transition: 'var(--transition)',
-                  textAlign: 'left',
-                  opacity: isDisabled ? 0.4 : 1,
-                  animationDelay: `${i * 0.04}s`,
-                }}
-                onMouseEnter={e => {
-                  if (!isActive && !isDisabled) {
-                    e.currentTarget.style.background = 'var(--bg-hover)'
-                    e.currentTarget.style.color = 'var(--text-primary)'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive && !isDisabled) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                  }
-                }}
-              >
-                <span style={{ fontSize: '15px', opacity: 0.9 }}>{item.icon}</span>
-                {item.label}
-                {isActive && (
-                  <span style={{
-                    marginLeft: 'auto',
-                    width: '5px', height: '5px',
-                    borderRadius: '50%',
-                    background: 'var(--cyan)',
-                    boxShadow: '0 0 6px var(--cyan)',
-                  }} />
-                )}
-              </button>
-            )
-          })}
+            })}
+          </ul>
         </nav>
 
-        {/* Bottom address */}
+        {/* Connected address */}
         {connectedAddress && (
-          <div style={{
-            padding: '14px 16px',
-            borderTop: '1px solid var(--border)',
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-          }}>
+          <div
+            style={{
+              padding: '14px 16px',
+              borderTop: '1px solid var(--border)',
+              fontSize: '11px',
+              color: 'var(--text-muted)',
+            }}
+            aria-label="Connected account"
+          >
             <div style={{ color: 'var(--green)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />
-              Connected
+              <span
+                aria-hidden="true"
+                style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }}
+              />
+              <span>Connected</span>
             </div>
             <div style={{ wordBreak: 'break-all', lineHeight: 1.4 }}>
               <CopyableValue
@@ -380,6 +421,7 @@ export default function Sidebar({ isMobile = false }) {
           </div>
         )}
 
+        {/* Footer */}
         <div style={{
           padding: '12px 16px',
           borderTop: connectedAddress ? 'none' : '1px solid var(--border)',
@@ -394,6 +436,7 @@ export default function Sidebar({ isMobile = false }) {
           <button
             onClick={toggleTheme}
             className="touch-target-sm"
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
             style={{
               background: 'transparent',
               border: 'none',
@@ -406,7 +449,6 @@ export default function Sidebar({ isMobile = false }) {
               justifyContent: 'center',
               transition: 'var(--transition)',
             }}
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
             onMouseEnter={e => {
               e.currentTarget.style.color = 'var(--text-primary)'
               e.currentTarget.style.background = 'var(--bg-hover)'
@@ -416,7 +458,7 @@ export default function Sidebar({ isMobile = false }) {
               e.currentTarget.style.background = 'transparent'
             }}
           >
-            {theme === 'light' ? '☾' : '☀'}
+            <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
           </button>
         </div>
       </aside>

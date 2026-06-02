@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -6,16 +6,30 @@
     <meta name="description" content="Real-time developer dashboard for the Stellar network" />
     <meta name="theme-color" content="#00e5ff" />
     <title>Stellar Dev Dashboard</title>
-    <!-- PWA manifest (#110) -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="theme-color" content="#1e2327" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="StellarDev" />
+
+    <!-- Apple touch icons (fallback for Safari) -->
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+
+    <!-- Preconnect to font providers -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <title>Stellar Dev Dashboard</title>
+    <meta
+      name="description"
+      content="Real-time developer dashboard for the Stellar network — balances, transactions, contracts, DEX explorer, and more."
+    />
   </head>
   <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div id="root"></div>
-    <!-- content goes in here  -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -23,15 +23,37 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 30_000,
   },
+  // Visual regression snapshot settings
+  snapshotDir: './tests/e2e/snapshots',
+  snapshotPathTemplate: '{snapshotDir}/{testFilePath}/{arg}-{projectName}{ext}',
+  expect: {
+    // Allow up to 0.2% pixel difference to reduce false positives from anti-aliasing
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.002,
+      animations: 'disabled',
+      scale: 'css',
+    },
+  },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit',   use: { ...devices['Desktop Safari'] } },
-    { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },
+    // Visual regression runs on chromium only for baseline consistency
+    {
+      name: 'visual',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        // Disable CSS transitions/animations for stable screenshots
+        contextOptions: { reducedMotion: 'reduce' },
+      },
+      testMatch: '**/visual.spec.*',
+    },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: '**/visual.spec.*' },
+    { name: 'firefox',  use: { ...devices['Desktop Firefox'] }, testIgnore: '**/visual.spec.*' },
+    { name: 'webkit',   use: { ...devices['Desktop Safari'] }, testIgnore: '**/visual.spec.*' },
+    { name: 'mobile-chrome', use: { ...devices['Pixel 7'] }, testIgnore: '**/visual.spec.*' },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: process.env.PLAYWRIGHT_BASE_URL ? 'npm run preview' : 'npm run dev',
+    url: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

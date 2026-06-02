@@ -13,6 +13,8 @@ import {
   Package,
   AlertTriangle,
   CheckCircle,
+  Bell,
+  MousePointerClick,
 } from "lucide-react";
 
 /**
@@ -23,6 +25,7 @@ export default function PerformanceMonitor() {
   const [score, setScore] = useState(100);
   const [bundleAnalysis, setBundleAnalysis] = useState(null);
   const [activeTab, setActiveTab] = useState("vitals");
+  const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
     updateMetrics();
@@ -33,12 +36,18 @@ export default function PerformanceMonitor() {
     };
 
     window.addEventListener("performance-metric", handleMetric);
+    const handleRegression = (event) => {
+      setAlerts((current) => [event.detail, ...current].slice(0, 8));
+      updateMetrics();
+    };
+    window.addEventListener("performance-regression", handleRegression);
 
     // Update every 5 seconds
     const interval = setInterval(updateMetrics, 5000);
 
     return () => {
       window.removeEventListener("performance-metric", handleMetric);
+      window.removeEventListener("performance-regression", handleRegression);
       clearInterval(interval);
     };
   }, []);
@@ -169,6 +178,7 @@ export default function PerformanceMonitor() {
           { id: "vitals", label: "Web Vitals", icon: Activity },
           { id: "bundle", label: "Bundle Analysis", icon: Package },
           { id: "custom", label: "Custom Metrics", icon: Zap },
+          { id: "alerts", label: "Alerts", icon: Bell },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -241,16 +251,28 @@ export default function PerformanceMonitor() {
 
       {/* Custom Metrics Tab */}
       {activeTab === "custom" && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "16px",
-          }}
-        >
-          {Object.entries(summary.customMetrics).map(([name, data]) => (
-            <CustomMetricCard key={name} name={name} data={data} />
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <MetricGroup
+            title="Stellar Operations"
+            metrics={filterMetrics(summary.customMetrics, [
+              "API_RESPONSE_TIME",
+              "TRANSACTION_SIGNING_DURATION",
+              "TRANSACTION_SUBMIT_DURATION",
+              "CONTRACT_SIMULATION_DURATION",
+              "CONTRACT_INVOCATION_DURATION",
+            ])}
+          />
+          <MetricGroup
+            title="Other Custom Metrics"
+            metrics={excludeMetrics(summary.customMetrics, [
+              "API_RESPONSE_TIME",
+              "TRANSACTION_SIGNING_DURATION",
+              "TRANSACTION_SUBMIT_DURATION",
+              "CONTRACT_SIMULATION_DURATION",
+              "CONTRACT_INVOCATION_DURATION",
+              "USER_INTERACTION",
+            ])}
+          />
 
           {Object.keys(summary.customMetrics).length === 0 && (
             <div
@@ -267,7 +289,15 @@ export default function PerformanceMonitor() {
               No custom metrics recorded yet
             </div>
           )}
+
+          <InteractionPanel interactions={summary.interactions} />
         </div>
+      )}
+
+      {activeTab === "alerts" && (
+        <AlertPanel
+          alerts={alerts.length ? alerts : summary.budgetViolations}
+        />
       )}
 
       {/* Budget Violations */}
@@ -349,6 +379,151 @@ export default function PerformanceMonitor() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function filterMetrics(metrics, names) {
+  return Object.fromEntries(
+    Object.entries(metrics).filter(([name]) => names.includes(name)),
+  );
+}
+
+function excludeMetrics(metrics, names) {
+  return Object.fromEntries(
+    Object.entries(metrics).filter(([name]) => !names.includes(name)),
+  );
+}
+
+function MetricGroup({ title, metrics }) {
+  const entries = Object.entries(metrics);
+
+  return (
+    <div>
+      <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>
+        {title}
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: "16px",
+        }}
+      >
+        {entries.map(([name, data]) => (
+          <CustomMetricCard key={name} name={name} data={data} />
+        ))}
+        {entries.length === 0 && (
+          <div
+            style={{
+              padding: "20px",
+              color: "var(--text-muted)",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-lg)",
+              fontSize: "13px",
+            }}
+          >
+            No metrics recorded yet
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InteractionPanel({ interactions }) {
+  const recent = interactions?.recent || [];
+
+  return (
+    <div
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-lg)",
+        padding: "20px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <MousePointerClick size={18} style={{ color: "var(--cyan)" }} />
+        <div style={{ fontSize: "14px", fontWeight: 700 }}>
+          User Interactions ({interactions?.total || 0})
+        </div>
+      </div>
+      <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        {recent.map((interaction, index) => (
+          <div
+            key={`${interaction.timestamp}-${index}`}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              fontSize: "12px",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <span>{interaction.action}</span>
+            <span style={{ color: "var(--text-muted)" }}>
+              {new Date(interaction.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+        ))}
+        {recent.length === 0 && (
+          <div style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+            No recent interactions
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AlertPanel({ alerts }) {
+  if (!alerts.length) {
+    return (
+      <div
+        style={{
+          padding: "32px",
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          color: "var(--text-muted)",
+          textAlign: "center",
+        }}
+      >
+        No performance regressions detected
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      {alerts.map((alert, index) => (
+        <div
+          key={`${alert.metric}-${alert.timestamp || index}`}
+          style={{
+            background: "rgba(239, 68, 68, 0.05)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
+            borderRadius: "var(--radius-md)",
+            padding: "14px 16px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "16px",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 700 }}>
+              {alert.metric}
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+              Budget {formatValue(alert.budget, alert.metric)}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", color: "var(--red)", fontWeight: 700 }}>
+            {formatValue(alert.value, alert.metric)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

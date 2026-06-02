@@ -38,36 +38,32 @@ const DEFAULT_WIDGETS = [
   {
     id: 'balance-default',
     type: 'balance',
-    width: 300,
-    height: 250,
+    height: 260,
     span: 1
   },
   {
     id: 'assets-default',
     type: 'assets',
-    width: 350,
-    height: 300,
+    height: 320,
     span: 1
   },
   {
     id: 'transactions-default',
     type: 'transactions',
-    width: 400,
-    height: 350,
+    height: 360,
     span: 2
   },
   {
     id: 'networkStats-default',
     type: 'networkStats',
-    width: 300,
-    height: 280,
+    height: 300,
     span: 1
   }
 ];
 
 export default function Overview() {
   const { connectedAddress, network } = useStore();
-  const { isMobile, isTablet } = useResponsive();
+  const { isMobile, isTablet, windowWidth } = useResponsive();
   
   const [widgets, setWidgets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,9 +112,8 @@ export default function Overview() {
     const serializedLayout = updatedWidgets.map((w, index) => ({
       id: w.id,
       type: w.type,
-      width: w.width,
       height: w.height,
-      span: w.span,
+      span: Math.max(1, Number(w.span) || 1),
       order: index
     }));
     
@@ -209,7 +204,7 @@ export default function Overview() {
   const getColumns = () => {
     if (isMobile) return { mobile: 1, tablet: 1, desktop: 1 };
     if (isTablet) return { mobile: 1, tablet: 2, desktop: 2 };
-    return { mobile: 1, tablet: 2, desktop: 3 };
+    return { mobile: 1, tablet: 2, desktop: windowWidth >= 1440 ? 4 : 3 };
   };
 
   if (isLoading) {

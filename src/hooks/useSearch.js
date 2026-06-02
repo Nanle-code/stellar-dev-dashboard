@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useStore } from '../lib/store';
+import { DEFAULT_SEARCH_FILTERS, useStore } from '../lib/store';
 import { globalSearch, loadSavedSearches, saveSearch, deleteSavedSearch } from '../utils/search';
 import { applyTransactionFilters, applyOperationFilters } from '../lib/filters';
 
@@ -62,7 +62,7 @@ export function useSearch() {
   function applySavedSearch(entry) {
     if (!entry) return;
     setQuery(entry.query || '');
-    setSearchFilters(entry.filters || searchFilters);
+    setSearchFilters({ ...DEFAULT_SEARCH_FILTERS, ...(entry.filters || {}) });
   }
 
   return {

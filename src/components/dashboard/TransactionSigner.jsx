@@ -3,6 +3,7 @@ import { useStore } from '../../lib/store'
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter'
 import { signXdrWithLedger, isLedgerSupported, getActiveLedgerSession } from '../../lib/wallet/ledger'
 import { NETWORKS } from '../../lib/stellar'
+import { measureAsync } from '../../lib/performanceMonitoring'
 import Card from './Card'
 
 export default function TransactionSigner() {
@@ -31,7 +32,11 @@ export default function TransactionSigner() {
 
       if (walletType === 'freighter') {
         const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET'
-        result = await signTransactionWithFreighter(xdr.trim(), networkName)
+        result = await measureAsync(
+          'TRANSACTION_SIGNING_DURATION',
+          () => signTransactionWithFreighter(xdr.trim(), networkName),
+          { network, walletType: 'freighter' },
+        )
       } else if (walletType === 'ledger') {
         await _signWithLedger()
         return // _signWithLedger manages its own state
@@ -73,11 +78,15 @@ export default function TransactionSigner() {
 
     try {
       setLedgerPrompt(true)
-      const signed = await signXdrWithLedger(
-        xdr.trim(),
-        networkPassphrase,
-        stellarApp,
-        publicKey || walletPublicKey
+      const signed = await measureAsync(
+        'TRANSACTION_SIGNING_DURATION',
+        () => signXdrWithLedger(
+          xdr.trim(),
+          networkPassphrase,
+          stellarApp,
+          publicKey || walletPublicKey
+        ),
+        { network, walletType: 'ledger' },
       )
       setSignedXdr(signed)
     } catch (err) {

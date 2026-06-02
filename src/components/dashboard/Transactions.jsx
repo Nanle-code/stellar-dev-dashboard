@@ -1,12 +1,57 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
+import { Download, Filter, Search, X } from 'lucide-react'
+import { format } from 'date-fns'
 import { useStore } from '../../lib/store'
 import { shortAddress, getOperationLabel, fetchTransactions, fetchOperations } from '../../lib/stellar'
 import CopyableValue from './CopyableValue'
-import { format } from 'date-fns'
-import GlobalSearch from '../search/GlobalSearch'
 import SearchFilters from '../search/SearchFilters'
 import useSearch from '../../hooks/useSearch'
+import { usePreferences } from '../../hooks/usePreferences'
 import { applyTransactionFilters, applyOperationFilters } from '../../lib/filters'
+import { exportCsv, flattenTransaction } from '../../utils/export'
+
+function normalizeSearch(value) {
+  return String(value || '').toLowerCase().trim()
+}
+
+function searchableText(values) {
+  return values.filter(Boolean).join(' ').toLowerCase()
+}
+
+function getOperationAccounts(op) {
+  return [
+    op.from,
+    op.to,
+    op.source_account,
+    op.account,
+    op.funder,
+    op.into,
+    op.trustor,
+    op.trustee,
+    op.seller,
+    op.buyer,
+    op.selling_asset_issuer,
+    op.buying_asset_issuer,
+    op.asset_issuer,
+  ].filter(Boolean)
+}
+
+function flattenOperation(op) {
+  return {
+    id: op.id,
+    transaction_hash: op.transaction_hash || '',
+    type: op.type,
+    type_label: getOperationLabel(op.type),
+    created_at: op.created_at,
+    from: op.from || '',
+    to: op.to || '',
+    source_account: op.source_account || '',
+    account: op.account || '',
+    amount: op.amount || '',
+    asset_code: op.asset_code || 'XLM',
+    asset_issuer: op.asset_issuer || '',
+  }
+}
 
 export default function Transactions() {
   const {
@@ -31,62 +76,139 @@ export default function Transactions() {
     setOpsPagingLoading,
     network,
   } = useStore()
-  
+
   const [view, setView] = useState('transactions')
-  const { query, setQuery, filters, setFilters } = useSearch()
   const [showFilters, setShowFilters] = useState(false)
+  const {
+    query,
+    setQuery,
+    filters,
+    setFilters,
+    savedSearches,
+    saveCurrentSearch,
+    removeSavedSearch,
+    applySavedSearch,
+  } = useSearch()
+  const { preferences } = usePreferences()
+
+  const addressLabels = useMemo(() => {
+    return (preferences.savedAddresses || []).reduce((labels, entry) => {
+      labels[entry.address] = entry.label
+      return labels
+    }, {})
+  }, [preferences.savedAddresses])
+
+  // Track in-flight requests to prevent duplicate calls
+  const txLoadingRef = useRef(false)
+  const opsLoadingRef = useRef(false)
 
   const filteredTransactions = useMemo(() => {
     let list = transactions
-    if (query) {
-      const q = query.toLowerCase()
-      list = list.filter(tx => 
-        tx.hash.toLowerCase().includes(q) || 
-        (tx.memo && tx.memo.toLowerCase().includes(q))
-      )
+    const q = normalizeSearch(query)
+
+    if (q) {
+      list = list.filter((tx) => searchableText([
+        tx.hash,
+        tx.memo,
+        tx.source_account,
+        addressLabels[tx.source_account],
+        tx.ledger,
+        tx.operation_count,
+      ]).includes(q))
     }
+
     return applyTransactionFilters(list, filters)
-  }, [transactions, query, filters])
+  }, [transactions, query, filters, addressLabels])
 
   const filteredOperations = useMemo(() => {
     let list = operations
-    if (query) {
-      const q = query.toLowerCase()
-      list = list.filter(op => 
-        (op.from && op.from.toLowerCase().includes(q)) || 
-        (op.to && op.to.toLowerCase().includes(q)) ||
-        getOperationLabel(op.type).toLowerCase().includes(q)
-      )
+    const q = normalizeSearch(query)
+
+    if (q) {
+      list = list.filter((op) => {
+        const accounts = getOperationAccounts(op)
+        const labels = accounts.map((account) => addressLabels[account])
+
+        return searchableText([
+          op.id,
+          op.transaction_hash,
+          op.type,
+          getOperationLabel(op.type),
+          op.amount,
+          op.asset_code,
+          ...accounts,
+          ...labels,
+        ]).includes(q)
+      })
     }
+
     return applyOperationFilters(list, filters)
-  }, [operations, query, filters])
+  }, [operations, query, filters, addressLabels])
 
-  async function handleLoadMoreTransactions() {
-    if (!connectedAddress || !txHasMore || !txNextCursor || txPagingLoading) return
+  const visibleRows = view === 'transactions' ? filteredTransactions : filteredOperations
 
+  // Debounced load-more — guards against rapid duplicate calls from
+  // both IntersectionObserver and scroll handlers firing together
+  const handleLoadMoreTransactions = useCallback(async () => {
+    if (!connectedAddress || !txHasMore || !txNextCursor || txPagingLoading || txLoadingRef.current) return
+    txLoadingRef.current = true
     setTxPagingLoading(true)
     try {
-      const { records, nextCursor, hasMore } = await fetchTransactions(connectedAddress, network, 20, txNextCursor)
+      const { records, nextCursor, hasMore } = await fetchTransactions(
+        connectedAddress, network, PAGE_SIZE, txNextCursor
+      )
       appendTransactions(records)
       setTxNextCursor(nextCursor)
       setTxHasMore(hasMore)
     } finally {
       setTxPagingLoading(false)
+      txLoadingRef.current = false
     }
-  }
+  }, [connectedAddress, txHasMore, txNextCursor, txPagingLoading, network, appendTransactions, setTxNextCursor, setTxHasMore, setTxPagingLoading])
 
-  async function handleLoadMoreOperations() {
-    if (!connectedAddress || !opsHasMore || !opsNextCursor || opsPagingLoading) return
-
+  const handleLoadMoreOperations = useCallback(async () => {
+    if (!connectedAddress || !opsHasMore || !opsNextCursor || opsPagingLoading || opsLoadingRef.current) return
+    opsLoadingRef.current = true
     setOpsPagingLoading(true)
     try {
-      const { records, nextCursor, hasMore } = await fetchOperations(connectedAddress, network, 20, opsNextCursor)
+      const { records, nextCursor, hasMore } = await fetchOperations(
+        connectedAddress, network, PAGE_SIZE, opsNextCursor
+      )
       appendOperations(records)
       setOpsNextCursor(nextCursor)
       setOpsHasMore(hasMore)
     } finally {
       setOpsPagingLoading(false)
+      opsLoadingRef.current = false
     }
+  }, [connectedAddress, opsHasMore, opsNextCursor, opsPagingLoading, network, appendOperations, setOpsNextCursor, setOpsHasMore, setOpsPagingLoading])
+
+  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+    if (key === 'status') return value !== 'all'
+    if (key === 'type') return value !== 'all'
+    if (key === 'memoOnly') return value === true
+    if (key === 'minFee' || key === 'maxFee') return value !== ''
+    return false
+  })
+
+  const useVirtualTx = filteredTransactions.length >= VIRTUAL_SCROLL_THRESHOLD
+  const useVirtualOp = filteredOperations.length >= VIRTUAL_SCROLL_THRESHOLD
+
+  function handleExportCsv() {
+    if (view === 'transactions') {
+      exportCsv(
+        filteredTransactions.map(flattenTransaction),
+        `stellar-${network}-filtered-transactions`,
+        ['id', 'hash', 'ledger', 'created_at', 'source_account', 'fee_charged', 'operation_count', 'successful', 'memo_type', 'memo']
+      )
+      return
+    }
+
+    exportCsv(
+      filteredOperations.map(flattenOperation),
+      `stellar-${network}-filtered-operations`,
+      ['id', 'transaction_hash', 'type', 'type_label', 'created_at', 'from', 'to', 'source_account', 'account', 'amount', 'asset_code', 'asset_issuer']
+    )
   }
 
   const Tab = ({ id, label }) => (
@@ -103,23 +225,71 @@ export default function Transactions() {
         cursor: 'pointer',
         transition: 'var(--transition)',
       }}
-    >{label}</button>
+    >
+      {label}
+    </button>
   )
 
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
     if (key === 'status') return value !== 'all'
     if (key === 'type') return value !== 'all'
     if (key === 'memoOnly') return value === true
-    if (key === 'minFee' || key === 'maxFee') return value !== ''
+    if (['minFee', 'maxFee', 'minAmount', 'maxAmount', 'startDate', 'endDate'].includes(key)) return value !== ''
     return false
   })
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '300px' }}>
-          <GlobalSearch value={query} onChange={setQuery} />
-          <button 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 10px',
+            flex: 1,
+          }}>
+            <Search size={15} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by account name, address, hash, memo, or operation"
+              aria-label="Search transaction history"
+              style={{
+                flex: 1,
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)',
+                minWidth: 0,
+              }}
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                aria-label="Clear transaction history search"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 0,
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <button
             onClick={() => setShowFilters(!showFilters)}
             style={{
               padding: '8px 14px',
@@ -133,22 +303,44 @@ export default function Transactions() {
               alignItems: 'center',
               gap: '8px',
               transition: 'var(--transition)',
-              height: '38px'
+              height: '38px',
             }}
           >
-            <span style={{ fontSize: '16px' }}>⚙</span>
+            <Filter size={14} />
             <span>Filters</span>
             {hasActiveFilters && (
-              <span style={{ 
-                width: '6px', 
-                height: '6px', 
-                borderRadius: '50%', 
-                background: 'var(--cyan)', 
-                boxShadow: '0 0 8px var(--cyan)' 
+              <span style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'var(--cyan)',
+                boxShadow: '0 0 8px var(--cyan)',
               }} />
             )}
           </button>
+
+          <button
+            onClick={handleExportCsv}
+            style={{
+              padding: '8px 14px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'var(--transition)',
+              height: '38px',
+            }}
+          >
+            <Download size={14} />
+            <span>CSV</span>
+          </button>
         </div>
+
         <div style={{ display: 'flex', gap: '6px' }}>
           <Tab id="transactions" label="Transactions" />
           <Tab id="operations" label="Operations" />
@@ -156,35 +348,60 @@ export default function Transactions() {
       </div>
 
       {showFilters && (
-        <SearchFilters filters={filters} onChange={setFilters} />
+        <SearchFilters
+          filters={filters}
+          onChange={setFilters}
+          savedSearches={savedSearches}
+          onSavePreset={saveCurrentSearch}
+          onApplyPreset={applySavedSearch}
+          onDeletePreset={removeSavedSearch}
+        />
       )}
+
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+        Showing {visibleRows.length} filtered {view === 'transactions' ? 'transaction' : 'operation'}{visibleRows.length !== 1 ? 's' : ''}
+      </div>
 
       {view === 'transactions' && (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          {/* Column headers */}
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             <span>Hash</span>
-            <span>Ops · Time</span>
+            <span>Ops / Time</span>
           </div>
+
+          {/* Initial loading skeleton */}
           {txLoading ? (
-            <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}><div className="spinner" /></div>
+            <LoadingRows count={8} height={TX_ROW_HEIGHT} />
           ) : filteredTransactions.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
               {transactions.length === 0 ? 'No transactions found' : 'No transactions match your filters'}
             </div>
+          ) : useVirtualTx ? (
+            // Virtual scroll for large lists (≥200 items)
+            <VirtualTxList
+              items={filteredTransactions}
+              network={network}
+              onLoadMore={handleLoadMoreTransactions}
+              hasMore={txHasMore}
+              loading={txPagingLoading}
+            />
           ) : (
             <>
-              {filteredTransactions.map((tx, i) => (
-                <div key={tx.id} style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: '12px',
-                  alignItems: 'center',
-                  padding: '12px 18px',
-                  borderBottom: i < filteredTransactions.length - 1 ? '1px solid var(--border)' : 'none',
-                  transition: 'var(--transition)',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              {filteredTransactions.map((tx, index) => (
+                <div
+                  key={tx.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: '12px',
+                    alignItems: 'center',
+                    padding: '12px 18px',
+                    borderBottom: index < filteredTransactions.length - 1 ? '1px solid var(--border)' : 'none',
+                    transition: 'var(--transition)',
+                  }}
+                  onMouseEnter={(event) => event.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={(event) => event.currentTarget.style.background = 'transparent'}
                 >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
@@ -203,7 +420,7 @@ export default function Transactions() {
                         rel="noopener noreferrer"
                         style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0 }}
                       >
-                        ↗
+                        Open
                       </a>
                     </div>
                     {tx.memo && (
@@ -214,6 +431,14 @@ export default function Transactions() {
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '15px' }}>
                       fee: {tx.fee_charged} stroops
                     </div>
+                    {tx.source_account && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '15px' }}>
+                        source: {addressLabels[tx.source_account] ? `${addressLabels[tx.source_account]} ` : ''}
+                        <CopyableValue value={tx.source_account} title="Copy source account" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          {shortAddress(tx.source_account)}
+                        </CopyableValue>
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -253,32 +478,43 @@ export default function Transactions() {
         </div>
       )}
 
+      {/* Operations panel */}
       {view === 'operations' && (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            <span>Type · Details</span>
+            <span>Type / Details</span>
             <span>Time</span>
           </div>
+
           {opsLoading ? (
-            <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}><div className="spinner" /></div>
+            <LoadingRows count={8} height={OP_ROW_HEIGHT} />
           ) : filteredOperations.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
               {operations.length === 0 ? 'No operations found' : 'No operations match your filters'}
             </div>
+          ) : useVirtualOp ? (
+            <VirtualOpList
+              items={filteredOperations}
+              onLoadMore={handleLoadMoreOperations}
+              hasMore={opsHasMore}
+              loading={opsPagingLoading}
+            />
           ) : (
             <>
-              {filteredOperations.map((op, i) => (
-                <div key={op.id} style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: '12px',
-                  alignItems: 'center',
-                  padding: '12px 18px',
-                  borderBottom: i < filteredOperations.length - 1 ? '1px solid var(--border)' : 'none',
-                  transition: 'var(--transition)',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              {filteredOperations.map((op, index) => (
+                <div
+                  key={op.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: '12px',
+                    alignItems: 'center',
+                    padding: '12px 18px',
+                    borderBottom: index < filteredOperations.length - 1 ? '1px solid var(--border)' : 'none',
+                    transition: 'var(--transition)',
+                  }}
+                  onMouseEnter={(event) => event.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={(event) => event.currentTarget.style.background = 'transparent'}
                 >
                   <div>
                     <div style={{ fontSize: '12px', color: 'var(--text-primary)', marginBottom: '3px' }}>
@@ -297,12 +533,18 @@ export default function Transactions() {
                     </div>
                     {op.from && (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        from: <CopyableValue value={op.from} title="Copy source public key" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{shortAddress(op.from)}</CopyableValue>
+                        from: {addressLabels[op.from] ? `${addressLabels[op.from]} ` : ''}
+                        <CopyableValue value={op.from} title="Copy source public key" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          {shortAddress(op.from)}
+                        </CopyableValue>
                       </div>
                     )}
                     {op.to && (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        to: <CopyableValue value={op.to} title="Copy destination public key" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{shortAddress(op.to)}</CopyableValue>
+                        to: {addressLabels[op.to] ? `${addressLabels[op.to]} ` : ''}
+                        <CopyableValue value={op.to} title="Copy destination public key" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          {shortAddress(op.to)}
+                        </CopyableValue>
                       </div>
                     )}
                     {op.amount && (
@@ -343,6 +585,16 @@ export default function Transactions() {
           )}
         </div>
       )}
+
+      {/* Keyframe animation for spinner — injected once */}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .skeleton-pulse { animation: skeleton-pulse 1.5s ease-in-out infinite; }
+        @keyframes skeleton-pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 0.25; }
+        }
+      `}</style>
     </div>
   )
 }

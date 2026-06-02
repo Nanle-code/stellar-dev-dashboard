@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useStore } from "../../lib/store";
 import { OPERATION_TYPES, simulateTransaction, buildTransaction } from "../../lib/transactionBuilder";
+import { validateOperation } from "../../utils/transactionValidation";
 import { TRANSACTION_TEMPLATES } from "../../lib/transactionTemplates.js";
 import {
   getCachedUserTransactionTemplates,
@@ -232,45 +233,22 @@ export default function TransactionBuilder() {
   // Validation
   const validationErrors = useMemo(() => {
     const errors = {};
-    operations.forEach((op, index) => {
-      const opErrors = [];
-      
-      if (op.type === "payment") {
-        if (!op.params.destination) opErrors.push("Destination required");
-        if (!op.params.amount || parseFloat(op.params.amount) <= 0) opErrors.push("Valid amount required");
-      } else if (op.type === "createAccount") {
-        if (!op.params.destination) opErrors.push("Destination required");
-        if (!op.params.startingBalance || parseFloat(op.params.startingBalance) < 1) {
-          opErrors.push("Starting balance must be ≥ 1 XLM");
-        }
-      } else if (op.type === "changeTrust") {
-        if (!op.params.assetCode) opErrors.push("Asset code required");
-        if (!op.params.assetIssuer) opErrors.push("Asset issuer required");
-      } else if (op.type === "accountMerge") {
-        if (!op.params.destination) opErrors.push("Destination required");
-      } else if (op.type === "manageData") {
-        if (!op.params.name) opErrors.push("Data name required");
-      } else if (op.type === "feeBump") {
-        if (!op.params.feeSource) opErrors.push("Fee source required");
-        if (!op.params.baseFee || parseFloat(op.params.baseFee) <= 0) opErrors.push("Base fee must be positive");
-        if (!op.params.innerTransaction || op.params.innerTransaction.trim() === "") opErrors.push("Inner transaction XDR required");
-      } else if (op.type === "beginSponsoringFutureReserves") {
-        if (!op.params.sponsoredId) opErrors.push("Sponsored ID required");
-      } else if (op.type === "clawback") {
-        if (!op.params.assetCode) opErrors.push("Asset code required");
-        if (!op.params.assetIssuer) opErrors.push("Asset issuer required");
-        if (!op.params.from) opErrors.push("From account required");
-        if (!op.params.amount || parseFloat(op.params.amount) <= 0) opErrors.push("Valid amount required");
+    operations.forEach((op) => {
+      const opErrors = validateOperation(op.type, op.params || {});
+
+      if (op.type === "feeBump" && operations.length > 1) {
+        opErrors.push("Fee bump must be a standalone transaction.");
       }
-      
+
       if (opErrors.length > 0) {
         errors[op.id] = opErrors;
       }
     });
     return errors;
   }, [operations]);
-  
-  const canSimulate = sourceAccount && operations.length > 0 && Object.keys(validationErrors).length === 0;
+
+  const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
+  const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && (sourceAccount || feeBumpOnly);
   
   async function handleSimulate() {
     if (!canSimulate) return;
@@ -745,8 +723,13 @@ export default function TransactionBuilder() {
               value={sourceAccount}
               onChange={(e) => setSourceAccount(e.target.value)}
               placeholder={connectedAddress || "G... source account"}
-              style={textInputStyle(!sourceAccount)}
+              style={textInputStyle(!sourceAccount && !feeBumpOnly)}
             />
+            {feeBumpOnly && (
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }}>
+                Source account is optional for fee-bump transactions. The fee source account is defined in the fee bump operation.
+              </div>
+            )}
           </LabeledField>
 
           <LabeledField label="Base Fee (stroops)">

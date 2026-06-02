@@ -202,12 +202,29 @@ export async function buildTransaction({
   timeout = 180,
   network = "testnet",
 }) {
-  if (!isValidPublicKey(sourceAccount)) {
-    throw new Error("Invalid source account");
-  }
-
   if (!operations || operations.length === 0) {
     throw new Error("At least one operation is required");
+  }
+
+  const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
+  const containsFeeBump = operations.some((op) => op.type === "feeBump");
+
+  if (feeBumpOnly) {
+    const op = operations[0];
+    return feeBump({
+      feeSource: op.params.feeSource,
+      baseFee: op.params.baseFee,
+      innerTransaction: op.params.innerTransaction,
+      network,
+    });
+  }
+
+  if (containsFeeBump) {
+    throw new Error("feeBump can only be used as a standalone transaction.");
+  }
+
+  if (!isValidPublicKey(sourceAccount)) {
+    throw new Error("Invalid source account");
   }
 
   const server = getServer(network);
@@ -248,39 +265,45 @@ export async function buildTransaction({
 export async function simulateTransaction(params) {
   try {
     const transaction = await buildTransaction(params);
-
-    // Validate operations
     const errors = [];
-    params.operations.forEach((op, index) => {
-      if (op.type === "payment") {
-        if (!isValidPublicKey(op.params.destination)) {
-          errors.push(`Operation ${index + 1}: Invalid destination`);
-        }
-        if (!op.params.amount || parseFloat(op.params.amount) <= 0) {
-          errors.push(`Operation ${index + 1}: Invalid amount`);
-        }
-      } else if (op.type === "createAccount") {
-        if (!isValidPublicKey(op.params.destination)) {
-          errors.push(`Operation ${index + 1}: Invalid destination`);
-        }
-        if (
-          !op.params.startingBalance ||
-          parseFloat(op.params.startingBalance) < 1
-        ) {
-          errors.push(
-            `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
-          );
-        }
-      }
-    });
+    const feeBumpOnly = params.operations.length === 1 && params.operations[0].type === "feeBump";
 
-    const estimatedFee = params.baseFee * params.operations.length;
+    if (!feeBumpOnly) {
+      // Validate non-fee-bump transaction operations
+      params.operations.forEach((op, index) => {
+        if (op.type === "payment") {
+          if (!isValidPublicKey(op.params.destination)) {
+            errors.push(`Operation ${index + 1}: Invalid destination`);
+          }
+          if (!op.params.amount || parseFloat(op.params.amount) <= 0) {
+            errors.push(`Operation ${index + 1}: Invalid amount`);
+          }
+        } else if (op.type === "createAccount") {
+          if (!isValidPublicKey(op.params.destination)) {
+            errors.push(`Operation ${index + 1}: Invalid destination`);
+          }
+          if (
+            !op.params.startingBalance ||
+            parseFloat(op.params.startingBalance) < 1
+          ) {
+            errors.push(
+              `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
+            );
+          }
+        }
+      });
+    }
+
+    const fee = parseInt(transaction.fee.toString(), 10);
+    const operationCount = feeBumpOnly
+      ? (transaction.innerTransaction?.operations.length ?? transaction.operations.length) + 1
+      : transaction.operations.length;
 
     return {
       success: errors.length === 0,
       errors,
-      fee: estimatedFee,
-      operationCount: transaction.operations.length,
+      fee,
+      operationCount,
       xdr: transaction.toXDR(),
       hash: transaction.hash().toString("hex"),
     };

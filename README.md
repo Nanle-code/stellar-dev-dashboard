@@ -29,15 +29,15 @@ Node 18+ recommended. No environment variables required — all API calls go dir
 
 ## Tech Stack
 
-| Package | Purpose |
-|---|---|
-| [Vite 5](https://vitejs.dev/) + [React 18](https://reactjs.org/) | Build tool and UI framework |
-| [@stellar/stellar-sdk ^12](https://github.com/stellar/js-stellar-sdk) | Horizon REST client, Soroban RPC, XDR encoding |
-| [Zustand ^4](https://github.com/pmndrs/zustand) | Global state management |
-| [Recharts ^2](https://recharts.org/) | Charts (ledger close times, network metrics, account activity) |
-| [date-fns ^3](https://date-fns.org/) | Date formatting throughout the UI |
-| [Lucide React](https://lucide.dev/) | Icon set |
-| TypeScript (dev) | Partial migration — `stellar.ts` and `store.ts` are fully typed |
+| Package                                                               | Purpose                                                         |
+| --------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [Vite 5](https://vitejs.dev/) + [React 18](https://reactjs.org/)      | Build tool and UI framework                                     |
+| [@stellar/stellar-sdk ^12](https://github.com/stellar/js-stellar-sdk) | Horizon REST client, Soroban RPC, XDR encoding                  |
+| [Zustand ^4](https://github.com/pmndrs/zustand)                       | Global state management                                         |
+| [Recharts ^2](https://recharts.org/)                                  | Charts (ledger close times, network metrics, account activity)  |
+| [date-fns ^3](https://date-fns.org/)                                  | Date formatting throughout the UI                               |
+| [Lucide React](https://lucide.dev/)                                   | Icon set                                                        |
+| TypeScript (dev)                                                      | Partial migration — `stellar.ts` and `store.ts` are fully typed |
 
 Fonts: **Syne** (display) and **Space Mono** (monospace), loaded from Google Fonts.
 
@@ -140,13 +140,17 @@ src/
 ## Features In Detail
 
 ### Connect Panel
+
 The landing screen. Enter any valid Stellar public key (`G...`) and click Connect. The app validates the key with `StrKey.isValidEd25519PublicKey`, loads the account from Horizon, then fetches the first 20 transactions and operations in parallel in the background. Pressing Enter also triggers the connect.
 
 ### Overview
+
 Summary dashboard for the connected account. Shows XLM balance with a USD estimate, number of non-native assets, recent transaction count, and the account sequence number. Below that is an asset holdings table with per-asset USD estimates (fetched from SDEX order books). The bottom section shows the 5 most recent transactions and live network stats (latest ledger, base fee, close time).
 
 ### Account Detail
+
 Deep-dive into the connected account. Sections:
+
 - Identity: public key, account ID, sequence number, creation date (fetched by finding the first `create_account` operation), XLM balance with USD estimate, subentry count, link to Stellar Expert
 - Asset Balances: all non-native trustlines with issuer addresses and USD estimates
 - Thresholds: low / medium / high signing thresholds
@@ -155,14 +159,17 @@ Deep-dive into the connected account. Sections:
 - Open Offers: active SDEX sell offers for the account
 
 ### Transaction History
+
 Tabbed view switching between Transactions and Operations. Both lists support cursor-based pagination — a "Load More" button appends the next 20 records without replacing existing ones. Transactions show hash (copyable), success/fail indicator, memo, fee in stroops, operation count, and timestamp. Operations show type label (human-readable via `OPERATION_LABELS` map), from/to addresses, and amount.
 
 ### Soroban Contracts
+
 Two panels:
 
 **Inspect Contract** — enter a contract address (`C...`), fetches the ledger entry via `SorobanRpc.Server.getContractData` and displays the raw JSON result.
 
 **Invoke Contract** — build a contract call with:
+
 - Contract ID, function name, source account
 - Typed arguments (string, int, address, bool) — each parsed into the correct `ScVal` type
 - Simulate button: calls `server.simulateTransaction` and shows return value, cost, events, and footprint (read-only / read-write ledger keys)
@@ -171,56 +178,73 @@ Two panels:
 Mainnet safety mode disables submission but still allows simulation.
 
 ### Network Stats
+
 Live network data with an SSE stream via `streamLedgers`. Shows:
+
 - Latest ledger sequence, base fee, close time, successful/failed tx count, operation count
 - Fee statistics table: min, mode, median, max, P10, P90 accepted fees
 - Ledger close time chart (Recharts LineChart) — plots close interval in seconds for the last 20 ledgers with an average reference line
 - Recent ledgers table (last 10)
 
 ### Testnet Faucet
+
 Calls Friendbot (`https://friendbot.stellar.org?addr=<key>`) to fund any testnet account with 10,000 XLM. Pre-fills with the connected address. Disabled on Mainnet.
 
 ### Transaction Builder (Builder tab)
+
 Simple builder for payment and createAccount operations. Supports source account, memo, base fee, and time bounds (min/max Unix timestamps). Simulate button validates operations and returns estimated fee. Export XDR button copies the unsigned transaction XDR to clipboard.
 
 ### Transaction Builder (txBuilder tab)
-Extended builder with more operation types: payment, createAccount, changeTrust, accountMerge, manageData. Supports text/id/hash/return memo types. Uses `transactionBuilder.js` which has a full `createOperation` factory covering manageSellOffer, manageBuyOffer, setOptions, and more.
+
+Extended builder with more operation types: payment, createAccount, changeTrust, accountMerge, manageData, fee bump, and sponsorship operations. Supports text/id/hash/return memo types. Uses `transactionBuilder.js` which has a full `createOperation` factory covering manageSellOffer, manageBuyOffer, setOptions, fee bump, and sponsorship flows.
 
 ### Transaction Signer
+
 Paste any unsigned transaction XDR and sign it with the connected wallet. Freighter signs via `api.signTransaction`. Ledger signing is noted as requiring the device to be connected. The signed XDR is displayed and can be copied.
 
 ### Wallet Connect
+
 Connect a real wallet instead of entering a public key manually:
+
 - **Freighter**: detects `window.freighterApi`, calls `requestAccess()` then `getAddress()`
 - **Ledger**: checks WebUSB/WebHID support, dynamically imports `@ledgerhq/hw-transport-webusb` and `@stellar/ledger` (optional peer deps), derives the public key from path `44'/148'/0'`
 
 After connecting, the wallet's public key is set as the connected address and account data is loaded.
 
 ### Account Comparison
+
 Compare up to 5 accounts side by side. Each slot has a public key input. Clicking "Compare All" fetches all accounts and their open offers in parallel. The comparison table shows: status, XLM balance, asset count, active orders, sequence number, subentries. Accounts can be sorted by balance, orders, or assets. Results can be exported as CSV. A `ComparisonChart` renders bar charts for visual comparison.
 
 ### Portfolio Value
+
 Fetches USD prices for all held assets from CoinGecko (mapped via `ASSET_ID_MAP` in `priceFeed.js`). Displays total portfolio value and a per-asset breakdown with balance, price, and USD value. 24h price change indicators (↑/↓) are shown per asset.
 
 ### Price Ticker
+
 Persistent bar at the top of every page showing the current XLM/USD price and 24h change, refreshed every 60 seconds from CoinGecko.
 
 ### DEX Explorer
+
 Enter a selling asset (`native` or `CODE:ISSUER`) and a buying asset. Fetches the SDEX order book and recent trades via Horizon. Displays:
+
 - Spread (absolute and percentage), best bid, best ask
 - Aggregated bids and asks tables (top 10 levels with cumulative depth)
 - Last 10 recent trades with price, amount, and time
 
 ### Path Explorer
+
 Find cross-asset payment routes via Horizon's `/paths/strict-send` and `/paths/strict-receive` endpoints. Select source and destination assets (preset or custom), enter an amount, choose strict-send or strict-receive mode. Results are sorted by best rate and annotated with slippage percentage vs the best path.
 
 ### Real-Time Ledger
+
 Live SSE stream of incoming ledgers using the `StreamManager` class in `streaming.js`. Shows connection status (connecting / live / reconnecting / error) with a pulsing indicator. Displays the latest ledger sequence, transaction count, and operation count as summary cards, plus a scrolling feed of all received ledgers. The stream uses exponential backoff (up to 30s, max 10 attempts) on errors.
 
 ### Explorer Integration
+
 Generate deep links to external block explorers (Stellar Expert, Steexp) for accounts, transactions, contracts, assets, ledgers, and operations. Also shows quick-link cards to each explorer's homepage for the current network.
 
 ### Charts & Analytics
+
 A combined view rendering three Recharts-based charts: NetworkMetricsChart, AccountActivityChart, and BalanceHistoryChart.
 
 ---
@@ -229,21 +253,21 @@ A combined view rendering three Recharts-based charts: NetworkMetricsChart, Acco
 
 All global state lives in a single Zustand store (`src/lib/store.ts`). The store is fully typed with TypeScript interfaces. Key state slices:
 
-| Slice | What it holds |
-|---|---|
-| `network` | `'mainnet'`, `'testnet'`, `'futurenet'`, `'local'`, or `'custom'` — switching resets account/tx/ops data |
-| `connectedAddress` | The currently viewed public key |
-| `accountData` | Full `Horizon.AccountResponse` |
-| `transactions` / `operations` | Arrays with cursor-based pagination state |
-| `networkStats` | Latest ledger + fee stats |
-| `activeTab` | Which dashboard tab is rendered |
-| `contractId` / `contractData` | Soroban contract inspector state |
-| `faucetLoading` / `faucetResult` | Faucet request state |
-| Comparison slots | Array of `{ key, data, loading, error }` for multi-account view |
-| Stream state | `streamStatus`, `streamLedgers` for the real-time ledger feed |
-| Prices | CoinGecko price map keyed by asset code |
-| Notifications | Array of `{ id, type, title, message }` |
-| Wallet | `walletConnected`, `walletType`, `walletPublicKey` |
+| Slice                            | What it holds                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `network`                        | `'mainnet'`, `'testnet'`, `'futurenet'`, `'local'`, or `'custom'` — switching resets account/tx/ops data |
+| `connectedAddress`               | The currently viewed public key                                                                          |
+| `accountData`                    | Full `Horizon.AccountResponse`                                                                           |
+| `transactions` / `operations`    | Arrays with cursor-based pagination state                                                                |
+| `networkStats`                   | Latest ledger + fee stats                                                                                |
+| `activeTab`                      | Which dashboard tab is rendered                                                                          |
+| `contractId` / `contractData`    | Soroban contract inspector state                                                                         |
+| `faucetLoading` / `faucetResult` | Faucet request state                                                                                     |
+| Comparison slots                 | Array of `{ key, data, loading, error }` for multi-account view                                          |
+| Stream state                     | `streamStatus`, `streamLedgers` for the real-time ledger feed                                            |
+| Prices                           | CoinGecko price map keyed by asset code                                                                  |
+| Notifications                    | Array of `{ id, type, title, message }`                                                                  |
+| Wallet                           | `walletConnected`, `walletType`, `walletPublicKey`                                                       |
 
 ---
 
@@ -251,13 +275,13 @@ All global state lives in a single Zustand store (`src/lib/store.ts`). The store
 
 Defined in `src/lib/stellar.ts`:
 
-| Network | Horizon URL | Soroban RPC URL |
-|---|---|---|
-| Testnet | `https://horizon-testnet.stellar.org` | `https://soroban-testnet.stellar.org` |
-| Mainnet | `https://horizon.stellar.org` | `https://soroban-rpc.stellar.org` |
+| Network   | Horizon URL                             | Soroban RPC URL                         |
+| --------- | --------------------------------------- | --------------------------------------- |
+| Testnet   | `https://horizon-testnet.stellar.org`   | `https://soroban-testnet.stellar.org`   |
+| Mainnet   | `https://horizon.stellar.org`           | `https://soroban-rpc.stellar.org`       |
 | Futurenet | `https://horizon-futurenet.stellar.org` | `https://soroban-futurenet.stellar.org` |
-| Local | `http://localhost:8000` | `http://localhost:8000/soroban/rpc` |
-| Custom | *User defined* | *User defined* |
+| Local     | `http://localhost:8000`                 | `http://localhost:8000/soroban/rpc`     |
+| Custom    | _User defined_                          | _User defined_                          |
 
 The network switcher in the sidebar calls `setNetwork()` which resets all account-specific state.
 
@@ -289,6 +313,7 @@ All design tokens are CSS custom properties defined in `globals.css`. The app su
 This project is part of the [Stellar Wave Program](https://www.drips.network/wave/stellar) on Drips. Check open issues tagged `Stellar Wave` to contribute and earn rewards.
 
 ### Good First Issues
+
 - [ ] Add pagination to transaction history
 - [ ] Dark/light theme toggle
 - [ ] Copy-to-clipboard on addresses
@@ -296,12 +321,14 @@ This project is part of the [Stellar Wave Program](https://www.drips.network/wav
 - [ ] Offer list viewer per account
 
 ### Medium Issues
+
 - [ ] Real-time ledger streaming via SSE
 - [ ] Asset price feed integration
 - [ ] Multi-account comparison view
 - [ ] Soroban contract invocation UI
 
 ### High Complexity
+
 - [ ] Full Soroban contract interaction panel (call contract functions)
 - [ ] Transaction builder / simulator
 - [ ] Path payment explorer

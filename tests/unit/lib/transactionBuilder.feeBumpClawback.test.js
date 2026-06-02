@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as StellarSdk from '@stellar/stellar-sdk'
-import { feeBump, createOperation, OPERATION_TYPES } from '../../../src/lib/transactionBuilder'
+import { feeBump, buildTransaction, simulateTransaction, createOperation, OPERATION_TYPES } from '../../../src/lib/transactionBuilder'
 import { validateOperation } from '../../../src/utils/transactionValidation'
 
 // ─── Builder Unit Tests ────────────────────────────────────────────────────────
@@ -139,6 +139,81 @@ describe('feeBump builder function', () => {
         network: testnet,
       })
     }).toThrow()
+  })
+
+  it('builds a standalone fee-bump transaction from transaction builder params', async () => {
+    const keypair = StellarSdk.Keypair.random()
+    const account = new StellarSdk.Account(keypair.publicKey(), '0')
+    const innerTx = new StellarSdk.TransactionBuilder(account, {
+      fee: '100',
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+      timeout: 180,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: validFeeSource,
+          asset: StellarSdk.Asset.native(),
+          amount: '5',
+        })
+      )
+      .build()
+    innerTx.sign(keypair)
+
+    const feeBumpTx = await buildTransaction({
+      sourceAccount: '',
+      operations: [
+        {
+          type: 'feeBump',
+          params: {
+            feeSource: validFeeSource,
+            baseFee: '200',
+            innerTransaction: innerTx.toXDR(),
+          },
+        },
+      ],
+      network: testnet,
+    })
+
+    expect(feeBumpTx).toBeDefined()
+    expect(feeBumpTx.feeSource).toEqual(validFeeSource)
+  })
+
+  it('simulates standalone fee-bump transactions and reports total fee', async () => {
+    const keypair = StellarSdk.Keypair.random()
+    const account = new StellarSdk.Account(keypair.publicKey(), '0')
+    const innerTx = new StellarSdk.TransactionBuilder(account, {
+      fee: '100',
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+      timeout: 180,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: validFeeSource,
+          asset: StellarSdk.Asset.native(),
+          amount: '5',
+        })
+      )
+      .build()
+    innerTx.sign(keypair)
+
+    const result = await simulateTransaction({
+      sourceAccount: '',
+      operations: [
+        {
+          type: 'feeBump',
+          params: {
+            feeSource: validFeeSource,
+            baseFee: '200',
+            innerTransaction: innerTx.toXDR(),
+          },
+        },
+      ],
+      network: testnet,
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.fee).toBeGreaterThan(0)
+    expect(result.operationCount).toBe(2)
   })
 })
 

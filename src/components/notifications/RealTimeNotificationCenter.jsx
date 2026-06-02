@@ -1,15 +1,18 @@
 import React from 'react'
 import RealTimeNotification from './RealTimeNotification'
-import { useRealTimeNotifications } from '../../hooks/useRealTimeNotifications'
+import { useStore } from '../../lib/store'
 
 /**
- * Slide-over panel listing every real-time stream notification accumulated
+ * Slide-over panel listing every notification accumulated
  * this session. Distinct from the existing toast `NotificationCenter` —
  * this one is durable history, opened from a header bell button.
  */
 export default function RealTimeNotificationCenter({ open, onClose }) {
-  const { notifications, unreadCount, markAllRead, remove, clear } =
-    useRealTimeNotifications()
+  const notifications = useStore((state) => state.notificationHistory)
+  const unreadCount = useStore((state) => state.unreadNotificationCount)
+  const markAllRead = useStore((state) => state.markAllNotificationsRead)
+  const markRead = useStore((state) => state.markNotificationRead)
+  const clear = useStore((state) => state.clearNotificationHistory)
 
   if (!open) return null
 
@@ -142,7 +145,7 @@ export default function RealTimeNotificationCenter({ open, onClose }) {
               <RealTimeNotification
                 key={n.id}
                 notification={n}
-                onDismiss={remove}
+                onDismiss={markRead}
               />
             ))
           )}

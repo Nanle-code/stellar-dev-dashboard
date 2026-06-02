@@ -3,6 +3,8 @@ import { usePreferences } from '../../hooks/usePreferences'
 import AddressBook from './AddressBook'
 import ThemeSettings from './ThemeSettings'
 import AccessibilitySettings from './AccessibilitySettings'
+import { showTestNotification } from '../../utils/offline'
+import { Bell } from 'lucide-react'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -146,6 +148,30 @@ export default function UserPreferences({ onClose }) {
                 onChange={(v) => handleChange('autoRefresh', v)}
               />
             </PreferenceRow>
+
+            <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
+              <button
+                onClick={showTestNotification}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-bright)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  transition: 'background 180ms ease',
+                }}
+              >
+                <Bell size={14} className="text-cyan" />
+                Test Push Notification
+              </button>
+            </div>
 
             <button
               onClick={reset}

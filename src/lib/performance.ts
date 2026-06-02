@@ -154,6 +154,24 @@ export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
         console.warn('perf: measure failed', e);
       }
     },
+    traceFPS: (durationMs: number = 2000) => {
+      return new Promise((resolve) => {
+        let frames = 0;
+        const start = performance.now();
+        function tick() {
+          frames++;
+          const now = performance.now();
+          if (now - start < durationMs) {
+            requestAnimationFrame(tick);
+          } else {
+            const fps = Math.round((frames * 1000) / (now - start));
+            sendEvent(cfg.rumEndpoint, { type: 'fps_trace', value: fps });
+            resolve(fps);
+          }
+        }
+        requestAnimationFrame(tick);
+      });
+    }
   };
 }
 

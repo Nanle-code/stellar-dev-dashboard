@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { useStore } from "../../lib/store";
 import { invokeContractFunction } from "../../lib/contractInvoker";
 import { simulateContractCall, isValidContractId } from "../../lib/stellar";
+import { addContractInteraction } from "../../lib/storage";
+import { generateId } from "../../lib/notifications";
+import ContractHistory from "./ContractHistory";
 
 const ARGUMENT_TYPES = [
   { value: "string", label: "String" },
@@ -161,6 +164,8 @@ function ResultBlock({ label, data }) {
 export default function ContractInteraction() {
   const { connectedAddress, network } = useStore();
 
+  const [activeTab, setActiveTab] = useState("interact"); // "interact" | "history"
+
   const [form, setForm] = useState({
     contractId: "",
     functionName: "",
@@ -206,6 +211,22 @@ export default function ContractInteraction() {
     }));
   }
 
+  async function recordInteraction(type, status, result, errorMsg) {
+    await addContractInteraction({
+      id: generateId(),
+      timestamp: Date.now(),
+      network,
+      type,
+      contractId: form.contractId,
+      functionName: form.functionName,
+      args: form.args.filter((arg) => arg.value.trim() !== ""),
+      sourceAccount: form.sourceAccount || connectedAddress,
+      status,
+      result,
+      error: errorMsg
+    });
+  }
+
   async function handleSimulate() {
     setError("");
     setInvokeResult(null);
@@ -221,8 +242,10 @@ export default function ContractInteraction() {
         network,
       });
       setSimulationResult(result);
+      await recordInteraction("simulate", "success", result, null);
     } catch (err) {
       setError(err.message || "Simulation failed");
+      await recordInteraction("simulate", "error", null, err.message || "Simulation failed");
     } finally {
       setSimulateLoading(false);
     }
@@ -243,11 +266,27 @@ export default function ContractInteraction() {
         network,
       });
       setInvokeResult(result);
+      await recordInteraction("invoke", "success", result, null);
     } catch (err) {
       setError(err.message || "Invocation failed");
+      await recordInteraction("invoke", "error", null, err.message || "Invocation failed");
     } finally {
       setInvokeLoading(false);
     }
+  }
+
+  function handleReplay(record) {
+    setForm({
+      contractId: record.contractId,
+      functionName: record.functionName,
+      sourceAccount: record.sourceAccount,
+      secretKey: "", 
+      args: record.args && record.args.length > 0 ? record.args : [{ type: "string", value: "" }]
+    });
+    setSimulationResult(null);
+    setInvokeResult(null);
+    setError("");
+    setActiveTab("interact");
   }
 
   return (
@@ -257,18 +296,44 @@ export default function ContractInteraction() {
     >
       <div
         style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "22px",
-          fontWeight: 700,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid var(--border)",
+          paddingBottom: "16px"
         }}
       >
-        Contract Interaction
+        <div
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "22px",
+            fontWeight: 700,
+          }}
+        >
+          Contract Interaction
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <ActionButton
+            label="Interact"
+            onClick={() => setActiveTab("interact")}
+            tone={activeTab === "interact" ? "primary" : "secondary"}
+          />
+          <ActionButton
+            label="History"
+            onClick={() => setActiveTab("history")}
+            tone={activeTab === "history" ? "primary" : "secondary"}
+          />
+        </div>
       </div>
 
-      <Panel
-        title="Contract Call Configuration"
-        subtitle="Configure and execute Soroban contract functions"
-      >
+      {activeTab === "history" ? (
+        <ContractHistory onReplay={handleReplay} />
+      ) : (
+        <>
+          <Panel
+            title="Contract Call Configuration"
+            subtitle="Configure and execute Soroban contract functions"
+          >
         <div
           style={{
             display: "grid",
@@ -458,6 +523,8 @@ export default function ContractInteraction() {
 
       {invokeResult && (
         <ResultBlock label="Invocation Result" data={invokeResult} />
+      )}
+        </>
       )}
     </div>
   );

@@ -99,7 +99,68 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ─── Background Sync / Update notification ───────────────────────────────────
+// ─── Background Sync ─────────────────────────────────────────────────────────
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-offline-queue') {
+    console.log('Background sync triggered: sync-offline-queue');
+    // In a real app, you'd call a function here to flush the IndexedDB queue
+    // but since the SW doesn't have easy access to the same JS modules as the
+    // client, we often rely on the client to flush when it wakes up, or
+    // implement the flush logic here using IDB directly.
+    event.waitUntil(Promise.resolve());
+  }
+});
+
+// ─── Push Notifications ───────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'Stellar Dev Dashboard', body: 'New update available!' };
+
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-72.png',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/'
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const urlToOpen = event.notification.data.url;
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If a window is already open, focus it
+      for (const client of windowClients) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+
+// ─── Message Handling ───────────────────────────────────────────────────────
+
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();

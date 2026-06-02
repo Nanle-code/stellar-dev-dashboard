@@ -22,12 +22,86 @@ let _flushing = false;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+let deferredPrompt = null;
+let installPromptListeners = [];
+
 /**
- * Call once at app startup (already called on module import below).
+ * Capture the beforeinstallprompt event.
+ */
+export function captureInstallPrompt() {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    logger.info('Install prompt captured');
+    notifyInstallPromptListeners(true);
+  });
+
+  window.addEventListener('appinstalled', (evt) => {
+    logger.info('App was installed');
+    deferredPrompt = null;
+    notifyInstallPromptListeners(false);
+  });
+}
+
+/**
+ * Triggers the install prompt.
+ */
+export async function promptInstall() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  logger.info(`User response to install prompt: ${outcome}`);
+  deferredPrompt = null;
+  notifyInstallPromptListeners(false);
+}
+
+/**
+ * Subscribe to installability changes.
+ */
+export const subscribeToInstallPrompt = (callback) => {
+  installPromptListeners.push(callback);
+  callback(!!deferredPrompt);
+  return () => { installPromptListeners = installPromptListeners.filter(l => l !== callback); };
+};
+
+function notifyInstallPromptListeners(available) {
+  installPromptListeners.forEach(cb => { try { cb(available); } catch { /* ignore */ } });
+}
+
+/**
+ * Registers the service worker and sets up connectivity listeners.
  */
 export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+    });
+    logger.info('Service Worker registered with scope:', registration.scope);
+
+    // Initialise background sync if supported
+    if ('sync' in registration) {
+      try {
+        await registration.sync.register('sync-offline-queue');
+        logger.info('Background sync registered');
+      } catch (err) {
+        logger.warn('Background sync registration failed:', err);
+      }
+    }
+  } catch (error) {
+    logger.error('Service Worker registration failed:', {}, error);
+  }
+
+  initOfflineDetection();
+}
+
+/**
+ * Sets up online/offline event listeners.
+ */
+export function initOfflineDetection() {
   window.addEventListener('online', () => {
     isOnline = true;
     logger.info('Network online');
@@ -40,7 +114,47 @@ export async function registerServiceWorker() {
     logger.info('Network offline');
     notifyListeners(false);
   });
-};
+}
+
+// ─── Push Notifications ───────────────────────────────────────────────────────
+
+/**
+ * Request notification permission and return current status.
+ */
+export async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    logger.warn('Notifications not supported');
+    return 'unsupported';
+  }
+
+  const permission = await Notification.requestPermission();
+  logger.info(`Notification permission: ${permission}`);
+  return permission;
+}
+
+/**
+ * Show a local notification (minimal workaround for push).
+ */
+export async function showTestNotification() {
+  if (Notification.permission !== 'granted') {
+    const res = await requestNotificationPermission();
+    if (res !== 'granted') return;
+  }
+
+  if ('serviceWorker' in navigator) {
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification('Stellar Dev Dashboard', {
+      body: 'Notifications are working! 🚀',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-72.png',
+      tag: 'test-notification',
+      vibrate: [100, 50, 100],
+      data: {
+        url: window.location.origin
+      }
+    });
+  }
+}
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -157,4 +271,4 @@ export async function flushOfflineQueue() {
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
-initOfflineDetection();
+// registerServiceWorker is called from main.jsx

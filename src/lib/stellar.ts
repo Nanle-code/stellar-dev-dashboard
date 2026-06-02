@@ -577,6 +577,29 @@ export async function fetchAccountOffers(
   return records;
 }
 
+export async function fetchTransactionDetails(
+  hash: string,
+  network: NetworkName = 'testnet'
+): Promise<{ transaction: StellarSdk.Horizon.ServerApi.TransactionRecord, operations: StellarSdk.Horizon.ServerApi.OperationRecord[] }> {
+  const cacheKey = `transaction-details:${hash}:${network}`
+  const cached = stellarCache.get(cacheKey)
+  if (cached) return cached
+
+  const server = getServer(network)
+  const [transaction, opsResponse] = await Promise.all([
+    server.transactions().transaction(hash).call(),
+    server.operations().forTransaction(hash).call()
+  ])
+
+  const result = {
+    transaction,
+    operations: opsResponse.records || []
+  }
+  
+  stellarCache.set(cacheKey, result, TTL.TRANSACTIONS, ['transactions', hash])
+  return result
+}
+
 // ─── Operation labels ───────────────────────────────────────────────────────────
 
 export const OPERATION_LABELS: Record<string, string> = {

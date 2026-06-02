@@ -8,8 +8,8 @@
  */
 
 import React, { useEffect, useState, type CSSProperties } from 'react'
+import { WifiOff, X, AlertTriangle } from 'lucide-react'
 import { subscribeToOnlineStatus, getOnlineStatus, getPendingCount } from '../../utils/offline'
-import { offlineQueue } from '../../lib/errorHandling/RetryManager'
 
 export default function OfflineBanner() {
   const [offline, setOffline]       = useState<boolean>(!getOnlineStatus())
@@ -22,8 +22,6 @@ export default function OfflineBanner() {
       setOffline(!online)
       if (online) {
         setDismissed(false)  // re-show if we go offline again later
-        // Flush the in-memory queue on reconnect
-        offlineQueue.flush().catch(() => {})
       }
     })
     return unsub
@@ -31,64 +29,47 @@ export default function OfflineBanner() {
 
   // Track queued operation count
   useEffect(() => {
-    const unsub = offlineQueue.subscribe((entries) => {
-      setQueueSize(entries.length)
-    })
-    // Also prime from IDB (in case we resumed after reload)
+    // Prime from IDB (in case we resumed after reload)
+    const interval = setInterval(() => {
+      getPendingCount().then(setQueueSize).catch(() => {})
+    }, 5000);
     getPendingCount().then(setQueueSize).catch(() => {})
-    return unsub
-  }, [])
+    return () => clearInterval(interval);
+  }, []);
 
   if (!offline || dismissed) return null
 
-  const bannerStyle: CSSProperties = {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2000,
-    background: 'var(--amber, #f59e0b)',
-    color: '#0a0a0a',
-    padding: '10px 20px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-    fontSize: '13px',
-    fontFamily: 'var(--font-mono)',
-    fontWeight: 600,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-  }
-
   return (
-    <div role="status" aria-live="polite" style={bannerStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span aria-hidden="true">⚠</span>
-        <span>
-          You're offline — showing cached data.
-          {queueSize > 0 && (
-            <span style={{ marginLeft: '8px', fontWeight: 700 }}>
-              {queueSize} operation{queueSize !== 1 ? 's' : ''} queued — will replay when reconnected.
-            </span>
-          )}
-        </span>
+    <div 
+      role="status" 
+      aria-live="polite" 
+      className="fixed bottom-6 left-6 right-6 md:left-auto md:w-[420px] bg-[#1e2327]/95 backdrop-blur-xl border border-red-500/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl p-4 flex items-start gap-4 z-[2000] animate-in fade-in slide-in-from-bottom-8 duration-500"
+    >
+      <div className="bg-red-500/10 p-2.5 rounded-xl text-red-500">
+        <WifiOff size={22} />
       </div>
+      
+      <div className="flex-1 min-w-0">
+        <h4 className="text-white font-bold text-sm tracking-tight">Offline Mode Active</h4>
+        <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+          Showing cached data. Modifications will be queued and replayed automatically when you're back online.
+        </p>
+        
+        {queueSize > 0 && (
+          <div className="flex items-center gap-2 mt-3 bg-red-500/10 border border-red-500/10 rounded-lg px-2.5 py-1.5 w-fit">
+            <AlertTriangle size={12} className="text-red-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+              {queueSize} Operation{queueSize !== 1 ? 's' : ''} Pending
+            </span>
+          </div>
+        )}
+      </div>
+
       <button
         onClick={() => setDismissed(true)}
-        aria-label="Dismiss offline notice"
-        style={{
-          background: 'transparent',
-          border: '1px solid rgba(0,0,0,0.3)',
-          borderRadius: '4px',
-          color: '#0a0a0a',
-          cursor: 'pointer',
-          padding: '2px 8px',
-          fontSize: '12px',
-          fontFamily: 'var(--font-mono)',
-          flexShrink: 0,
-        }}
+        className="text-gray-500 hover:text-white transition-colors p-1"
       >
-        ✕
+        <X size={18} />
       </button>
     </div>
   )

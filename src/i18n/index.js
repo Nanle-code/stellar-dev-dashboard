@@ -5,11 +5,23 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import en from "./en.json";
 import es from "./es.json";
 import zh from "./zh.json";
+import fr from "./fr.json";
+import de from "./de.json";
+import pt from "./pt.json";
+import ja from "./ja.json";
+import ko from "./ko.json";
+import ar from "./ar.json";
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en", label: "English",  nativeLabel: "English",  dir: "ltr" },
   { code: "es", label: "Spanish",  nativeLabel: "Español",  dir: "ltr" },
   { code: "zh", label: "Chinese",  nativeLabel: "中文",      dir: "ltr" },
+  { code: "fr", label: "French", nativeLabel: "Français", dir: "ltr" },
+  { code: "de", label: "German", nativeLabel: "Deutsch", dir: "ltr" },
+  { code: "pt", label: "Portuguese", nativeLabel: "Português", dir: "ltr" },
+  { code: "ja", label: "Japanese", nativeLabel: "日本語", dir: "ltr" },
+  { code: "ko", label: "Korean", nativeLabel: "한국어", dir: "ltr" },
+  { code: "ar", label: "Arabic", nativeLabel: "العربية", dir: "rtl" },
 ];
 
 /** Languages that flow right-to-left (#107). */
@@ -22,6 +34,12 @@ const resources = {
   en: { translation: en },
   es: { translation: es },
   zh: { translation: zh },
+  fr: { translation: fr },
+  de: { translation: de },
+  pt: { translation: pt },
+  ja: { translation: ja },
+  ko: { translation: ko },
+  ar: { translation: ar },
 };
 
 i18n

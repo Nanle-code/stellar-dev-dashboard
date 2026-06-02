@@ -68,10 +68,11 @@ import { TourLauncher } from './components/tutorial'
 import SearchBar from './components/layout/SearchBar'
 import GlobalSearch from './components/search/GlobalSearch'
 import UserPreferences from './components/preferences/UserPreferences'
+import NetworkIndicator from './components/layout/NetworkIndicator'
 import MobileNavigation from './components/layout/MobileNavigation'
-import AccessibilityProvider from "./components/accessibility/AccessibilityProvider";
 import KeyboardNavigation from './components/accessibility/KeyboardNavigation'
 import OfflineBanner from './components/layout/OfflineBanner'
+import PWAInstallBanner from './components/PWAInstallBanner'
 
 interface SearchResult {
   type?: string
@@ -321,6 +322,7 @@ function DashboardLayout() {
   return (
     <ErrorBoundary onRetry={handleRetry} maxRetries={3}>
       <OfflineBanner />
+      <PWAInstallBanner />
       <div
         style={{
           display: 'flex',
@@ -336,6 +338,9 @@ function DashboardLayout() {
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ flex: 1 }}>
               <GlobalSearch onSelectResult={handleSearchResult} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <NetworkIndicator />
             </div>
             <button
               onClick={() => setPreferencesOpen(true)}

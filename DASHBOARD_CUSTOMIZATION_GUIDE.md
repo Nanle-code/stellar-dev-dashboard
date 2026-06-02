@@ -45,11 +45,13 @@ The Stellar Dev Dashboard now features a fully customizable widget-based layout 
    - Interact with widget content normally
    - Click "Edit" button to enter edit mode
 
+
 2. **Edit Mode**
    - **Drag & Drop**: Click and drag widgets to rearrange them
    - **Resize**: Use the resize handle (⤡) in the top-right corner of widgets
    - **Remove**: Click the × button to remove widgets
    - **Add Widgets**: Click "Add Widget" to open the widget selector
+
 
 3. **Adding Widgets**
    - Click "Add Widget" in edit mode

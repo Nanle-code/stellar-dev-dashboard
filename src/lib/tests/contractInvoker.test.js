@@ -62,6 +62,9 @@ describe('Contract Invoker Flows', () => {
       expect(result.found).toBe(true);
       expect(result.contractId).toBe(MOCK_CONTRACT_ID);
       expect(result.ledgerEntry).toBe('mock-encoded-xdr-data');
+      expect(result.functions).toEqual([]);
+      expect(result.errorTypes).toEqual([]);
+      expect(result.customTypes).toEqual([]);
       expect(mockSorobanServer.getLedgerEntries).toHaveBeenCalledTimes(1);
     });
 

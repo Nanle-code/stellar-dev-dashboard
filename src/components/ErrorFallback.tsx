@@ -1,21 +1,32 @@
 import React, { useState } from 'react';
 import { useResponsive } from '../hooks/useResponsive';
 import { ERROR_CATEGORIES } from '../utils/errorHandler';
+import { ErrorDetails } from '../types/error';
 
-const ErrorFallback = ({ 
-  error, 
-  errorDetails, 
-  resetErrorBoundary, 
+export interface ErrorFallbackProps {
+  error: Error | null;
+  errorDetails: ErrorDetails | null;
+  resetErrorBoundary: () => void;
+  retryWithBackoff: () => Promise<void>;
+  isRetrying?: boolean;
+  retryCount?: number;
+  maxRetries?: number;
+}
+
+export const ErrorFallback = ({
+  error,
+  errorDetails,
+  resetErrorBoundary,
   retryWithBackoff,
   isRetrying = false,
   retryCount = 0,
   maxRetries = 3
-}) => {
+}: ErrorFallbackProps): JSX.Element => {
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { isMobile } = useResponsive();
+  const { isMobile } = useResponsive() as { isMobile: boolean };
 
-  const handleCopyError = async () => {
+  const handleCopyError = async (): Promise<void> => {
     const errorInfo = {
       message: error?.message || 'Unknown error',
       stack: error?.stack,
@@ -35,8 +46,9 @@ const ErrorFallback = ({
     }
   };
 
-  const getErrorIcon = (category) => {
-    const icons = {
+  const getErrorIcon = (category?: string): string => {
+    if (!category) return '❌';
+    const icons: Record<string, string> = {
       [ERROR_CATEGORIES.NETWORK]: '🌐',
       [ERROR_CATEGORIES.VALIDATION]: '⚠️',
       [ERROR_CATEGORIES.STELLAR]: '⭐',
@@ -48,8 +60,9 @@ const ErrorFallback = ({
     return icons[category] || '❌';
   };
 
-  const getSeverityColor = (severity) => {
-    const colors = {
+  const getSeverityColor = (severity?: string): string => {
+    if (!severity) return 'var(--red)';
+    const colors: Record<string, string> = {
       low: 'var(--amber)',
       medium: 'var(--cyan)',
       high: 'var(--red)',
@@ -67,7 +80,7 @@ const ErrorFallback = ({
   const helpLinks = errorDetails?.helpLinks || [];
   const isRetryable = errorDetails?.isRetryable && retryCount < maxRetries;
 
-  const containerStyles = {
+  const containerStyles: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -82,7 +95,7 @@ const ErrorFallback = ({
     margin: '0 auto'
   };
 
-  const iconStyles = {
+  const iconStyles: React.CSSProperties = {
     fontSize: '48px',
     marginBottom: '16px',
     padding: '16px',
@@ -96,7 +109,7 @@ const ErrorFallback = ({
     height: '80px'
   };
 
-  const buttonStyles = {
+  const buttonStyles: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -113,13 +126,13 @@ const ErrorFallback = ({
     minWidth: isMobile ? 'var(--touch-target)' : 'auto'
   };
 
-  const primaryButtonStyles = {
+  const primaryButtonStyles: React.CSSProperties = {
     ...buttonStyles,
     background: 'var(--cyan)',
     color: 'var(--bg-base)',
   };
 
-  const secondaryButtonStyles = {
+  const secondaryButtonStyles: React.CSSProperties = {
     ...buttonStyles,
     background: 'var(--bg-elevated)',
     color: 'var(--text-primary)',
@@ -184,7 +197,7 @@ const ErrorFallback = ({
       }}>
         {isRetryable && (
           <button
-            onClick={retryWithBackoff}
+            onClick={() => { retryWithBackoff().catch(err => console.error(err)); }}
             disabled={isRetrying}
             style={{
               ...primaryButtonStyles,
@@ -262,12 +275,12 @@ const ErrorFallback = ({
                   justifyContent: isMobile ? 'center' : 'flex-start'
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'var(--cyan-glow)'
-                  e.currentTarget.style.borderColor = 'var(--cyan)'
+                  e.currentTarget.style.background = 'var(--cyan-glow)';
+                  e.currentTarget.style.borderColor = 'var(--cyan)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'var(--bg-elevated)'
-                  e.currentTarget.style.borderColor = 'var(--border)'
+                  e.currentTarget.style.background = 'var(--bg-elevated)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
                 }}
               >
                 📖 {link.label}
@@ -314,7 +327,7 @@ const ErrorFallback = ({
                 Error Details
               </h4>
               <button
-                onClick={handleCopyError}
+                onClick={() => { handleCopyError().catch(err => console.error(err)); }}
                 style={{
                   ...secondaryButtonStyles,
                   padding: '6px 12px',

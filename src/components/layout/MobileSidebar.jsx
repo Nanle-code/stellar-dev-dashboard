@@ -7,6 +7,7 @@
  */
 
 import React, { useCallback, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useStore } from "../../lib/store";
 
 const NAV_ITEMS = [
@@ -74,11 +75,17 @@ export function HamburgerButton() {
  * Full-screen overlay + slide-in drawer for mobile navigation.
  */
 export default function MobileSidebar() {
-  const { activeTab, setActiveTab, isMobileMenuOpen, setMobileMenuOpen, theme, toggleTheme, network } =
+  const navigate = useNavigate();
+  const { activeTab, isMobileMenuOpen, setMobileMenuOpen, theme, toggleTheme, network } =
     useStore();
   const drawerRef = useRef(null);
 
   const close = useCallback(() => setMobileMenuOpen(false), [setMobileMenuOpen]);
+
+  const handleNavClick = (tabId) => {
+    navigate(`/${tabId}`);
+    close();
+  };
 
   // Close on Escape
   useEffect(() => {
@@ -101,44 +108,24 @@ export default function MobileSidebar() {
     return () => { document.body.style.overflow = ""; };
   }, [isMobileMenuOpen]);
 
-  if (!isMobileMenuOpen) return null;
-
   return (
     <>
       {/* Backdrop */}
       <div
         aria-hidden="true"
         onClick={close}
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.6)",
-          backdropFilter: "blur(4px)",
-          zIndex: 999,
-        }}
+        className={`mobile-drawer-backdrop${isMobileMenuOpen ? " open" : ""}`}
       />
 
-      {/* Drawer */}
+      {/* Drawer — always in DOM so CSS transition plays on close too */}
       <nav
         id="mobile-sidebar"
         ref={drawerRef}
         aria-label="Mobile navigation"
         role="dialog"
         aria-modal="true"
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: "var(--sidebar-width-mobile, 280px)",
-          background: "var(--bg-surface)",
-          borderRight: "1px solid var(--border)",
-          zIndex: 1000,
-          display: "flex",
-          flexDirection: "column",
-          overflowY: "auto",
-          padding: "16px 0 32px",
-        }}
+        aria-hidden={!isMobileMenuOpen}
+        className={`mobile-drawer${isMobileMenuOpen ? " open" : ""}`}
       >
         {/* Header */}
         <div
@@ -216,7 +203,7 @@ export default function MobileSidebar() {
                 <button
                   type="button"
                   aria-current={isActive ? "page" : undefined}
-                  onClick={() => { setActiveTab(item.id); close(); }}
+                  onClick={() => handleNavClick(item.id)}
                   style={{
                     width: "100%",
                     display: "flex",

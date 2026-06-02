@@ -223,6 +223,14 @@ Generate deep links to external block explorers (Stellar Expert, Steexp) for acc
 ### Charts & Analytics
 A combined view rendering three Recharts-based charts: NetworkMetricsChart, AccountActivityChart, and BalanceHistoryChart.
 
+### Alert Rules
+Custom alert rules engine that monitors account activity and delivers notifications. Create rules for:
+- **Balance Thresholds**: Alert when balances go above or below specified amounts
+- **Operation Types**: Monitor specific operation types (payments, trustlines, etc.)
+- **Counterparty Tracking**: Track transactions with specific addresses
+
+Rules are evaluated client-side with configurable frequencies (30s to 10min). Notifications are delivered in-app and optionally via browser notifications. All rules and notifications are persisted in IndexedDB per account.
+
 ---
 
 ## State Management
@@ -260,6 +268,42 @@ Defined in `src/lib/stellar.ts`:
 | Custom | *User defined* | *User defined* |
 
 The network switcher in the sidebar calls `setNetwork()` which resets all account-specific state.
+
+---
+
+## Bundle Size & Performance
+
+### Size budget
+
+The CI `bundle-size` job enforces a **500 KB gzipped** limit on the main entry chunk. A PR that exceeds this threshold will fail. To bypass intentionally (e.g. a large dependency bump that will be addressed in a follow-up), add the `skip-bundle-check` label to the PR and document the reason in the PR description.
+
+### Chunk strategy
+
+Vite splits the output into stable, cacheable chunks so that a UI-only change does not bust the Stellar SDK cache:
+
+| Chunk | Contents | Why separate |
+|---|---|---|
+| `stellar-sdk` | `@stellar/stellar-sdk` | Largest dep; changes rarely |
+| `react-vendor` | `react`, `react-dom`, `react-router-dom` | Stable; long cache TTL |
+| `ui-vendor` | `recharts`, `lucide-react` | Changes with design work |
+| `i18n` | `i18next`, `react-i18next`, `i18next-browser-languagedetector` | Only needed after first render |
+| `index` (entry) | Application code | Changes on every commit |
+
+### Bundle visualizer
+
+Generate an interactive treemap of the bundle at any time:
+
+```bash
+# Linux / macOS
+npm run build:analyze   # builds with ANALYZE=1, writes dist/stats.html
+open dist/stats.html    # open in browser
+
+# Windows (PowerShell)
+$env:ANALYZE=1; npm run build; Remove-Item Env:ANALYZE
+# then open dist/stats.html in your browser
+```
+
+In CI, add the `generate-bundle-report` label to a PR (or trigger the workflow manually via **Actions → CI → Run workflow**) to upload `dist/stats.html` as a downloadable artifact retained for 30 days.
 
 ---
 

@@ -11,8 +11,8 @@ import { validateOperation } from '../../../src/utils/transactionValidation'
 // ─── Builder Unit Tests ────────────────────────────────────────────────────────
 
 describe('feeBump builder function', () => {
-  const validFeeSource = 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2'
-  const validPublicKey = 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV'
+  const validFeeSource = 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA'
+  const validPublicKey = 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN'
   const testnet = 'testnet'
 
   it('builds valid fee-bump transaction with signed inner transaction XDR', () => {
@@ -31,6 +31,7 @@ describe('feeBump builder function', () => {
           amount: '10',
         })
       )
+      .setTimeout(180)
       .build()
     
     innerTx.sign(keypair)
@@ -62,6 +63,7 @@ describe('feeBump builder function', () => {
           amount: '10',
         })
       )
+      .setTimeout(180)
       .build()
     innerTx.sign(keypair)
 
@@ -90,6 +92,7 @@ describe('feeBump builder function', () => {
           amount: '10',
         })
       )
+      .setTimeout(180)
       .build()
     innerTx.sign(keypair)
 
@@ -143,7 +146,7 @@ describe('feeBump builder function', () => {
 })
 
 describe('beginSponsoringFutureReserves operation', () => {
-  const validSponsoredId = 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV'
+  const validSponsoredId = 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN'
 
   it('builds correct beginSponsoringFutureReserves operation', () => {
     const result = createOperation('beginSponsoringFutureReserves', {
@@ -180,8 +183,8 @@ describe('endSponsoringFutureReserves operation', () => {
 
 describe('clawback operation', () => {
   const validAssetCode = 'USDC'
-  const validIssuer = 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV'
-  const validFrom = 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2'
+  const validIssuer = 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN'
+  const validFrom = 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA'
   const validAmount = '100.50'
 
   it('builds correct clawback operation', () => {
@@ -224,7 +227,7 @@ describe('clawback operation', () => {
 describe('feeBump validation schema', () => {
   it('accepts valid feeBump params', () => {
     const params = {
-      feeSource: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
+      feeSource: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
       baseFee: '200',
       innerTransaction: 'AAAAAgAAAACcvBZPVqHd3l7P1l7LjGq9l2vE6K7wqmD4s2pR3Rjwrg==',
     }
@@ -255,7 +258,7 @@ describe('feeBump validation schema', () => {
 
   it('rejects empty innerTransaction', () => {
     const params = {
-      feeSource: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
+      feeSource: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
       baseFee: '200',
       innerTransaction: '',
     }
@@ -266,7 +269,7 @@ describe('feeBump validation schema', () => {
 
   it('rejects non-positive baseFee', () => {
     const params = {
-      feeSource: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
+      feeSource: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
       baseFee: '0',
       innerTransaction: 'AAAAAgAAAACcvBZPVqHd3l7P1l7LjGq9l2vE6K7wqmD4s2pR3Rjwrg==',
     }
@@ -279,7 +282,7 @@ describe('feeBump validation schema', () => {
 describe('beginSponsoringFutureReserves validation schema', () => {
   it('accepts valid sponsored ID', () => {
     const params = {
-      sponsoredId: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
+      sponsoredId: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
     }
     const errors = validateOperation('beginSponsoringFutureReserves', params)
     expect(errors).toHaveLength(0)
@@ -306,8 +309,8 @@ describe('clawback validation schema', () => {
   it('accepts valid clawback params', () => {
     const params = {
       assetCode: 'USDC',
-      assetIssuer: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
-      from: 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2',
+      assetIssuer: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
+      from: 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA',
       amount: '100.50',
     }
     const errors = validateOperation('clawback', params)
@@ -317,8 +320,8 @@ describe('clawback validation schema', () => {
   it('rejects invalid asset code', () => {
     const params = {
       assetCode: 'TOOLONGNAMETHATEXCEEDSMAXLENGTH',
-      assetIssuer: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
-      from: 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2',
+      assetIssuer: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
+      from: 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA',
       amount: '100.50',
     }
     const errors = validateOperation('clawback', params)
@@ -330,7 +333,7 @@ describe('clawback validation schema', () => {
     const params = {
       assetCode: 'USDC',
       assetIssuer: 'not-a-valid-issuer',
-      from: 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2',
+      from: 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA',
       amount: '100.50',
     }
     const errors = validateOperation('clawback', params)
@@ -341,7 +344,7 @@ describe('clawback validation schema', () => {
   it('rejects invalid from account', () => {
     const params = {
       assetCode: 'USDC',
-      assetIssuer: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
+      assetIssuer: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
       from: 'not-a-valid-account',
       amount: '100.50',
     }
@@ -353,8 +356,8 @@ describe('clawback validation schema', () => {
   it('rejects negative or zero amount', () => {
     const paramsZero = {
       assetCode: 'USDC',
-      assetIssuer: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
-      from: 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2',
+      assetIssuer: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
+      from: 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA',
       amount: '0',
     }
     const errorsZero = validateOperation('clawback', paramsZero)
@@ -363,8 +366,8 @@ describe('clawback validation schema', () => {
 
     const paramsNegative = {
       assetCode: 'USDC',
-      assetIssuer: 'GAKYHJ32NPVVVQ3J6KQRX3JDFZDYX2GDFYRJQJ4UQKQC3GKLFV53GVV',
-      from: 'GBZXN4FZVNV2YGZU33SPVZF7YQVNFQX4ZZJK7MBNP3YYXJTM46KSAH2',
+      assetIssuer: 'GCB6LGWDIPB53EGK2BRA43I6VXUYT2A4KZODT7FGFM2FUGO2BAUHLWCN',
+      from: 'GANIOWIIIQ4XECWLM3BOLMDX7UWAEKKPRHAMOAOJPZ3CFGBXUQFRGMXA',
       amount: '-50.0',
     }
     const errorsNegative = validateOperation('clawback', paramsNegative)

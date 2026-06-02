@@ -25,8 +25,8 @@ let _flushing = false;
 /**
  * Call once at app startup (already called on module import below).
  */
-export const initOfflineDetection = () => {
-  if (typeof window === 'undefined') return;
+export async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
 
   window.addEventListener('online', () => {
     isOnline = true;

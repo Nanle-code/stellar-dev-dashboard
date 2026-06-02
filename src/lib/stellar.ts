@@ -3,6 +3,8 @@ import { Cache, TTL } from './cache.js'
 import { rateLimiter } from './rateLimiter.js'
 import auditTrail from './auditTrail.js'
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker'
+import type { CircuitState } from './errorHandling/CircuitBreaker'
+import { recordCustomMetric, measureAsync } from './performanceMonitoring.js'
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -65,6 +67,15 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
 
 const COINGECKO_XLM_PRICE_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd'
 const CUSTOM_NETWORK_HEADERS_KEY = 'stellar-custom-network-headers'
+
+function endpointShape(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.pathname || '/'
+  } catch {
+    return 'unknown'
+  }
+}
 
 function getSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null
@@ -160,6 +171,13 @@ async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'h
         responseTime,
         queued: true
       })
+      recordCustomMetric('API_RESPONSE_TIME', responseTime, {
+        method: mergedOptions.method || 'GET',
+        endpoint: endpointShape(url),
+        status: response.status,
+        queued: true,
+        priority,
+      })
       
       return response
     }
@@ -173,10 +191,24 @@ async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'h
       responseTime,
       queued: false
     })
+    recordCustomMetric('API_RESPONSE_TIME', responseTime, {
+      method: mergedOptions.method || 'GET',
+      endpoint: endpointShape(url),
+      status: response.status,
+      queued: false,
+      priority,
+    })
     
     return response
     
   } catch (error) {
+    const responseTime = Date.now() - startTime
+    recordCustomMetric('API_RESPONSE_TIME', responseTime, {
+      method: mergedOptions.method || 'GET',
+      endpoint: endpointShape(url),
+      error: (error as Error).message,
+      priority,
+    })
     auditTrail.logError(error as Error, { url, operation: 'rateLimitedFetch' })
     throw error
   }
@@ -230,6 +262,8 @@ export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.
     getServerOptions(network),
   )
 }
+
+export const ee = getServer
 
 export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {
   const config = NETWORKS[network]
@@ -531,7 +565,7 @@ export async function fetchAccountCreationDate(
 }
 
 export function streamLedgers(
-  callback: (ledger: StellarSdk.Horizon.ServerApi.LedgerRecord) => void,
+  callback: (_ledger: StellarSdk.Horizon.ServerApi.LedgerRecord) => void,
   network: NetworkName = 'testnet'
 ): () => void {
   const server = getServer(network)
@@ -946,35 +980,37 @@ export async function simulateContractCall(
   params: BuildContractInvocationParams
 ): Promise<ContractSimulationResult> {
   const { network = 'testnet' } = params
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction(params)
-  const simulation = await server.simulateTransaction(transaction)
+  return measureAsync('CONTRACT_SIMULATION_DURATION', async () => {
+    const server = getSorobanServer(network)
+    const transaction = await buildContractInvocationTransaction(params)
+    const simulation = await server.simulateTransaction(transaction)
 
-  if ('error' in simulation && simulation.error) {
-    throw new Error(simulation.error)
-  }
+    if ('error' in simulation && simulation.error) {
+      throw new Error(simulation.error)
+    }
 
-  const successfulSimulation = simulation as Exclude<
-    StellarSdk.SorobanRpc.Api.SimulateTransactionResponse,
-    StellarSdk.SorobanRpc.Api.SimulateTransactionErrorResponse
-  >
+    const successfulSimulation = simulation as Exclude<
+      StellarSdk.SorobanRpc.Api.SimulateTransactionResponse,
+      StellarSdk.SorobanRpc.Api.SimulateTransactionErrorResponse
+    >
 
-  const footprint = successfulSimulation.transactionData
-    ? {
-        readOnly: successfulSimulation.transactionData.getReadOnly().map(serializeLedgerKey),
-        readWrite: successfulSimulation.transactionData.getReadWrite().map(serializeLedgerKey),
-        minResourceFee: successfulSimulation.minResourceFee,
-      }
-    : null
+    const footprint = successfulSimulation.transactionData
+      ? {
+          readOnly: successfulSimulation.transactionData.getReadOnly().map(serializeLedgerKey),
+          readWrite: successfulSimulation.transactionData.getReadWrite().map(serializeLedgerKey),
+          minResourceFee: successfulSimulation.minResourceFee,
+        }
+      : null
 
-  return {
-    xdr: transaction.toXDR(),
-    latestLedger: successfulSimulation.latestLedger,
-    cost: successfulSimulation.cost,
-    result: successfulSimulation.result ? serializeScVal(successfulSimulation.result.retval) : null,
-    events: (successfulSimulation.events || []).map(serializeDiagnosticEvent),
-    footprint,
-  }
+    return {
+      xdr: transaction.toXDR(),
+      latestLedger: successfulSimulation.latestLedger,
+      cost: successfulSimulation.cost,
+      result: successfulSimulation.result ? serializeScVal(successfulSimulation.result.retval) : null,
+      events: (successfulSimulation.events || []).map(serializeDiagnosticEvent),
+      footprint,
+    }
+  }, { network, operation: 'simulateContractCall' })
 }
 
 interface InvokeContractParams {
@@ -988,46 +1024,48 @@ interface InvokeContractParams {
 export async function invokeContract(
   params: InvokeContractParams
 ): Promise<ContractSubmitResult> {
-  const { contractId, functionName, args = [], secretKey, network = 'testnet' } = params
+  return measureAsync('CONTRACT_INVOCATION_DURATION', async () => {
+    const { contractId, functionName, args = [], secretKey, network = 'testnet' } = params
 
-  if (network !== 'testnet') {
-    throw new Error('Transaction submission is only enabled on Testnet')
-  }
+    if (network !== 'testnet') {
+      throw new Error('Transaction submission is only enabled on Testnet')
+    }
 
-  if (!secretKey.trim()) {
-    throw new Error('Secret key is required to submit a transaction')
-  }
+    if (!secretKey.trim()) {
+      throw new Error('Secret key is required to submit a transaction')
+    }
 
-  let keypair: StellarSdk.Keypair
-  try {
-    keypair = StellarSdk.Keypair.fromSecret(secretKey.trim())
-  } catch {
-    throw new Error('Invalid secret key')
-  }
+    let keypair: StellarSdk.Keypair
+    try {
+      keypair = StellarSdk.Keypair.fromSecret(secretKey.trim())
+    } catch {
+      throw new Error('Invalid secret key')
+    }
 
-  const sourceAccount = keypair.publicKey()
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction({
-    contractId,
-    functionName,
-    args,
-    sourceAccount,
-    network,
-  })
-  const prepared = await server.prepareTransaction(transaction)
+    const sourceAccount = keypair.publicKey()
+    const server = getSorobanServer(network)
+    const transaction = await buildContractInvocationTransaction({
+      contractId,
+      functionName,
+      args,
+      sourceAccount,
+      network,
+    })
+    const prepared = await server.prepareTransaction(transaction)
 
-  prepared.sign(keypair)
+    prepared.sign(keypair)
 
-  const response = await server.sendTransaction(prepared)
+    const response = await server.sendTransaction(prepared)
 
-  return {
-    hash: response.hash,
-    status: response.status,
-    errorResult: response.errorResult ? response.errorResult.toXDR('base64') : null,
-    diagnosticEvents: (response.diagnosticEvents || []).map((event) =>
-      event.toXDR('base64')
-    ),
-  }
+    return {
+      hash: response.hash,
+      status: response.status,
+      errorResult: response.errorResult ? response.errorResult.toXDR('base64') : null,
+      diagnosticEvents: (response.diagnosticEvents || []).map((event) =>
+        event.toXDR('base64')
+      ),
+    }
+  }, { network: params.network || 'testnet', operation: 'invokeContract' })
 }
 
 // ─── Validators ───────────────────────────────────────────────────────────────
@@ -1043,18 +1081,23 @@ export function isValidEd25519PublicKey(key: string): boolean {
  * Check if address is a valid muxed account (M...)
  */
 export function isValidMuxedAccount(key: string): boolean {
+  if (!key || typeof key !== 'string') return false
   try {
-    return StellarSdk.StrKey.isValidEd25519PublicKey(key) || key.startsWith('M')
+    if (!key.startsWith('M')) return false
+    StellarSdk.MuxedAccount.fromAddress(key, '0')
+    return true
   } catch {
     return false
   }
 }
 
 /**
- * Check if address is a federated address (name*domain)
+ * Check if address is a federated address (name*domain or name@domain)
  */
 export function isFederatedAddress(input: string): boolean {
-  return typeof input === 'string' && /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input)
+  if (typeof input !== 'string') return false
+  // Support both name*domain (Stellar spec) and name@domain (email-style)
+  return /^[a-zA-Z0-9._-]+[*@][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input)
 }
 
 /**
@@ -1077,11 +1120,9 @@ export function parseMuxedAccount(muxedAddress: string): { masterAccount: string
  */
 export async function resolveFederatedAddress(
   federatedAddress: string,
-  network: NetworkName = 'testnet'
+  _network: NetworkName = 'testnet'
 ): Promise<{ accountId: string; memoId?: string; memoType?: string } | null> {
   try {
-    const server = getServer(network)
-    
     // Parse the federated address (name*domain)
     const [name, domain] = federatedAddress.split('*')
     
@@ -2330,8 +2371,8 @@ export async function getTrustlineRecommendations(
     
     // Sort by recommendation score
     return recommendations.sort((a, b) => b.recommendation_score - a.recommendation_score)
-  } catch (error) {
-    console.error('Error getting trustline recommendations:', error)
+  } catch (_error) {
+    console.error('Error getting trustline recommendations:', _error)
     return []
   }
 }
@@ -2364,7 +2405,7 @@ export async function searchAssets(
           description: issuerInfo.description,
           is_verified: issuerInfo.verification_level !== 'none'
         }
-      } catch (error) {
+      } catch {
         return asset
       }
     })

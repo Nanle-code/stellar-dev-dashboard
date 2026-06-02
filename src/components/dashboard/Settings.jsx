@@ -1,41 +1,112 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useSettings } from "../../hooks/useSettings";
-import { useRateLimiter } from "../../hooks/useRateLimiter";
-import { useStore } from "../../lib/store";
-import { getEnvironmentConfig } from "../../lib/config";
-import { saveAlertRule, getAlertRules, deleteAlertRule } from "../../lib/alertRulesDb"; // Import IndexedDB helpers
-import { ALERT_RULE_TYPE, ALERT_CHANNEL } from "../../lib/alerts"; // Import alert types
-import PluginRegistryView from "./PluginRegistryView";
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  canInstall,
+  promptInstall,
+  onUpdateReady,
+  applyUpdate,
+  isOffline,
+  onNetworkChange,
+} from '../../utils/offline.js';
 
-function FieldLabel({ children }) {
-  return (
-    <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", textTransform: "uppercase" }}>
-      {children}
-    </div>
-  );
-}
+// ─── Inline styles (project uses inline styles throughout) ───────────────────
+const styles = {
+  section: {
+    marginBottom: '2rem',
+  },
+  sectionTitle: {
+    fontFamily: 'Syne, sans-serif',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-muted)',
+    marginBottom: '0.75rem',
+  },
+  card: {
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+    borderRadius: '0.5rem',
+    padding: '1rem 1.25rem',
+    marginBottom: '0.75rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+  },
+  label: {
+    fontFamily: 'Syne, sans-serif',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text)',
+  },
+  description: {
+    fontSize: '0.75rem',
+    color: 'var(--color-text-muted)',
+    marginTop: '0.25rem',
+  },
+  button: {
+    fontFamily: 'Space Mono, monospace',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    padding: '0.5rem 1rem',
+    borderRadius: '0.375rem',
+    border: 'none',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'opacity 0.15s',
+  },
+  primaryButton: {
+    background: 'var(--color-accent)',
+    color: '#fff',
+  },
+  secondaryButton: {
+    background: 'var(--color-surface-raised)',
+    color: 'var(--color-text)',
+    border: '1px solid var(--color-border)',
+  },
+  banner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '0.75rem 1rem',
+    borderRadius: '0.5rem',
+    marginBottom: '0.75rem',
+    fontSize: '0.8125rem',
+  },
+  updateBanner: {
+    background: 'rgba(99, 179, 237, 0.12)',
+    border: '1px solid rgba(99, 179, 237, 0.35)',
+    color: 'var(--color-text)',
+  },
+  offlineBanner: {
+    background: 'rgba(252, 129, 74, 0.12)',
+    border: '1px solid rgba(252, 129, 74, 0.4)',
+    color: 'var(--color-text)',
+  },
+  dot: {
+    width: '0.5rem',
+    height: '0.5rem',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  badge: {
+    display: 'inline-block',
+    padding: '0.125rem 0.5rem',
+    borderRadius: '9999px',
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    fontFamily: 'Space Mono, monospace',
+  },
+};
 
-function ErrorMessage({ message }) {
-  if (!message) return null;
-  return (
-    <div style={{ 
-      fontSize: "11px", 
-      color: "var(--error)", 
-      marginTop: "4px",
-      padding: "6px 8px",
-      background: "rgba(255, 0, 0, 0.1)",
-      borderRadius: "var(--radius-sm)",
-      border: "1px solid var(--error)"
-    }}>
-      {message}
-    </div>
-  );
-}
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Settings() {
   const initialCustomHeaders = getCustomNetworkAuthHeaders();
   const initialHeaderName = Object.keys(initialCustomHeaders)[0] || "Authorization";
-  const { network, setNetwork, theme, toggleTheme } = useStore();
+  const { network, setNetwork, theme, toggleTheme, setActiveTab } = useStore();
   const {
     profiles,
     activeProfile,
@@ -46,7 +117,6 @@ export default function Settings() {
     preferences,
     setPreference,
   } = useSettings();
-  const { throttleMode, setMode } = useRateLimiter();
 
   // Custom network profile state (Issue #188)
   const [customProfiles, setCustomProfiles] = useState([]);
@@ -68,536 +138,248 @@ export default function Settings() {
   const [newRuleChannel, setNewRuleChannel] = useState(ALERT_CHANNEL.EFFECTS);
   const [newRuleAccount, setNewRuleAccount] = useState(""); // Optional: specific account for the rule
 
-  // Load alert rules on component mount
+  // Poll canInstall every second — the beforeinstallprompt event can fire after
+  // the component mounts, so we need to re-check.
   useEffect(() => {
-    async function loadRules() {
-      const rules = await getAlertRules();
-      setAlertRules(rules);
-    }
-    loadRules();
+    const interval = setInterval(() => {
+      setInstallable(canInstall());
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  function handleSaveProfile() {
-    const name = profileName.trim() || activeProfileName;
-    saveProfile(name, draftConfig);
-    setConfigProfileName("");
-  }
+  // Subscribe to SW update events
+  useEffect(() => {
+    const unsub = onUpdateReady(() => setUpdateReady(true));
+    return unsub;
+  }, []);
 
-  // Custom network profile handlers (Issue #188)
-  async function handleSaveNetworkProfile() {
-    const errors = {};
-    
-    // Validate inputs
-    const horizonVal = validateHorizonUrl(horizonUrl.trim());
-    if (!horizonVal.valid) errors.horizonUrl = horizonVal.errors[0];
-    
-    const sorobanVal = validateSorobanUrl(sorobanUrl.trim(), false);
-    if (!sorobanVal.valid) errors.sorobanUrl = sorobanVal.errors[0];
-    
-    const passphraseVal = validateNetworkPassphrase(passphrase.trim(), true);
-    if (!passphraseVal.valid) errors.passphrase = passphraseVal.errors[0];
-    
-    if (!profileName.trim()) {
-      errors.profileName = "Profile name is required";
-    }
-    
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
-      return;
-    }
-    
-    try {
-      const saved = await saveNetworkProfile({
-        id: selectedProfileId,
-        name: profileName.trim(),
-        horizonUrl: horizonUrl.trim(),
-        sorobanUrl: sorobanUrl.trim() || undefined,
-        passphrase: passphrase.trim(),
-      });
-      
-      // Reload profiles
-      const updated = await loadNetworkProfiles();
-      setCustomProfiles(updated);
-      
-      // Reset form
-      setProfileName("");
-      setHorizonUrl("");
-      setSorobanUrl("");
-      setPassphrase("");
-      setSelectedProfileId(null);
-      setValidationErrors({});
-    } catch (err) {
-      setValidationErrors({ submit: err.message });
-    }
-  }
+  // Subscribe to network changes
+  useEffect(() => {
+    const unsub = onNetworkChange((online) => setOffline(!online));
+    return unsub;
+  }, []);
 
-  async function handleDeleteNetworkProfile(profileId) {
-    try {
-      await deleteNetworkProfile(profileId);
-      const updated = await loadNetworkProfiles();
-      setCustomProfiles(updated);
-      if (selectedProfileId === profileId) {
-        setSelectedProfileId(null);
-        setProfileName("");
-        setHorizonUrl("");
-        setSorobanUrl("");
-        setPassphrase("");
-      }
-    } catch (err) {
-      setValidationErrors({ delete: err.message });
-    }
-  }
+  const handleInstall = useCallback(async () => {
+    const outcome = await promptInstall();
+    setInstallOutcome(outcome);
+    setInstallable(canInstall());
+  }, []);
 
-  function handleSelectProfile(profile) {
-    setSelectedProfileId(profile.id);
-    setProfileName(profile.name);
-    setHorizonUrl(profile.horizonUrl);
-    setSorobanUrl(profile.sorobanUrl || "");
-    setPassphrase(profile.passphrase);
-    setValidationErrors({});
-  }
-
-  function handleClearForm() {
-    setSelectedProfileId(null);
-    setProfileName("");
-    setHorizonUrl("");
-    setSorobanUrl("");
-    setPassphrase("");
-    setValidationErrors({});
-  }
-
-  async function handleSwitchProfile(profileId) {
-    try {
-      await setActiveProfile(profileId);
-      // In a real app, this would trigger a re-render via a hook
-      // For now, we'll just show a success message
-      alert("Profile switched successfully!");
-    } catch (err) {
-      setValidationErrors({ switch: err.message });
-    }
-  }
-
-  function updateCustomHeader(name, value) {
-    setCustomHeaderName(name);
-    setCustomHeaderValue(value);
-    updateCustomNetworkConfig({
-      headers: name.trim() && value.trim() ? { [name.trim()]: value.trim() } : {},
-    });
-  }
-
-  async function handleAddAlertRule() {
-    if (newRuleThreshold < 0) {
-      alert("Threshold cannot be negative.");
-      return;
-    }
-    const newRule = { id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, type: newRuleType, threshold: Number(newRuleThreshold), assetCode: newRuleAssetCode.trim().toUpperCase(), channel: newRuleChannel, account: newRuleAccount.trim() || undefined };
-    await saveAlertRule(newRule);
-    setAlertRules(await getAlertRules()); // Refresh list
-    setNewRuleThreshold(0); setNewRuleAssetCode("XLM"); setNewRuleAccount(""); // Reset form fields
-  }
-
-  async function handleDeleteAlertRule(ruleId) {
-    await deleteAlertRule(ruleId);
-    setAlertRules(await getAlertRules()); // Refresh list
-  }
+  const handleUpdate = useCallback(() => {
+    applyUpdate();
+  }, []);
 
   return (
-    <div className="animate-in" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700 }}>
+    <div style={{ maxWidth: '640px', padding: '1.5rem 0' }}>
+      <h2
+        style={{
+          fontFamily: 'Syne, sans-serif',
+          fontSize: '1.25rem',
+          fontWeight: 700,
+          marginBottom: '1.5rem',
+          color: 'var(--color-text)',
+        }}
+      >
         Settings
-      </div>
+      </h2>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px" }}>
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px" }}>
-          <FieldLabel>Environment</FieldLabel>
-          <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "12px" }}>
-            Baseline: {baseline.environment}
-          </div>
-          <FieldLabel>Network</FieldLabel>
-          <select
-            value={network}
-            onChange={(event) => setNetwork(event.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-primary)",
-            }}
-          >
-            <option value="testnet">testnet</option>
-            <option value="mainnet">mainnet</option>
-            <option value="futurenet">futurenet</option>
-            <option value="local">local</option>
-            <option value="custom">custom</option>
-          </select>
+      {/* ── Update banner ── */}
+      {updateReady && (
+        <div style={{ ...styles.banner, ...styles.updateBanner }}>
+          <span style={{ ...styles.dot, background: '#63b3ed' }} />
+          <span style={{ flex: 1 }}>
+            A new version of Stellar Dev Dashboard is available.
+          </span>
           <button
-            onClick={toggleTheme}
-            style={{
-              marginTop: "10px",
-              border: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-secondary)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "12px",
-              padding: "8px 10px",
-            }}
+            style={{ ...styles.button, ...styles.primaryButton }}
+            onClick={handleUpdate}
           >
-            Toggle Theme ({theme})
+            Update now
           </button>
         </div>
+      )}
 
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px" }}>
-          <FieldLabel>Preferences</FieldLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {Object.entries(preferences).map(([key, value]) => {
-              if (typeof value !== "boolean") return null;
-              return (
-                <label key={key} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-secondary)" }}>
-                  <span>{key}</span>
-                  <input
-                    type="checkbox"
-                    checked={value}
-                    onChange={(event) => setPreference(key, event.target.checked)}
-                  />
-                </label>
-              );
-            })}
+      {/* ── Offline banner ── */}
+      {offline && (
+        <div style={{ ...styles.banner, ...styles.offlineBanner }}>
+          <span style={{ ...styles.dot, background: '#fc814a' }} />
+          <span>
+            You&apos;re offline. The app shell loads from cache, but live
+            account data requires a network connection.
+          </span>
+        </div>
+      )}
+
+      {/* ── Install app section ── */}
+      <div style={styles.section}>
+        <p style={styles.sectionTitle}>App Installation</p>
+
+        <div style={styles.card}>
+          <div style={styles.row}>
+            <div>
+              <p style={styles.label}>Install Stellar Dev Dashboard</p>
+              <p style={styles.description}>
+                Add to your home screen or desktop for a native-like experience
+                with offline app shell support.
+              </p>
+              {installOutcome === 'accepted' && (
+                <p style={{ ...styles.description, color: 'var(--color-success, #68d391)', marginTop: '0.4rem' }}>
+                  ✓ Installing…
+                </p>
+              )}
+              {installOutcome === 'dismissed' && (
+                <p style={{ ...styles.description, marginTop: '0.4rem' }}>
+                  Dismissed. You can try again later.
+                </p>
+              )}
+            </div>
+
+            {installable && installOutcome !== 'accepted' ? (
+              <button
+                style={{ ...styles.button, ...styles.primaryButton }}
+                onClick={handleInstall}
+              >
+                Install app
+              </button>
+            ) : (
+              <span
+                style={{
+                  ...styles.badge,
+                  background: installOutcome === 'accepted'
+                    ? 'rgba(104, 211, 145, 0.15)'
+                    : 'var(--color-surface-raised)',
+                  color: installOutcome === 'accepted'
+                    ? '#68d391'
+                    : 'var(--color-text-muted)',
+                  border: `1px solid ${
+                    installOutcome === 'accepted'
+                      ? 'rgba(104, 211, 145, 0.3)'
+                      : 'var(--color-border)'
+                  }`,
+                }}
+              >
+                {installOutcome === 'accepted' ? 'Installing' : 'Not available'}
+              </span>
+            )}
           </div>
-          
-          <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
-            <FieldLabel>Request Throttling</FieldLabel>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                onClick={() => setMode('aggressive')}
-                style={{
-                  flex: 1,
-                  padding: "8px",
-                  borderRadius: "var(--radius-sm)",
-                  border: `2px solid ${throttleMode === 'aggressive' ? 'var(--cyan, #06b6d4)' : 'var(--border)'}`,
-                  background: throttleMode === 'aggressive' ? 'rgba(6, 182, 212, 0.1)' : 'var(--bg-elevated)',
-                  color: throttleMode === 'aggressive' ? 'var(--cyan, #06b6d4)' : 'var(--text-secondary)',
-                  fontSize: '12px',
-                  fontWeight: throttleMode === 'aggressive' ? 600 : 400,
-                  cursor: 'pointer',
-                }}
-              >
-                Aggressive
-              </button>
-              <button
-                onClick={() => setMode('conservative')}
-                style={{
-                  flex: 1,
-                  padding: "8px",
-                  borderRadius: "var(--radius-sm)",
-                  border: `2px solid ${throttleMode === 'conservative' ? 'var(--cyan, #06b6d4)' : 'var(--border)'}`,
-                  background: throttleMode === 'conservative' ? 'rgba(6, 182, 212, 0.1)' : 'var(--bg-elevated)',
-                  color: throttleMode === 'conservative' ? 'var(--cyan, #06b6d4)' : 'var(--text-secondary)',
-                  fontSize: '12px',
-                  fontWeight: throttleMode === 'conservative' ? 600 : 400,
-                  cursor: 'pointer',
-                }}
-              >
-                Conservative
-              </button>
+        </div>
+
+        {/* Offline capability info */}
+        <div style={styles.card}>
+          <div style={styles.row}>
+            <div>
+              <p style={styles.label}>Offline App Shell</p>
+              <p style={styles.description}>
+                The dashboard UI loads from the service worker cache when
+                offline. Live account data and Horizon responses are always
+                fetched fresh from the network.
+              </p>
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px' }}>
-              {throttleMode === 'aggressive' ? 'Maximum throughput, drop overflowing requests' : 'Reduced parallelism, queue requests'}
-            </div>
+            <span
+              style={{
+                ...styles.badge,
+                background: 'rgba(104, 211, 145, 0.15)',
+                color: '#68d391',
+                border: '1px solid rgba(104, 211, 145, 0.3)',
+              }}
+            >
+              Active
+            </span>
           </div>
         </div>
       </div>
 
-      <PluginRegistryView placement="settings" />
-
-      {/* New section for Alert Rules */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
-        <FieldLabel>Alert Rules</FieldLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {alertRules.length === 0 ? (
-            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>No alert rules configured.</div>
-          ) : (
-            alertRules.map((rule) => (
-              <div key={rule.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-primary)", background: "var(--bg-elevated)", padding: "8px", borderRadius: "var(--radius-sm)" }}>
-                <span>
-                  <strong>{rule.type.replace(/_/g, ' ')}</strong>: {rule.threshold} {rule.assetCode} (Channel: {rule.channel}) {rule.account ? `(Account: ${rule.account})` : ''}
-                </span>
-                <button
-                  onClick={() => handleDeleteAlertRule(rule.id)}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--red-dim)",
-                    background: "var(--red-glow)",
-                    color: "var(--red)",
-                    fontSize: "10px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px", marginTop: "10px" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Alert Type
-            <select
-              value={newRuleType}
-              onChange={(e) => setNewRuleType(e.target.value)}
+      {/* ── Network status section ── */}
+      <div style={styles.section}>
+        <p style={styles.sectionTitle}>Network</p>
+        <div style={styles.card}>
+          <div style={styles.row}>
+            <div>
+              <p style={styles.label}>Connection status</p>
+              <p style={styles.description}>
+                {offline
+                  ? 'Offline — account data unavailable until reconnected.'
+                  : 'Online — all features available.'}
+              </p>
+            </div>
+            <span
               style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
+                ...styles.badge,
+                background: offline
+                  ? 'rgba(252, 129, 74, 0.12)'
+                  : 'rgba(104, 211, 145, 0.15)',
+                color: offline ? '#fc814a' : '#68d391',
+                border: `1px solid ${
+                  offline
+                    ? 'rgba(252, 129, 74, 0.4)'
+                    : 'rgba(104, 211, 145, 0.3)'
+                }`,
               }}
             >
-              {Object.values(ALERT_RULE_TYPE).map((type) => (
-                <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Threshold
-            <input
-              type="number"
-              value={newRuleThreshold}
-              onChange={(e) => setNewRuleThreshold(Number(e.target.value))}
-              style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Asset Code
-            <input
-              type="text"
-              value={newRuleAssetCode}
-              onChange={(e) => setNewRuleAssetCode(e.target.value)}
-              placeholder="XLM, USD, etc."
-              style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Channel
-            <select
-              value={newRuleChannel}
-              onChange={(e) => setNewRuleChannel(e.target.value)}
-              style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-              }}
-            >
-              {Object.values(ALERT_CHANNEL).map((channel) => (
-                <option key={channel} value={channel}>{channel}</option>
-              ))}
-            </select>
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Specific Account (Optional)
-            <input
-              type="text"
-              value={newRuleAccount}
-              onChange={(e) => setNewRuleAccount(e.target.value)}
-              placeholder="Account ID"
-              style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </label>
+              {offline ? 'Offline' : 'Online'}
+            </span>
+          </div>
         </div>
+      </div>
 
+      {/* ── App update section ── */}
+      <div style={styles.section}>
+        <p style={styles.sectionTitle}>Updates</p>
+        <div style={styles.card}>
+          <div style={styles.row}>
+            <div>
+              <p style={styles.label}>App version</p>
+              <p style={styles.description}>
+                {updateReady
+                  ? 'A new version has been downloaded and is ready to apply.'
+                  : 'You are running the latest version.'}
+              </p>
+            </div>
+            {updateReady ? (
+              <button
+                style={{ ...styles.button, ...styles.primaryButton }}
+                onClick={handleUpdate}
+              >
+                Reload &amp; update
+              </button>
+            ) : (
+              <span
+                style={{
+                  ...styles.badge,
+                  background: 'rgba(104, 211, 145, 0.15)',
+                  color: '#68d391',
+                  border: '1px solid rgba(104, 211, 145, 0.3)',
+                }}
+              >
+                Up to date
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          Performance
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          View Core Web Vitals, bundle analysis, and performance budget violations.
+        </div>
         <button
-          onClick={handleAddAlertRule}
+          onClick={() => setActiveTab('performance')}
           style={{
-            marginTop: "10px",
-            padding: "8px 10px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--green-dim)",
-            background: "var(--green-glow)",
-            color: "var(--green)",
-            fontSize: "12px",
-            cursor: "pointer",
+            padding: '8px 14px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--cyan-dim)',
+            background: 'var(--cyan-glow)',
+            color: 'var(--cyan)',
+            fontSize: '12px',
+            cursor: 'pointer',
+            alignSelf: 'flex-start',
           }}
         >
-          Add Alert Rule
+          Open Performance Monitor
         </button>
-      </div>
-
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
-        <FieldLabel>Configuration Profiles</FieldLabel>
-
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <select
-            value={activeProfileName}
-            onChange={(event) => {
-              setConfigProfile(event.target.value);
-              const selected = profiles.find((profile) => profile.name === event.target.value);
-              setDraftConfig(selected?.config || getEnvironmentConfig());
-            }}
-            style={{
-              minWidth: "220px",
-              padding: "8px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-primary)",
-            }}
-          >
-            {profiles.map((profile) => (
-              <option key={profile.name} value={profile.name}>
-                {profile.name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => deleteProfile(activeProfileName)}
-            disabled={activeProfileName === "default"}
-            style={{
-              padding: "8px 10px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Delete
-          </button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Refresh Interval (ms)
-            <input
-              type="number"
-              value={draftConfig.refreshIntervalMs}
-              onChange={(event) => setDraftConfig((prev) => ({ ...prev, refreshIntervalMs: Number(event.target.value) }))}
-              style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
-            Max Results
-            <input
-              type="number"
-              value={draftConfig.maxResults}
-              onChange={(event) => setDraftConfig((prev) => ({ ...prev, maxResults: Number(event.target.value) }))}
-              style={{
-                padding: "8px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </label>
-        </div>
-
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            value={configProfileName}
-            onChange={(event) => setConfigProfileName(event.target.value)}
-            placeholder="Profile name"
-            style={{
-              padding: "8px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-primary)",
-              width: "200px",
-              fontSize: "12px",
-            }}
-          />
-          <button
-            onClick={handleSaveConfigProfile}
-            style={{
-              padding: "8px 10px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--cyan-dim)",
-              background: "var(--cyan-glow)",
-              color: "var(--cyan)",
-              fontSize: "12px",
-            }}
-          >
-            Save Profile
-          </button>
-        </div>
-      </div>
-
-      {/* Custom Horizon API Key */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <FieldLabel>Custom Horizon API Key</FieldLabel>
-        <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-          Sent as <code>Authorization: Bearer …</code> on custom network requests. Stored in sessionStorage only — cleared on tab close.
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => handleApiKeyChange(e.target.value)}
-            placeholder="Paste API key…"
-            autoComplete="off"
-            style={{
-              flex: 1,
-              padding: "8px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-mono)",
-              fontSize: "12px",
-            }}
-          />
-          {apiKey && (
-            <button
-              onClick={() => handleApiKeyChange("")}
-              style={{
-                padding: "8px 10px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-elevated)",
-                color: "var(--text-secondary)",
-                fontSize: "12px",
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {apiKey && (
-          <div style={{ fontSize: "11px", color: "var(--green)" }}>✓ API key active</div>
-        )}
       </div>
     </div>
   );

@@ -132,3 +132,111 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  # ── Bundle size budget ────────────────────────────────────────────────────
+  # Fails the PR if the gzipped main entry chunk exceeds BUDGET_KB.
+  # Add the label "skip-bundle-check" to the PR to bypass (e.g. intentional
+  # large dependency bump that will be addressed in a follow-up).
+  bundle-size:
+    name: Bundle Size Budget
+    runs-on: ubuntu-latest
+    needs: [lint, type-check, test]
+    env:
+      # Gzip budget for the main entry chunk in kilobytes.
+      BUDGET_KB: 500
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Measure gzipped bundle size
+        id: measure
+        run: |
+          # Find the main entry JS chunk (assets/index-*.js or assets/main-*.js)
+          MAIN_CHUNK=$(ls dist/assets/index-*.js dist/assets/main-*.js 2>/dev/null | head -n 1)
+          if [ -z "$MAIN_CHUNK" ]; then
+            echo "::error::Could not locate main entry chunk in dist/assets/"
+            exit 1
+          fi
+          GZIP_BYTES=$(gzip -c "$MAIN_CHUNK" | wc -c)
+          GZIP_KB=$(( GZIP_BYTES / 1024 ))
+          echo "main_chunk=$MAIN_CHUNK"   >> "$GITHUB_OUTPUT"
+          echo "gzip_kb=$GZIP_KB"         >> "$GITHUB_OUTPUT"
+          echo "budget_kb=$BUDGET_KB"     >> "$GITHUB_OUTPUT"
+          echo "### Bundle Size Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Main chunk | \`$MAIN_CHUNK\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Gzipped size | **${GZIP_KB} KB** |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Budget | ${BUDGET_KB} KB |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$GZIP_KB" -gt "$BUDGET_KB" ]; then
+            echo "| Status | ❌ Over budget by $(( GZIP_KB - BUDGET_KB )) KB |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Status | ✅ Within budget ($(( BUDGET_KB - GZIP_KB )) KB headroom) |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Enforce budget (skippable via label)
+        # Skip enforcement when the PR carries the override label.
+        if: >
+          !contains(
+            github.event.pull_request.labels.*.name,
+            'skip-bundle-check'
+          )
+        run: |
+          GZIP_KB=${{ steps.measure.outputs.gzip_kb }}
+          BUDGET_KB=${{ steps.measure.outputs.budget_kb }}
+          if [ "$GZIP_KB" -gt "$BUDGET_KB" ]; then
+            echo "::error::Main bundle is ${GZIP_KB} KB gzipped — exceeds the ${BUDGET_KB} KB budget."
+            echo "::error::To bypass, add the 'skip-bundle-check' label to this PR and document the reason."
+            exit 1
+          fi
+          echo "✅ Main bundle is ${GZIP_KB} KB gzipped (budget: ${BUDGET_KB} KB)."
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  # ── On-demand bundle visualizer ───────────────────────────────────────────
+  # Triggered manually (workflow_dispatch) or when the PR has the label
+  # "generate-bundle-report". Uploads dist/stats.html as a CI artifact.
+  analyze:
+    name: Bundle Visualizer
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(
+        github.event.pull_request.labels.*.name,
+        'generate-bundle-report'
+      )
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build with visualizer
+        run: npm run build:analyze
+        env:
+          ANALYZE: '1'
+
+      - name: Upload stats.html
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-stats
+          path: dist/stats.html
+          retention-days: 30

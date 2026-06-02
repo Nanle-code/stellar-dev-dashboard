@@ -104,6 +104,54 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
+  visual-regression:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Restore baseline snapshots
+        uses: actions/cache@v4
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ github.base_ref || github.ref_name }}
+          restore-keys: visual-snapshots-
+
+      - name: Run visual regression tests
+        run: npm run test:visual
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+        # Override webServer for CI preview build
+        # playwright.config.ts uses npm run dev; we override via env
+
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff-${{ github.run_number }}
+          path: |
+            tests/e2e/report/
+            test-results/
+          retention-days: 14
+
+      - name: Save updated snapshots
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ github.base_ref || github.ref_name }}
+
   build:
     name: Build
     runs-on: ubuntu-latest

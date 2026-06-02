@@ -22,6 +22,9 @@
     "test:jest:coverage": "jest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:visual": "playwright test --project=visual",
+    "test:visual:update": "playwright test --project=visual --update-snapshots",
+    "test:visual:report": "playwright show-report tests/e2e/report",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

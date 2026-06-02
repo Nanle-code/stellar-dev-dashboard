@@ -68,6 +68,7 @@ import { TourLauncher } from './components/tutorial'
 import SearchBar from './components/layout/SearchBar'
 import GlobalSearch from './components/search/GlobalSearch'
 import UserPreferences from './components/preferences/UserPreferences'
+import NetworkIndicator from './components/layout/NetworkIndicator'
 import MobileNavigation from './components/layout/MobileNavigation'
 import AccessibilityProvider from "./components/accessibility/AccessibilityProvider";
 import KeyboardNavigation from './components/accessibility/KeyboardNavigation'
@@ -336,6 +337,9 @@ function DashboardLayout() {
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ flex: 1 }}>
               <GlobalSearch onSelectResult={handleSearchResult} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <NetworkIndicator />
             </div>
             <button
               onClick={() => setPreferencesOpen(true)}

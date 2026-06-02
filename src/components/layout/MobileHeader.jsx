@@ -1,5 +1,6 @@
 import React from 'react'
 import { useStore } from '../../lib/store'
+import NetworkIndicator from './NetworkIndicator'
 
 export default function MobileHeader() {
   const { isMobileMenuOpen, setMobileMenuOpen, theme, toggleTheme } = useStore()
@@ -71,6 +72,9 @@ export default function MobileHeader() {
         <span style={{ fontSize: '18px' }}>✦</span>
         STELLAR
       </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <NetworkIndicator compact />
 
       {/* Theme toggle */}
       <button

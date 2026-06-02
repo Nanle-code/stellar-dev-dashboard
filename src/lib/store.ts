@@ -194,10 +194,30 @@ const STORE_PERSIST_KEY = 'store:preferences'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+// LocalStorage key for quick network persistence (synchronous, survives reload)
+const SELECTED_NETWORK_KEY = 'stellar:selected-network'
+
+function readInitialNetwork(): StoreState['network'] {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(SELECTED_NETWORK_KEY)
+      if (raw === 'mainnet' || raw === 'testnet' || raw === 'futurenet' || raw === 'local' || raw === 'custom') {
+        return raw
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return 'testnet'
+}
+
 export const useStore = create<StoreState>((set, get) => ({
   // Network
-  network: 'testnet',
+  network: readInitialNetwork(),
   setNetwork: (network) => {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(SELECTED_NETWORK_KEY, network)
+    } catch {}
     set({
       network,
       accountData: null,

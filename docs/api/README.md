@@ -30,6 +30,25 @@ This document collects all integration points for Stellar Horizon, Soroban RPC, 
 
 ---
 
+## Auto-generated API Reference
+
+The API docs now include generated reference material and runnable examples.
+
+- `docs/api/generated/API_REFERENCE.md` — auto-generated API reference from `src/lib` exports and JSDoc comments.
+- `docs/api/SDK_EXAMPLES.md` — JavaScript and Python SDK examples with runnable sample scripts.
+- `docs/api/REQUEST_RESPONSE_SAMPLES.md` — request/response payload examples for Horizon and Soroban RPC.
+- `docs/api/CHANGELOG.md` — API documentation changelog.
+- `docs/api/VERSION_HISTORY.md` — version history and release metadata.
+- `docs/api/examples/` — runnable example scripts for JavaScript and Python.
+
+Regenerate the API docs with:
+
+```bash
+npm run docs:api:generate
+```
+
+---
+
 **Architecture (API Layers)**
 
 ```mermaid

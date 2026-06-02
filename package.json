@@ -27,7 +27,8 @@
     "test:visual:update": "playwright test --project=visual --update-snapshots",
     "test:visual:report": "playwright show-report tests/e2e/report",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "docs:api:generate": "node scripts/generate-api-docs.mjs"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^12.3.0",

@@ -914,6 +914,40 @@ export async function fetchContractInfo(
   }
 }
 
+export async function fetchContractData(
+  contractId: string,
+  key: StellarSdk.xdr.ScVal | string,
+  network: NetworkName = 'testnet',
+  durability: StellarSdk.SorobanRpc.Durability = StellarSdk.SorobanRpc.Durability.Persistent
+): Promise<any> {
+  const server = getSorobanServer(network);
+
+  let scValKey;
+  if (typeof key === "string") {
+    try {
+      // Try to parse from JSON first
+      const parsed = JSON.parse(key);
+      scValKey = StellarSdk.nativeToScVal(parsed);
+    } catch {
+      // If JSON fails, treat as string
+      scValKey = StellarSdk.nativeToScVal(key, { type: "string" });
+    }
+  } else {
+    scValKey = key;
+  }
+
+  try {
+    const result = await server.getContractData(contractId, scValKey, durability);
+    return {
+      key: StellarSdk.scValToNative(result.key),
+      value: StellarSdk.scValToNative(result.val),
+      xdr: result.xdr
+    };
+  } catch (e) {
+    throw new Error(`Failed to fetch contract data: ${(e as Error).message}`);
+  }
+}
+
 export interface ContractInvocationArg {
   type: 'string' | 'int' | 'address' | 'bool';
   value: string;

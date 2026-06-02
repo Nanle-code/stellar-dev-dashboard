@@ -7,6 +7,7 @@ import {
   getCachedUserTransactionTemplates,
   upsertUserTransactionTemplate,
 } from "../../lib/transactionTemplateVault.ts";
+import { fetchContractData } from "../../lib/stellar";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
 
 function Panel({ title, subtitle, children }) {
@@ -153,6 +154,11 @@ export default function TransactionBuilder() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [showXDR, setShowXDR] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
+  const [inspectContractId, setInspectContractId] = useState("");
+  const [inspectContractKey, setInspectContractKey] = useState("");
+  const [inspectContractData, setInspectContractData] = useState(null);
+  const [inspectContractLoading, setInspectContractLoading] = useState(false);
+  const [inspectContractError, setInspectContractError] = useState("");
 
   function addOperation() {
     setOperations([
@@ -208,6 +214,27 @@ export default function TransactionBuilder() {
     loadTemplate(selectedTemplateId);
     setSelectedTemplateId(null);
   }, [selectedTemplateId]);
+
+  async function handleFetchContractData() {
+    if (!inspectContractId.trim()) return;
+
+    setInspectContractError("");
+    setInspectContractData(null);
+    setInspectContractLoading(true);
+
+    try {
+      const data = await fetchContractData(
+        inspectContractId,
+        inspectContractKey,
+        network
+      );
+      setInspectContractData(data);
+    } catch (error) {
+      setInspectContractError(error.message || "Failed to fetch contract data");
+    } finally {
+      setInspectContractLoading(false);
+    }
+  }
   
   // Drag and drop handlers
   function handleDragStart(index) {
@@ -645,6 +672,112 @@ export default function TransactionBuilder() {
           </>
         );
 
+      case "invokeHostFunction": {
+        const args = op.params.args || [];
+        return (
+          <>
+            <LabeledField label="Contract ID">
+              <input
+                value={op.params.contractId || ""}
+                onChange={(e) =>
+                  updateOperation(op.id, "contractId", e.target.value)
+                }
+                placeholder="C... contract address"
+                style={textInputStyle(hasErrors)}
+              />
+            </LabeledField>
+            <LabeledField label="Function Name">
+              <input
+                value={op.params.functionName || ""}
+                onChange={(e) =>
+                  updateOperation(op.id, "functionName", e.target.value)
+                }
+                placeholder="increment"
+                style={textInputStyle()}
+              />
+            </LabeledField>
+            <div style={{ marginBottom: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <LabeledField label="Arguments" style={{ marginBottom: 0 }}>
+                </LabeledField>
+                <button
+                  onClick={() => {
+                    const newArgs = [...args, { type: "string", value: "" }];
+                    updateOperation(op.id, "args", newArgs);
+                  }}
+                  style={{
+                    padding: "4px 8px",
+                    background: "transparent",
+                    border: "1px dashed var(--border-bright)",
+                    borderRadius: "var(--radius-md)",
+                    color: "var(--text-secondary)",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Add Argument
+                </button>
+              </div>
+              {args.map((arg, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "100px 1fr auto",
+                    gap: "8px",
+                    alignItems: "center",
+                    marginTop: "8px",
+                  }}
+                >
+                  <select
+                    value={arg.type}
+                    onChange={(e) => {
+                      const newArgs = [...args];
+                      newArgs[idx] = { ...arg, type: e.target.value };
+                      updateOperation(op.id, "args", newArgs);
+                    }}
+                    style={textInputStyle()}
+                  >
+                    <option value="string">String</option>
+                    <option value="int">Int</option>
+                    <option value="address">Address</option>
+                    <option value="bool">Bool</option>
+                  </select>
+                  <input
+                    value={arg.value}
+                    onChange={(e) => {
+                      const newArgs = [...args];
+                      newArgs[idx] = { ...arg, value: e.target.value };
+                      updateOperation(op.id, "args", newArgs);
+                    }}
+                    placeholder={arg.type === "bool" ? "true/false" : "Argument value"}
+                    style={textInputStyle()}
+                  />
+                  <button
+                    onClick={() => {
+                      const newArgs = args.filter((_, i) => i !== idx);
+                      updateOperation(op.id, "args", newArgs);
+                    }}
+                    style={{
+                      padding: "4px 8px",
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      color: "var(--red)",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                    disabled={args.length === 0}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        );
+      }
+
       default:
         return (
           <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
@@ -713,6 +846,90 @@ export default function TransactionBuilder() {
             </button>
           ))}
         </div>
+      </Panel>
+
+      {/* Contract State Inspection */}
+      <Panel title="Contract State Inspection" subtitle="Fetch and inspect contract storage before building transactions">
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <LabeledField label="Contract ID">
+              <input
+                value={inspectContractId}
+                onChange={(e) => setInspectContractId(e.target.value)}
+                placeholder="C... contract address"
+                style={textInputStyle()}
+              />
+            </LabeledField>
+          </div>
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <LabeledField label="Storage Key">
+              <input
+                value={inspectContractKey}
+                onChange={(e) => setInspectContractKey(e.target.value)}
+                placeholder="Storage key (string or JSON)"
+                style={textInputStyle()}
+              />
+            </LabeledField>
+          </div>
+          <div style={{ alignSelf: "flex-end" }}>
+            <ActionButton
+              label={inspectContractLoading ? "Fetching..." : "Fetch State"}
+              onClick={handleFetchContractData}
+              disabled={inspectContractLoading || !inspectContractId.trim()}
+            />
+          </div>
+        </div>
+        {inspectContractError && (
+          <div style={{ fontSize: "12px", color: "var(--red)", marginBottom: "12px" }}>
+            {inspectContractError}
+          </div>
+        )}
+        {inspectContractData && (
+          <div style={{ display: "grid", gap: "16px" }}>
+            <div>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+                Key
+              </div>
+              <pre style={{
+                margin: 0,
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                padding: "14px",
+                fontSize: "11px",
+                color: "var(--text-secondary)",
+                overflowX: "auto",
+                lineHeight: 1.6,
+                fontFamily: "var(--font-mono)",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}>
+                {JSON.stringify(inspectContractData.key, null, 2)}
+              </pre>
+            </div>
+            <div>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+                Value
+              </div>
+              <pre style={{
+                margin: 0,
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                padding: "14px",
+                fontSize: "11px",
+                color: "var(--text-secondary)",
+                overflowX: "auto",
+                lineHeight: 1.6,
+                fontFamily: "var(--font-mono)",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}>
+                {JSON.stringify(inspectContractData.value, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
       </Panel>
 
       {/* Transaction Settings */}

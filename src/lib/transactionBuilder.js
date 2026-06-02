@@ -23,6 +23,8 @@ export const OPERATION_TYPES = [
   // Fee-bump, sponsorship, and clawback operations (#196)
   { value: "feeBump", label: "Fee-Bump Transaction" },
   { value: "clawback", label: "Clawback" },
+  // Contract invocation
+  { value: "invokeHostFunction", label: "Invoke Host Function (Contract Call)" },
 ];
 
 export function createOperation(type, params) {
@@ -199,6 +201,25 @@ export function createOperation(type, params) {
       });
       op.type = op._attributes.body._switch;
       return op;
+    }
+
+    case "invokeHostFunction": {
+      const contract = new StellarSdk.Contract(params.contractId);
+      const args = (params.args || []).map(arg => {
+        switch (arg.type) {
+          case "string":
+            return StellarSdk.nativeToScVal(arg.value, { type: "string" });
+          case "int":
+            return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i128" });
+          case "address":
+            return StellarSdk.Address.fromString(arg.value).toScVal();
+          case "bool":
+            return StellarSdk.nativeToScVal(arg.value === "true", { type: "bool" });
+          default:
+            throw new Error(`Unsupported argument type: ${arg.type}`);
+        }
+      });
+      return contract.call(params.functionName, ...args);
     }
 
     default:

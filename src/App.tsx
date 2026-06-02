@@ -2,7 +2,8 @@ import React, { useEffect, useState, type ComponentType, type CSSProperties } fr
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { I18nProvider } from './components/I18nProvider'
 import './i18n/index.js'
-import './styles/responsive.css'
+import './styles/responsive.css';
+import { AccessibilityProvider } from './context/AccessibilityContext';
 
 import Sidebar from './components/layout/Sidebar'
 import MobileHeader from './components/layout/MobileHeader'
@@ -410,12 +411,14 @@ function RouterSync() {
 
 export default function App() {
   return (
-    <I18nProvider>
-      <RouterSync />
-      <Routes>
-        <Route path="/connect" element={<DashboardLayout />} />
-        <Route path="/*" element={<DashboardLayout />} />
-      </Routes>
-    </I18nProvider>
+    <AccessibilityProvider>
+      <I18nProvider>
+        <RouterSync />
+        <Routes>
+          <Route path="/connect" element={<DashboardLayout />} />
+          <Route path="/*" element={<DashboardLayout />} />
+        </Routes>
+      </I18nProvider>
+    </AccessibilityProvider>
   )
 }

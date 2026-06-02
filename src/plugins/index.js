@@ -78,5 +78,4 @@ export async function registerActivePlugins(manager = pluginManager) {
     .then(() => manager);
   return registrationPromise;
 }
-
 export const pluginManager = new PluginManager();

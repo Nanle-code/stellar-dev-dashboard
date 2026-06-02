@@ -2,7 +2,9 @@ import * as StellarSdk from '@stellar/stellar-sdk'
 import { Cache, TTL } from './cache.js'
 import { rateLimiter } from './rateLimiter.js'
 import auditTrail from './auditTrail.js'
-import { getCircuitBreaker, CircuitState } from './errorHandling/CircuitBreaker'
+import { getCircuitBreaker } from './errorHandling/CircuitBreaker'
+import type { CircuitState } from './errorHandling/CircuitBreaker'
+import { recordCustomMetric, measureAsync } from './performanceMonitoring.js'
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -65,6 +67,15 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
 
 const COINGECKO_XLM_PRICE_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd'
 const CUSTOM_NETWORK_HEADERS_KEY = 'stellar-custom-network-headers'
+
+function endpointShape(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.pathname || '/'
+  } catch {
+    return 'unknown'
+  }
+}
 
 function getSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null
@@ -160,6 +171,13 @@ async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'h
         responseTime,
         queued: true
       })
+      recordCustomMetric('API_RESPONSE_TIME', responseTime, {
+        method: mergedOptions.method || 'GET',
+        endpoint: endpointShape(url),
+        status: response.status,
+        queued: true,
+        priority,
+      })
       
       return response
     }
@@ -173,10 +191,24 @@ async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'h
       responseTime,
       queued: false
     })
+    recordCustomMetric('API_RESPONSE_TIME', responseTime, {
+      method: mergedOptions.method || 'GET',
+      endpoint: endpointShape(url),
+      status: response.status,
+      queued: false,
+      priority,
+    })
     
     return response
     
   } catch (error) {
+    const responseTime = Date.now() - startTime
+    recordCustomMetric('API_RESPONSE_TIME', responseTime, {
+      method: mergedOptions.method || 'GET',
+      endpoint: endpointShape(url),
+      error: (error as Error).message,
+      priority,
+    })
     auditTrail.logError(error as Error, { url, operation: 'rateLimitedFetch' })
     throw error
   }
@@ -948,35 +980,37 @@ export async function simulateContractCall(
   params: BuildContractInvocationParams
 ): Promise<ContractSimulationResult> {
   const { network = 'testnet' } = params
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction(params)
-  const simulation = await server.simulateTransaction(transaction)
+  return measureAsync('CONTRACT_SIMULATION_DURATION', async () => {
+    const server = getSorobanServer(network)
+    const transaction = await buildContractInvocationTransaction(params)
+    const simulation = await server.simulateTransaction(transaction)
 
-  if ('error' in simulation && simulation.error) {
-    throw new Error(simulation.error)
-  }
+    if ('error' in simulation && simulation.error) {
+      throw new Error(simulation.error)
+    }
 
-  const successfulSimulation = simulation as Exclude<
-    StellarSdk.SorobanRpc.Api.SimulateTransactionResponse,
-    StellarSdk.SorobanRpc.Api.SimulateTransactionErrorResponse
-  >
+    const successfulSimulation = simulation as Exclude<
+      StellarSdk.SorobanRpc.Api.SimulateTransactionResponse,
+      StellarSdk.SorobanRpc.Api.SimulateTransactionErrorResponse
+    >
 
-  const footprint = successfulSimulation.transactionData
-    ? {
-        readOnly: successfulSimulation.transactionData.getReadOnly().map(serializeLedgerKey),
-        readWrite: successfulSimulation.transactionData.getReadWrite().map(serializeLedgerKey),
-        minResourceFee: successfulSimulation.minResourceFee,
-      }
-    : null
+    const footprint = successfulSimulation.transactionData
+      ? {
+          readOnly: successfulSimulation.transactionData.getReadOnly().map(serializeLedgerKey),
+          readWrite: successfulSimulation.transactionData.getReadWrite().map(serializeLedgerKey),
+          minResourceFee: successfulSimulation.minResourceFee,
+        }
+      : null
 
-  return {
-    xdr: transaction.toXDR(),
-    latestLedger: successfulSimulation.latestLedger,
-    cost: successfulSimulation.cost,
-    result: successfulSimulation.result ? serializeScVal(successfulSimulation.result.retval) : null,
-    events: (successfulSimulation.events || []).map(serializeDiagnosticEvent),
-    footprint,
-  }
+    return {
+      xdr: transaction.toXDR(),
+      latestLedger: successfulSimulation.latestLedger,
+      cost: successfulSimulation.cost,
+      result: successfulSimulation.result ? serializeScVal(successfulSimulation.result.retval) : null,
+      events: (successfulSimulation.events || []).map(serializeDiagnosticEvent),
+      footprint,
+    }
+  }, { network, operation: 'simulateContractCall' })
 }
 
 interface InvokeContractParams {
@@ -990,46 +1024,48 @@ interface InvokeContractParams {
 export async function invokeContract(
   params: InvokeContractParams
 ): Promise<ContractSubmitResult> {
-  const { contractId, functionName, args = [], secretKey, network = 'testnet' } = params
+  return measureAsync('CONTRACT_INVOCATION_DURATION', async () => {
+    const { contractId, functionName, args = [], secretKey, network = 'testnet' } = params
 
-  if (network !== 'testnet') {
-    throw new Error('Transaction submission is only enabled on Testnet')
-  }
+    if (network !== 'testnet') {
+      throw new Error('Transaction submission is only enabled on Testnet')
+    }
 
-  if (!secretKey.trim()) {
-    throw new Error('Secret key is required to submit a transaction')
-  }
+    if (!secretKey.trim()) {
+      throw new Error('Secret key is required to submit a transaction')
+    }
 
-  let keypair: StellarSdk.Keypair
-  try {
-    keypair = StellarSdk.Keypair.fromSecret(secretKey.trim())
-  } catch {
-    throw new Error('Invalid secret key')
-  }
+    let keypair: StellarSdk.Keypair
+    try {
+      keypair = StellarSdk.Keypair.fromSecret(secretKey.trim())
+    } catch {
+      throw new Error('Invalid secret key')
+    }
 
-  const sourceAccount = keypair.publicKey()
-  const server = getSorobanServer(network)
-  const transaction = await buildContractInvocationTransaction({
-    contractId,
-    functionName,
-    args,
-    sourceAccount,
-    network,
-  })
-  const prepared = await server.prepareTransaction(transaction)
+    const sourceAccount = keypair.publicKey()
+    const server = getSorobanServer(network)
+    const transaction = await buildContractInvocationTransaction({
+      contractId,
+      functionName,
+      args,
+      sourceAccount,
+      network,
+    })
+    const prepared = await server.prepareTransaction(transaction)
 
-  prepared.sign(keypair)
+    prepared.sign(keypair)
 
-  const response = await server.sendTransaction(prepared)
+    const response = await server.sendTransaction(prepared)
 
-  return {
-    hash: response.hash,
-    status: response.status,
-    errorResult: response.errorResult ? response.errorResult.toXDR('base64') : null,
-    diagnosticEvents: (response.diagnosticEvents || []).map((event) =>
-      event.toXDR('base64')
-    ),
-  }
+    return {
+      hash: response.hash,
+      status: response.status,
+      errorResult: response.errorResult ? response.errorResult.toXDR('base64') : null,
+      diagnosticEvents: (response.diagnosticEvents || []).map((event) =>
+        event.toXDR('base64')
+      ),
+    }
+  }, { network: params.network || 'testnet', operation: 'invokeContract' })
 }
 
 // ─── Validators ───────────────────────────────────────────────────────────────

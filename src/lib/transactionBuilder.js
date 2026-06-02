@@ -1,5 +1,6 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { getServer, NETWORKS, isValidPublicKey } from "./stellar";
+import { measureAsync, recordCustomMetric } from "./performanceMonitoring";
 
 export const OPERATION_TYPES = [
   { value: "payment", label: "Payment" },
@@ -346,10 +347,20 @@ export async function signAndSubmitTransaction(
   }
 
   const keypair = StellarSdk.Keypair.fromSecret(secretKey);
+  const signingStart = performance.now();
   transaction.sign(keypair);
+  recordCustomMetric("TRANSACTION_SIGNING_DURATION", performance.now() - signingStart, {
+    network,
+    operationCount: transaction.operations?.length || 0,
+    signer: "local-keypair",
+  });
 
   const server = getServer(network);
-  const response = await server.submitTransaction(transaction);
+  const response = await measureAsync(
+    "TRANSACTION_SUBMIT_DURATION",
+    () => server.submitTransaction(transaction),
+    { network, operationCount: transaction.operations?.length || 0 },
+  );
 
   return {
     hash: response.hash,

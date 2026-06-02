@@ -1043,18 +1043,23 @@ export function isValidEd25519PublicKey(key: string): boolean {
  * Check if address is a valid muxed account (M...)
  */
 export function isValidMuxedAccount(key: string): boolean {
+  if (!key || typeof key !== 'string') return false
   try {
-    return StellarSdk.StrKey.isValidEd25519PublicKey(key) || key.startsWith('M')
+    if (!key.startsWith('M')) return false
+    StellarSdk.MuxedAccount.fromAddress(key, '0')
+    return true
   } catch {
     return false
   }
 }
 
 /**
- * Check if address is a federated address (name*domain)
+ * Check if address is a federated address (name*domain or name@domain)
  */
 export function isFederatedAddress(input: string): boolean {
-  return typeof input === 'string' && /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input)
+  if (typeof input !== 'string') return false
+  // Support both name*domain (Stellar spec) and name@domain (email-style)
+  return /^[a-zA-Z0-9._-]+[*@][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input)
 }
 
 /**

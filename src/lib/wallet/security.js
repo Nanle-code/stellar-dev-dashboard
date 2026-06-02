@@ -69,9 +69,31 @@ export function getSessionSecurityPosture({ walletType, mode, phishingSafe }) {
   const factors = []
   let score = 50
 
+  // Hardware wallets — highest trust
   if (walletType === 'ledger') {
     score += 30
     factors.push('Hardware wallet native signing')
+  } else if (walletType === 'trezor' || walletType === 'keystone') {
+    score += 20
+    factors.push('Hardware wallet (watch-only, external signing)')
+  }
+
+  // Software wallets — medium trust
+  if (walletType === 'freighter') {
+    score += 15
+    factors.push('Freighter browser extension')
+  } else if (walletType === 'xbull') {
+    score += 12
+    factors.push('xBull extension / mobile connector')
+  } else if (walletType === 'lobstr') {
+    score += 12
+    factors.push('LOBSTR extension / SEP-0007 mobile')
+  } else if (walletType === 'solar') {
+    score += 12
+    factors.push('Solar Wallet extension / SEP-0007 mobile')
+  } else if (walletType === 'walletconnect') {
+    score += 10
+    factors.push('WalletConnect v2 mobile session')
   }
 
   if (mode === 'watch-only') {
@@ -84,7 +106,8 @@ export function getSessionSecurityPosture({ walletType, mode, phishingSafe }) {
     factors.push('Potential phishing signal detected')
   }
 
-  if (score >= 80) return { tier: 'high', score, factors }
-  if (score >= 60) return { tier: 'medium', score, factors }
-  return { tier: 'elevated-risk', score, factors }
+  const clampedScore = Math.max(0, Math.min(100, score))
+  if (clampedScore >= 80) return { tier: 'high', score: clampedScore, factors }
+  if (clampedScore >= 60) return { tier: 'medium', score: clampedScore, factors }
+  return { tier: 'elevated-risk', score: clampedScore, factors }
 }

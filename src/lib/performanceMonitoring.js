@@ -1,3 +1,5 @@
+import { evaluateAlertRules, alertCenter } from './alerts.js'
+
 /**
  * Performance Monitoring System
  * Tracks Core Web Vitals, bundle size, and performance budgets
@@ -234,6 +236,16 @@ function recordMetric(name, value, metadata = {}) {
     console.warn(
       `⚠️ Performance budget exceeded: ${name} = ${value.toFixed(2)} (budget: ${budget})`,
     );
+    const score = getPerformanceScore();
+    const snapshot = {
+      online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      memory: typeof performance !== 'undefined' ? (performance.memory ?? null) : null,
+      visibility: typeof document !== 'undefined' ? document.visibilityState : 'visible',
+    };
+    const triggered = evaluateAlertRules(snapshot, score);
+    if (triggered.length > 0) {
+      alertCenter.push(triggered);
+    }
   }
 
   // Trigger custom event for real-time monitoring

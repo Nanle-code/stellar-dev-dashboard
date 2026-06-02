@@ -1,0 +1,899 @@
+openapi: 3.0.3
+info:
+  title: Stellar Dev Dashboard Integrations API
+  description: |
+    Comprehensive documentation and OpenAPI specification for the API integration points utilized by the Stellar Dev Dashboard.
+    
+    This specification covers:
+    - **Stellar Horizon REST API**: The primary gateway for ledger queries, account details, paginated transactions/operations lists, order books, and transaction submission.
+    - **Stellar Soroban RPC API**: The JSON-RPC service utilized for smart contract inspection, transaction simulations, transaction preparation, and contract-specific events.
+    - **CoinGecko API**: Utilized to fetch real-time USD asset price quotes and calculate portfolio valuation.
+    - **Stellar Friendbot Faucet**: The Testnet funding service that deposits 10,000 XLM into newly generated developer accounts.
+  version: 0.1.0
+  contact:
+    name: Stellar Dev Dashboard Team
+    url: https://github.com/Nanle-code/stellar-dev-dashboard
+servers:
+  - url: https://horizon-testnet.stellar.org
+    description: Horizon Testnet Server
+  - url: https://horizon.stellar.org
+    description: Horizon Mainnet Server
+  - url: https://soroban-testnet.stellar.org
+    description: Soroban RPC Testnet Server
+  - url: https://api.coingecko.com
+    description: CoinGecko Price API Server
+  - url: https://friendbot.stellar.org
+    description: Friendbot Faucet Server
+
+paths:
+  # ────────────────────────────────────────────────────────────────────────────
+  # HORIZON ENDPOINTS
+  # ────────────────────────────────────────────────────────────────────────────
+  /accounts/{accountId}:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Retrieve Account Details
+      description: Fetches account balances, thresholds, signers, sequence number, subentry counts, and flags for a given Stellar public key.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: A valid G... Stellar public key (ED25519)
+          schema:
+            type: string
+            pattern: '^G[A-Z2-7]{55}$'
+            example: GD3W47O7L6J22XCQNFSK3L2V3N45EPEHPEH4J46EPEH4J46EPEH4J46E
+      responses:
+        '200':
+          description: Successful account retrieval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          description: Bad request (Invalid public key format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Account not found on the specified network
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Horizon API rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /accounts/{accountId}/transactions:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Retrieve Account Transactions
+      description: Fetches a paginated list of transactions involving the specified Stellar account.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: The Stellar account ID
+          schema:
+            type: string
+            pattern: '^G[A-Z2-7]{55}$'
+        - name: limit
+          in: query
+          required: false
+          description: Number of records to return (1-200)
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 200
+        - name: order
+          in: query
+          required: false
+          description: Ordering of results (ascending or descending)
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: cursor
+          in: query
+          required: false
+          description: A paging token pointing to a specific transaction position
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated transaction list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+        '400':
+          description: Invalid request parameters
+        '404':
+          description: Account not found
+
+  /accounts/{accountId}/operations:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Retrieve Account Operations
+      description: Fetches a paginated list of operations executed under the specified Stellar account.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: The Stellar account ID
+          schema:
+            type: string
+            pattern: '^G[A-Z2-7]{55}$'
+        - name: limit
+          in: query
+          required: false
+          description: Number of records to return (1-200)
+          schema:
+            type: integer
+            default: 20
+        - name: order
+          in: query
+          required: false
+          description: Ordering of results
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: cursor
+          in: query
+          required: false
+          description: Paging token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated operations list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationListResponse'
+
+  /ledgers/{sequence}:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Retrieve Ledger Details
+      description: Fetches metadata for a single ledger block using its sequence number.
+      parameters:
+        - name: sequence
+          in: path
+          required: true
+          description: The ledger sequence number
+          schema:
+            type: integer
+            example: 54932011
+      responses:
+        '200':
+          description: Ledger block details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerResponse'
+        '404':
+          description: Ledger block not found
+
+  /ledgers:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: List Latest Ledgers
+      description: Fetches a list of the latest ledgers on the network. Used by the network stats panel.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of recent ledgers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _embedded:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LedgerResponse'
+
+  /order_book:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Retrieve DEX Order Book
+      description: Fetches bids, asks, and midpoints for a trading pair on the Stellar Decentralized Exchange (SDEX).
+      parameters:
+        - name: selling_asset_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [native, credit_alphanum4, credit_alphanum12]
+        - name: selling_asset_code
+          in: query
+          required: false
+          description: Required if selling asset is not native (e.g. USDC)
+          schema:
+            type: string
+        - name: selling_asset_issuer
+          in: query
+          required: false
+          description: Required if selling asset is not native
+          schema:
+            type: string
+        - name: buying_asset_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [native, credit_alphanum4, credit_alphanum12]
+        - name: buying_asset_code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: buying_asset_issuer
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Order book depth details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderBookResponse'
+
+  /paths/strict-send:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Find Strict-Send Payment Paths
+      description: Finds valid payment paths for a strict amount of a selling asset, identifying target assets and conversion rates.
+      parameters:
+        - name: source_asset_type
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: source_amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: destination_assets
+          in: query
+          required: true
+          description: Comma separated list of target assets (e.g., native,USDC:G...)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Found strict-send payment paths
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathsResponse'
+
+  /paths/strict-receive:
+    get:
+      tags:
+        - Horizon (REST)
+      summary: Find Strict-Receive Payment Paths
+      description: Finds valid payment paths to deliver a strict amount of a buying asset.
+      parameters:
+        - name: destination_asset_type
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: destination_amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: source_assets
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Found strict-receive payment paths
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathsResponse'
+
+  /transactions:
+    post:
+      tags:
+        - Horizon (REST)
+      summary: Submit Transaction to Network
+      description: Submits a fully formed, signed transaction envelope XDR string to the Stellar network via Horizon.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - tx
+              properties:
+                tx:
+                  type: string
+                  description: Base64-encoded signed TransactionEnvelope XDR
+                  example: AAAAAL56c9wJv68s...
+      responses:
+        '200':
+          description: Transaction successfully applied and included in a ledger block
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitTransactionSuccess'
+        '400':
+          description: Transaction rejected (Failed validation, bad signature, or op errors)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitTransactionFailure'
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # SOROBAN RPC ENDPOINTS
+  # ────────────────────────────────────────────────────────────────────────────
+  /soroban/rpc:
+    post:
+      tags:
+        - Soroban (RPC)
+      summary: JSON-RPC Entry Point
+      description: General gateway for interacting with the Soroban smart contract virtual machine on Testnet and Mainnet. Supports custom JSON-RPC request methods.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SorobanRpcRequest'
+            examples:
+              getHealth:
+                summary: Health Check
+                value:
+                  jsonrpc: "2.0"
+                  id: "health-chk"
+                  method: "getHealth"
+              getLatestLedger:
+                summary: Get Latest Ledger sequence
+                value:
+                  jsonrpc: "2.0"
+                  id: "ledg-chk"
+                  method: "getLatestLedger"
+              simulateTransaction:
+                summary: Simulate Contract Invocation
+                value:
+                  jsonrpc: "2.0"
+                  id: "sim-1"
+                  method: "simulateTransaction"
+                  params:
+                    transaction: "AAAAAgAAAADcR+U8..."
+              getEvents:
+                summary: Query Contract Events
+                value:
+                  jsonrpc: "2.0"
+                  id: "ev-1"
+                  method: "getEvents"
+                  params:
+                    startLedger: 54930000
+                    filters:
+                      - type: "contract"
+                        contractIds: ["CBXG..."]
+      responses:
+        '200':
+          description: Standard JSON-RPC 2.0 Response payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SorobanRpcResponse'
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # COINGECKO PRICE ENDPOINT
+  # ────────────────────────────────────────────────────────────────────────────
+  /api/v3/simple/price:
+    get:
+      tags:
+        - External Services
+      summary: Fetch Asset Price Quotes
+      description: Fetches USD and price details for native and mapped credit assets from CoinGecko. Used for portfolio valuation.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Comma separated CoinGecko coin identifiers (e.g. stellar)
+          schema:
+            type: string
+            example: stellar
+        - name: vs_currencies
+          in: query
+          required: true
+          description: target currencies (e.g. usd)
+          schema:
+            type: string
+            example: usd
+        - name: include_24hr_change
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Asset price maps
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    usd:
+                      type: number
+                      example: 0.1145
+                    usd_24h_change:
+                      type: number
+                      example: 3.456
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # FRIENDBOT ENDPOINT
+  # ────────────────────────────────────────────────────────────────────────────
+  /friendbot:
+    get:
+      tags:
+        - External Services
+      summary: Friendbot Faucet funding (Testnet Only)
+      description: Deposits 10,000 Testnet XLM to a valid, inactive or active Stellar public key.
+      parameters:
+        - name: addr
+          in: query
+          required: true
+          description: Public key (G...) to fund
+          schema:
+            type: string
+            pattern: '^G[A-Z2-7]{55}$'
+      responses:
+        '200':
+          description: Faucet deposit successfully executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hash:
+                    type: string
+                    example: a0fb4cf...
+                  ledger:
+                    type: integer
+                    example: 5493201
+
+components:
+  schemas:
+    # ─── Horizon Schemas ──────────────────────────────────────────────────────
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: GD3W47O7L6J22XCQNFSK3L2V3N45EPEHPEH4J46EPEH4J46EPEH4J46E
+        account_id:
+          type: string
+          example: GD3W47O7L6J22XCQNFSK3L2V3N45EPEHPEH4J46EPEH4J46EPEH4J46E
+        sequence:
+          type: string
+          example: "125893021482"
+        subentry_count:
+          type: integer
+          example: 4
+        balances:
+          type: array
+          items:
+            type: object
+            properties:
+              balance:
+                type: string
+                example: "100.5402391"
+              limit:
+                type: string
+                example: "922337203685.4775807"
+              buying_liabilities:
+                type: string
+                example: "0.0000000"
+              selling_liabilities:
+                type: string
+                example: "0.0000000"
+              asset_type:
+                type: string
+                enum: [native, credit_alphanum4, credit_alphanum12, liquidity_pool_shares]
+              asset_code:
+                type: string
+                example: USDC
+              asset_issuer:
+                type: string
+                example: GBBDQ...
+        thresholds:
+          type: object
+          properties:
+            low_threshold:
+              type: integer
+              example: 0
+            med_threshold:
+              type: integer
+              example: 1
+            high_threshold:
+              type: integer
+              example: 2
+        flags:
+          type: object
+          properties:
+            auth_required:
+              type: boolean
+              example: false
+            auth_revocable:
+              type: boolean
+              example: false
+            auth_immutable:
+              type: boolean
+              example: false
+            auth_clawback_enabled:
+              type: boolean
+              example: true
+        signers:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                example: GD3W47O...
+              weight:
+                type: integer
+                example: 1
+              type:
+                type: string
+                example: ed25519_public_key
+
+    TransactionListResponse:
+      type: object
+      properties:
+        _embedded:
+          type: object
+          properties:
+            records:
+              type: array
+              items:
+                $ref: '#/components/schemas/TransactionRecord'
+
+    TransactionRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 8c3bcf52...
+        hash:
+          type: string
+          example: 8c3bcf5273f7c469b61d4ff1ee8deabfe64e...
+        ledger:
+          type: integer
+          example: 5493201
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-06-01T15:20:00Z
+        source_account:
+          type: string
+          example: GD3W47O...
+        successful:
+          type: boolean
+          example: true
+        operation_count:
+          type: integer
+          example: 1
+        envelope_xdr:
+          type: string
+          example: AAAAAL56c9wJv68s...
+        result_xdr:
+          type: string
+          example: AAAAAA...
+        fee_charged:
+          type: string
+          example: "100"
+        memo_type:
+          type: string
+          example: text
+        memo:
+          type: string
+          example: funding_tx
+
+    OperationListResponse:
+      type: object
+      properties:
+        _embedded:
+          type: object
+          properties:
+            records:
+              type: array
+              items:
+                $ref: '#/components/schemas/OperationRecord'
+
+    OperationRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "23594820934"
+        paging_token:
+          type: string
+          example: "23594820934-0"
+        type:
+          type: string
+          example: payment
+        type_i:
+          type: integer
+          example: 1
+        source_account:
+          type: string
+          example: GD3W47O...
+        created_at:
+          type: string
+          format: date-time
+        amount:
+          type: string
+          example: "10.0000000"
+        asset_type:
+          type: string
+          example: native
+
+    LedgerResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "7c5e2..."
+        sequence:
+          type: integer
+          example: 5493201
+        hash:
+          type: string
+          example: 7c5e23924fbc...
+        prev_hash:
+          type: string
+        closed_at:
+          type: string
+          format: date-time
+        transaction_count:
+          type: integer
+          example: 12
+        operation_count:
+          type: integer
+          example: 24
+        base_fee_in_stroops:
+          type: integer
+          example: 100
+        base_reserve_in_stroops:
+          type: integer
+          example: 5000000
+        max_tx_set_size:
+          type: integer
+          example: 1000
+
+    OrderBookResponse:
+      type: object
+      properties:
+        bids:
+          type: array
+          items:
+            type: object
+            properties:
+              price:
+                type: string
+                example: "0.1143000"
+              amount:
+                type: string
+                example: "5000.0000000"
+        asks:
+          type: array
+          items:
+            type: object
+            properties:
+              price:
+                type: string
+                example: "0.1145000"
+              amount:
+                type: string
+                example: "12500.0000000"
+        base:
+          type: object
+          properties:
+            asset_type:
+              type: string
+              example: native
+        counter:
+          type: object
+          properties:
+            asset_type:
+              type: string
+              example: credit_alphanum4
+            asset_code:
+              type: string
+              example: USDC
+
+    PathsResponse:
+      type: object
+      properties:
+        _embedded:
+          type: object
+          properties:
+            records:
+              type: array
+              items:
+                type: object
+                properties:
+                  source_asset_type:
+                    type: string
+                  source_amount:
+                    type: string
+                  destination_asset_type:
+                    type: string
+                  destination_amount:
+                    type: string
+                  path:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        asset_type:
+                          type: string
+
+    SubmitTransactionSuccess:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 8c3bcf5273f7c469...
+        hash:
+          type: string
+          example: 8c3bcf5273f7c469b61d4ff1ee8deabfe64e...
+        ledger:
+          type: integer
+          example: 5493201
+        envelope_xdr:
+          type: string
+        result_xdr:
+          type: string
+          example: AAAAAAAAAAG=
+
+    SubmitTransactionFailure:
+      type: object
+      properties:
+        type:
+          type: string
+          example: https://stellar.org/horizon-errors/transaction_failed
+        title:
+          type: string
+          example: Transaction Failed
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: The transaction execution failed on the ledger.
+        extras:
+          type: object
+          properties:
+            envelope_xdr:
+              type: string
+            result_xdr:
+              type: string
+              example: AAAAAAAAAHwAAAAAA...
+            result_codes:
+              type: object
+              properties:
+                transaction:
+                  type: string
+                  example: tx_failed
+                operations:
+                  type: array
+                  items:
+                    type: string
+                  example: ["op_no_destination"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          example: https://stellar.org/horizon-errors/not_found
+        title:
+          type: string
+          example: Resource Missing
+        status:
+          type: integer
+          example: 404
+        detail:
+          type: string
+          example: The resource could not be found.
+
+    # ─── Soroban Schemas ──────────────────────────────────────────────────────
+    SorobanRpcRequest:
+      type: object
+      required:
+        - jsonrpc
+        - id
+        - method
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+          example: "2.0"
+        id:
+          type: string
+          example: "req-1"
+        method:
+          type: string
+          enum: [getHealth, getLatestLedger, simulateTransaction, sendTransaction, getEvents]
+          example: simulateTransaction
+        params:
+          type: object
+
+    SorobanRpcResponse:
+      type: object
+      required:
+        - jsonrpc
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          example: "2.0"
+        id:
+          type: string
+          example: "req-1"
+        result:
+          type: object
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: -32600
+            message:
+              type: string
+              example: Invalid Request

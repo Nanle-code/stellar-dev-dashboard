@@ -203,6 +203,19 @@ async function generate() {
   await fs.mkdir(OUTPUT_DIR, { recursive: true })
   const files = await collectSourceFiles(SOURCE_ROOT)
 
+  // Update openapi.yaml version in sync with package.json
+  const packageJson = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8'))
+  const version = packageJson.version || '0.1.0'
+  const openApiFilePath = path.join(ROOT, 'docs', 'api', 'openapi.yaml')
+  try {
+    let openApiContent = await fs.readFile(openApiFilePath, 'utf8')
+    openApiContent = openApiContent.replace(/(version:\s*['"]?)\d+\.\d+\.\d+(['"]?)/, `$1${version}$2`)
+    await fs.writeFile(openApiFilePath, openApiContent, 'utf8')
+    console.log('Updated OpenAPI spec version to:', version)
+  } catch (err) {
+    console.warn('Could not update OpenAPI spec version:', err.message)
+  }
+
   const generatedSections = []
   for (const filePath of files.sort()) {
     const content = await fs.readFile(filePath, 'utf8')

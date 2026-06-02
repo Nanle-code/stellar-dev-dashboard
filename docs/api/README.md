@@ -34,12 +34,15 @@ This document collects all integration points for Stellar Horizon, Soroban RPC, 
 
 The API docs now include generated reference material and runnable examples.
 
-- `docs/api/generated/API_REFERENCE.md` — auto-generated API reference from `src/lib` exports and JSDoc comments.
-- `docs/api/SDK_EXAMPLES.md` — JavaScript and Python SDK examples with runnable sample scripts.
-- `docs/api/REQUEST_RESPONSE_SAMPLES.md` — request/response payload examples for Horizon and Soroban RPC.
-- `docs/api/CHANGELOG.md` — API documentation changelog.
-- `docs/api/VERSION_HISTORY.md` — version history and release metadata.
-- `docs/api/examples/` — runnable example scripts for JavaScript and Python.
+- [docs/api/openapi.yaml](openapi.yaml) — complete OpenAPI 3.0 specification for all external dashboard integrations.
+- [docs/api/generated/API_REFERENCE.md](generated/API_REFERENCE.md) — auto-generated API reference from `src/lib` exports and JSDoc comments.
+- [docs/api/SDK_EXAMPLES.md](SDK_EXAMPLES.md) — JavaScript and Python SDK examples with runnable sample scripts.
+- [docs/api/REQUEST_RESPONSE_SAMPLES.md](REQUEST_RESPONSE_SAMPLES.md) — request/response payload examples for Horizon, Soroban RPC, CoinGecko, and Friendbot.
+- [docs/api/ERROR_REFERENCE.md](ERROR_REFERENCE.md) — developer reference for error categories, codes, and recovery strategies.
+- [docs/api/RATE_LIMITING.md](RATE_LIMITING.md) — client-side rate limiting, priority queues, and throttle configurations.
+- [docs/api/CHANGELOG.md](CHANGELOG.md) — API documentation changelog.
+- [docs/api/VERSION_HISTORY.md](generated/VERSION_HISTORY.md) — version history and release metadata.
+- [docs/api/examples/](examples/) — runnable example scripts for JavaScript and Python.
 
 Regenerate the API docs with:
 

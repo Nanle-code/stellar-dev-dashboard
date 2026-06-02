@@ -2,7 +2,57 @@
 
 This API reference is auto-generated from the `src/lib` source files and JSDoc-style comments.
 
-Generated on: 2026-06-02T09:17:29.375Z
+Generated on: 2026-06-02T11:17:56.346Z
+
+---
+
+## src/lib/accountWatchSystem.ts
+
+### `export function normalizeBalances(`
+
+Convert a Horizon balances array into our normalized shape.
+
+---
+
+### `export function aggregateBalances(snapshots: AccountSnapshot[]): AggregatedInsights`
+
+Roll balances up across every (successful) snapshot.
+
+---
+
+### `export function evaluateWatchRules(`
+
+Evaluate every enabled rule against the current snapshots.
+
+---
+
+### `export function detectAnomalies(`
+
+Detect anomalous balance swings between the previous and current snapshots.
+
+---
+
+### `export interface AccountWatchUpdate`
+
+Run async `worker` over `items` with at most `limit` running at once.
+
+---
+
+### `export interface AccountWatchOptions`
+
+Run async `worker` over `items` with at most `limit` running at once.
+
+---
+
+### `export class AccountWatchSystem`
+
+Run async `worker` over `items` with at most `limit` running at once.
+
+---
+
+### `export const accountWatchSystem = new AccountWatchSystem()`
+
+Shared singleton used by the React hook.
 
 ---
 
@@ -231,6 +281,27 @@ Evaluates an incoming streaming event against a collection of user-defined alert
 
 ---
 
+## src/lib/alertsService.ts
+
+### `export interface AlertPayload`
+
+_No description available._
+
+---
+
+### `export async function dispatchAlert(alert: AlertPayload): Promise<boolean>`
+
+Dispatch a single alert using the appropriate provider.
+Returns true if the notification was sent successfully.
+
+---
+
+### `export async function dispatchAlerts(alerts: AlertPayload[]): Promise<boolean[]>`
+
+Dispatch multiple alerts in parallel, returning an array of results.
+
+---
+
 ## src/lib/analytics.js
 
 ### `export function summarizeBalances(accountData)`
@@ -270,6 +341,32 @@ _No description available._
 ---
 
 ### `export function buildAnalyticsSnapshot(`
+
+_No description available._
+
+---
+
+## src/lib/biometricAuth.ts
+
+### `export interface BiometricOptions`
+
+_No description available._
+
+---
+
+### `export async function registerBiometric(options: BiometricOptions)`
+
+_No description available._
+
+---
+
+### `export async function loginBiometric()`
+
+_No description available._
+
+---
+
+### `export function isBiometricSupported(): boolean`
 
 _No description available._
 
@@ -1259,6 +1356,34 @@ _No description available._
 
 ---
 
+## src/lib/highRiskLogger.js
+
+### `export function getHighRiskLogs()`
+
+Retrieve the current log array from localStorage.
+
+**Returns**: {Array<Object>} Array of log objects.
+
+---
+
+### `export function logApprovedHighRiskTransaction(entry)`
+
+Append a new log entry for an approved high‑risk transaction.
+
+**Parameters**
+
+| Name | Description |
+| --- | --- |
+| `{Object}` | entry - Information about the transaction. Expected fields: { transactionId, riskLevel, riskScore, timestamp, details } |
+
+---
+
+### `export function clearHighRiskLogs()`
+
+Clear all high‑risk logs (e.g., for debugging or user reset).
+
+---
+
 ## src/lib/import.js
 
 ### `export function parseBackup(jsonString)`
@@ -1716,6 +1841,50 @@ Calculates current network-wide TPS and OPS averages
 
 ---
 
+## src/lib/notificationChannels.js
+
+### `export const NOTIFICATION_CHANNEL =`
+
+_No description available._
+
+---
+
+### `export async function sendEmail(payload)`
+
+Send an email notification.
+
+**Parameters**
+
+| Name | Description |
+| --- | --- |
+| `{object}` | payload - { to, subject, body } |
+
+---
+
+### `export async function sendWebhook(payload)`
+
+Send a webhook POST request.
+
+**Parameters**
+
+| Name | Description |
+| --- | --- |
+| `{object}` | payload - { url, data } |
+
+---
+
+### `export async function sendSMS(payload)`
+
+Send an SMS notification.
+
+**Parameters**
+
+| Name | Description |
+| --- | --- |
+| `{object}` | payload - { to, message } |
+
+---
+
 ## src/lib/notifications.js
 
 ### `export const NOTIFICATION_TYPES =`
@@ -1731,6 +1900,20 @@ _No description available._
 ---
 
 ### `export const generateId = ()`
+
+_No description available._
+
+---
+
+### `export const playSound = (type)`
+
+_No description available._
+
+---
+
+## src/lib/performance.ts
+
+### `export function initPerformanceMonitoring(userConfig: PerfConfig =`
 
 _No description available._
 
@@ -2070,6 +2253,61 @@ Calculate portfolio value in USD from account balances and prices.
 
 ---
 
+## src/lib/region.ts
+
+### `export type Region = 'global' | 'europe' | 'north_america' | 'asia' | 'custom'`
+
+_No description available._
+
+---
+
+### `export const REGION_NETWORK_MAP: Record<Region,`
+
+_No description available._
+
+---
+
+### `export function resolveRegionNetwork(region: Region): string`
+
+Resolve the Stellar network configuration for a given region.
+Returns a NetworkName that can be used with the existing getServer / getSorobanServer functions.
+
+---
+
+### `export async function fetchLocalFiatRates(`
+
+Fetch local fiat exchange rates for XLM using CoinGecko.
+Supports multiple fiat currencies (e.g. USD, EUR, JPY).
+Returns a map of fiat -> rate.
+
+---
+
+## src/lib/riskWhitelist.js
+
+### `export const whitelist = loadWhitelist()`
+
+_No description available._
+
+---
+
+### `export function isWhitelistedAddress(address)`
+
+Returns true if the address is in the whitelist.
+
+---
+
+### `export function addWhitelistedAddress(address)`
+
+Adds an address to the whitelist and persists it.
+
+---
+
+### `export function removeWhitelistedAddress(address)`
+
+Removes an address from the whitelist.
+
+---
+
 ## src/lib/searchEngine.ts
 
 ### `export class SearchEngine`
@@ -2131,6 +2369,12 @@ Record a security-significant event.
 ---
 
 ## src/lib/stellar.ts
+
+### `export function getSimulationFeeOptions(`
+
+_No description available._
+
+---
 
 ### `export type NetworkName = 'mainnet' | 'testnet' | 'futurenet' | 'local' | 'custom'`
 
@@ -2242,6 +2486,12 @@ Load profiles from storage and return them (Issue #188).
 ---
 
 ### `export async function fetchAccountOffers(`
+
+Load profiles from storage and return them (Issue #188).
+
+---
+
+### `export async function fetchTransactionDetails(`
 
 Load profiles from storage and return them (Issue #188).
 
@@ -2513,7 +2763,7 @@ Calculate account reserves based on Stellar network base reserve
 
 ---
 
-### `export async function invokeContract(`
+### `export async function invokeContract(params: InvokeContractParams): Promise<ContractSubmitResult>`
 
 Calculate account reserves based on Stellar network base reserve
 
@@ -2547,7 +2797,7 @@ Check if address is a federated address (name*domain or name
 
 ---
 
-### `export function parseMuxedAccount(muxedAddress: string):`
+### `export function parseMuxedAccount(`
 
 Extract master account and muxed ID from a muxed address
 
@@ -2641,7 +2891,7 @@ Human-readable summary of a claimant predicate.
 
 ---
 
-### `export type BuilderOperation = PaymentOperation | CreateAccountOperation | InvokeHostFunctionOperation`
+### `export type BuilderOperation =`
 
 Human-readable summary of a claimant predicate.
 
@@ -2671,7 +2921,7 @@ Human-readable summary of a claimant predicate.
 
 ---
 
-### `export async function simulateTransaction(`
+### `export async function simulateTransaction(params: BuildTransactionParams): Promise<SimulateResult>`
 
 Human-readable summary of a claimant predicate.
 
@@ -3060,6 +3310,24 @@ Clear the entire offline queue.
 
 ---
 
+### `export async function addContractInteraction(record)`
+
+Clear the entire offline queue.
+
+---
+
+### `export async function getContractInteractions(filters =`
+
+Clear the entire offline queue.
+
+---
+
+### `export async function clearContractInteractions()`
+
+Clear the entire offline queue.
+
+---
+
 ### `export async function storageStats()`
 
 Estimate the number of entries in each store.
@@ -3145,6 +3413,12 @@ _No description available._
 ---
 
 ### `export interface StoreState`
+
+_No description available._
+
+---
+
+### `export const useStore = create<StoreState>((set, get)`
 
 _No description available._
 
@@ -3290,6 +3564,14 @@ Generate a one-click deployment config for a template.
 
 ---
 
+## src/lib/thresholds.js
+
+### `export const THRESHOLDS =`
+
+_No description available._
+
+---
+
 ## src/lib/transactionBuilder.js
 
 ### `export const OPERATION_TYPES = [`
@@ -3347,6 +3629,56 @@ Build a fee-bump transaction wrapping a signed inner transaction.
 | `{string}` | network - The network name (testnet, mainnet, futurenet, local) |
 
 **Returns**: {FeeBumpTransaction} The fee-bump transaction envelope
+
+---
+
+## src/lib/transactionNotifications.ts
+
+### `export interface TransactionNotification`
+
+Transaction Real-Time Notification System (#295)
+
+Integrates with Stellar's streaming API to provide real-time notifications
+for incoming transactions on monitored accounts. Supports mainnet and testnet
+with automatic network switching.
+
+Features:
+- Real-time updates via Stellar Horizon SSE API
+- Toast notifications for new transactions
+- Optional sound alerts
+- Notification history panel (10+ notifications retained)
+- Network-aware (mainnet/testnet)
+
+---
+
+### `export const transactionNotificationStore = new TransactionNotificationStore()`
+
+Export notifications as CSV
+
+---
+
+## src/lib/transactionSigningAuditLog.ts
+
+### `export interface SigningAuditEntry`
+
+Transaction Signing Audit Log (#310)
+
+Comprehensive audit log for all transaction signing operations.
+Provides security/compliance tracking with timestamp, user tracking,
+signing status, and export capabilities.
+
+Features:
+- Log all signing operations (approved/rejected)
+- Timestamp and user tracking
+- Tamper-proof implementation using hashing
+- Export to JSON/CSV formats
+- Query and filtering capabilities
+
+---
+
+### `export const transactionSigningAuditLog = new TransactionSigningAuditLog()`
+
+Get entry count
 
 ---
 

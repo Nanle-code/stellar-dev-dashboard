@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import ScreenReaderAnnouncer from '../components/accessibility/ScreenReaderAnnouncer';
 
 export type AccessibilitySettings = {
   reducedMotion: boolean;
@@ -62,6 +63,14 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AccessibilityContext.Provider value={{ settings, setReducedMotion, setHighContrast, setFontSize }}>
+      <ScreenReaderAnnouncer />
+      <div
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        id="assertive-announcer"
+        className="sr-only"
+      />
       {children}
     </AccessibilityContext.Provider>
   );

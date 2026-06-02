@@ -64,7 +64,7 @@ import SearchBar from './components/layout/SearchBar'
 import GlobalSearch from './components/search/GlobalSearch'
 import UserPreferences from './components/preferences/UserPreferences'
 import MobileNavigation from './components/layout/MobileNavigation'
-import AccessibilityProvider from "./components/accessibility/AccessibilityProvider";
+
 import KeyboardNavigation from './components/accessibility/KeyboardNavigation'
 
 interface SearchResult {

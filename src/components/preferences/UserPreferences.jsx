@@ -2,11 +2,13 @@ import React, { useState } from 'react'
 import { usePreferences } from '../../hooks/usePreferences'
 import AddressBook from './AddressBook'
 import ThemeSettings from './ThemeSettings'
+import AccessibilitySettings from './AccessibilitySettings'
 
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'theme', label: 'Theme & Display' },
   { id: 'addresses', label: 'Address Book' },
+  { id: 'accessibility', label: 'Accessibility' },
 ]
 
 export default function UserPreferences({ onClose }) {
@@ -166,6 +168,9 @@ export default function UserPreferences({ onClose }) {
 
         {activeTab === 'theme' && (
           <ThemeSettings preferences={preferences} onChange={handleChange} />
+        )}
+        {activeTab === 'accessibility' && (
+          <AccessibilitySettings />
         )}
 
         {activeTab === 'addresses' && (

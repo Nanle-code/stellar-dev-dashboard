@@ -263,6 +263,42 @@ The network switcher in the sidebar calls `setNetwork()` which resets all accoun
 
 ---
 
+## Bundle Size & Performance
+
+### Size budget
+
+The CI `bundle-size` job enforces a **500 KB gzipped** limit on the main entry chunk. A PR that exceeds this threshold will fail. To bypass intentionally (e.g. a large dependency bump that will be addressed in a follow-up), add the `skip-bundle-check` label to the PR and document the reason in the PR description.
+
+### Chunk strategy
+
+Vite splits the output into stable, cacheable chunks so that a UI-only change does not bust the Stellar SDK cache:
+
+| Chunk | Contents | Why separate |
+|---|---|---|
+| `stellar-sdk` | `@stellar/stellar-sdk` | Largest dep; changes rarely |
+| `react-vendor` | `react`, `react-dom`, `react-router-dom` | Stable; long cache TTL |
+| `ui-vendor` | `recharts`, `lucide-react` | Changes with design work |
+| `i18n` | `i18next`, `react-i18next`, `i18next-browser-languagedetector` | Only needed after first render |
+| `index` (entry) | Application code | Changes on every commit |
+
+### Bundle visualizer
+
+Generate an interactive treemap of the bundle at any time:
+
+```bash
+# Linux / macOS
+npm run build:analyze   # builds with ANALYZE=1, writes dist/stats.html
+open dist/stats.html    # open in browser
+
+# Windows (PowerShell)
+$env:ANALYZE=1; npm run build; Remove-Item Env:ANALYZE
+# then open dist/stats.html in your browser
+```
+
+In CI, add the `generate-bundle-report` label to a PR (or trigger the workflow manually via **Actions → CI → Run workflow**) to upload `dist/stats.html` as a downloadable artifact retained for 30 days.
+
+---
+
 ## TypeScript Migration
 
 The project is mid-migration from JavaScript to TypeScript. The Vite config sets `.ts` to resolve before `.js`, so imports of `stellar` and `store` automatically use the typed versions. `tsconfig.json` covers `src/lib/**/*.ts` with strict mode enabled. `allowJs: true` and `checkJs: false` let the remaining `.jsx` components import from the typed lib files without errors.

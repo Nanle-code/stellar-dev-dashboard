@@ -2,7 +2,7 @@ import React from 'react'
 import { useStore } from '../../lib/store'
 
 export default function MobileHeader() {
-  const { setMobileMenuOpen, theme, toggleTheme } = useStore()
+  const { isMobileMenuOpen, setMobileMenuOpen, theme, toggleTheme } = useStore()
 
   return (
     <header 
@@ -24,7 +24,11 @@ export default function MobileHeader() {
     >
       {/* Menu button */}
       <button
-        onClick={() => setMobileMenuOpen(true)}
+        type="button"
+        aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isMobileMenuOpen}
+        aria-controls="mobile-sidebar"
+        onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
         className="touch-target"
         style={{
           background: 'transparent',

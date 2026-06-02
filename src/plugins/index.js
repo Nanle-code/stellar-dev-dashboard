@@ -45,13 +45,11 @@ function registerWithFallback(manager, plugin, path) {
 
 export async function registerActivePlugins(manager = pluginManager) {
   if (registrationPromise) return registrationPromise;
-
   registrationPromise = Promise.all(
     Object.entries(pluginModules).map(async ([path, loadModule]) => {
       try {
         const module = await loadModule();
         const pluginFactory = getPluginFactory(module);
-
         if (!pluginFactory) {
           registerWithFallback(manager, {
             id: pathToPluginId("invalid", path),
@@ -61,7 +59,6 @@ export async function registerActivePlugins(manager = pluginManager) {
           }, path);
           return;
         }
-
         registerWithFallback(manager, pluginFactory, path);
       } catch (error) {
         const id = pathToPluginId("failed", path);
@@ -79,7 +76,6 @@ export async function registerActivePlugins(manager = pluginManager) {
   )
     .then(() => manager.initializeAll())
     .then(() => manager);
-
   return registrationPromise;
 }
 export const pluginManager = new PluginManager();

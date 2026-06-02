@@ -1,3 +1,5 @@
+import { evaluateAlertRules, alertCenter } from './alerts.js'
+
 /**
  * Privacy-preserving performance monitoring.
  * Tracks Core Web Vitals, app metrics, Stellar operation timings, regressions,

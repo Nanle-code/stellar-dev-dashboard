@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:analyze": "ANALYZE=1 vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -37,7 +38,8 @@
     "react-i18next": "^15.0.2",
     "react-router-dom": "^6.30.4",
     "recharts": "^2.12.7",
-    "zustand": "^4.5.4"
+    "zustand": "^4.5.4",
+    "idb": "^8.0.3"
   },
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",
@@ -61,8 +63,8 @@
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/parser": "^8.60.0",
     "@vitejs/plugin-react": "^4.3.1",
-    "@vitest/coverage-v8": "^4.1.7",
-    "@vitest/ui": "^4.1.5",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/ui": "^2.1.9",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -71,10 +73,11 @@
     "lint-staged": "^17.0.5",
     "msw": "^2.14.3",
     "prettier": "^3.3.3",
+    "rollup-plugin-visualizer": "^5.12.0",
     "storybook": "^8.5.0",
     "typescript": "^6.0.3",
     "vite": "^5.4.0",
-    "vitest": "^4.1.5"
+    "vitest": "^2.1.9"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint",

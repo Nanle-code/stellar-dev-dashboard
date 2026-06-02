@@ -70,6 +70,11 @@ vi.mock('../../../lib/errorReporting', () => ({
   addBreadcrumb: vi.fn(),
 }));
 
+vi.mock('../../../lib/userPreferences', () => ({
+  getDashboardLayout: vi.fn().mockResolvedValue([]),
+  saveDashboardLayout: vi.fn().mockResolvedValue([]),
+}));
+
 // Mock the store
 const setStoreState = vi.fn();
 let mockState = { connectedAddress: 'GABC...XYZ', network: 'testnet' };
@@ -91,25 +96,25 @@ describe('<Overview />', () => {
     mockState = { connectedAddress: 'GABC...XYZ', network: 'testnet' };
   });
 
-  it('renders the dashboard header and network badge', () => {
+  it('renders the dashboard header and network badge', async () => {
     render(<Overview />);
-    expect(screen.getByText('Dashboard Overview')).toBeInTheDocument();
+    expect(await screen.findByText('Dashboard Overview')).toBeInTheDocument();
     // Network badge text is the network name
     expect(screen.getByText(/testnet/i)).toBeInTheDocument();
   });
 
-  it('renders the default widget grid in non-edit mode', () => {
+  it('renders the default widget grid in non-edit mode', async () => {
     render(<Overview />);
-    const grid = screen.getByTestId('dashboard-grid');
+    const grid = await screen.findByTestId('dashboard-grid');
     expect(grid).toBeInTheDocument();
     expect(grid).toHaveAttribute('data-editable', 'false');
     expect(grid).toHaveTextContent('4 widgets');
   });
 
-  it('toggles edit mode when the Edit button is clicked', () => {
+  it('toggles edit mode when the Edit button is clicked', async () => {
     render(<Overview />);
 
-    const editBtn = screen.getByTitle('Edit dashboard');
+    const editBtn = await screen.findByTitle('Edit dashboard');
     fireEvent.click(editBtn);
 
     // Now in edit mode: grid is editable, "Add Widget" / "Reset" buttons appear
@@ -121,17 +126,17 @@ describe('<Overview />', () => {
     expect(screen.getByText(/Edit Mode:/)).toBeInTheDocument();
   });
 
-  it('opens the widget selector when "Add Widget" is clicked in edit mode', () => {
+  it('opens the widget selector when "Add Widget" is clicked in edit mode', async () => {
     render(<Overview />);
-    fireEvent.click(screen.getByTitle('Edit dashboard'));
+    fireEvent.click(await screen.findByTitle('Edit dashboard'));
     fireEvent.click(screen.getByTitle('Add widget'));
     expect(screen.getByTestId('widget-selector')).toBeInTheDocument();
   });
 
-  it('exits edit mode and returns to the default layout on Reset', () => {
+  it('exits edit mode and returns to the default layout on Reset', async () => {
     render(<Overview />);
     // Enter edit, then reset
-    fireEvent.click(screen.getByTitle('Edit dashboard'));
+    fireEvent.click(await screen.findByTitle('Edit dashboard'));
     fireEvent.click(screen.getByTitle('Reset to default layout'));
 
     const grid = screen.getByTestId('dashboard-grid');
@@ -139,14 +144,15 @@ describe('<Overview />', () => {
     expect(grid).toHaveTextContent('4 widgets');
   });
 
-  it('renders a green badge style for mainnet', () => {
+  it('renders a green badge style for mainnet', async () => {
     mockState = { connectedAddress: 'GABC', network: 'mainnet' };
     render(<Overview />);
-    expect(screen.getByText(/mainnet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/mainnet/i)).toBeInTheDocument();
   });
 
-  it('renders the connected-address copyable when an address is present', () => {
+  it('renders the connected-address copyable when an address is present', async () => {
     render(<Overview />);
-    expect(screen.getByTestId('copyable')).toHaveTextContent('GABC...X…BC...XYZ');
+    const el = await screen.findByTestId('copyable');
+    expect(el).toHaveTextContent('GABC...X…BC...XYZ');
   });
 });

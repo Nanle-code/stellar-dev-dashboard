@@ -88,7 +88,7 @@ export default function ConnectPanel() {
       setTxLoading(true)
       setOpsLoading(true)
       
-      fetchTransactions(resolved.accountId, network)
+      fetchTransactions(resolved.accountId, network, 50)
         .then(({ records, nextCursor, hasMore }) => {
           setTransactions(records)
           setTxNextCursor(nextCursor)
@@ -103,7 +103,7 @@ export default function ConnectPanel() {
           setTxLoading(false)
         })
 
-      fetchOperations(resolved.accountId, network)
+      fetchOperations(resolved.accountId, network, 50)
         .then(({ records, nextCursor, hasMore }) => {
           setOperations(records)
           setOpsNextCursor(nextCursor)

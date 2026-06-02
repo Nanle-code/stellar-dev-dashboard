@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../../lib/store'
+import { useResponsive } from '../../hooks/useResponsive'
 import Card from '../dashboard/Card'
 import {
   LineChart,
@@ -95,6 +96,7 @@ function ControlChip({ active, label, onClick }) {
 
 export default function AdvancedChartSuite() {
   const { accountData, transactions, operations } = useStore()
+  const { isMobile } = useResponsive()
 
   const [timeframe, setTimeframe] = useState('30d')
   const [metric, setMetric] = useState('balance')
@@ -207,23 +209,23 @@ export default function AdvancedChartSuite() {
           )}
         </div>
 
-        <div style={{ height: '320px' }}>
+        <div style={{ height: isMobile ? '260px' : '320px' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={withIndicators}>
+            <LineChart data={withIndicators} margin={{ left: 0, right: isMobile ? 12 : 0, top: 8, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="timestamp"
                 tick={AXIS_TICK_STYLE}
                 tickFormatter={timeframe === '24h' ? formatTimeAxis : formatDateAxis}
-                minTickGap={16}
+                minTickGap={isMobile ? 8 : 16}
               />
-              <YAxis tick={AXIS_TICK_STYLE} tickFormatter={formatCompactNumber} />
+              <YAxis tick={AXIS_TICK_STYLE} tickFormatter={formatCompactNumber} width={isMobile ? 42 : 56} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 labelFormatter={(value) => new Date(value).toLocaleString()}
                 formatter={(value) => [Number(value).toLocaleString(), metricConfig.unit]}
               />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 4 : 0 }} layout={isMobile ? 'horizontal' : 'horizontal'} verticalAlign="bottom" align="center" />
               <Line type="monotone" dataKey="value" name={metricConfig.label} stroke={CHART_COLORS.cyan} dot={false} strokeWidth={2} />
               {showSMA && <Line type="monotone" dataKey="sma" name="SMA (10)" stroke={CHART_COLORS.amber} dot={false} strokeWidth={1.5} />}
               {showEMA && <Line type="monotone" dataKey="ema" name="EMA (10)" stroke={CHART_COLORS.green} dot={false} strokeWidth={1.5} />}
@@ -233,19 +235,19 @@ export default function AdvancedChartSuite() {
         </div>
 
         {comparisonMode && (
-          <div style={{ height: '240px' }}>
+          <div style={{ height: isMobile ? '200px' : '240px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={comparisonSeries}>
+              <LineChart data={comparisonSeries} margin={{ left: 0, right: isMobile ? 12 : 0, top: 8, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
                   dataKey="timestamp"
                   tick={AXIS_TICK_STYLE}
                   tickFormatter={timeframe === '24h' ? formatTimeAxis : formatDateAxis}
-                  minTickGap={16}
+                  minTickGap={isMobile ? 8 : 16}
                 />
-                <YAxis tick={AXIS_TICK_STYLE} domain={[85, 130]} />
+                <YAxis tick={AXIS_TICK_STYLE} domain={[85, 130]} width={isMobile ? 42 : 56} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value) => [`${Number(value).toFixed(2)}`, 'Indexed']} />
-                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 4 : 0 }} verticalAlign="bottom" align="center" layout="horizontal" />
                 <Line type="monotone" dataKey="Primary" stroke={CHART_COLORS.cyan} dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="Alpha" stroke={CHART_COLORS.amber} dot={false} strokeWidth={1.5} />
                 <Line type="monotone" dataKey="Beta" stroke={CHART_COLORS.green} dot={false} strokeWidth={1.5} />

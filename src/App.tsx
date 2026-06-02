@@ -2,10 +2,12 @@ import React, { useEffect, useState, type ComponentType, type CSSProperties } fr
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { I18nProvider } from './components/I18nProvider'
 import './i18n/index.js'
-import './styles/responsive.css'
+import './styles/responsive.css';
+import { AccessibilityProvider } from './context/AccessibilityContext';
 
 import Sidebar from './components/layout/Sidebar'
 import MobileHeader from './components/layout/MobileHeader'
+import MobileSidebar from './components/layout/MobileSidebar'
 import ConnectPanel from './components/dashboard/ConnectPanel'
 import Overview from './components/dashboard/Overview'
 import Account from './components/dashboard/Account'
@@ -33,6 +35,7 @@ import ExplorerEmbed from './components/dashboard/ExplorerEmbed'
 import RealTimeLedger from './components/dashboard/RealTimeLedger'
 import Analytics from './components/dashboard/Analytics'
 import SystemHealth from './components/dashboard/SystemHealth'
+import PerformanceMonitor from './components/dashboard/PerformanceMonitor'
 import Settings from './components/dashboard/Settings'
 import { AssetDiscovery } from './components/assets'
 import { MultisigManager } from './components/multisig'
@@ -61,6 +64,7 @@ import SearchBar from './components/layout/SearchBar'
 import GlobalSearch from './components/search/GlobalSearch'
 import UserPreferences from './components/preferences/UserPreferences'
 import MobileNavigation from './components/layout/MobileNavigation'
+import AccessibilityProvider from "./components/accessibility/AccessibilityProvider";
 import KeyboardNavigation from './components/accessibility/KeyboardNavigation'
 
 interface SearchResult {
@@ -116,6 +120,7 @@ const TABS: Record<string, TabComponent> = {
   multisig: MultisigManager,
   analytics: Analytics,
   systemHealth: SystemHealth,
+  performance: PerformanceMonitor,
   settings: Settings,
   audit: AuditLog,
   anchors: AnchorIntegration,
@@ -318,7 +323,7 @@ function DashboardLayout() {
       >
         {isMobile && <MobileHeader />}
         <Sidebar isMobile={isMobile} />
-        <main style={getMainStyles()}>
+        <main id="main-content" style={getMainStyles()} tabIndex={-1}>
           <KeyboardNavigation />
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ flex: 1 }}>
@@ -411,11 +416,13 @@ function RouterSync() {
 export default function App() {
   return (
     <I18nProvider>
+      <AccessibilityProvider>
       <RouterSync />
       <Routes>
         <Route path="/connect" element={<DashboardLayout />} />
         <Route path="/*" element={<DashboardLayout />} />
       </Routes>
+    </AccessibilityProvider>
     </I18nProvider>
   )
 }

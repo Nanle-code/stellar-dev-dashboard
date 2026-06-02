@@ -1,4 +1,4 @@
-/* Screen reader only utility class */
+/* ── Screen reader only ───────────────────────────────────────────────────── */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -11,24 +11,129 @@
   border-width: 0;
 }
 
-/* Skip to content link styles - visible only on focus */
+/* ── Skip to main content ─────────────────────────────────────────────────── */
 .skip-link {
   position: absolute;
-  top: -40px;
-  left: 0;
-  background: var(--bg-surface, #ffffff);
-  color: var(--text-primary, #000000);
-  padding: 8px;
-  z-index: 10000;
-  transition: top 0.2s;
+  top: -100px;
+  left: 8px;
+  background: var(--bg-card, #1a1a2e);
+  color: var(--cyan, #00e5ff);
+  border: 2px solid var(--cyan, #00e5ff);
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  z-index: 99999;
+  transition: top 0.2s ease;
 }
 
 .skip-link:focus {
-  top: 0;
+  top: 8px;
+  outline: 3px solid var(--cyan, #00e5ff);
+  outline-offset: 2px;
 }
 
-/* Focus visible styles for better keyboard navigation visibility */
+/* ── Focus indicators (WCAG 2.1 AA — all interactive elements) ────────────── */
 *:focus-visible {
-  outline: 2px solid var(--cyan, #0284c7);
+  outline: 2px solid var(--cyan, #00e5ff);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* Remove default outline only when focus-visible is supported */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Buttons */
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--cyan, #00e5ff);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(0, 229, 255, 0.2);
+}
+
+/* Links */
+a:focus-visible {
+  outline: 2px solid var(--cyan, #00e5ff);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Inputs, selects, textareas */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--cyan, #00e5ff);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+}
+
+/* Checkboxes and radios */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--cyan, #00e5ff);
   outline-offset: 2px;
+}
+
+/* ── High contrast mode support ───────────────────────────────────────────── */
+@media (forced-colors: active) {
+  *:focus-visible {
+    outline: 3px solid ButtonText;
+  }
+
+  .skip-link {
+    border: 2px solid ButtonText;
+  }
+}
+
+/* ── Reduced motion support ───────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skip-link {
+    transition: none;
+  }
+}
+
+/* ── Nav current page indicator ───────────────────────────────────────────── */
+[aria-current="page"] {
+  font-weight: 700;
+}
+
+/* ── Error messages accessible styling ────────────────────────────────────── */
+[role="alert"],
+[aria-live="assertive"] {
+  font-weight: 600;
+}
+
+/* ── Landmark region helpers ──────────────────────────────────────────────── */
+main:focus {
+  outline: none; /* main gets focus from skip link but shouldn't show ring */
+}
+
+/* ── Touch target minimum size (WCAG 2.5.5) ──────────────────────────────── */
+button,
+[role="button"],
+a,
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Inline/text links don't need the min-width */
+p a,
+li a,
+span a {
+  min-width: unset;
+  min-height: unset;
 }

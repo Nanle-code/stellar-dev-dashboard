@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { createSession } from '../../src/lib/multisig';
+import { buildPaymentTransactionXdr } from '../__factories__';
 
 vi.mock('../../src/lib/storage', () => ({
   getStoredValue: vi.fn().mockResolvedValue(null),
@@ -26,21 +27,15 @@ import SignatureCollector from '../../src/components/multisig/SignatureCollector
 const KP_A = StellarSdk.Keypair.random();
 const KP_B = StellarSdk.Keypair.random();
 
-const buildTxXdr = () => {
-  const account = new StellarSdk.Account(KP_A.publicKey(), '100');
-  return new StellarSdk.TransactionBuilder(account, {
-    fee: StellarSdk.BASE_FEE,
-    networkPassphrase: StellarSdk.Networks.TESTNET,
-  })
-    .addOperation(StellarSdk.Operation.payment({
-      destination: KP_B.publicKey(),
-      asset: StellarSdk.Asset.native(),
-      amount: '1',
-    }))
-    .setTimeout(300)
-    .build()
-    .toXDR();
-};
+const buildTxXdr = () =>
+  buildPaymentTransactionXdr({
+    sourceKeypair: KP_A,
+    destination: KP_B.publicKey(),
+    amount: '1',
+    asset: StellarSdk.Asset.native(),
+    network: StellarSdk.Networks.TESTNET,
+    timeout: 300,
+  });
 
 describe('SignatureCollector (integration)', () => {
   let session;

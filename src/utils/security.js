@@ -2,11 +2,11 @@
  * Security utilities (#106)
  *
  * Covers:
- *  - Content Security Policy (CSP) nonce generation
- *  - XSS sanitisation for user-supplied strings
- *  - Stellar address / memo format validation
- *  - Secure clipboard write helper (no visible secret)
- *  - Rate-limiter for sensitive actions (login, tx submit)
+ * - Content Security Policy (CSP) nonce generation
+ * - XSS sanitisation for user-supplied strings
+ * - Stellar address / memo format validation
+ * - Secure clipboard write helper (no visible secret)
+ * - Rate-limiter for sensitive actions (login, tx submit)
  */
 
 // ─── CSP helpers ─────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ const DANGEROUS_HTML_CHARS = {
 }
 
 const SECRET_KEY_PATTERN = /\bS[A-Z2-7]{55}\b/g
-const SENSITIVE_FIELD_REGEX = /(secret|secretkey|privatekey|seed|mnemonic|password|passphrase|token|apikey|authorization)/i
+const SENSITIVE_FIELD_REGEX = /(secret|secretkey|privatekey|seed|mnemonic|password|passphrase|token|api-?key|authorization|headers)/i
 const AUTH_TOKEN_PATTERN = /\b(Bearer|Token)\s+[A-Za-z0-9\-._~+/]+=*\b/gi
 
 export function redactSensitive(value, key) {

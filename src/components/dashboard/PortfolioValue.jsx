@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../../lib/store'
 import { fetchPrices, calculatePortfolioValue } from '../../lib/priceFeed'
-import { ee } from '../../lib/stellar'
+
 import {
   calculateAssetAllocation,
   calculateDiversificationScore,

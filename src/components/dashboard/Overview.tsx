@@ -14,6 +14,7 @@ import NetworkStatsWidget from '../layout/widgets/NetworkStatsWidget';
 import AccountStatsWidget from '../layout/widgets/AccountStatsWidget';
 import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
+import LedgerStatsWidget from './LedgerStatsWidget';
 import type { WidgetConfig } from './types';
 
 interface WidgetItem extends WidgetConfig {
@@ -28,7 +29,8 @@ const getWidgetComponent = (type: string): React.ComponentType<Record<string, un
     networkStats: NetworkStatsWidget,
     accountStats: AccountStatsWidget,
     quickActions: QuickActionsWidget,
-    priceTicker: PriceTickerWidget
+    priceTicker: PriceTickerWidget,
+    ledgerStats: LedgerStatsWidget as React.ComponentType<Record<string, unknown>>,
   };
   return components[type] || BalanceWidget;
 };

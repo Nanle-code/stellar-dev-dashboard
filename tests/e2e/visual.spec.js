@@ -154,17 +154,61 @@ test.describe('Themes', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Responsive / mobile
+// Responsive — all 3 viewports for major widgets
 // ---------------------------------------------------------------------------
 
-test.describe('Mobile layout', () => {
-  test('connect panel at 375px', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto('/');
-    await waitForStable(page);
-    await expect(page).toHaveScreenshot('mobile-connect.png');
+const VIEWPORTS = [
+  { name: 'mobile',  width: 375,  height: 667 },
+  { name: 'tablet',  width: 768,  height: 1024 },
+  { name: 'desktop', width: 1440, height: 900 },
+];
+
+const WIDGET_TABS = [
+  { tab: /overview/i,        snapshot: 'overview' },
+  { tab: /account/i,         snapshot: 'account' },
+  { tab: /transactions/i,    snapshot: 'transactions' },
+  { tab: /network stats/i,   snapshot: 'network-stats' },
+  { tab: /dex|explorer/i,    snapshot: 'dex-explorer' },
+  { tab: /path/i,            snapshot: 'path-explorer' },
+  { tab: /real.?time|ledger/i, snapshot: 'real-time-ledger' },
+  { tab: /comparison/i,      snapshot: 'account-comparison' },
+  { tab: /portfolio/i,       snapshot: 'portfolio-value' },
+];
+
+for (const vp of VIEWPORTS) {
+  test.describe(`Viewport ${vp.name} (${vp.width}×${vp.height})`, () => {
+    test('connect panel', async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto('/');
+      await waitForStable(page);
+      await expect(page).toHaveScreenshot(`${vp.name}-connect.png`);
+    });
+
+    for (const { tab, snapshot } of WIDGET_TABS) {
+      test(`widget: ${snapshot}`, async ({ page }) => {
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+        await page.goto('/');
+        await waitForStable(page);
+        // Try to connect first so authenticated tabs render content
+        const input = page.getByRole('textbox').first();
+        if (await input.count()) {
+          await input.fill(TESTNET_KEY);
+          await page.getByRole('button', { name: /connect/i }).first().click();
+          await waitForStable(page);
+        }
+        const btn = page
+          .getByRole('button', { name: tab })
+          .or(page.getByRole('link', { name: tab }))
+          .first();
+        if (await btn.count()) {
+          await btn.click();
+          await waitForStable(page);
+        }
+        await expect(page).toHaveScreenshot(`${vp.name}-${snapshot}.png`);
+      });
+    }
   });
-});
+}
 
 // ---------------------------------------------------------------------------
 // Multisig (kept from original spec)

@@ -10,6 +10,7 @@ import NetworkStatsWidget from './widgets/NetworkStatsWidget';
 import AccountStatsWidget from './widgets/AccountStatsWidget';
 import QuickActionsWidget from './widgets/QuickActionsWidget';
 import PriceTickerWidget from './widgets/PriceTickerWidget';
+import LedgerStatsWidget from '../dashboard/LedgerStatsWidget';
 
 export interface WidgetDefinition {
   id: string;
@@ -101,6 +102,15 @@ export const AVAILABLE_WIDGETS: Record<string, WidgetDefinition> = {
     component: PriceTickerWidget,
     defaultSize: { width: 280, height: 250 },
     category: 'market'
+  },
+  ledgerStats: {
+    id: 'ledgerStats',
+    name: 'Ledger Statistics',
+    description: 'Real-time ledger stats: base fee trend, operations, failed tx %',
+    icon: '📡',
+    component: LedgerStatsWidget,
+    defaultSize: { width: 360, height: 320 },
+    category: 'network'
   }
 };
 

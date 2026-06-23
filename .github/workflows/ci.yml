@@ -145,6 +145,31 @@ jobs:
             test-results/
           retention-days: 14
 
+      - name: Comment on PR with failure details
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ❌ Visual Regression Failures',
+                '',
+                'Screenshots differ from baseline. Download the **`visual-diff-${{ github.run_number }}`** artifact to review diffs.',
+                '',
+                'To update baselines intentionally, run locally:',
+                '```bash',
+                'npm run test:visual:update',
+                'git add tests/e2e/snapshots',
+                'git commit -m "chore: update visual baselines"',
+                '```',
+                '',
+                `Run: [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              ].join('\n')
+            })
+
       - name: Save updated snapshots
         if: success()
         uses: actions/cache/save@v5

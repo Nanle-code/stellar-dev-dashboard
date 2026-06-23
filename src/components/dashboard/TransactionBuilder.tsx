@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useStore } from "../../lib/store";
 import { OPERATION_TYPES, simulateTransaction, buildTransaction } from "../../lib/transactionBuilder";
 import { validateOperation } from "../../utils/transactionValidation";
@@ -8,6 +8,7 @@ import {
   upsertUserTransactionTemplate,
 } from "../../lib/transactionTemplateVault.ts";
 import { fetchContractData } from "../../lib/stellar";
+import { useTransactionHistory } from "../../lib/txHistory";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
 
 function Panel({ title, subtitle, children }) {
@@ -159,6 +160,8 @@ export default function TransactionBuilder() {
   const [inspectContractData, setInspectContractData] = useState(null);
   const [inspectContractLoading, setInspectContractLoading] = useState(false);
   const [inspectContractError, setInspectContractError] = useState("");
+  const [showDraftsPanel, setShowDraftsPanel] = useState(false);
+  const [draftsList, setDraftsList] = useState([]);
 
   function addOperation() {
     setOperations([
@@ -276,6 +279,38 @@ export default function TransactionBuilder() {
 
   const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
   const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && (sourceAccount || feeBumpOnly);
+  
+  // Transaction history (undo/redo) + drafts
+  const getSnapshot = () => ({
+    sourceAccount,
+    memo,
+    memoType,
+    baseFee,
+    timeout,
+    operations,
+  });
+
+  function applySnapshot(snap) {
+    setSourceAccount(snap.sourceAccount || "");
+    setMemo(snap.memo || "");
+    setMemoType(snap.memoType || "text");
+    setBaseFee(snap.baseFee || "100");
+    setTimeout(snap.timeout || "180");
+    setOperations((snap.operations || []).map((op) => ({ ...op, id: op.id || Date.now() + Math.random() })));
+  }
+
+  const historyRef = useRef<any>(null);
+  if (!historyRef.current) {
+    historyRef.current = useTransactionHistory({ initialSnapshot: getSnapshot(), onRestore: applySnapshot });
+  }
+  const txHistory = historyRef.current;
+
+  useEffect(() => {
+    try {
+      txHistory.record(getSnapshot());
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceAccount, memo, memoType, baseFee, timeout, operations]);
   
   async function handleSimulate() {
     if (!canSimulate) return;
@@ -1185,7 +1220,45 @@ export default function TransactionBuilder() {
       </Panel>
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+        <button
+          onClick={() => txHistory.undo()}
+          disabled={!txHistory?.canUndo?.()}
+          title="Undo"
+          style={{
+            padding: "10px 14px",
+            background: txHistory?.canUndo?.() ? "var(--bg-elevated)" : "var(--bg-base)",
+            color: txHistory?.canUndo?.() ? "var(--text-primary)" : "var(--text-muted)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            fontSize: "12px",
+            cursor: txHistory?.canUndo?.() ? "pointer" : "not-allowed",
+          }}
+        >
+          Undo
+        </button>
+
+        <button
+          onClick={() => txHistory.redo()}
+          disabled={!txHistory?.canRedo?.()}
+          title="Redo"
+          style={{
+            padding: "10px 14px",
+            background: txHistory?.canRedo?.() ? "var(--bg-elevated)" : "var(--bg-base)",
+            color: txHistory?.canRedo?.() ? "var(--text-primary)" : "var(--text-muted)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            fontSize: "12px",
+            cursor: txHistory?.canRedo?.() ? "pointer" : "not-allowed",
+          }}
+        >
+          Redo
+        </button>
+
         <button
           onClick={handleSimulate}
           disabled={!canSimulate || isSimulating}
@@ -1240,6 +1313,87 @@ export default function TransactionBuilder() {
           <Download size={16} />
           Export XDR
         </button>
+
+        <button
+          onClick={async () => {
+            const name = window.prompt("Draft name:", "My Draft");
+            if (!name) return;
+            try {
+              txHistory.saveDraft(name, getSnapshot());
+              setDraftsList(txHistory.listDrafts());
+              window.alert("Draft saved");
+            } catch (e) {
+              window.alert("Failed to save draft");
+            }
+          }}
+          style={{
+            padding: "12px 20px",
+            background: "transparent",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            fontSize: "13px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "var(--transition)",
+          }}
+        >
+          Save Draft
+        </button>
+
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => {
+              const list = txHistory.listDrafts();
+              setDraftsList(list);
+              setShowDraftsPanel(!showDraftsPanel);
+            }}
+            style={{
+              padding: "12px 20px",
+              background: "transparent",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            Drafts ({txHistory.listDrafts().length})
+          </button>
+
+          {showDraftsPanel && (
+            <div style={{
+              position: "absolute",
+              right: 0,
+              marginTop: "8px",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              padding: "8px",
+              minWidth: "260px",
+              zIndex: 60,
+            }}>
+              {draftsList.length === 0 && (
+                <div style={{ padding: "8px", color: "var(--text-muted)" }}>No drafts saved</div>
+              )}
+              {draftsList.map((d) => (
+                <div key={d.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", padding: "6px 4px" }}>
+                  <div style={{ fontSize: "13px", color: "var(--text-primary)" }}>{d.name}</div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button onClick={() => { txHistory.loadDraft(d.id); setShowDraftsPanel(false); }} style={{ padding: "6px", fontSize: "12px" }}>Load</button>
+                    <button onClick={() => { txHistory.deleteDraft(d.id); setDraftsList(txHistory.listDrafts()); }} style={{ padding: "6px", fontSize: "12px", color: "var(--red)" }}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button
           onClick={handleSaveAsTemplate}

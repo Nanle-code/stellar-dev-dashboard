@@ -51,6 +51,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'multisig', label: 'Multisig', icon: '⊕' },
   { id: 'alertRules', label: 'Alerts', icon: '🔔' },
   { id: 'portfolio', label: 'Portfolio', icon: '◐' },
+  { id: 'portfolioAnalytics', label: 'Portfolio Analytics', icon: '📊' },
   { id: 'charts', label: 'Charts', icon: '▤' },
   { id: 'analytics', label: 'Analytics', icon: '◍' },
   { id: 'systemHealth', label: 'Health', icon: '⚕' },

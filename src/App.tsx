@@ -87,6 +87,7 @@ const TABS: Record<string, TabComponent> = {
   assets: lazyNamedTab(() => import('./components/assets'), 'AssetDiscovery'),
   multisig: lazyNamedTab(() => import('./components/multisig'), 'MultisigManager'),
   analytics: lazyTab(() => import('./components/dashboard/Analytics')),
+  portfolioAnalytics: lazyTab(() => import('./components/dashboard/PortfolioAnalytics')),
   systemHealth: lazyTab(() => import('./components/dashboard/SystemHealth')),
   performance: lazyTab(() => import('./components/dashboard/PerformanceMonitor')),
   settings: lazyTab(() => import('./components/dashboard/Settings')),

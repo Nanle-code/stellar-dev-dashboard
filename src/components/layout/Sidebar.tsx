@@ -55,6 +55,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'analytics', label: 'Analytics', icon: '◍' },
   { id: 'designSystem', label: 'Design System', icon: '◈' },
   { id: 'featureFlags', label: 'Flags', icon: '🚩' },
+  { id: 'txPatterns', label: 'AI Patterns', icon: '🧠' },
   { id: 'systemHealth', label: 'Health', icon: '⚕' },
   { id: 'monitoringDashboards', label: 'Monitoring', icon: '📊' },
   { id: 'dataExport', label: 'Export', icon: '⬇' },

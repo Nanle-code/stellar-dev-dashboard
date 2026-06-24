@@ -109,13 +109,13 @@ function saveCustomNetworkAuthHeaders(headers: Record<string, string>) {
   }
 }
 
-function getNetworkHeaders(network: NetworkName): Record<string, string> {
+function getNetworkHeadersForRequest(network: NetworkName): Record<string, string> {
   if (network === 'custom') return getCustomNetworkAuthHeaders()
   return NETWORKS[network].headers || {}
 }
 
 function withNetworkHeaders(options: RequestInit = {}, network: NetworkName): RequestInit {
-  const headers = getNetworkHeaders(network)
+  const headers = getNetworkHeadersForRequest(network)
   if (!Object.keys(headers).length) return options
 
   return {
@@ -128,7 +128,7 @@ function withNetworkHeaders(options: RequestInit = {}, network: NetworkName): Re
 }
 
 function getServerOptions(network: NetworkName) {
-  const headers = getNetworkHeaders(network)
+  const headers = getNetworkHeadersForRequest(network)
   return Object.keys(headers).length ? { headers } : undefined
 }
 
@@ -233,6 +233,10 @@ export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.
     config.horizonUrl || NETWORKS.testnet.horizonUrl,
     getServerOptions(network),
   )
+}
+
+export function ee(network: NetworkName = 'testnet'): StellarSdk.Horizon.Server {
+  return getServer(network)
 }
 
 export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {

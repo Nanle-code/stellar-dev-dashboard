@@ -1,7 +1,7 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useStore } from '../../lib/store'
 import CopyableValue from '../dashboard/CopyableValue'
-import { NETWORKS, updateCustomNetworkConfig, switchToCustomProfile, loadCustomNetworkProfiles } from '../../lib/stellar'
+import { NETWORKS, getCustomNetworkAuthHeaders, updateCustomNetworkConfig, switchToCustomProfile, loadCustomNetworkProfiles } from '../../lib/stellar'
 import { getActiveProfile } from '../../lib/userPreferences'
 
 const SESSION_API_KEY = 'stellar_custom_api_key'

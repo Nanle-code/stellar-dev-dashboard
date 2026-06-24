@@ -17,6 +17,7 @@ import Compare from './components/dashboard/AccountComparison'
 import WalletConnect from './components/dashboard/WalletConnect'
 import TransactionSigner from './components/dashboard/TransactionSigner'
 import PriceTicker from './components/dashboard/PriceTicker'
+import OfflineStatus from './components/layout/OfflineStatus'
 import PortfolioValue from './components/dashboard/PortfolioValue'
 import NetworkMetricsChart from './components/charts/NetworkMetricsChart'
 import AccountActivityChart from './components/charts/AccountActivityChart'
@@ -349,6 +350,7 @@ function DashboardLayout() {
           <div style={{ marginBottom: '16px' }}>
             <PriceTicker />
           </div>
+          <OfflineStatus />
           <ErrorBoundary onRetry={handleRetry} maxRetries={2}>
             {!connectedAddress ? <ConnectPanel /> : <ActiveComponent />}
           </ErrorBoundary>

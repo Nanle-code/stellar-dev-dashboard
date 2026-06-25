@@ -21,6 +21,10 @@ import {
   Globe,
   CheckCircle,
   AlertCircle,
+  Folder,
+  Share2,
+  BellRing,
+  Copy,
 } from 'lucide-react';
 import advancedSearchService from '../../lib/advancedSearch.js';
 import auditTrail from '../../lib/auditTrail.js';
@@ -33,10 +37,16 @@ export default function AdvancedSearch() {
   const [showFilters, setShowFilters] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [savedSearches, setSavedSearches] = useState([]);
+  const [savedFolders, setSavedFolders] = useState([]);
+  const [searchAnalytics, setSearchAnalytics] = useState(null);
   const [searchHistory, setSearchHistory] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState(['transactions', 'operations', 'contracts', 'accounts']);
+  const [savedSearchFolder, setSavedSearchFolder] = useState('General');
+  const [createAlertOnSave, setCreateAlertOnSave] = useState(false);
+  const [alertCron, setAlertCron] = useState('0 * * * *');
+  const [shareToken, setShareToken] = useState('');
   
   const [filters, setFilters] = useState({
     dateRange: { start: '', end: '' },
@@ -76,7 +86,9 @@ export default function AdvancedSearch() {
 
   const loadData = () => {
     setSavedSearches(advancedSearchService.getSavedSearches());
-    setSearchHistory(advancedSearchService.searchHistory);
+    setSavedFolders(advancedSearchService.getSavedSearchFolders());
+    setSearchHistory(advancedSearchService.getSearchHistory());
+    setSearchAnalytics(advancedSearchService.getSearchAnalytics());
   };
 
   const handleSearch = async () => {
@@ -104,6 +116,7 @@ export default function AdvancedSearch() {
         resultCount: results.total,
         searchTime: results.searchTime
       });
+      loadData();
 
     } catch (error) {
       auditTrail.logError(error, { operation: 'advancedSearch', query: searchQuery });
@@ -172,7 +185,15 @@ export default function AdvancedSearch() {
         filters: buildFilters(),
         sort
       };
-      advancedSearchService.saveSearch(name, query);
+      const saved = advancedSearchService.saveSearch(name, query, { folder: savedSearchFolder });
+      if (createAlertOnSave) {
+        advancedSearchService.createSearchAlert({
+          savedSearchId: saved.id,
+          name: `${name} alert`,
+          cron: alertCron,
+          channels: ['in-app'],
+        });
+      }
       loadData();
       
       auditTrail.logUserAction('Saved search', { name, query });
@@ -180,21 +201,30 @@ export default function AdvancedSearch() {
   };
 
   const loadSavedSearch = (savedSearch) => {
-    setSearchQuery(savedSearch.query.text || '');
-    setSelectedTypes(savedSearch.query.types || ['transactions', 'operations']);
+    const selectedSearch = advancedSearchService.loadSavedSearch(savedSearch.id) || savedSearch;
+    setSearchQuery(selectedSearch.query.text || '');
+    setSelectedTypes(selectedSearch.query.types || ['transactions', 'operations']);
     
     // Reset filters and load saved ones
     clearFilters();
-    if (savedSearch.query.filters) {
-      setFilters({ ...filters, ...savedSearch.query.filters });
+    if (selectedSearch.query.filters) {
+      setFilters({ ...filters, ...selectedSearch.query.filters });
     }
     
-    if (savedSearch.query.sort) {
-      setSort(savedSearch.query.sort);
+    if (selectedSearch.query.sort) {
+      setSort(selectedSearch.query.sort);
     }
     
     setShowHistory(false);
+    loadData();
     handleSearch();
+  };
+
+  const shareSavedSearch = (event, savedSearch) => {
+    event.stopPropagation();
+    const token = advancedSearchService.shareSearch(savedSearch.id);
+    setShareToken(token);
+    loadData();
   };
 
   const exportResults = () => {
@@ -343,6 +373,41 @@ export default function AdvancedSearch() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Saved Query Options */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Folder size={12} /> Save folder
+            </span>
+            <input
+              value={savedSearchFolder}
+              onChange={(e) => setSavedSearchFolder(e.target.value)}
+              style={{ ...inputStyle, fontSize: '12px' }}
+            />
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <BellRing size={12} /> Alert schedule
+            </span>
+            <input
+              value={alertCron}
+              onChange={(e) => setAlertCron(e.target.value)}
+              disabled={!createAlertOnSave}
+              style={{ ...inputStyle, fontSize: '12px', opacity: createAlertOnSave ? 1 : 0.55 }}
+            />
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', alignSelf: 'end', minHeight: '34px' }}>
+            <input
+              type="checkbox"
+              checked={createAlertOnSave}
+              onChange={(e) => setCreateAlertOnSave(e.target.checked)}
+            />
+            Create alert when saved
+          </label>
         </div>
 
         {/* Filter Toggle */}
@@ -584,7 +649,46 @@ export default function AdvancedSearch() {
             </button>
           </div>
 
+          {searchAnalytics && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              <AnalyticsChip label="Searches" value={searchAnalytics.totalSearches} />
+              <AnalyticsChip label="Cache hits" value={searchAnalytics.cachedSearches} />
+              <AnalyticsChip label="Saved" value={searchAnalytics.savedSearches} />
+              <AnalyticsChip label="Alerts" value={searchAnalytics.alerts} />
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+            {/* Folders */}
+            <div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Folders</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {savedFolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSavedSearchFolder(folder.name);
+                      setSavedSearches(advancedSearchService.getSavedSearches({ folder: folder.name }));
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      background: savedSearchFolder === folder.name ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
+                      border: `1px solid ${savedSearchFolder === folder.name ? 'var(--cyan-dim)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>{folder.name}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{folder.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Recent Searches */}
             <div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Recent Searches</div>
@@ -607,7 +711,7 @@ export default function AdvancedSearch() {
                   >
                     <div style={{ fontWeight: 500 }}>{item.query.text || 'Empty search'}</div>
                     <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                      {format(new Date(item.timestamp), 'MMM dd, HH:mm')}
+                      {format(new Date(item.timestamp), 'MMM dd, HH:mm')} / {item.resultCount || 0} results / {item.cached ? 'cached' : `${item.searchTime || 0}ms`}
                     </div>
                   </div>
                 ))}
@@ -631,12 +735,33 @@ export default function AdvancedSearch() {
                       fontSize: '12px',
                     }}
                   >
-                    <div style={{ fontWeight: 500 }}>{item.name}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ fontWeight: 500 }}>{item.name}</div>
+                      <button onClick={(event) => shareSavedSearch(event, item)} style={{ ...iconButtonStyle, width: '26px', height: '26px' }} title="Share query">
+                        <Share2 size={12} />
+                      </button>
+                    </div>
                     <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                      {item.query.text || 'No query'} • {format(new Date(item.createdAt), 'MMM dd')}
+                      {item.folder || 'General'} / {item.query.text || 'No query'} / used {item.usageCount || 0}x
                     </div>
                   </div>
                 ))}
+                {shareToken && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '11px',
+                    color: 'var(--text-muted)',
+                  }}>
+                    <Copy size={12} />
+                    <span style={{ overflowWrap: 'anywhere' }}>{shareToken}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -660,8 +785,13 @@ export default function AdvancedSearch() {
                 {searchResults.total} results found
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Search completed in {searchResults.searchTime}ms
+                Search completed in {searchResults.searchTime}ms{searchResults.cached ? ' from cache' : ''}
               </div>
+              {searchResults.queryPlan && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {searchResults.queryPlan.usesIndex ? 'Index-assisted' : 'Scan'} / {searchResults.queryPlan.filterCount} filters / cache TTL {Math.round(searchResults.queryPlan.cacheTtlMs / 1000)}s
+                </div>
+              )}
             </div>
             
             <div style={{ display: 'flex', gap: '8px' }}>

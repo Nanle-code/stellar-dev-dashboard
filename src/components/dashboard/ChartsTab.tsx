@@ -4,6 +4,7 @@ import NetworkMetricsChart from '../charts/NetworkMetricsChart'
 import AccountActivityChart from '../charts/AccountActivityChart'
 import BalanceHistoryChart from '../charts/BalanceHistoryChart'
 import AdvancedChartSuite from '../charts/AdvancedChartSuite'
+import D3VisualizationSuite from '../charts/D3VisualizationSuite'
 
 const ChartsTab: ComponentType = () => {
   const { t } = useTranslation() as { t: (key: string) => string }
@@ -25,6 +26,7 @@ const ChartsTab: ComponentType = () => {
       <NetworkMetricsChart />
       <AccountActivityChart />
       <BalanceHistoryChart />
+      <D3VisualizationSuite />
       <AdvancedChartSuite />
     </div>
   )

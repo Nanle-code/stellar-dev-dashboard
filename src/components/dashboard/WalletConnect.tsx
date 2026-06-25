@@ -19,7 +19,7 @@ import {
   readSecurityAuditLog,
   getSessionSecurityPosture,
 } from '../../lib/wallet/security'
-import { Card } from './Card'
+import Card from './Card'
 
 interface WalletDef {
   id: string

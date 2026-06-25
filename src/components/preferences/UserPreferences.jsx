@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { usePreferences } from '../../hooks/usePreferences'
 import AddressBook from './AddressBook'
 import ThemeSettings from './ThemeSettings'
-import AccessibilitySettings from './AccessibilitySettings'
+import AccessibilitySettings from '../accessibility/AccessibilitySettings'
 import { showTestNotification } from '../../utils/offline'
 import { Bell } from 'lucide-react'
 

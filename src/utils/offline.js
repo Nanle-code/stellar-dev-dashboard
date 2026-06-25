@@ -10,7 +10,7 @@
 
 import { enqueueOfflineOp, getOfflineQueue, dequeueOfflineOp } from '../lib/storage.js';
 import { retryManager } from '../lib/errorHandling/RetryManager.ts';
-import { createLogger } from './logger.js';
+import { createLogger } from './logger';
 
 const logger = createLogger('offline');
 

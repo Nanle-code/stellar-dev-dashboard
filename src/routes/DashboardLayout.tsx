@@ -94,6 +94,7 @@ const TABS: Record<string, TabComponent> = {
   governance: lazyTab(() => import('../components/dashboard/Governance')),
   monitoringDashboards: lazyTab(() => import('../components/dashboard/MonitoringDashboards')),
   devToolbar: lazyTab(() => import('../components/dashboard/DevToolbar')),
+  compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
 };
 
 function TabLoadingFallback() {

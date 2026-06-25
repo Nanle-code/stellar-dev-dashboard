@@ -1,0 +1,332 @@
+/* Export Dialog Styles */
+
+.export-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.export-dialog {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.export-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.export-dialog-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.export-dialog-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.export-dialog-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.export-dialog-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.export-form-group {
+  margin-bottom: 16px;
+}
+
+.export-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+}
+
+.export-form-group select,
+.export-form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.export-form-group select:focus,
+.export-form-group input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.export-form-group small {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.export-info {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  margin: 16px 0;
+  font-size: 14px;
+}
+
+.export-info p {
+  margin: 6px 0;
+}
+
+.export-schedule-section {
+  margin-top: 20px;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 16px;
+}
+
+.export-toggle-schedule {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #0066cc;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.export-toggle-schedule:hover {
+  text-decoration: underline;
+}
+
+.export-schedule-form {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+.export-schedule-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.export-schedule-form input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.export-schedule-form small {
+  display: block;
+  margin-bottom: 12px;
+  color: #666;
+  font-size: 12px;
+}
+
+.export-schedule-button {
+  width: 100%;
+  padding: 8px 12px;
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.export-schedule-button:hover:not(:disabled) {
+  background: #0052a3;
+}
+
+.export-schedule-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.export-dialog-footer {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #e0e0e0;
+  justify-content: flex-end;
+}
+
+.export-button-cancel,
+.export-button-primary {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.export-button-cancel {
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.export-button-cancel:hover:not(:disabled) {
+  background: #e0e0e0;
+}
+
+.export-button-primary {
+  background: #0066cc;
+  color: white;
+}
+
+.export-button-primary:hover:not(:disabled) {
+  background: #0052a3;
+}
+
+.export-button-cancel:disabled,
+.export-button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .export-dialog {
+    background: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  .export-dialog-header {
+    border-bottom-color: #333;
+  }
+
+  .export-dialog-close {
+    color: #aaa;
+  }
+
+  .export-dialog-close:hover {
+    background: #333;
+    color: #e0e0e0;
+  }
+
+  .export-form-group label {
+    color: #e0e0e0;
+  }
+
+  .export-form-group select,
+  .export-form-group input {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .export-form-group select:focus,
+  .export-form-group input:focus {
+    border-color: #0066cc;
+  }
+
+  .export-info {
+    background: #2a2a2a;
+    color: #e0e0e0;
+  }
+
+  .export-schedule-form {
+    background: #2a2a2a;
+  }
+
+  .export-schedule-form input {
+    background: #1e1e1e;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .export-button-cancel {
+    background: #333;
+    color: #e0e0e0;
+    border-color: #444;
+  }
+
+  .export-button-cancel:hover:not(:disabled) {
+    background: #444;
+  }
+
+  .export-dialog-footer {
+    border-top-color: #333;
+  }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .export-dialog {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .export-dialog-header {
+    padding: 16px;
+  }
+
+  .export-dialog-content {
+    padding: 16px;
+  }
+
+  .export-dialog-footer {
+    flex-direction: column-reverse;
+  }
+
+  .export-button-cancel,
+  .export-button-primary {
+    width: 100%;
+  }
+}

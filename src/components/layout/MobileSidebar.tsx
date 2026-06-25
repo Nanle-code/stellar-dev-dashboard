@@ -36,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "designSystem", label: "Design System", icon: "◈" },
   { id: "featureFlags", label: "Flags", icon: "🚩" },
   { id: "collaboration", label: "Collaboration", icon: "◌" },
+  { id: "txPatterns", label: "AI Patterns", icon: "🧠" },
 ];
 
 /**

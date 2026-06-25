@@ -6,12 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stellar Developer Dashboard</title>
     <script>
-      // Blocking script to accurately set the theme dataset attribute before initial paint
+      // Blocking script to restore the theme before initial paint (FOUC prevention)
       (function () {
         try {
           var saved = localStorage.getItem('stellar-dashboard-theme');
           if (saved === 'light' || saved === 'dark') {
             document.documentElement.setAttribute('data-theme', saved);
+          } else if (saved === 'custom') {
+            // Restore custom theme CSS vars from localStorage
+            var varsRaw = localStorage.getItem('stellar-theme-vars');
+            if (varsRaw) {
+              try {
+                var vars = JSON.parse(varsRaw);
+                for (var key in vars) {
+                  if (vars.hasOwnProperty(key)) {
+                    document.documentElement.style.setProperty(key, vars[key]);
+                  }
+                }
+              } catch (e) {}
+            }
+            document.documentElement.setAttribute('data-theme', 'custom');
           } else {
             var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');

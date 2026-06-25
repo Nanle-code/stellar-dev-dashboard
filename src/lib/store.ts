@@ -3,6 +3,7 @@ import { getStoredValue } from './storage'
 import { syncState, onStateChange } from '../utils/stateSync'
 import type { NetworkName, NetworkStats } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
+import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,9 +87,8 @@ export const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 }
 
 const PERSIST_KEYS = [
-  'network', 'theme', 'activeTab', 'savedSearches', 'multiSigMode', 'searchFilters',
-  'filterExpressions',
-  'notificationHistory', 'unreadNotificationCount',
+  'network', 'theme', 'customTheme', 'themeBuilderDraft', 'activeTab', 'savedSearches',
+  'multiSigMode', 'searchFilters', 'notificationHistory', 'unreadNotificationCount',
 ] as const
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,6 +121,10 @@ export interface StoreState {
   setNetwork: (network: NetworkName) => void
   theme: 'light' | 'dark'
   toggleTheme: () => void
+  customTheme: ThemeDefinition | null
+  setCustomTheme: (theme: ThemeDefinition | null) => void
+  themeBuilderDraft: ThemeDefinition | null
+  setThemeBuilderDraft: (draft: ThemeDefinition | null) => void
   isMobileMenuOpen: boolean
   setMobileMenuOpen: (open: boolean) => void
 
@@ -374,6 +378,24 @@ export const useStore = create<StoreState>((set) => ({
     return { theme: newTheme }
   }),
 
+  customTheme: null,
+  setCustomTheme: (theme) => {
+    if (theme && typeof localStorage !== 'undefined') saveThemeVarsToStorage(theme)
+    set({ customTheme: theme })
+  },
+
+  themeBuilderDraft: null,
+  setThemeBuilderDraft: (draft) => {
+    if (draft) {
+      applyCustomThemeToDOM(draft)
+      if (typeof localStorage !== 'undefined') saveThemeVarsToStorage(draft)
+    } else {
+      removeCustomThemeFromDOM()
+      if (typeof localStorage !== 'undefined') clearThemeVarsFromStorage()
+    }
+    set({ themeBuilderDraft: draft })
+  },
+
   isMobileMenuOpen: false,
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
 
@@ -580,7 +602,13 @@ if (typeof window !== 'undefined') {
     if (slice.searchFilters) {
       slice.searchFilters = { ...DEFAULT_SEARCH_FILTERS, ...slice.searchFilters }
     }
-    if (Object.keys(slice).length > 0) useStore.setState(slice)
+    if (Object.keys(slice).length > 0) {
+      useStore.setState(slice)
+      const restored = slice as Record<string, unknown>
+      if (restored.themeBuilderDraft) {
+        applyCustomThemeToDOM(restored.themeBuilderDraft as ThemeDefinition)
+      }
+    }
   }).catch(() => {})
 
   useStore.subscribe((state) => {

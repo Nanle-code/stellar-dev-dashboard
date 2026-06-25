@@ -1,0 +1,558 @@
+/* Schedule Manager Styles */
+
+.schedule-manager {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.schedule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+  user-select: none;
+}
+
+.schedule-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.schedule-toggle {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.schedule-toggle:hover {
+  color: #333;
+}
+
+/* Content Sections */
+.schedule-add-button-container {
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.schedule-add-button {
+  width: 100%;
+  padding: 8px 12px;
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.schedule-add-button:hover {
+  background: #0052a3;
+}
+
+/* Form */
+.schedule-form {
+  padding: 16px;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+
+.schedule-form-group {
+  margin-bottom: 12px;
+}
+
+.schedule-form-group:last-of-type {
+  margin-bottom: 0;
+}
+
+.schedule-form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #333;
+}
+
+.schedule-form-group input,
+.schedule-form-group select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.schedule-form-group input:focus,
+.schedule-form-group select:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.schedule-form-group small {
+  display: block;
+  margin-top: 2px;
+  color: #666;
+  font-size: 11px;
+}
+
+/* Presets */
+.schedule-form-presets {
+  margin: 12px 0;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.schedule-form-presets strong {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.preset-button {
+  display: inline-block;
+  padding: 4px 8px;
+  margin-right: 4px;
+  margin-bottom: 4px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-button:hover {
+  background: #e6f0ff;
+  border-color: #0066cc;
+  color: #0066cc;
+}
+
+/* Form Buttons */
+.schedule-form-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.form-button-cancel,
+.form-button-save {
+  flex: 1;
+  padding: 6px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.form-button-cancel {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  color: #333;
+}
+
+.form-button-cancel:hover {
+  background: #e0e0e0;
+}
+
+.form-button-save {
+  background: #0066cc;
+  color: white;
+}
+
+.form-button-save:hover {
+  background: #0052a3;
+}
+
+/* Jobs List */
+.schedule-jobs {
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.schedule-jobs label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.job-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-left: 4px solid #999;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.job-card.job-running {
+  border-left-color: #ff9800;
+  background: #fffbf0;
+}
+
+.job-card.job-completed {
+  border-left-color: #4caf50;
+  background: #f1f8f4;
+}
+
+.job-card.job-failed {
+  border-left-color: #f44336;
+  background: #fef1f0;
+}
+
+.job-card.job-idle {
+  border-left-color: #2196f3;
+  background: #f0f7ff;
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.job-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-title strong {
+  color: #333;
+}
+
+.job-format {
+  background: #e6f0ff;
+  color: #0066cc;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.job-status {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Job Details */
+.job-details {
+  margin: 8px 0;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 3px;
+}
+
+.job-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.job-label {
+  font-weight: 600;
+  color: #666;
+  min-width: 80px;
+}
+
+.job-detail-row code {
+  font-family: monospace;
+  color: #0066cc;
+  background: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+/* Job Actions */
+.job-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.job-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  user-select: none;
+}
+
+.job-toggle input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.job-remove-button {
+  padding: 4px 8px;
+  background: #ffebee;
+  color: #c00;
+  border: 1px solid #ffcdd2;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.job-remove-button:hover {
+  background: #ffcdd2;
+}
+
+/* Empty State */
+.schedule-empty {
+  padding: 24px 16px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.schedule-empty p {
+  margin: 0;
+  font-size: 12px;
+  color: #999;
+}
+
+/* History */
+.schedule-history {
+  padding: 12px 16px;
+}
+
+.schedule-history label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.history-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.history-status {
+  min-width: 20px;
+  font-weight: 600;
+}
+
+.history-status.success {
+  color: #4caf50;
+}
+
+.history-status.failed {
+  color: #f44336;
+}
+
+.history-filename {
+  flex: 1;
+  font-family: monospace;
+  color: #0066cc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-time {
+  color: #999;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .schedule-manager {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .schedule-header {
+    background: #1e1e1e;
+    border-bottom-color: #333;
+  }
+
+  .schedule-header h3 {
+    color: #e0e0e0;
+  }
+
+  .schedule-toggle {
+    color: #aaa;
+  }
+
+  .schedule-toggle:hover {
+    color: #ddd;
+  }
+
+  .schedule-add-button {
+    background: #0066cc;
+  }
+
+  .schedule-add-button:hover {
+    background: #0052a3;
+  }
+
+  .schedule-form {
+    background: #1e1e1e;
+    border-bottom-color: #333;
+  }
+
+  .schedule-form-group label {
+    color: #e0e0e0;
+  }
+
+  .schedule-form-group input,
+  .schedule-form-group select {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .schedule-form-presets {
+    background: #2a2a2a;
+  }
+
+  .preset-button {
+    background: #1e1e1e;
+    border-color: #444;
+    color: #aaa;
+  }
+
+  .preset-button:hover {
+    background: #1a3a5a;
+    border-color: #0066cc;
+    color: #66b3ff;
+  }
+
+  .schedule-jobs,
+  .schedule-add-button-container,
+  .schedule-history {
+    border-bottom-color: #333;
+  }
+
+  .schedule-jobs label,
+  .schedule-history label {
+    color: #aaa;
+  }
+
+  .job-card {
+    background: #1e1e1e;
+    border-color: #444;
+  }
+
+  .job-card.job-running {
+    background: #2a1a0a;
+  }
+
+  .job-card.job-completed {
+    background: #0a2a0a;
+  }
+
+  .job-card.job-failed {
+    background: #2a0a0a;
+  }
+
+  .job-card.job-idle {
+    background: #0a1a2a;
+  }
+
+  .job-title strong {
+    color: #e0e0e0;
+  }
+
+  .job-details {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .job-label {
+    color: #aaa;
+  }
+
+  .history-item {
+    background: #1e1e1e;
+    border-color: #333;
+  }
+
+  .history-filename {
+    color: #66b3ff;
+  }
+
+  .history-time {
+    color: #666;
+  }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .schedule-form-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .preset-button {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .job-detail-row {
+    flex-direction: column;
+  }
+
+  .job-label {
+    min-width: auto;
+  }
+
+  .history-item {
+    flex-wrap: wrap;
+  }
+
+  .history-filename {
+    flex: 100%;
+    margin-bottom: 4px;
+  }
+}

@@ -1,0 +1,275 @@
+/* Transformation Builder Styles */
+
+.transformation-builder {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.transformation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+  user-select: none;
+}
+
+.transformation-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.transformation-toggle {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.transformation-toggle:hover {
+  color: #333;
+}
+
+/* Content Sections */
+.transformation-templates,
+.transformation-add-rule,
+.transformation-rules,
+.transformation-empty {
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.transformation-templates:last-child,
+.transformation-add-rule:last-child,
+.transformation-rules:last-child,
+.transformation-empty:last-child {
+  border-bottom: none;
+}
+
+.transformation-templates label,
+.transformation-add-rule label,
+.transformation-rules label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+/* Templates */
+.template-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.template-button {
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-button:hover {
+  background: #e6f0ff;
+  border-color: #0066cc;
+  color: #0066cc;
+}
+
+/* Add Rule */
+.transformation-add-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.transformation-add-rule select {
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+}
+
+.add-rule-button {
+  padding: 6px 12px;
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.add-rule-button:hover {
+  background: #0052a3;
+}
+
+/* Rules List */
+.transformation-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.rule-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rule-info strong {
+  font-weight: 600;
+  color: #333;
+}
+
+.rule-info small {
+  color: #666;
+  font-size: 11px;
+}
+
+.rule-remove-button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.rule-remove-button:hover {
+  color: #c00;
+}
+
+/* Empty State */
+.transformation-empty {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.transformation-empty p {
+  margin: 0;
+  font-size: 12px;
+  color: #999;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .transformation-builder {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .transformation-header {
+    background: #1e1e1e;
+    border-bottom-color: #333;
+  }
+
+  .transformation-header h3 {
+    color: #e0e0e0;
+  }
+
+  .transformation-toggle {
+    color: #aaa;
+  }
+
+  .transformation-toggle:hover {
+    color: #ddd;
+  }
+
+  .transformation-templates,
+  .transformation-add-rule,
+  .transformation-rules,
+  .transformation-empty {
+    border-bottom-color: #333;
+  }
+
+  .transformation-templates label,
+  .transformation-add-rule label,
+  .transformation-rules label {
+    color: #aaa;
+  }
+
+  .template-button {
+    background: #1e1e1e;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .template-button:hover {
+    background: #1a3a5a;
+    border-color: #0066cc;
+    color: #66b3ff;
+  }
+
+  .transformation-add-rule select {
+    background: #1e1e1e;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .rule-item {
+    background: #1e1e1e;
+    border-color: #444;
+  }
+
+  .rule-info strong {
+    color: #e0e0e0;
+  }
+
+  .rule-info small {
+    color: #aaa;
+  }
+
+  .transformation-empty p {
+    color: #666;
+  }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .template-buttons {
+    flex-direction: column;
+  }
+
+  .template-button {
+    width: 100%;
+  }
+}

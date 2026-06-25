@@ -18,6 +18,7 @@ import {
   pruneExpiredApiCache,
   storageStats as idbStorageStats,
 } from './storage.js';
+import { recordCacheOperation } from '../utils/metricsCollector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,7 +120,9 @@ export class CacheManager {
    * Read from L1 only. Returns null on miss or expiry.
    */
   get<T>(key: string): T | null {
-    return this.cache.get<T>(key);
+    const value = this.cache.get<T>(key);
+    recordCacheOperation(value !== null);
+    return value;
   }
 
   /**
@@ -128,15 +131,20 @@ export class CacheManager {
    */
   async getWithFallback<T>(key: string): Promise<CacheGetResult<T>> {
     const memory = await this.cache.getWithFallback<T>(key);
-    if (memory.value !== null) return memory;
+    if (memory.value !== null) {
+      recordCacheOperation(true);
+      return memory;
+    }
 
     const idb = await getCachedApiResponse(this.namespacedKey(key));
     if (idb !== null && idb !== undefined) {
       // Warm L1 with the value pulled from IDB.
       this.cache.set<T>(key, idb as T, this.options.defaultTTL);
+      recordCacheOperation(true);
       return { value: idb as T, stale: false, source: 'indexeddb' };
     }
 
+    recordCacheOperation(false);
     return { value: null, stale: false, source: 'miss' };
   }
 

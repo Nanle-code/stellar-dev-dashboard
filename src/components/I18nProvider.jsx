@@ -1,9 +1,40 @@
 import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import i18n, { SUPPORTED_LANGUAGES, LANGUAGE_STORAGE_KEY, RTL_LANGUAGES } from '../i18n/index.js';
+import {
+    detectBestLocale,
+    formatLocaleCurrency,
+    formatLocaleDateTime,
+    formatLocaleNumber,
+    getCulturalAdaptations,
+    getLocaleProfile,
+    getRegionalContent,
+    isLocaleRTL,
+    loadPersistedLocale,
+    persistLocalePreference,
+    validateLocaleFormatting,
+} from '../lib/localeFeatures';
 
 const I18nContext = createContext(null);
 
+function getInitialLocaleProfile() {
+    return detectBestLocale({
+        storedLocale: loadPersistedLocale(),
+        navigatorLanguage: typeof navigator !== 'undefined' ? navigator.language : null,
+        htmlLang: typeof document !== 'undefined' ? document.documentElement.getAttribute('lang') : null,
+    });
+}
+
+function applyLocaleDocumentAttributes(profile) {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.setAttribute('lang', profile.code);
+    root.setAttribute('dir', profile.textDirection);
+    root.dataset.locale = profile.code;
+    root.dataset.region = profile.region;
+    root.dataset.currency = profile.currency;
+    root.dataset.layoutDensity = profile.layoutDensity;
+}
 
 /**
  * I18nProvider
@@ -18,47 +49,88 @@ const I18nContext = createContext(null);
  * </I18nProvider>
  */
 export function I18nProvider({ children }) {
+    const initialProfile = getInitialLocaleProfile();
     const [currentLanguage, setCurrentLanguage] = useState(
-        () => i18n.language?.slice(0, 2) || 'en'
+        () => i18n.language?.slice(0, 2) || initialProfile.languageCode
+    );
+    const [currentLocale, setCurrentLocale] = useState(
+        () => initialProfile.code
     );
 
     // Keep local state in sync when i18next changes language externally
     useEffect(() => {
-        const onLangChange = (lng) => setCurrentLanguage(lng.slice(0, 2));
+        const onLangChange = (lng) => {
+            const profile = getLocaleProfile(lng);
+            setCurrentLanguage(profile.languageCode);
+            setCurrentLocale(profile.code);
+            applyLocaleDocumentAttributes(profile);
+        };
         i18n.on('languageChanged', onLangChange);
         return () => i18n.off('languageChanged', onLangChange);
     }, []);
+
+    useEffect(() => {
+        applyLocaleDocumentAttributes(getLocaleProfile(currentLocale));
+    }, [currentLocale]);
 
     /**
      * Switch the active language.
      * @param {string} langCode - BCP-47 language code, e.g. 'en' | 'es'
      */
     const changeLanguage = useCallback(async (langCode) => {
-        const supported = SUPPORTED_LANGUAGES.find((l) => l.code === langCode);
+        const requestedProfile = getLocaleProfile(langCode);
+        const supported = SUPPORTED_LANGUAGES.find((l) => {
+            return l.code === langCode || l.locale === langCode || l.code === requestedProfile.languageCode;
+        });
         if (!supported) {
             console.warn(`[i18n] Unsupported language: "${langCode}". Falling back to "en".`);
-            langCode = 'en';
         }
 
-        await i18n.changeLanguage(langCode);
+        const profile = getLocaleProfile(supported?.locale || 'en-US');
+        await i18n.changeLanguage(profile.languageCode);
         try {
-            localStorage.setItem(LANGUAGE_STORAGE_KEY, langCode);
+            localStorage.setItem(LANGUAGE_STORAGE_KEY, profile.languageCode);
         } catch {
             // localStorage may be unavailable (private browsing, etc.)
         }
+        persistLocalePreference(profile.code);
 
-        // Update <html lang=""> for accessibility & SEO
-        document.documentElement.setAttribute('lang', langCode);
-        // Update <html dir=""> for RTL language support (#184)
-        document.documentElement.setAttribute('dir', RTL_LANGUAGES.has(langCode) ? 'rtl' : 'ltr');
+        setCurrentLanguage(profile.languageCode);
+        setCurrentLocale(profile.code);
+        applyLocaleDocumentAttributes(profile);
     }, []);
 
-    const isRTL = RTL_LANGUAGES.has(currentLanguage);
+    const localeProfile = getLocaleProfile(currentLocale);
+    const isRTL = RTL_LANGUAGES.has(currentLanguage) || isLocaleRTL(currentLocale);
+    const formatDateTime = useCallback(
+        (date, options) => formatLocaleDateTime(date, currentLocale, options),
+        [currentLocale]
+    );
+    const formatNumber = useCallback(
+        (value, options) => formatLocaleNumber(value, currentLocale, options),
+        [currentLocale]
+    );
+    const formatCurrency = useCallback(
+        (value, currency) => formatLocaleCurrency(value, currentLocale, currency),
+        [currentLocale]
+    );
+    const validateLocale = useCallback(
+        () => validateLocaleFormatting(currentLocale),
+        [currentLocale]
+    );
 
     const value = {
         currentLanguage,
+        currentLocale,
         changeLanguage,
         supportedLanguages: SUPPORTED_LANGUAGES,
+        localeProfile,
+        culturalAdaptations: getCulturalAdaptations(currentLocale),
+        regionalContent: getRegionalContent(currentLocale),
+        formatDateTime,
+        formatNumber,
+        formatCurrency,
+        validateLocale,
         isRTL,
     };
 

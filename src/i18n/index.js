@@ -13,15 +13,15 @@ import ko from "./ko.json";
 import ar from "./ar.json";
 
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English",  nativeLabel: "English",  dir: "ltr" },
-  { code: "es", label: "Spanish",  nativeLabel: "Español",  dir: "ltr" },
-  { code: "zh", label: "Chinese",  nativeLabel: "中文",      dir: "ltr" },
-  { code: "fr", label: "French", nativeLabel: "Français", dir: "ltr" },
-  { code: "de", label: "German", nativeLabel: "Deutsch", dir: "ltr" },
-  { code: "pt", label: "Portuguese", nativeLabel: "Português", dir: "ltr" },
-  { code: "ja", label: "Japanese", nativeLabel: "日本語", dir: "ltr" },
-  { code: "ko", label: "Korean", nativeLabel: "한국어", dir: "ltr" },
-  { code: "ar", label: "Arabic", nativeLabel: "العربية", dir: "rtl" },
+  { code: "en", locale: "en-US", label: "English", nativeLabel: "English", dir: "ltr" },
+  { code: "es", locale: "es-ES", label: "Spanish", nativeLabel: "Español", dir: "ltr" },
+  { code: "zh", locale: "zh-CN", label: "Chinese", nativeLabel: "中文", dir: "ltr" },
+  { code: "fr", locale: "fr-FR", label: "French", nativeLabel: "Français", dir: "ltr" },
+  { code: "de", locale: "de-DE", label: "German", nativeLabel: "Deutsch", dir: "ltr" },
+  { code: "pt", locale: "pt-BR", label: "Portuguese", nativeLabel: "Português", dir: "ltr" },
+  { code: "ja", locale: "ja-JP", label: "Japanese", nativeLabel: "日本語", dir: "ltr" },
+  { code: "ko", locale: "ko-KR", label: "Korean", nativeLabel: "한국어", dir: "ltr" },
+  { code: "ar", locale: "ar-SA", label: "Arabic", nativeLabel: "العربية", dir: "rtl" },
 ];
 
 /** Languages that flow right-to-left (#107). */

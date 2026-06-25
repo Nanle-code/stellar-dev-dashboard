@@ -1,5 +1,5 @@
 /**
- * Audit Trail Utilities (#118)
+ * Audit Trail Utilities (#118, #447)
  *
  * Provides:
  *  - Tamper-evident audit log records (each entry hash-chained to its predecessor)
@@ -8,6 +8,8 @@
  *  - PII / secret redaction before persistence
  *  - Export helpers (JSON / CSV) for compliance review
  *  - Subscription API for real-time audit viewers
+ *  - Compliance context enrichment (#447)
+ *  - Multi-environment tagging (#447)
  */
 
 import { getStoredValue, setStoredValue } from '../lib/storage.js';
@@ -34,6 +36,24 @@ export const AuditCategory = Object.freeze({
   SECURITY: 'security',
   ADMIN: 'admin',
   SYSTEM: 'system',
+  COMPLIANCE: 'compliance',
+  RETENTION: 'retention',
+  ANALYTICS: 'analytics',
+});
+
+export const AuditComplianceTag = Object.freeze({
+  SOC2: 'soc2',
+  GDPR: 'gdpr',
+  SOX: 'sox',
+  PCI_DSS: 'pci_dss',
+  INTERNAL: 'internal',
+});
+
+export const AuditEnvironment = Object.freeze({
+  PRODUCTION: 'production',
+  STAGING: 'staging',
+  DEVELOPMENT: 'development',
+  TEST: 'test',
 });
 
 const STORAGE_KEY = 'audit-log';
@@ -147,6 +167,10 @@ export async function recordAudit({
   target = null,
   outcome = 'success',
   metadata = {},
+  complianceTags = [],
+  environment = null,
+  source = null,
+  correlationId = null,
 } = {}) {
   if (!action || typeof action !== 'string') {
     throw new Error('audit.record requires a string action');
@@ -166,6 +190,10 @@ export async function recordAudit({
     sessionId: _sessionId,
     url: typeof window !== 'undefined' ? window.location.href : null,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    complianceTags: complianceTags.length > 0 ? complianceTags : undefined,
+    environment: environment || undefined,
+    source: source || undefined,
+    correlationId: correlationId || undefined,
     prevHash: _lastHash,
   };
 
@@ -198,12 +226,27 @@ export function getAuditEntries({
   since,
   until,
   limit = 200,
+  outcome,
+  sessionId,
+  complianceTag,
+  environment,
+  source,
+  correlationId,
 } = {}) {
   let entries = _ring.slice();
 
   if (category) entries = entries.filter((e) => e.category === category);
   if (severity) entries = entries.filter((e) => e.severity === severity);
   if (actor) entries = entries.filter((e) => e.actor === actor);
+  if (outcome) entries = entries.filter((e) => e.outcome === outcome);
+  if (sessionId) entries = entries.filter((e) => e.sessionId === sessionId);
+  if (environment) entries = entries.filter((e) => e.environment === environment);
+  if (source) entries = entries.filter((e) => e.source === source);
+  if (correlationId) entries = entries.filter((e) => e.correlationId === correlationId);
+
+  if (complianceTag) {
+    entries = entries.filter((e) => e.complianceTags?.includes(complianceTag));
+  }
 
   if (since) {
     const t = +new Date(since);
@@ -224,21 +267,6 @@ export function getAuditEntries({
 
   // Most recent first
   return entries.reverse().slice(0, limit);
-}
-
-export function getAuditStats() {
-  const stats = {
-    total: _ring.length,
-    bySeverity: {},
-    byCategory: {},
-    byOutcome: { success: 0, failure: 0, denied: 0 },
-  };
-  for (const e of _ring) {
-    stats.bySeverity[e.severity] = (stats.bySeverity[e.severity] ?? 0) + 1;
-    stats.byCategory[e.category] = (stats.byCategory[e.category] ?? 0) + 1;
-    stats.byOutcome[e.outcome] = (stats.byOutcome[e.outcome] ?? 0) + 1;
-  }
-  return stats;
 }
 
 // ─── Integrity verification ───────────────────────────────────────────────────
@@ -278,6 +306,44 @@ export function exportAuditCsv(entries = _ring.slice()) {
   };
   const rows = entries.map((e) => headers.map((h) => escape(e[h])).join(','));
   return [headers.join(','), ...rows].join('\n');
+}
+
+// ─── Bulk recording ──────────────────────────────────────────────────────────
+
+export async function bulkRecordAudit(entries) {
+  const results = [];
+  for (const entry of entries) {
+    results.push(await recordAudit(entry));
+  }
+  return results;
+}
+
+// ─── Enhanced stats with compliance breakdown ────────────────────────────────
+
+export function getAuditStats({ includeComplianceBreakdown = false } = {}) {
+  const stats = {
+    total: _ring.length,
+    bySeverity: {},
+    byCategory: {},
+    byOutcome: { success: 0, failure: 0, denied: 0 },
+  };
+
+  if (includeComplianceBreakdown) {
+    stats.byComplianceTag = {};
+  }
+
+  for (const e of _ring) {
+    stats.bySeverity[e.severity] = (stats.bySeverity[e.severity] ?? 0) + 1;
+    stats.byCategory[e.category] = (stats.byCategory[e.category] ?? 0) + 1;
+    stats.byOutcome[e.outcome] = (stats.byOutcome[e.outcome] ?? 0) + 1;
+
+    if (includeComplianceBreakdown && e.complianceTags) {
+      for (const tag of e.complianceTags) {
+        stats.byComplianceTag[tag] = (stats.byComplianceTag[tag] ?? 0) + 1;
+      }
+    }
+  }
+  return stats;
 }
 
 // ─── Test / admin helpers ────────────────────────────────────────────────────

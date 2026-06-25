@@ -5,6 +5,7 @@ import CopyableValue from './CopyableValue';
 import DashboardGrid from '../layout/DashboardGrid';
 import WidgetSelector from '../layout/WidgetSelector';
 import { useResponsive } from '../../hooks/useResponsive';
+import { usePresence } from '../../hooks/usePresence';
 import { addBreadcrumb } from '../../lib/errorReporting';
 import { getDashboardLayout, saveDashboardLayout } from '../../lib/userPreferences';
 import BalanceWidget from '../layout/widgets/BalanceWidget';
@@ -15,6 +16,7 @@ import AccountStatsWidget from '../layout/widgets/AccountStatsWidget';
 import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
 import LedgerStatsWidget from './LedgerStatsWidget';
+import { PresenceIndicator } from '../collaboration/PresenceIndicator';
 import type { WidgetConfig } from './types';
 
 interface WidgetItem extends WidgetConfig {
@@ -43,8 +45,9 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
 ];
 
 export default function Overview() {
-  const { connectedAddress, network } = useStore();
+  const { connectedAddress, network, activeTab } = useStore();
   const { isMobile, isTablet, windowWidth } = useResponsive();
+  const { updateAccount, updateActiveTab } = usePresence();
 
   const [widgets, setWidgets] = useState<WidgetItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +85,15 @@ export default function Overview() {
     }
     hydrateDashboardLayout();
   }, []);
+
+  // Update presence when account or tab changes
+  useEffect(() => {
+    updateAccount(connectedAddress);
+  }, [connectedAddress, updateAccount]);
+
+  useEffect(() => {
+    updateActiveTab(activeTab);
+  }, [activeTab, updateActiveTab]);
 
   const persistAndSyncLayout = async (updatedWidgets: WidgetItem[]) => {
     setWidgets(updatedWidgets);
@@ -214,6 +226,7 @@ export default function Overview() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <PresenceIndicator accountId={connectedAddress} />
           <div style={{
             padding: '6px 12px',
             background: network === 'testnet' ? 'var(--amber-glow)' : 'var(--green-glow)',

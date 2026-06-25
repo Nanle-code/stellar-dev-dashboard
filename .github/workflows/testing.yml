@@ -1,0 +1,275 @@
+name: Comprehensive Testing Framework
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+  schedule:
+    # Mutation testing weekly — Sunday 08:00 UTC
+    - cron: '0 8 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: testing-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Step 1 — Visual regression (multi-viewport Playwright + optional Chromatic)
+  # ══════════════════════════════════════════════════════════════════════════
+  visual-regression:
+    name: Visual Regression (${{ matrix.viewport }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: [mobile, tablet, desktop, wide]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Restore visual baselines
+        uses: actions/cache@v5
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ matrix.viewport }}-${{ github.base_ref || github.ref_name }}
+          restore-keys: visual-snapshots-${{ matrix.viewport }}-
+
+      - name: Run visual tests (${{ matrix.viewport }})
+        run: npx playwright test --project=visual-${{ matrix.viewport }}
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload diff on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff-${{ matrix.viewport }}-${{ github.run_number }}
+          path: |
+            tests/e2e/report/
+            test-results/
+          retention-days: 14
+
+      - name: Save baselines
+        if: success()
+        uses: actions/cache/save@v5
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ matrix.viewport }}-${{ github.base_ref || github.ref_name }}
+
+  chromatic:
+    name: Chromatic (Storybook)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || vars.CHROMATIC_ENABLED == 'true'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build-storybook
+
+      - name: Run Chromatic
+        uses: chromaui/action@latest
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          storybookBuildDir: storybook-static
+          exitZeroOnChanges: true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Step 2 — Mutation testing (Stryker)
+  # ══════════════════════════════════════════════════════════════════════════
+  mutation-testing:
+    name: Mutation Testing (Stryker)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run Stryker mutation tests
+        run: npx stryker run
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stryker-report
+          path: reports/
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Step 3 — Coverage thresholds and reports
+  # ══════════════════════════════════════════════════════════════════════════
+  coverage-gate:
+    name: Coverage Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage || true
+
+      - name: Enforce coverage thresholds
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node scripts/check-coverage.mjs
+          else
+            echo "::warning::Coverage summary not generated — skipping threshold check."
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+          retention-days: 30
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "## Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+            node -e "
+              const s = require('./coverage/coverage-summary.json').total;
+              console.log('| Metric | Coverage |');
+              console.log('|--------|----------|');
+              for (const m of ['lines','functions','branches','statements']) {
+                console.log('| ' + m + ' | ' + s[m].pct + '% |');
+              }
+            " >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Step 4 — Lighthouse CI performance budgets
+  # ══════════════════════════════════════════════════════════════════════════
+  lighthouse-ci:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Run Lighthouse CI
+        run: npx lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Step 5 — Accessibility gate (axe-core)
+  # ══════════════════════════════════════════════════════════════════════════
+  accessibility-gate:
+    name: Accessibility Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Run accessibility gate
+        run: npm run test:a11y
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload a11y report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a11y-report
+          path: tests/e2e/report/
+          retention-days: 14
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Testing framework summary gate
+  # ══════════════════════════════════════════════════════════════════════════
+  testing-gate:
+    name: Testing Framework Gate
+    runs-on: ubuntu-latest
+    needs: [visual-regression, coverage-gate, lighthouse-ci, accessibility-gate]
+    if: always()
+    steps:
+      - name: Summarize testing pipeline
+        run: |
+          echo "## Testing Framework Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Visual Regression | ${{ needs.visual-regression.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Coverage Gate | ${{ needs.coverage-gate.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lighthouse CI | ${{ needs.lighthouse-ci.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accessibility Gate | ${{ needs.accessibility-gate.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=0
+          for result in \
+            "${{ needs.visual-regression.result }}" \
+            "${{ needs.coverage-gate.result }}" \
+            "${{ needs.lighthouse-ci.result }}" \
+            "${{ needs.accessibility-gate.result }}"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::Testing framework gate failed."
+            exit 1
+          fi

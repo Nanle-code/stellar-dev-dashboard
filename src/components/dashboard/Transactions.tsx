@@ -1,15 +1,20 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, lazy, Suspense } from 'react'
 import { Download, Filter, Search, X } from 'lucide-react'
+
+const TransactionGraph = lazy(() => import('./TransactionGraph'))
+const TimeAnalysis = lazy(() => import('./TimeAnalysis'))
+const CrossNetworkPanel = lazy(() => import('./CrossNetworkPanel'))
 import { format } from 'date-fns'
 import { useStore } from '../../lib/store'
 import { shortAddress, getOperationLabel, fetchTransactions, fetchOperations } from '../../lib/stellar'
 import CopyableValue from './CopyableValue'
-import SearchFilters from '../search/SearchFilters'
 import useSearch from '../../hooks/useSearch'
-import { usePreferences } from '../../hooks/usePreferences'
-import { applyTransactionFilters, applyOperationFilters } from '../../lib/filters'
+import { filterRecords, countActiveFilters } from '../../lib/transactionFilters'
 import { exportCsv, flattenTransaction } from '../../utils/export'
 import { VirtualTxList, VirtualOpList, TX_ROW_HEIGHT, OP_ROW_HEIGHT } from './VirtualizedLists'
+import TransactionFilterPanel from '../filters/TransactionFilterPanel'
+import AddressLabelBadge from '../addressLabels/AddressLabelBadge'
+import { useAddressLabels } from '../../hooks/useAddressLabels'
 
 const VIRTUAL_SCROLL_THRESHOLD = 200
 const PAGE_SIZE = 100
@@ -57,6 +62,24 @@ function flattenOperation(op) {
   }
 }
 
+function LoadingRows({ count, height }) {
+  return (
+    <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="skeleton-pulse"
+          style={{
+            height: `${height}px`,
+            background: 'var(--bg-elevated)',
+            borderRadius: 'var(--radius-sm)',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function Transactions() {
   const {
     connectedAddress,
@@ -79,29 +102,28 @@ export default function Transactions() {
     setOpsHasMore,
     setOpsPagingLoading,
     network,
+    filterExpressions,
   } = useStore()
 
   const [view, setView] = useState('transactions')
   const [showFilters, setShowFilters] = useState(false)
-  const [selectedTxHash, setSelectedTxHash] = useState(null)
   const {
     query,
     setQuery,
-    filters,
-    setFilters,
     savedSearches,
     saveCurrentSearch,
     removeSavedSearch,
     applySavedSearch,
   } = useSearch()
-  const { preferences } = usePreferences()
+  const { labelMap } = useAddressLabels()
 
   const addressLabels = useMemo(() => {
-    return (preferences.savedAddresses || []).reduce((labels, entry) => {
-      labels[entry.address] = entry.label
-      return labels
-    }, {})
-  }, [preferences.savedAddresses])
+    const labels = {}
+    Object.keys(labelMap).forEach((addr) => {
+      labels[addr] = labelMap[addr].label
+    })
+    return labels
+  }, [labelMap])
 
   // Track in-flight requests to prevent duplicate calls
   const txLoadingRef = React.useRef(false)
@@ -122,8 +144,8 @@ export default function Transactions() {
       ]).includes(q))
     }
 
-    return applyTransactionFilters(list, filters)
-  }, [transactions, query, filters, addressLabels])
+    return filterRecords(list, filterExpressions)
+  }, [transactions, query, filterExpressions, addressLabels])
 
   const filteredOperations = useMemo(() => {
     let list = operations
@@ -147,8 +169,8 @@ export default function Transactions() {
       })
     }
 
-    return applyOperationFilters(list, filters)
-  }, [operations, query, filters, addressLabels])
+    return filterRecords(list, filterExpressions)
+  }, [operations, query, filterExpressions, addressLabels])
 
   const visibleRows = view === 'transactions' ? filteredTransactions : filteredOperations
 
@@ -228,19 +250,14 @@ export default function Transactions() {
     </button>
   )
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
-    if (key === 'status') return value !== 'all'
-    if (key === 'type') return value !== 'all'
-    if (key === 'memoOnly') return value === true
-    if (['minFee', 'maxFee', 'minAmount', 'maxAmount', 'startDate', 'endDate'].includes(key)) return value !== ''
-    return false
-  })
+  const hasActiveFilters = countActiveFilters(filterExpressions) > 0
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '300px' }}>
+          {view !== 'time' && (<>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -337,27 +354,32 @@ export default function Transactions() {
             <Download size={14} />
             <span>CSV</span>
           </button>
+          </>)}
         </div>
 
         <div style={{ display: 'flex', gap: '6px' }}>
           <Tab id="transactions" label="Transactions" />
           <Tab id="operations" label="Operations" />
+          <Tab id="graph" label="Graph" />
+          <Tab id="time" label="Time" />
+          <Tab id="networks" label="Networks" />
         </div>
       </div>
 
       {showFilters && (
-        <SearchFilters
-          filters={filters}
-          onChange={setFilters}
-          savedSearches={savedSearches}
-          onSavePreset={saveCurrentSearch}
-          onApplyPreset={applySavedSearch}
-          onDeletePreset={removeSavedSearch}
-        />
+        <TransactionFilterPanel view={view} />
       )}
 
       <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-        Showing {visibleRows.length} filtered {view === 'transactions' ? 'transaction' : 'operation'}{visibleRows.length !== 1 ? 's' : ''}
+        {view === 'graph' ? (
+          'Visual transaction graph — hover for details, click to explore'
+        ) : view === 'time' ? (
+          'Time-based analysis of operations and transactions'
+        ) : view === 'networks' ? (
+          'Cross-network status and account comparison'
+        ) : (
+          <>Showing {visibleRows.length} filtered {view === 'transactions' ? 'transaction' : 'operation'}{visibleRows.length !== 1 ? 's' : ''}</>
+        )}
       </div>
 
       {view === 'transactions' && (
@@ -431,7 +453,8 @@ export default function Transactions() {
                     </div>
                     {tx.source_account && (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '15px' }}>
-                        source: {addressLabels[tx.source_account] ? `${addressLabels[tx.source_account]} ` : ''}
+                        source:
+                        <AddressLabelBadge address={tx.source_account} />
                         <CopyableValue value={tx.source_account} title="Copy source account" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                           {shortAddress(tx.source_account)}
                         </CopyableValue>
@@ -531,7 +554,8 @@ export default function Transactions() {
                     </div>
                     {op.from && (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        from: {addressLabels[op.from] ? `${addressLabels[op.from]} ` : ''}
+                        from:
+                        <AddressLabelBadge address={op.from} />
                         <CopyableValue value={op.from} title="Copy source public key" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                           {shortAddress(op.from)}
                         </CopyableValue>
@@ -539,7 +563,8 @@ export default function Transactions() {
                     )}
                     {op.to && (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        to: {addressLabels[op.to] ? `${addressLabels[op.to]} ` : ''}
+                        to:
+                        <AddressLabelBadge address={op.to} />
                         <CopyableValue value={op.to} title="Copy destination public key" textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                           {shortAddress(op.to)}
                         </CopyableValue>
@@ -581,6 +606,40 @@ export default function Transactions() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {view === 'graph' && (
+        <div style={{ height: '500px', minHeight: '500px' }}>
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '12px', background: '#0a0e17', borderRadius: '8px' }}>
+              Loading graph...
+            </div>
+          }>
+            <TransactionGraph />
+          </Suspense>
+        </div>
+      )}
+
+      {view === 'time' && (
+        <Suspense fallback={
+          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+            Loading time analysis...
+          </div>
+        }>
+          <TimeAnalysis />
+        </Suspense>
+      )}
+
+      {view === 'networks' && (
+        <div style={{ background: '#0d1520', border: '1px solid #1a2332', borderRadius: '8px', overflow: 'hidden', maxWidth: '420px' }}>
+          <Suspense fallback={
+            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+              Loading network status...
+            </div>
+          }>
+            <CrossNetworkPanel />
+          </Suspense>
         </div>
       )}
 

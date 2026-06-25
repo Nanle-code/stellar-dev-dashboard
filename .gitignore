@@ -2,3 +2,10 @@ node_modules
 .kiro
 node_modules/
 
+issue.md
+pr.md
+coverage/
+.lighthouseci/
+.stryker-tmp/
+reports/
+storybook-static/

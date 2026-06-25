@@ -18,6 +18,39 @@
 import React, { useState, useEffect } from 'react';
 import { useCollaboration } from '../../hooks/useCollaboration';
 
+const ROADMAP_STEPS = [
+  {
+    step: 'Step 1',
+    title: 'Real-time cursors',
+    status: 'Planned',
+    details: ['Cursor positions', 'Cursor sharing', 'Cursor rendering'],
+  },
+  {
+    step: 'Step 2',
+    title: 'Presence',
+    status: 'Foundation',
+    details: ['User presence', 'Online indicators', 'User info'],
+  },
+  {
+    step: 'Step 3',
+    title: 'Annotations',
+    status: 'Planned',
+    details: ['Collaborative annotations', 'Annotation types', 'Annotation sharing'],
+  },
+  {
+    step: 'Step 4',
+    title: 'Editing',
+    status: 'Planned',
+    details: ['Collaborative editing', 'Conflict resolution', 'CRDTs'],
+  },
+  {
+    step: 'Step 5',
+    title: 'Permissions',
+    status: 'Partial',
+    details: ['Edit permissions', 'Read-only mode', 'Permission UI'],
+  },
+];
+
 // ── Inline style tokens — matches globals.css design tokens ──────────────────
 const S = {
   root: {
@@ -119,6 +152,49 @@ const S = {
     color: color,
     border: `1px solid ${color}44`,
   }),
+  stepCard: {
+    background: 'var(--bg-tertiary, #11131a)',
+    border: '1px solid var(--border-color, #2a2d35)',
+    borderRadius: 10,
+    padding: '1rem 1.1rem',
+    display: 'grid',
+    gap: '0.8rem',
+  },
+  stepHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
+  },
+  stepMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    flexWrap: 'wrap',
+  },
+  stepNumber: {
+    fontSize: '0.65rem',
+    letterSpacing: '0.15em',
+    textTransform: 'uppercase',
+    color: 'var(--text-muted, #888)',
+  },
+  stepTitle: {
+    fontSize: '0.92rem',
+    fontWeight: 700,
+    color: 'var(--text-primary, #eee)',
+  },
+  stepList: {
+    margin: 0,
+    paddingLeft: '1.1rem',
+    color: 'var(--text-secondary, #aaa)',
+    lineHeight: 1.7,
+    fontSize: '0.78rem',
+  },
+  timeline: {
+    display: 'grid',
+    gap: '0.75rem',
+  },
   divider: {
     height: 1,
     background: 'var(--border-color, #2a2d35)',
@@ -169,6 +245,19 @@ export default function CollaborativeView({ store, enableWebSocket = false, wsUr
         Share a read-only snapshot of your current session, or keep two tabs in sync automatically.
       </p>
 
+      <p style={S.sectionTitle}>Current State</p>
+      <div style={S.card}>
+        <div style={S.row}>
+          <span style={S.badge('#2ecc71')}>Available today</span>
+          <span style={S.badge('#7c6af7')}>Read-only share links</span>
+          <span style={S.badge('#7c6af7')}>Cross-tab sync</span>
+        </div>
+        <p style={{ ...S.label, marginTop: '0.75rem', lineHeight: 1.65 }}>
+          The dashboard already supports safe shared views. The roadmap below tracks the next collaborative
+          capabilities to build on top of that foundation.
+        </p>
+      </div>
+
       {/* ── Cross-tab sync status ── */}
       <p style={S.sectionTitle}>Cross-Tab Sync</p>
       <div style={S.card}>
@@ -184,8 +273,44 @@ export default function CollaborativeView({ store, enableWebSocket = false, wsUr
             ? 'Network, active tab, and watch address stay in sync across all tabs in this browser. Private keys are never shared.'
             : syncStatus === 'error'
             ? 'BroadcastChannel is not supported in this browser. Cross-tab sync is unavailable.'
-            : 'Waiting for a state change to broadcast.'}
+          : 'Waiting for a state change to broadcast.'}
         </p>
+      </div>
+
+      <p style={S.sectionTitle}>Collaboration Roadmap</p>
+      <div style={S.timeline}>
+        {ROADMAP_STEPS.map((item) => (
+          <div key={item.step} style={S.stepCard}>
+            <div style={S.stepHeader}>
+              <div style={S.stepMeta}>
+                <span style={S.stepNumber}>{item.step}</span>
+                <span style={S.stepTitle}>{item.title}</span>
+              </div>
+              <span
+                style={S.badge(
+                  item.status === 'Partial'
+                    ? '#f39c12'
+                    : item.status === 'Foundation'
+                    ? '#2ecc71'
+                    : '#7c6af7',
+                )}
+              >
+                {item.status}
+              </span>
+            </div>
+            <ul style={S.stepList}>
+              {item.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+            {item.step === 'Step 5' && (
+              <p style={{ ...S.label, margin: 0, lineHeight: 1.6 }}>
+                Read-only session sharing is already in place. Permission management and a dedicated UI still need to
+                be layered on top.
+              </p>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* ── Shareable URL ── */}

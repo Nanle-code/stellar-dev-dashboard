@@ -5,6 +5,7 @@ A real-time, open-source developer dashboard for the Stellar network — built w
 ![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)
 ![Network: Stellar](https://img.shields.io/badge/Network-Stellar-blue.svg)
 ![Stack: Vite + React](https://img.shields.io/badge/Stack-Vite%20%2B%20React-yellow.svg)
+![Last Updated](https://img.shields.io/badge/Last%20Updated-June%2024%202026-green.svg)
 
 ---
 

@@ -5,6 +5,7 @@ import { useStore } from '../../lib/store'
 import { shortAddress, formatXLM, fetchAccountCreationDate, fetchAccountOffers, calculateAccountReserves } from '../../lib/stellar'
 import CopyableValue from './CopyableValue'
 import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates'
+import AddressLabelBadge from '../addressLabels/AddressLabelBadge'
 import type { AccountOffer, ReservesInfo, InfoRowProps } from './types'
 
 function formatAsset(assetType: string, assetCode?: string): string {
@@ -251,6 +252,7 @@ export default function Account() {
                       containerStyle={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '4px', fontFamily: 'var(--font-mono)' }}
                       textStyle={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                     >
+                      <AddressLabelBadge address={(asset as Horizon.BalanceLineAsset).asset_issuer} />
                       {shortAddress((asset as Horizon.BalanceLineAsset).asset_issuer)}
                     </CopyableValue>
                   )}
@@ -320,6 +322,7 @@ export default function Account() {
                   fontFamily: 'var(--font-mono)',
                 }}
               >
+                <AddressLabelBadge address={s.key} />
                 {shortAddress(s.key)}
               </CopyableValue>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>weight: {s.weight}</span>

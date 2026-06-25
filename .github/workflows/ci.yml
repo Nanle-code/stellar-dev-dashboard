@@ -132,8 +132,6 @@ jobs:
         run: npm run test:visual
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
-        # Override webServer for CI preview build
-        # playwright.config.ts uses npm run dev; we override via env
 
       - name: Upload diff artifacts on failure
         if: failure()

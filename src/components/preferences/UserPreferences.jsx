@@ -3,6 +3,7 @@ import { usePreferences } from '../../hooks/usePreferences'
 import AddressBook from './AddressBook'
 import ThemeSettings from './ThemeSettings'
 import AccessibilitySettings from './AccessibilitySettings'
+import NotificationPreferences from '../notifications/NotificationPreferences'
 import { showTestNotification } from '../../utils/offline'
 import { Bell } from 'lucide-react'
 
@@ -11,6 +12,7 @@ const TABS = [
   { id: 'theme', label: 'Theme & Display' },
   { id: 'addresses', label: 'Address Book' },
   { id: 'accessibility', label: 'Accessibility' },
+  { id: 'notifications', label: 'Notifications' },
 ]
 
 export default function UserPreferences({ onClose }) {
@@ -197,6 +199,10 @@ export default function UserPreferences({ onClose }) {
         )}
         {activeTab === 'accessibility' && (
           <AccessibilitySettings />
+        )}
+
+        {activeTab === 'notifications' && (
+          <NotificationPreferences />
         )}
 
         {activeTab === 'addresses' && (

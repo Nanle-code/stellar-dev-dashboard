@@ -5,6 +5,7 @@ import { fetchTransactionDetails, getOperationLabel, shortAddress } from '../../
 import { getTransactionUrl } from '../../lib/externalExplorers'
 import CopyableValue from './CopyableValue'
 import { format } from 'date-fns'
+import AddressLabelBadge from '../addressLabels/AddressLabelBadge'
 
 interface TransactionDetailData {
   transaction: Horizon.ServerApi.TransactionRecord
@@ -147,7 +148,8 @@ export default function TransactionDetail({ txHash, onClose }: TransactionDetail
                   <div style={{ color: 'var(--text-primary)' }}>{format(new Date(data.transaction.created_at), 'MMM d, yyyy HH:mm:ss')}</div>
 
                   <div style={{ color: 'var(--text-muted)' }}>Source Account</div>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                    <AddressLabelBadge address={data.transaction.source_account} />
                     <CopyableValue value={data.transaction.source_account} textStyle={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>
                       {shortAddress(data.transaction.source_account)}
                     </CopyableValue>

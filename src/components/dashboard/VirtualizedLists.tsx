@@ -4,6 +4,7 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import VirtualList from '../common/VirtualList';
 import CopyableValue from './CopyableValue';
 import { shortAddress, getOperationLabel } from '../../lib/stellar';
+import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
 
 export const TX_ROW_HEIGHT = 86;
 export const OP_ROW_HEIGHT = 74;
@@ -103,12 +104,14 @@ export const VirtualTxList = ({ items, network, onLoadMore, hasMore, loading }: 
             </div>
             {tx.source_account && (
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '22px' }}>
+                source:
+                <AddressLabelBadge address={tx.source_account} />
                 <CopyableValue
                   value={tx.source_account}
                   title="Copy source account"
                   textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
                 >
-                  source: {shortAddress(tx.source_account)}
+                  {shortAddress(tx.source_account)}
                 </CopyableValue>
               </div>
             )}
@@ -170,17 +173,21 @@ export const VirtualOpList = ({ items, network, onLoadMore, hasMore, loading }: 
             </div>
             {'from' in op && op.from && (
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                from:
+                <AddressLabelBadge address={(op as Record<string, string>).from} />
                 <CopyableValue
                   value={(op as Record<string, string>).from}
                   title="Copy source public key"
                   textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
                 >
-                  from: {shortAddress((op as Record<string, string>).from)}
+                  {shortAddress((op as Record<string, string>).from)}
                 </CopyableValue>
               </div>
             )}
             {'to' in op && op.to && (
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                to:
+                <AddressLabelBadge address={(op as Record<string, string>).to} />
                 <CopyableValue
                   value={(op as Record<string, string>).to}
                   title="Copy destination public key"

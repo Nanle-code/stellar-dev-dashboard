@@ -55,6 +55,7 @@ export interface UserPreferences {
     requireEmailConfirmation: boolean
     confirmationEmail: string
   }
+  notificationPreferences?: import('./notificationPreferences').NotificationPreferences
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────

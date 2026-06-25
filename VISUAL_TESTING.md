@@ -5,7 +5,7 @@ Playwright's built-in screenshot diffing catches unintended UI regressions acros
 ## Running tests
 
 ```bash
-# Run visual tests against the dev server (starts automatically)
+# Run visual tests across all viewport projects (mobile, tablet, desktop, wide)
 npm run test:visual
 
 # Open the HTML report after a run
@@ -44,6 +44,7 @@ Widgets tested: Connect Panel, Overview, Account, Transactions, NetworkStats, DE
 | Setting | Value |
 |---------|-------|
 | Config file | `playwright.config.ts` |
+| Viewport projects | `visual-mobile`, `visual-tablet`, `visual-desktop`, `visual-wide` |
 | Snapshots | `tests/e2e/snapshots/` |
 | Threshold | `maxDiffPixelRatio: 0.002` (0.2%) |
 | Animations | Disabled (`reducedMotion: reduce`) |
@@ -53,7 +54,13 @@ The threshold of 0.2% tolerates minor anti-aliasing differences. Raise it in `pl
 
 ## CI/CD
 
-Visual tests run automatically on every pull request via the `visual-regression` job in `.github/workflows/ci.yml`.
+Visual tests run on every PR via `.github/workflows/testing.yml` (multi-viewport matrix) and `.github/workflows/ci.yml`.
+
+- **Chromatic** (optional): set `CHROMATIC_PROJECT_TOKEN` and run `npm run test:chromatic` for Storybook component snapshots.
+- **Mutation testing**: `npm run test:mutation` (Stryker) — runs weekly in CI.
+- **Coverage gate**: `npm run test:coverage:check` enforces thresholds from `testing/coverage-thresholds.json`.
+- **Lighthouse CI**: `npm run test:lighthouse` with budgets in `lighthouserc.cjs`.
+- **Accessibility gate**: `npm run test:a11y` with axe-core WCAG 2.1 AA.
 
 - On failure: diff artifacts are uploaded as `visual-diff-<run>` (retained 14 days) and a comment is posted on the PR explaining how to update baselines.
 - Snapshots are cached per branch so PRs always compare against the target branch baseline.

@@ -15,7 +15,7 @@ import ConnectPanel from '../components/dashboard/ConnectPanel';
 import PriceTicker from '../components/dashboard/PriceTicker';
 import RealTimeNotificationCenter from '../components/notifications/RealTimeNotificationCenter';
 import { useRealTimeNotifications } from '../hooks/useRealTimeNotifications';
-import { pruneCaches } from '../lib/cacheManager';
+import { initCache, handleNetworkSwitch } from '../lib/cacheInit';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useStore } from '../lib/store';
 import { useResponsive } from '../hooks/useResponsive';
@@ -228,8 +228,12 @@ export default function DashboardLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    pruneCaches().catch(() => {});
-  }, []);
+    // v2: full multi-layer cache initialization (warm, prune, SW bridge)
+    initCache(
+      useStore.getState().network,
+      useStore.getState().connectedAddress ?? undefined,
+    ).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);

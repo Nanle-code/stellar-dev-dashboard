@@ -12,11 +12,11 @@ import {
   buildContractWorkspace,
   generateDeploymentPlan,
   getContractTemplates,
-  simulateSorobanTests,
   initDebugSession,
 } from '../../lib/contractDevelopment'
 import TemplateLibrary from '../templates/TemplateLibrary'
 import ContractDebugger from './ContractDebugger.jsx'
+import TestRunner from '../testing/TestRunner'
 
 const ARGUMENT_TYPES = [
   { value: 'string', label: 'String' },
@@ -168,7 +168,6 @@ export default function Contracts() {
   const [workspace, setWorkspace] = useState(() => buildContractWorkspace('token'))
   const [sourceEditor, setSourceEditor] = useState(() => buildContractWorkspace('token').source)
   const [testEditor, setTestEditor] = useState(() => buildContractWorkspace('token').tests)
-  const [devResult, setDevResult] = useState(null)
   const [deployPlan, setDeployPlan] = useState(null)
   const [debugSession, setDebugSession] = useState(null)
 
@@ -221,18 +220,10 @@ export default function Contracts() {
       setWorkspace(nextWorkspace)
       setSourceEditor(nextWorkspace.source)
       setTestEditor(nextWorkspace.tests)
-      setDevResult(null)
       setDeployPlan(null)
     } catch (error) {
       setInvokeError(error.message || 'Failed to load template')
     }
-  }
-
-  function handleRunLocalTests() {
-    const result = simulateSorobanTests(sourceEditor, testEditor, {
-      profile: network === 'mainnet' ? 'mainnet-safe' : 'testnet-debug',
-    })
-    setDevResult(result)
   }
 
   function handleStartDebug() {
@@ -344,70 +335,54 @@ export default function Contracts() {
       {mode === 'templates' && <TemplateLibrary />}
 
       <Panel
-        title="Development Suite"
-        subtitle="Template library, contract editor, simulated tests, and deployment planning."
+        title="Test Runner"
+        subtitle="Upload .rs test files, run Soroban contract tests, and view coverage reports."
       >
-        <div style={{ display: 'grid', gap: '14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '10px' }}>
-            {contractTemplates.map((template) => (
-              <button
-                key={template.id}
-                onClick={() => handleLoadTemplate(template.id)}
-                style={{
-                  textAlign: 'left',
-                  padding: '12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: `1px solid ${templateId === template.id ? 'var(--cyan)' : 'var(--border)'}`,
-                  background: templateId === template.id ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: '12px', marginBottom: '4px' }}>{template.name}</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '11px', lineHeight: 1.5 }}>{template.description}</div>
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
-            <LabeledField label="Contract Source Editor">
-              <textarea
-                value={sourceEditor}
-                onChange={(event) => setSourceEditor(event.target.value)}
-                rows={14}
-                style={{ ...textInputStyle(), minHeight: '220px', resize: 'vertical' }}
-              />
-            </LabeledField>
-            <LabeledField label="Test Suite Editor">
-              <textarea
-                value={testEditor}
-                onChange={(event) => setTestEditor(event.target.value)}
-                rows={8}
-                style={{ ...textInputStyle(), minHeight: '140px', resize: 'vertical' }}
-              />
-            </LabeledField>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <ActionButton label="Run Local Tests" onClick={handleRunLocalTests} />
-            <ActionButton label="Debug" tone="secondary" onClick={handleStartDebug} />
-            <ActionButton label="Generate Deploy Plan" tone="secondary" onClick={handleGenerateDeployPlan} />
-          </div>
-
-          {devResult && (
-            <ResultBlock
-              label="Development Test Run"
-              data={devResult}
-            />
-          )}
-
-          {deployPlan && (
-            <ResultBlock
-              label="Deployment Plan"
-              data={deployPlan}
-            />
-          )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          {contractTemplates.map((template) => (
+            <button
+              key={template.id}
+              onClick={() => handleLoadTemplate(template.id)}
+              style={{
+                textAlign: 'left',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${templateId === template.id ? 'var(--cyan)' : 'var(--border)'}`,
+                background: templateId === template.id ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}
+            >
+              {template.name}
+            </button>
+          ))}
         </div>
+
+        <TestRunner
+          sourceCode={sourceEditor}
+          testCode={testEditor}
+          onSourceChange={setSourceEditor}
+          onTestCodeChange={setTestEditor}
+        />
+      </Panel>
+
+      <Panel
+        title="Deploy Plan"
+        subtitle="Generate a deployment plan for your contract."
+      >
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <ActionButton label="Debug" tone="secondary" onClick={handleStartDebug} />
+          <ActionButton label="Generate Deploy Plan" tone="secondary" onClick={handleGenerateDeployPlan} />
+        </div>
+
+        {deployPlan && (
+          <ResultBlock
+            label="Deployment Plan"
+            data={deployPlan}
+          />
+        )}
       </Panel>
 
       <Panel

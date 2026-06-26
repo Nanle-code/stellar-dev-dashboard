@@ -61,9 +61,9 @@ export default function GuidedTour({ tourId, onClose }) {
   }, [stepIndex, tourId]);
 
   const handleSkip = useCallback(() => {
-    tutorialSystem.saveStep(tourId, 0);
+    tutorialSystem.skip(tourId, stepIndex);
     onClose?.();
-  }, [tourId, onClose]);
+  }, [tourId, stepIndex, onClose]);
 
   if (!tour || !step) return null;
 

@@ -6,6 +6,7 @@ import './styles/responsive.css';
 import './styles/mobile-performance.css';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { DeveloperTools } from './components/DeveloperTools';
 
 const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
 
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="/*" element={<DashboardLayout />} />
             </Routes>
           </Suspense>
+          <DeveloperTools />
         </ErrorBoundary>
       </AccessibilityProvider>
     </I18nProvider>

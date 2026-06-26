@@ -11,6 +11,7 @@ import { useI18nContext } from '../I18nProvider.jsx'
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'theme', label: 'Theme & Display' },
+  { id: 'presets', label: 'Presets & Sync' },
   { id: 'addresses', label: 'Address Book' },
   { id: 'accessibility', label: 'Accessibility' },
   { id: 'notifications', label: 'Notifications' },
@@ -32,6 +33,9 @@ export default function UserPreferences({ onClose }) {
   } = useI18nContext()
   const [activeTab, setActiveTab] = useState('general')
   const [saved, setSaved] = useState(false)
+  const [shareToken, setShareToken] = useState('')
+  const validation = validatePreferences(preferences)
+  const syncStatus = getPreferenceSyncStatus(preferences)
 
   const handleChange = async (key, value) => {
     await update(key, value)
@@ -88,7 +92,7 @@ export default function UserPreferences({ onClose }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '6px' }}>
+      <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -237,6 +241,75 @@ export default function UserPreferences({ onClose }) {
         {activeTab === 'theme' && (
           <ThemeSettings preferences={preferences} onChange={handleChange} />
         )}
+
+        {activeTab === 'presets' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+              {PREFERENCE_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => handlePreset(preset.id)}
+                  style={{
+                    ...presetButtonStyle,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                    <SlidersHorizontal size={14} />
+                    {preset.name}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '11px', lineHeight: 1.35 }}>
+                    {preset.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+              <StatusChip label="Schema" value={`v${preferences.schemaVersion}`} />
+              <StatusChip label="Options" value={validation.preferenceCount} />
+              <StatusChip label="Validation" value={validation.valid ? 'Valid' : `${validation.errors.length} errors`} />
+              <StatusChip label="Sync" value={syncStatus.state} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={handleExport} style={actionButtonStyle}>
+                <Download size={14} />
+                Export JSON
+              </button>
+              <button onClick={handleImport} style={actionButtonStyle}>
+                <Upload size={14} />
+                Import JSON
+              </button>
+              <button onClick={handleSharePreset} style={actionButtonStyle}>
+                <Share2 size={14} />
+                Share Preset
+              </button>
+              <button
+                onClick={() => handleChange('sync', { ...preferences.sync, pendingChanges: 0, lastSyncedAt: new Date().toISOString() })}
+                style={actionButtonStyle}
+              >
+                <RefreshCw size={14} />
+                Mark Synced
+              </button>
+            </div>
+
+            {shareToken && (
+              <div style={{
+                padding: '10px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-muted)',
+                fontSize: '11px',
+                overflowWrap: 'anywhere',
+              }}>
+                {shareToken}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'accessibility' && (
           <AccessibilitySettings />
         )}
@@ -315,4 +388,44 @@ const selectStyle = {
   fontFamily: 'var(--font-mono)',
   cursor: 'pointer',
   outline: 'none',
+}
+
+const presetButtonStyle = {
+  padding: '10px',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '7px',
+}
+
+const actionButtonStyle = {
+  padding: '8px 10px',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border-bright)',
+  borderRadius: 'var(--radius-md)',
+  color: 'var(--text-primary)',
+  fontSize: '12px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '7px',
+  cursor: 'pointer',
+}
+
+function StatusChip({ label, value }) {
+  return (
+    <div style={{
+      padding: '8px 10px',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)',
+      background: 'var(--bg-elevated)',
+      fontSize: '11px',
+    }}>
+      <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>{label}</div>
+      <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{value}</div>
+    </div>
+  )
 }

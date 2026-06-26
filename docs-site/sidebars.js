@@ -88,6 +88,7 @@ const sidebars = {
         'guides/soroban-smart-contracts',
         'guides/dex-trading',
         'guides/transaction-templates',
+        'guides/developer-toolkit',
         'guides/error-handling',
         'guides/rate-limiting',
         'guides/offline-support',

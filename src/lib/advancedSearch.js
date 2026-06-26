@@ -3,10 +3,74 @@
  * Global search functionality across transactions, operations, and contracts
  */
 
+const STORAGE_KEYS = {
+  history: 'stellar-advanced-search-history-v1',
+  saved: 'stellar-advanced-search-saved-v1',
+  alerts: 'stellar-advanced-search-alerts-v1',
+  folders: 'stellar-advanced-search-folders-v1',
+};
+
+function getBrowserStorage() {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredArray(storage, key, fallback = []) {
+  if (!storage) return [...fallback];
+  try {
+    const parsed = JSON.parse(storage.getItem(key) || 'null');
+    return Array.isArray(parsed) ? parsed : [...fallback];
+  } catch {
+    return [...fallback];
+  }
+}
+
+function writeStoredArray(storage, key, value) {
+  if (!storage) return;
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Persistence is best-effort because private browsing can reject writes.
+  }
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function makeId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function encodeSharePayload(payload) {
+  const serialized = encodeURIComponent(JSON.stringify(payload));
+  if (typeof btoa === 'function') return btoa(serialized);
+  return serialized;
+}
+
+function decodeSharePayload(token) {
+  const serialized = typeof atob === 'function' ? atob(token) : token;
+  return JSON.parse(decodeURIComponent(serialized));
+}
+
 class AdvancedSearchService {
-  constructor() {
-    this.searchHistory = [];
-    this.savedSearches = [];
+  constructor(options = {}) {
+    this.storage = options.storage || getBrowserStorage();
+    this.searchHistory = readStoredArray(this.storage, STORAGE_KEYS.history);
+    this.savedSearches = readStoredArray(this.storage, STORAGE_KEYS.saved);
+    this.searchAlerts = readStoredArray(this.storage, STORAGE_KEYS.alerts);
+    this.savedQueryFolders = readStoredArray(this.storage, STORAGE_KEYS.folders, [{ id: 'general', name: 'General', createdAt: new Date().toISOString() }]);
+    this.resultCache = new Map();
+    this.cacheTtlMs = options.cacheTtlMs || 60 * 1000;
     this.indexedData = new Map();
     this.searchIndex = new Map();
     this.filters = {
@@ -287,27 +351,48 @@ class AdvancedSearchService {
     const startTime = Date.now();
     
     try {
+      const optimizedQuery = this.optimizeQuery(query);
+
       // Update filters if provided
-      if (query.filters) {
-        this.filters = { ...this.filters, ...query.filters };
+      if (optimizedQuery.filters) {
+        this.filters = { ...this.filters, ...optimizedQuery.filters };
       }
 
       // Update sort options if provided
-      if (query.sort) {
-        this.sortOptions = { ...this.sortOptions, ...query.sort };
+      if (optimizedQuery.sort) {
+        this.sortOptions = { ...this.sortOptions, ...optimizedQuery.sort };
+      }
+
+      const queryPlan = this.buildQueryPlan(optimizedQuery);
+      const cacheKey = this.createQueryKey({ ...optimizedQuery, filters: this.filters, sort: this.sortOptions });
+      const cached = optimizedQuery.cache !== false ? this.getCachedResults(cacheKey) : null;
+      if (cached) {
+        const cachedResult = {
+          ...cached,
+          query: optimizedQuery,
+          cached: true,
+          searchTime: Date.now() - startTime,
+          queryPlan,
+        };
+        this.addToSearchHistory(optimizedQuery, {
+          resultCount: cached.total,
+          searchTime: cachedResult.searchTime,
+          cached: true,
+        });
+        return cachedResult;
       }
 
       // Get all indexed data
       let results = [];
       this.indexedData.forEach((items, type) => {
-        if (!query.types || query.types.includes(type)) {
+        if (!optimizedQuery.types || optimizedQuery.types.includes(type)) {
           results.push(...items);
         }
       });
 
       // Apply text search
-      if (query.text && query.text.trim()) {
-        results = this.applyTextSearch(results, query.text.trim());
+      if (optimizedQuery.text && optimizedQuery.text.trim()) {
+        results = this.applyTextSearch(results, optimizedQuery.text.trim());
       }
 
       // Apply filters
@@ -317,24 +402,33 @@ class AdvancedSearchService {
       results = this.applySorting(results);
 
       // Apply pagination
-      const paginatedResults = this.applyPagination(results, query.page, query.limit);
-
-      // Add to search history
-      this.addToSearchHistory(query);
+      const paginatedResults = this.applyPagination(results, optimizedQuery.page, optimizedQuery.limit);
 
       const searchTime = Date.now() - startTime;
 
-      return {
-        query,
+      const response = {
+        query: optimizedQuery,
         results: paginatedResults.items,
         total: paginatedResults.total,
         page: paginatedResults.page,
         limit: paginatedResults.limit,
         searchTime,
+        cached: false,
+        cacheKey,
+        queryPlan,
         filters: { ...this.filters },
         sort: { ...this.sortOptions },
         aggregations: this.calculateAggregations(results)
       };
+
+      this.setCachedResults(cacheKey, response);
+      this.addToSearchHistory(optimizedQuery, {
+        resultCount: response.total,
+        searchTime,
+        cached: false,
+      });
+
+      return response;
 
     } catch (error) {
       throw new Error(`Search failed: ${error.message}`);
@@ -555,15 +649,109 @@ class AdvancedSearchService {
   }
 
   /**
+   * Normalize query fields before execution.
+   * @param {object} query - Search query
+   * @returns {object} Optimized query
+   */
+  optimizeQuery(query = {}) {
+    const text = (query.text || '').trim();
+    const types = Array.isArray(query.types) && query.types.length
+      ? Array.from(new Set(query.types)).sort()
+      : null;
+
+    return {
+      ...query,
+      text,
+      types,
+      page: Math.max(Number(query.page) || 1, 1),
+      limit: Math.min(Math.max(Number(query.limit) || 20, 1), 100),
+    };
+  }
+
+  /**
+   * Build a stable cache key for the effective query.
+   * @param {object} query - Search query
+   * @returns {string} Cache key
+   */
+  createQueryKey(query) {
+    return stableStringify({
+      text: query.text || '',
+      types: query.types || null,
+      filters: query.filters || {},
+      sort: query.sort || {},
+      page: query.page || 1,
+      limit: query.limit || 20,
+    });
+  }
+
+  /**
+   * Store a result in the in-memory cache.
+   * @param {string} key - Cache key
+   * @param {object} result - Search response
+   */
+  setCachedResults(key, result) {
+    this.resultCache.set(key, {
+      expiresAt: Date.now() + this.cacheTtlMs,
+      result,
+    });
+  }
+
+  /**
+   * Read a result from the in-memory cache.
+   * @param {string} key - Cache key
+   * @returns {object|null} Cached response
+   */
+  getCachedResults(key) {
+    const entry = this.resultCache.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.resultCache.delete(key);
+      return null;
+    }
+    return entry.result;
+  }
+
+  clearResultCache() {
+    this.resultCache.clear();
+  }
+
+  /**
+   * Produce a lightweight plan for index/caching observability.
+   * @param {object} query - Optimized query
+   * @returns {object} Query plan summary
+   */
+  buildQueryPlan(query) {
+    const terms = (query.text || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const indexedTerms = terms.filter((term) => this.searchIndex.has(term));
+    const filterCount = Object.values(query.filters || {}).filter((value) => {
+      if (value && typeof value === 'object') {
+        return Object.values(value).some((nested) => nested !== null && nested !== '');
+      }
+      return value !== null && value !== '';
+    }).length;
+
+    return {
+      textTerms: terms,
+      indexedTerms,
+      filterCount,
+      usesIndex: indexedTerms.length > 0,
+      cacheTtlMs: this.cacheTtlMs,
+      indexedTypes: query.types || Array.from(this.indexedData.keys()),
+    };
+  }
+
+  /**
    * Add search to history
    * @param {object} query - Search query
    */
-  addToSearchHistory(query) {
+  addToSearchHistory(query, meta = {}) {
     const historyEntry = {
-      id: Date.now(),
+      id: makeId('history'),
       timestamp: new Date().toISOString(),
       query: { ...query },
-      resultCount: this.searchIndex.size
+      resultCount: meta.resultCount || 0,
+      searchTime: meta.searchTime || 0,
+      cached: Boolean(meta.cached)
     };
 
     this.searchHistory.unshift(historyEntry);
@@ -572,6 +760,8 @@ class AdvancedSearchService {
     if (this.searchHistory.length > 50) {
       this.searchHistory = this.searchHistory.slice(0, 50);
     }
+
+    writeStoredArray(this.storage, STORAGE_KEYS.history, this.searchHistory);
   }
 
   /**
@@ -579,24 +769,180 @@ class AdvancedSearchService {
    * @param {string} name - Search name
    * @param {object} query - Search query
    */
-  saveSearch(name, query) {
+  saveSearch(name, query, options = {}) {
+    const folder = options.folder || 'General';
+    this.createSavedSearchFolder(folder);
     const savedSearch = {
-      id: Date.now(),
+      id: makeId('saved'),
       name,
       query: { ...query },
+      folder,
+      tags: options.tags || [],
+      description: options.description || '',
+      sharedWith: [],
+      shareToken: null,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       usageCount: 0
     };
 
     this.savedSearches.push(savedSearch);
+    writeStoredArray(this.storage, STORAGE_KEYS.saved, this.savedSearches);
+    return savedSearch;
   }
 
   /**
    * Get saved searches
    * @returns {array} Saved searches
    */
-  getSavedSearches() {
-    return this.savedSearches.sort((a, b) => b.usageCount - a.usageCount);
+  getSavedSearches(options = {}) {
+    return [...this.savedSearches]
+      .filter((search) => !options.folder || search.folder === options.folder)
+      .sort((a, b) => b.usageCount - a.usageCount || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+  }
+
+  loadSavedSearch(id) {
+    const savedSearch = this.savedSearches.find((search) => search.id === id);
+    if (!savedSearch) return null;
+    savedSearch.usageCount += 1;
+    savedSearch.updatedAt = new Date().toISOString();
+    writeStoredArray(this.storage, STORAGE_KEYS.saved, this.savedSearches);
+    return savedSearch;
+  }
+
+  deleteSavedSearch(id) {
+    this.savedSearches = this.savedSearches.filter((search) => search.id !== id);
+    writeStoredArray(this.storage, STORAGE_KEYS.saved, this.savedSearches);
+  }
+
+  createSavedSearchFolder(name) {
+    const normalizedName = (name || 'General').trim() || 'General';
+    const existing = this.savedQueryFolders.find((folder) => folder.name.toLowerCase() === normalizedName.toLowerCase());
+    if (existing) return existing;
+
+    const folder = {
+      id: makeId('folder'),
+      name: normalizedName,
+      createdAt: new Date().toISOString(),
+    };
+    this.savedQueryFolders.push(folder);
+    writeStoredArray(this.storage, STORAGE_KEYS.folders, this.savedQueryFolders);
+    return folder;
+  }
+
+  getSavedSearchFolders() {
+    return this.savedQueryFolders.map((folder) => ({
+      ...folder,
+      count: this.savedSearches.filter((search) => search.folder === folder.name).length,
+    }));
+  }
+
+  shareSearch(id, options = {}) {
+    const savedSearch = this.savedSearches.find((search) => search.id === id);
+    if (!savedSearch) {
+      throw new Error('Saved search not found');
+    }
+
+    savedSearch.sharedWith = Array.from(new Set([...(savedSearch.sharedWith || []), ...(options.users || [])]));
+    savedSearch.shareToken = savedSearch.shareToken || encodeSharePayload({
+      id: savedSearch.id,
+      name: savedSearch.name,
+      query: savedSearch.query,
+      folder: savedSearch.folder,
+    });
+    savedSearch.updatedAt = new Date().toISOString();
+    writeStoredArray(this.storage, STORAGE_KEYS.saved, this.savedSearches);
+    return savedSearch.shareToken;
+  }
+
+  importSharedSearch(shareToken, options = {}) {
+    const parsed = decodeSharePayload(shareToken);
+    return this.saveSearch(options.name || parsed.name, parsed.query, {
+      folder: options.folder || parsed.folder || 'Shared',
+      tags: ['shared'],
+    });
+  }
+
+  createSearchAlert(input) {
+    const alert = {
+      id: makeId('alert'),
+      savedSearchId: input.savedSearchId || null,
+      name: input.name || 'Search alert',
+      query: input.query || this.savedSearches.find((search) => search.id === input.savedSearchId)?.query || {},
+      cron: input.cron || '0 * * * *',
+      channels: input.channels || ['in-app'],
+      threshold: Number(input.threshold || 1),
+      enabled: input.enabled !== false,
+      lastRunAt: null,
+      nextRunAt: this.getNextAlertRun(input.cron || '0 * * * *'),
+      createdAt: new Date().toISOString(),
+    };
+
+    this.searchAlerts.push(alert);
+    writeStoredArray(this.storage, STORAGE_KEYS.alerts, this.searchAlerts);
+    return alert;
+  }
+
+  getSearchAlerts() {
+    return [...this.searchAlerts].sort((a, b) => new Date(a.nextRunAt).getTime() - new Date(b.nextRunAt).getTime());
+  }
+
+  getNextAlertRun(cronExpression, from = new Date()) {
+    const [minute = '0', hour = '*'] = cronExpression.trim().split(/\s+/);
+    const next = new Date(from);
+    next.setSeconds(0, 0);
+    next.setMinutes(next.getMinutes() + 1);
+    if (minute !== '*') next.setMinutes(Number(minute.replace('*/', '')) || 0);
+    if (hour !== '*') next.setHours(Number(hour.replace('*/', '')) || next.getHours());
+    if (next.getTime() <= from.getTime()) next.setHours(next.getHours() + 1);
+    return next.toISOString();
+  }
+
+  evaluateSearchAlerts(now = new Date()) {
+    return this.searchAlerts
+      .filter((alert) => alert.enabled && new Date(alert.nextRunAt).getTime() <= now.getTime())
+      .map((alert) => {
+        const result = this.search({ ...alert.query, cache: false });
+        alert.lastRunAt = now.toISOString();
+        alert.nextRunAt = this.getNextAlertRun(alert.cron, now);
+        writeStoredArray(this.storage, STORAGE_KEYS.alerts, this.searchAlerts);
+        return {
+          alert,
+          resultCount: result.total,
+          triggered: result.total >= alert.threshold,
+        };
+      });
+  }
+
+  getSearchHistory() {
+    return [...this.searchHistory];
+  }
+
+  getFrequentSearches(limit = 5) {
+    const counts = new Map();
+    this.searchHistory.forEach((entry) => {
+      const key = entry.query?.text || JSON.stringify(entry.query?.filters || {});
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([query, count]) => ({ query, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+  }
+
+  getSearchAnalytics() {
+    const history = this.getSearchHistory();
+    const totalSearchTime = history.reduce((sum, entry) => sum + (entry.searchTime || 0), 0);
+    return {
+      totalSearches: history.length,
+      cachedSearches: history.filter((entry) => entry.cached).length,
+      averageSearchTime: history.length ? totalSearchTime / history.length : 0,
+      savedSearches: this.savedSearches.length,
+      folders: this.savedQueryFolders.length,
+      alerts: this.searchAlerts.length,
+      frequentSearches: this.getFrequentSearches(),
+      cacheEntries: this.resultCache.size,
+    };
   }
 
   /**

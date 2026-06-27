@@ -190,3 +190,34 @@ export function buildShareableURL(state) {
   const base = window.location.origin + window.location.pathname;
   return base + encodeSessionToHash(state);
 }
+
+// syncState / onStateChange — used by store.ts for cross-tab persistence.
+// syncState persists a keyed slice to localStorage; onStateChange listens for
+// changes from other tabs via the storage event.
+
+export async function syncState(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (_) {
+    // Quota exceeded or private mode — fail silently.
+  }
+}
+
+const _stateChangeListeners = new Set()
+
+export function onStateChange(callback) {
+  _stateChangeListeners.add(callback)
+  const handler = (e) => {
+    if (e.key && _stateChangeListeners.has(callback)) {
+      try {
+        const value = e.newValue ? JSON.parse(e.newValue) : null
+        callback(e.key, value)
+      } catch (_) {}
+    }
+  }
+  window.addEventListener('storage', handler)
+  return () => {
+    window.removeEventListener('storage', handler)
+    _stateChangeListeners.delete(callback)
+  }
+}

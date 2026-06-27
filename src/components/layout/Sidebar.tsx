@@ -4,6 +4,7 @@ import { useStore } from '../../lib/store';
 import CopyableValue from '../dashboard/CopyableValue';
 import { NETWORKS, updateCustomNetworkConfig, switchToCustomProfile, loadCustomNetworkProfiles } from '../../lib/stellar';
 import { getActiveProfile } from '../../lib/userPreferences';
+import { preloadTab } from '../../hooks/usePreload';
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
 
@@ -418,6 +419,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                         e.currentTarget.style.background = 'var(--bg-hover)'
                         e.currentTarget.style.color = 'var(--text-primary)'
                       }
+                      if (item.id) preloadTab(item.id)
                     }}
                     onMouseLeave={e => {
                       if (!isActive && !isDisabled) {

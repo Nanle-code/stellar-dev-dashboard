@@ -2700,3 +2700,11 @@ export default {
   getCacheStats,
   StellarSdk,
 };
+
+// ── Compatibility aliases ──────────────────────────────────────────────────
+/** @deprecated Use {@link fetchAccount} directly. */
+export type AccountDetails = StellarSdk.Horizon.AccountResponse
+/** @deprecated Use {@link fetchAccount} directly. */
+export const fetchAccountDetails = fetchAccount
+/** @deprecated Use {@link isValidEd25519PublicKey} directly. */
+export const isPublicKey = isValidEd25519PublicKey

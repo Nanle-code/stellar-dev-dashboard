@@ -3,12 +3,13 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./styles/globals.css";
-import { initPerformanceMonitoring } from "./lib/performance";
+import { initMonitoring } from "./utils/monitoring";
 import { selfHealingManager } from "./lib/errorHandling/SelfHealingManager";
 import { registerBuiltInStrategies, registerNetworkProbes } from "./lib/errorHandling/RecoveryStrategyRegistry";
 
-// Initialize performance monitoring (no RUM endpoint by default)
-initPerformanceMonitoring();
+// ── Monitoring must be the very first thing that runs so Sentry and the
+//    global error handlers are in place before any React code executes.
+initMonitoring();
 
 // D-057 — Bootstrap error recovery & self-healing
 registerBuiltInStrategies();

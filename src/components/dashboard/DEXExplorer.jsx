@@ -56,3 +56,6 @@ export default function DEXExplorer() {
     </div>
   );
 }
+
+// Named export for compatibility
+export { DEXExplorer };

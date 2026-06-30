@@ -96,8 +96,11 @@ const PERSIST_KEYS = [
 const getInitialTheme = (): 'light' | 'dark' => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(THEME_STORAGE_KEY)
-    if (saved === 'light' || saved === 'dark') return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    const theme = (saved === 'light' || saved === 'dark')
+      ? saved
+      : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', theme)
+    return theme
   }
   return 'dark'
 }
@@ -606,6 +609,16 @@ export const useStore = create<StoreState>((set) => ({
 // ─── Expose store for e2e testing ────────────────────────────────────────────
 if (typeof window !== 'undefined') {
   (window as any).__store = useStore
+}
+
+// ─── System preference listener ───────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (localStorage.getItem(THEME_STORAGE_KEY)) return
+    const newTheme = e.matches ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', newTheme)
+    useStore.setState({ theme: newTheme })
+  })
 }
 
 // ─── Persistence middleware ───────────────────────────────────────────────────

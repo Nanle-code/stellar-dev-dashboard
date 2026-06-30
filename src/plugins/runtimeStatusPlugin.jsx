@@ -45,6 +45,8 @@ export default function createRuntimeStatusPlugin() {
   return {
     id: "core.runtime-status",
     name: "Runtime Status",
+    version: "1.0.0",
+    permissions: ["dashboard:read"],
     initialize(api) {
       apiRef = api;
       api.logger.info("Runtime status plugin initialized.");

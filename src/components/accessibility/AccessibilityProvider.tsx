@@ -1,16 +1,14 @@
 import React from 'react';
 import ScreenReaderAnnouncer from './ScreenReaderAnnouncer';
 
-/**
- * Wraps the app with all accessibility providers and global helpers.
- */
-export default function AccessibilityProvider({ children }) {
+interface AccessibilityProviderProps {
+  children: React.ReactNode;
+}
+
+export default function AccessibilityProvider({ children }: AccessibilityProviderProps) {
   return (
     <>
-      {/* Live region for screen reader announcements */}
       <ScreenReaderAnnouncer />
-
-      {/* assertive region for errors/urgent messages */}
       <div
         role="alert"
         aria-live="assertive"
@@ -18,7 +16,6 @@ export default function AccessibilityProvider({ children }) {
         id="assertive-announcer"
         className="sr-only"
       />
-
       {children}
     </>
   );

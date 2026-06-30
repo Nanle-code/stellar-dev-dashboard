@@ -76,6 +76,7 @@ export interface SimulationResult {
 export interface PortfolioItem {
   code: string
   amount: number
+  issuer?: string | null
   priceUsd: number | null
   valueUsd: number | null
   change24h: number | null
@@ -89,16 +90,22 @@ export interface PortfolioValue {
 
 /** Allocation breakdown for a single asset */
 export interface AllocationItem {
-  asset: string
-  percentage: number
+  code: string
+  asset?: string
+  allocation: number
+  percentage?: number
   valueUsd: number
+  issuer?: string | null
 }
 
 /** A concentration risk found in the portfolio */
 export interface ConcentrationRisk {
   asset: string
+  code?: string
   message: string
   percentage: number
+  allocation?: number
+  riskLevel?: string
 }
 
 /** Volatility and diversification assessment for the portfolio */
@@ -106,6 +113,8 @@ export interface PortfolioAnalytics {
   allocation: AllocationItem[]
   diversificationScore: number
   concentrationRisks: ConcentrationRisk[]
+  concentrationRiskScore?: number
+  counterpartyRisk?: CounterpartyRisk
   change24h: number | null
   historicalPerformance: HistoricalPoint[]
   volatility: number
@@ -124,8 +133,27 @@ export interface HistoricalPoint {
 export interface RiskAssessment {
   level: string
   score: number
-  factors: { name: string; description: string }[]
+  factors: { name?: string; factor?: string; description?: string; impact?: string }[]
   recommendations?: string[]
+  components?: Record<string, number>
+}
+
+export interface CounterpartyRisk {
+  score: number
+  level: string
+  issuerCount: number
+  largestIssuerExposure: number
+  issuedExposure?: number
+  unpricedExposure: number
+  unpricedAssets?: number
+  issuerExposures: Array<{
+    issuer: string
+    valueUsd: number
+    percentage: number
+    assets: string[]
+  }>
+  factors: RiskAssessment['factors']
+  recommendations: string[]
 }
 
 /** Recharts pie chart data entry */

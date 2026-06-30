@@ -25,7 +25,12 @@ class AnchorService {
         withdrawalMethods: ['bank_transfer', 'crypto'],
         fees: { deposit: '1.49%', withdrawal: '1.49%', minimum: '$0.99' },
         processingTime: { deposit: '1-3 business days', withdrawal: '1-3 business days' },
-        status: 'active'
+        status: 'active',
+        rating: 4.5,
+        reviews: [
+          { user: 'user1', rating: 5, comment: 'Very reliable and fast.' },
+          { user: 'user2', rating: 4, comment: 'Good but fees are slightly high.' }
+        ]
       },
       {
         id: 'kraken',
@@ -39,7 +44,12 @@ class AnchorService {
         withdrawalMethods: ['bank_transfer', 'wire', 'crypto'],
         fees: { deposit: 'Free', withdrawal: '0.0005 BTC', minimum: '$1' },
         processingTime: { deposit: '1-5 business days', withdrawal: '1-5 business days' },
-        status: 'active'
+        status: 'active',
+        rating: 4.8,
+        reviews: [
+          { user: 'trader89', rating: 5, comment: 'Excellent security and low fees.' },
+          { user: 'crypto_fan', rating: 5, comment: 'Best exchange for advanced trading.' }
+        ]
       },
       {
         id: 'binance',
@@ -53,7 +63,12 @@ class AnchorService {
         withdrawalMethods: ['crypto', 'p2p'],
         fees: { deposit: 'Free', withdrawal: '0.0005 XLM', minimum: '$1' },
         processingTime: { deposit: 'Instant', withdrawal: 'Instant' },
-        status: 'active'
+        status: 'active',
+        rating: 4.6,
+        reviews: [
+          { user: 'whale22', rating: 5, comment: 'Huge liquidity.' },
+          { user: 'newbie', rating: 4, comment: 'UI is a bit complex.' }
+        ]
       },
       {
         id: 'bitstamp',
@@ -67,7 +82,12 @@ class AnchorService {
         withdrawalMethods: ['bank_transfer', 'wire', 'crypto'],
         fees: { deposit: 'Free', withdrawal: '0.5%', minimum: '$10' },
         processingTime: { deposit: '1-4 business days', withdrawal: '1-4 business days' },
-        status: 'active'
+        status: 'active',
+        rating: 4.3,
+        reviews: [
+          { user: 'investor_eu', rating: 4, comment: 'Solid fiat on-ramp for EUR.' },
+          { user: 'anon', rating: 4, comment: 'Oldest exchange, very trustworthy.' }
+        ]
       },
       {
         id: 'gatehub',
@@ -81,7 +101,12 @@ class AnchorService {
         withdrawalMethods: ['bank_transfer', 'wire', 'crypto'],
         fees: { deposit: '1%', withdrawal: '1%', minimum: '$2.5' },
         processingTime: { deposit: '1-3 business days', withdrawal: '1-3 business days' },
-        status: 'active'
+        status: 'active',
+        rating: 4.1,
+        reviews: [
+          { user: 'stellar_lover', rating: 5, comment: 'Great Stellar integration.' },
+          { user: 'tester', rating: 3, comment: 'Support can be slow.' }
+        ]
       }
     ];
     
@@ -421,19 +446,41 @@ class AnchorService {
     return `STELLAR-${Date.now()}-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
   }
 
-  /**
-   * Parse a minimal subset of stellar.toml to extract values used for SEP-10.
-   * @param {string} tomlText
-   * @returns {object}
-   */
   parseToml(tomlText) {
-    const result = {};
+    const result = {
+      CURRENCIES: []
+    };
+    let currentSection = null;
+    let currentCurrency = null;
+
     tomlText.split(/\r?\n/).forEach(line => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) return;
-      const match = trimmed.match(/^([A-Za-z0-9_]+)\s*=\s*['"](.+?)['"]$/);
+
+      if (trimmed.startsWith('[[CURRENCIES]]')) {
+        currentSection = 'CURRENCIES';
+        currentCurrency = {};
+        result.CURRENCIES.push(currentCurrency);
+        return;
+      }
+
+      if (trimmed.startsWith('[')) {
+        currentSection = trimmed.replace(/[[\]]/g, '');
+        if (!result[currentSection]) {
+          result[currentSection] = {};
+        }
+        return;
+      }
+
+      const match = trimmed.match(/^([A-Za-z0-9_]+)\s*=\s*['"](.*?)['"]$/);
       if (match) {
-        result[match[1]] = match[2];
+        if (currentSection === 'CURRENCIES' && currentCurrency) {
+          currentCurrency[match[1]] = match[2];
+        } else if (currentSection && typeof result[currentSection] === 'object' && !Array.isArray(result[currentSection])) {
+          result[currentSection][match[1]] = match[2];
+        } else {
+          result[match[1]] = match[2];
+        }
       }
     });
     return result;
@@ -460,6 +507,32 @@ class AnchorService {
 
     const text = await response.text();
     return this.parseToml(text);
+  }
+
+  /**
+   * Check anchor capabilities (SEP support)
+   * @param {string} anchorId - Anchor identifier
+   * @returns {object} Capabilities
+   */
+  async checkCapabilities(anchorId) {
+    const anchor = this.getAnchor(anchorId);
+    if (!anchor || !anchor.homeDomain) {
+      return null;
+    }
+
+    try {
+      const toml = await this.fetchStellarToml(anchor.homeDomain);
+      return {
+        sep10Auth: !!toml.WEB_AUTH_ENDPOINT,
+        sep24Interactive: !!toml.TRANSFER_SERVER_SEP0024,
+        sep31CrossBorder: !!toml.DIRECT_PAYMENT_SERVER,
+        sep6Transfer: !!toml.TRANSFER_SERVER,
+        sep12KYC: !!toml.KYC_SERVER,
+        currencies: toml.CURRENCIES || []
+      };
+    } catch (e) {
+      return null;
+    }
   }
 
   async getWebAuthEndpoint(anchor) {

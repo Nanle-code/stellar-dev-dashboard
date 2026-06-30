@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "plugin:create": "node scripts/create-plugin.mjs",
     "format": "prettier --write package.json package-lock.json eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
     "format:check": "prettier --check package.json package-lock.json eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
     "type-check": "tsc --noEmit",
@@ -37,7 +38,8 @@
     "ci:testing": "npm run test:coverage && npm run test:coverage:check && npm run ci:workflows",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "docs:api:generate": "node scripts/generate-api-docs.mjs"
+    "docs:api:generate": "node scripts/generate-api-docs.mjs",
+    "api:start": "node api/server.js"
   },
   "dependencies": {
     "@sentry/browser": "8.54.0",
@@ -69,7 +71,8 @@
     "recharts": "^2.12.7",
     "uuid": "^9.0.1",
     "zustand": "^4.5.4",
-    "swr": "^2.2.0"
+    "swr": "^2.2.0",
+    "ws": "^8.16.0"
   },
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",

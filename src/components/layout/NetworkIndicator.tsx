@@ -2,11 +2,15 @@ import React from 'react'
 import { useStore } from '../../lib/store'
 import { getNetworkDetails } from '../../lib/stellar'
 
-export default function NetworkIndicator({ compact = false }) {
+interface NetworkIndicatorProps {
+  compact?: boolean;
+}
+
+export default function NetworkIndicator({ compact = false }: NetworkIndicatorProps) {
   const { network } = useStore()
   const details = getNetworkDetails(network)
 
-  const colorMap = {
+  const colorMap: Record<string, string> = {
     mainnet: 'var(--green)',
     testnet: 'var(--yellow, #f59e0b)',
     futurenet: 'var(--cyan)',

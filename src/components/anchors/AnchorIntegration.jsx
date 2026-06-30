@@ -14,6 +14,8 @@ import {
   Coins,
   ChevronDown,
   ChevronUp,
+  Star,
+  Shield,
 } from 'lucide-react';
 import anchorService from '../../lib/anchors.js';
 import auditTrail from '../../lib/auditTrail.js';
@@ -623,8 +625,13 @@ function AnchorCard({ anchor, feeData, isExpanded, onToggle, onSelect, isSelecte
               <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
                 {anchor.name}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {anchor.supportedAssets.length} assets • {anchor.depositMethods.length + anchor.withdrawalMethods.length} methods
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                <span>{anchor.supportedAssets.length} assets • {anchor.depositMethods.length + anchor.withdrawalMethods.length} methods</span>
+                {anchor.rating && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#f59e0b' }}>
+                    <Star size={12} fill="currentColor" /> {anchor.rating.toFixed(1)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -747,6 +754,61 @@ function AnchorCard({ anchor, feeData, isExpanded, onToggle, onSelect, isSelecte
                 <div>Withdrawal: {anchor.processingTime.withdrawal}</div>
               </div>
             </div>
+          </div>
+
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-primary)' }}>Anchor Capabilities & SEP Support</div>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const caps = await anchorService.checkCapabilities(anchor.id);
+                    if (caps) {
+                      alert(`SEP-10 Auth: ${caps.sep10Auth ? 'Yes' : 'No'}\nSEP-24 Interactive: ${caps.sep24Interactive ? 'Yes' : 'No'}\nSEP-31 Cross-border: ${caps.sep31CrossBorder ? 'Yes' : 'No'}\nSEP-6 Transfer: ${caps.sep6Transfer ? 'Yes' : 'No'}\nSEP-12 KYC: ${caps.sep12KYC ? 'Yes' : 'No'}\nSupported Currencies: ${caps.currencies?.length || 0}`);
+                    } else {
+                      alert('Could not fetch capabilities. Anchor may not support SEP standards.');
+                    }
+                  } catch (err) {
+                    alert('Error fetching capabilities.');
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  background: 'var(--cyan)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  cursor: 'pointer'
+                }}
+              >
+                <Shield size={12} />
+                Check Capabilities
+              </button>
+            </div>
+            
+            {anchor.reviews && anchor.reviews.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-primary)', marginBottom: '8px' }}>User Reviews</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                  {anchor.reviews.map((review, idx) => (
+                    <div key={idx} style={{ padding: '8px', background: 'var(--bg-card)', borderRadius: '6px', fontSize: '11px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{review.user}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#f59e0b' }}>
+                          <Star size={10} fill="currentColor" /> {review.rating}
+                        </span>
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)' }}>"{review.comment}"</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>

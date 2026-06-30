@@ -4,17 +4,36 @@ import { probeNetworkStatuses, compareAccountsAcrossNetworks, NETWORK_LABELS, NE
 import { shortAddress } from '../../lib/stellar'
 import { Globe, CheckCircle, XCircle, RefreshCw, Activity, X } from 'lucide-react'
 
-function statusColor(status) {
+interface ProbeResult {
+  network: string;
+  status: 'up' | 'down';
+  horizonMs?: number | null;
+}
+
+interface ComparisonResult {
+  network: string;
+  success: boolean;
+  balance?: string;
+  subentryCount?: number;
+  sequence?: string;
+  error?: string;
+}
+
+interface CrossNetworkPanelProps {
+  onClose?: () => void;
+}
+
+function statusColor(status: string): string {
   return status === 'up' ? '#22c55e' : '#ef4444'
 }
 
-export default function CrossNetworkPanel({ onClose }) {
+export default function CrossNetworkPanel({ onClose }: CrossNetworkPanelProps) {
   const network = useStore((s) => s.network)
   const connectedAddress = useStore((s) => s.connectedAddress)
   const setNetwork = useStore((s) => s.setNetwork)
 
-  const [probeResults, setProbeResults] = useState([])
-  const [comparison, setComparison] = useState(null)
+  const [probeResults, setProbeResults] = useState<ProbeResult[]>([])
+  const [comparison, setComparison] = useState<ComparisonResult[] | null>(null)
   const [comparing, setComparing] = useState(false)
   const [probing, setProbing] = useState(false)
   const mountedRef = useRef(true)
@@ -28,7 +47,7 @@ export default function CrossNetworkPanel({ onClose }) {
     setProbing(true)
     try {
       const results = await probeNetworkStatuses()
-      if (mountedRef.current) setProbeResults(results)
+      if (mountedRef.current) setProbeResults(results as ProbeResult[])
     } catch { /* best-effort */ }
     if (mountedRef.current) setProbing(false)
   }, [])
@@ -40,12 +59,12 @@ export default function CrossNetworkPanel({ onClose }) {
     setComparing(true)
     try {
       const results = await compareAccountsAcrossNetworks(connectedAddress)
-      if (mountedRef.current) setComparison(results)
+      if (mountedRef.current) setComparison(results as ComparisonResult[])
     } catch { /* best-effort */ }
     if (mountedRef.current) setComparing(false)
   }, [connectedAddress])
 
-  const handleSwitchNetwork = useCallback((target) => {
+  const handleSwitchNetwork = useCallback((target: string) => {
     if (target !== network) setNetwork(target)
   }, [network, setNetwork])
 
@@ -81,7 +100,7 @@ export default function CrossNetworkPanel({ onClose }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        {NETWORK_ORDER.map((key) => {
+        {(NETWORK_ORDER as string[]).map((key) => {
           const probe = probeResults.find((r) => r.network === key)
           const isActive = key === network
           return (
@@ -89,7 +108,7 @@ export default function CrossNetworkPanel({ onClose }) {
               key={key}
               onClick={() => handleSwitchNetwork(key)}
               disabled={key === 'custom'}
-              title={key === 'custom' ? 'Configure in settings' : `Switch to ${NETWORK_LABELS[key] || key}`}
+              title={key === 'custom' ? 'Configure in settings' : `Switch to ${(NETWORK_LABELS as Record<string, string>)[key] || key}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '7px 8px', borderRadius: '6px',
@@ -99,8 +118,8 @@ export default function CrossNetworkPanel({ onClose }) {
                 transition: 'var(--transition)',
                 opacity: key === 'custom' ? 0.4 : 1,
               }}
-              onMouseEnter={(e) => { if (!isActive && key !== 'custom') e.currentTarget.style.background = '#0f1a2a' }}
-              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+              onMouseEnter={(e) => { if (!isActive && key !== 'custom') (e.currentTarget as HTMLButtonElement).style.background = '#0f1a2a' }}
+              onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
             >
               <span style={{
                 width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
@@ -111,7 +130,7 @@ export default function CrossNetworkPanel({ onClose }) {
                 flex: 1, textAlign: 'left', fontSize: '11px', fontWeight: isActive ? 600 : 400,
                 color: isActive ? '#06b6d4' : 'var(--text-primary)',
               }}>
-                {NETWORK_LABELS[key] || key}
+                {(NETWORK_LABELS as Record<string, string>)[key] || key}
               </span>
               {isActive && <span style={{ fontSize: '9px', color: '#06b6d4', fontFamily: 'var(--font-mono)' }}>ACTIVE</span>}
               {probe && (
@@ -166,7 +185,7 @@ export default function CrossNetworkPanel({ onClose }) {
                     )}
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                        {NETWORK_LABELS[result.network] || result.network}
+                        {(NETWORK_LABELS as Record<string, string>)[result.network] || result.network}
                       </div>
                       {result.success ? (
                         <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '9px' }}>

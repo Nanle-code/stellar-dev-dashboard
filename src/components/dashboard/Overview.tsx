@@ -4,10 +4,12 @@ import { shortAddress } from '../../lib/stellar';
 import CopyableValue from './CopyableValue';
 import DashboardGrid from '../layout/DashboardGrid';
 import WidgetSelector from '../layout/WidgetSelector';
+import LayoutManager from './LayoutManager';
 import { useResponsive } from '../../hooks/useResponsive';
 import { usePresence } from '../../hooks/usePresence';
 import { addBreadcrumb } from '../../lib/errorReporting';
 import { getDashboardLayout, saveDashboardLayout } from '../../lib/userPreferences';
+import { getActiveLayout, loadAllLayouts, setActiveLayout, type DashboardLayout } from '../../lib/dashboardLayouts';
 import BalanceWidget from '../layout/widgets/BalanceWidget';
 import AssetsWidget from '../layout/widgets/AssetsWidget';
 import TransactionsWidget from '../layout/widgets/TransactionsWidget';
@@ -17,6 +19,7 @@ import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
 import LedgerStatsWidget from './LedgerStatsWidget';
 import { PresenceIndicator } from '../collaboration/PresenceIndicator';
+import { LayoutTemplate, ChevronDown } from 'lucide-react';
 import type { WidgetConfig } from './types';
 
 interface WidgetItem extends WidgetConfig {
@@ -53,14 +56,46 @@ export default function Overview() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showWidgetSelector, setShowWidgetSelector] = useState(false);
+  const [showLayoutManager, setShowLayoutManager] = useState(false);
+  const [savedLayouts, setSavedLayouts] = useState<DashboardLayout[]>([]);
+  const [activeLayoutName, setActiveLayoutName] = useState<string>('Default');
 
   useEffect(() => {
     async function hydrateDashboardLayout() {
       try {
-        const savedLayout = await getDashboardLayout();
-        const activeLayoutRules = (savedLayout && savedLayout.length > 0) ? savedLayout : DEFAULT_WIDGETS;
+        // Try to load from new multi-layout system first
+        const activeLayout = await getActiveLayout();
+        const allLayouts = await loadAllLayouts();
+        setSavedLayouts(allLayouts);
 
-        const hydratedWidgets: WidgetItem[] = activeLayoutRules.map((widget: WidgetConfig) => ({
+        let initialWidgets: WidgetConfig[];
+        if (activeLayout && activeLayout.widgets && activeLayout.widgets.length > 0) {
+          // Convert DashboardLayout widgets to WidgetConfig, ensuring height is present
+          initialWidgets = activeLayout.widgets.map(w => ({
+            id: w.id,
+            type: w.type,
+            height: w.height || 260,
+            span: w.span || 1,
+          })) as WidgetConfig[];
+          setActiveLayoutName(activeLayout.name);
+        } else {
+          // Fall back to legacy single layout
+          const savedLayout = await getDashboardLayout();
+          if (savedLayout && savedLayout.length > 0) {
+            // Convert WidgetLayout[] to WidgetConfig[] with default height
+            initialWidgets = savedLayout.map(w => ({
+              id: w.id,
+              type: w.type,
+              height: w.height || 260,
+              span: w.span || 1,
+            })) as WidgetConfig[];
+          } else {
+            initialWidgets = DEFAULT_WIDGETS;
+          }
+          setActiveLayoutName('Default');
+        }
+
+        const hydratedWidgets: WidgetItem[] = initialWidgets.map((widget: WidgetConfig) => ({
           ...widget,
           component: React.createElement(getWidgetComponent(widget.type), {
             key: `${widget.id}-${Date.now()}`,
@@ -156,7 +191,7 @@ export default function Overview() {
     addBreadcrumb('Widget added', 'user_action', { widgetId: newWidget.id, widgetType: newWidget.type });
   };
 
-  const handleResetLayout = () => {
+  const handleResetLayout = async () => {
     const factoryResetWidgets: WidgetItem[] = DEFAULT_WIDGETS.map((widget: WidgetConfig) => ({
       ...widget,
       component: React.createElement(getWidgetComponent(widget.type), {
@@ -166,12 +201,25 @@ export default function Overview() {
     }));
     persistAndSyncLayout(factoryResetWidgets);
     setIsEditing(false);
+    
+    // Clear active layout to use default
+    await setActiveLayout(null);
+    setActiveLayoutName('Default');
     addBreadcrumb('Dashboard layout reset to default', 'user_action');
   };
 
   const toggleEditMode = () => {
     setIsEditing(!isEditing);
     addBreadcrumb(`Dashboard edit mode ${!isEditing ? 'enabled' : 'disabled'}`, 'user_action');
+  };
+
+  const handleLayoutsImported = async () => {
+    const allLayouts = await loadAllLayouts();
+    setSavedLayouts(allLayouts);
+    const activeLayout = await getActiveLayout();
+    if (activeLayout) {
+      setActiveLayoutName(activeLayout.name);
+    }
   };
 
   const getColumns = () => {
@@ -190,66 +238,137 @@ export default function Overview() {
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{
-        display: 'flex',
-        alignItems: isMobile ? 'flex-start' : 'center',
-        justifyContent: 'space-between',
-        flexDirection: isMobile ? 'column' : 'row',
-        gap: isMobile ? '16px' : '0'
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: isMobile ? '20px' : '22px',
-            fontWeight: 700,
-            marginBottom: '4px'
-          }}>
-            Dashboard Overview
-          </div>
-          <CopyableValue
-            value={connectedAddress}
-            title="Copy connected public key"
-            containerStyle={{
-              fontSize: '12px',
-              color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)'
-            }}
-            textStyle={{
-              maxWidth: isMobile ? '200px' : '260px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {shortAddress(connectedAddress, 8)}
-          </CopyableValue>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <PresenceIndicator accountId={connectedAddress} />
-          <div style={{
-            padding: '6px 12px',
-            background: network === 'testnet' ? 'var(--amber-glow)' : 'var(--green-glow)',
-            border: `1px solid ${network === 'testnet' ? 'var(--amber)' : 'var(--green)'}`,
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '11px',
-            color: network === 'testnet' ? 'var(--amber)' : 'var(--green)',
-            fontFamily: 'var(--font-mono)',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-          }}>
-            {network}
+        <div style={{
+          display: 'flex',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          justifyContent: 'space-between',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? '16px' : '0'
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: isMobile ? '20px' : '22px',
+              fontWeight: 700,
+              marginBottom: '4px'
+            }}>
+              Dashboard Overview
+            </div>
+            <CopyableValue
+              value={connectedAddress}
+              title="Copy connected public key"
+              containerStyle={{
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                fontFamily: 'var(--font-mono)'
+              }}
+              textStyle={{
+                maxWidth: isMobile ? '200px' : '260px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {shortAddress(connectedAddress, 8)}
+            </CopyableValue>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {isEditing && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <PresenceIndicator accountId={connectedAddress} />
+            <div style={{
+              padding: '6px 12px',
+              background: network === 'testnet' ? 'var(--amber-glow)' : 'var(--green-glow)',
+              border: `1px solid ${network === 'testnet' ? 'var(--amber)' : 'var(--green)'}`,
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              color: network === 'testnet' ? 'var(--amber)' : 'var(--green)',
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+            }}>
+              {network}
+            </div>
+
+            {/* Layout Switcher */}
+            <button
+              onClick={() => setShowLayoutManager(true)}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'var(--transition)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Manage layouts"
+            >
+              <LayoutTemplate size={14} />
+              {!isMobile && (
+                <>
+                  <span>{activeLayoutName}</span>
+                  <ChevronDown size={12} />
+                </>
+              )}
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {isEditing && (
+                <button
+                  onClick={() => setShowWidgetSelector(true)}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'var(--cyan)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'var(--transition)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Add widget"
+                >
+                  <span>+</span>
+                  {!isMobile && 'Add Widget'}
+                </button>
+              )}
+
+              {isEditing && (
+                <button
+                  onClick={handleResetLayout}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'var(--amber)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'var(--transition)'
+                  }}
+                  title="Reset to default layout"
+                >
+                  {isMobile ? '↺' : 'Reset'}
+                </button>
+              )}
+
               <button
-                onClick={() => setShowWidgetSelector(true)}
+                onClick={toggleEditMode}
                 style={{
                   padding: '8px 12px',
-                  background: 'var(--cyan)',
-                  color: 'white',
-                  border: 'none',
+                  background: isEditing ? 'var(--green)' : 'var(--bg-elevated)',
+                  color: isEditing ? 'white' : 'var(--text-primary)',
+                  border: `1px solid ${isEditing ? 'var(--green)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '12px',
                   fontWeight: 600,
@@ -259,57 +378,14 @@ export default function Overview() {
                   alignItems: 'center',
                   gap: '6px'
                 }}
-                title="Add widget"
+                title={isEditing ? 'Save layout' : 'Edit dashboard'}
               >
-                <span>+</span>
-                {!isMobile && 'Add Widget'}
+                <span>{isEditing ? '✓' : '✏️'}</span>
+                {!isMobile && (isEditing ? 'Done' : 'Edit')}
               </button>
-            )}
-
-            {isEditing && (
-              <button
-                onClick={handleResetLayout}
-                style={{
-                  padding: '8px 12px',
-                  background: 'var(--amber)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'var(--transition)'
-                }}
-                title="Reset to default layout"
-              >
-                {isMobile ? '↺' : 'Reset'}
-              </button>
-            )}
-
-            <button
-              onClick={toggleEditMode}
-              style={{
-                padding: '8px 12px',
-                background: isEditing ? 'var(--green)' : 'var(--bg-elevated)',
-                color: isEditing ? 'white' : 'var(--text-primary)',
-                border: `1px solid ${isEditing ? 'var(--green)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'var(--transition)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-              title={isEditing ? 'Save layout' : 'Edit dashboard'}
-            >
-              <span>{isEditing ? '✓' : '✏️'}</span>
-              {!isMobile && (isEditing ? 'Done' : 'Edit')}
-            </button>
+            </div>
           </div>
         </div>
-      </div>
 
       {isEditing && (
         <div style={{
@@ -346,6 +422,24 @@ export default function Overview() {
         onClose={() => setShowWidgetSelector(false)}
         onAddWidget={handleAddWidget}
         existingWidgets={widgets}
+      />
+
+      <LayoutManager
+        isOpen={showLayoutManager}
+        onClose={() => setShowLayoutManager(false)}
+        currentWidgets={widgets}
+        onLayoutChange={(newWidgets) => {
+          const widgetItems: WidgetItem[] = newWidgets.map(w => ({
+            ...w,
+            component: React.createElement(getWidgetComponent(w.type), {
+              key: `${w.id}-${Date.now()}`,
+              onRefresh: () => refreshWidgets()
+            })
+          }));
+          setWidgets(widgetItems);
+          persistAndSyncLayout(widgetItems);
+        }}
+        onLayoutsChange={handleLayoutsImported}
       />
     </div>
   );

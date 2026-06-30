@@ -1,15 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../../lib/store'
-import { fetchPrices, calculatePortfolioValue } from '../../lib/priceFeed'
+import { fetchPrices, refreshPrices, calculatePortfolioValue } from '../../lib/priceFeed'
 import { getServer } from '../../lib/stellar'
 import {
-  calculateAssetAllocation,
-  calculateDiversificationScore,
-  identifyConcentrationRisks,
-  calculate24hPortfolioChange,
   fetchHistoricalPerformance,
-  calculateVolatility,
-  assessPortfolioRisk,
   generatePortfolioSummary,
 } from '../../lib/portfolioAnalytics';
 import {
@@ -178,26 +172,12 @@ export default function PortfolioValue() {
       return { ...point, value: totalValue };
     });
 
-    const allocation = calculateAssetAllocation(portfolio.items);
-    const diversificationScore = calculateDiversificationScore(allocation);
-    const concentrationRisks = identifyConcentrationRisks(allocation);
-    const change24h = calculate24hPortfolioChange(portfolio.items);
-    const volatility = calculateVolatility(historicalPerformance);
-    const riskAssessment = assessPortfolioRisk({
-      volatility,
-      diversificationScore,
-      concentrationRisks,
-    });
     const summary = generatePortfolioSummary(portfolio.items, historicalPerformance);
 
     return {
-      allocation,
-      diversificationScore,
-      concentrationRisks,
-      change24h,
+      ...summary,
+      change24h: summary.performance24h?.changePercent ?? 0,
       historicalPerformance,
-      volatility,
-      riskAssessment,
       summary,
     };
   }, [portfolio, historicalData, prices]);
@@ -361,11 +341,11 @@ function OverviewView({ portfolio, analytics }) {
         />
         <StatCard
           label="Diversification"
-          value={`${diversificationScore.toFixed(1)}/10`}
+          value={`${diversificationScore.toFixed(0)}/100`}
           sub={
-            diversificationScore >= 7
+            diversificationScore >= 70
               ? 'Well diversified'
-              : diversificationScore >= 4
+              : diversificationScore >= 40
                 ? 'Moderate'
                 : 'Concentrated'
           }
@@ -374,11 +354,11 @@ function OverviewView({ portfolio, analytics }) {
         <StatCard
           label="Risk Level"
           value={riskAssessment.level}
-          sub={`Score: ${riskAssessment.score.toFixed(1)}/10`}
+          sub={`Score: ${riskAssessment.score}/100`}
           accent={
-            riskAssessment.level === 'Low'
+            riskAssessment.level === 'low'
               ? 'var(--green)'
-              : riskAssessment.level === 'Medium'
+              : riskAssessment.level === 'medium'
                 ? 'var(--yellow)'
                 : 'var(--red)'
           }
@@ -483,8 +463,8 @@ function AllocationView({ analytics }) {
   const { allocation, concentrationRisks } = analytics;
 
   const pieData = allocation.map((a) => ({
-    name: a.asset,
-    value: a.percentage,
+    name: a.code,
+    value: a.allocation,
     valueUsd: a.valueUsd,
   }));
 
@@ -534,7 +514,7 @@ function AllocationView({ analytics }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {allocation.map((item, i) => (
               <div
-                key={item.asset}
+                key={item.code}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -555,14 +535,14 @@ function AllocationView({ analytics }) {
                 />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {item.asset}
+                    {item.code}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                     ${item.valueUsd.toFixed(2)}
                   </div>
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--cyan)' }}>
-                  {item.percentage.toFixed(1)}%
+                  {item.allocation.toFixed(1)}%
                 </div>
               </div>
             ))}
@@ -590,12 +570,12 @@ function AllocationView({ analytics }) {
                 <AlertTriangle size={16} style={{ color: 'var(--yellow)' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {risk.asset}
+                    {risk.code}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{risk.message}</div>
                 </div>
                 <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--yellow)' }}>
-                  {risk.percentage.toFixed(1)}%
+                  {risk.allocation.toFixed(1)}%
                 </div>
               </div>
             ))}
@@ -715,7 +695,13 @@ function PerformanceView({ analytics, portfolio }) {
 // ─── Risk View ────────────────────────────────────────────────────────────────
 
 function RiskView({ analytics }) {
-  const { riskAssessment, diversificationScore, volatility } = analytics;
+  const {
+    riskAssessment,
+    diversificationScore,
+    volatility,
+    concentrationRiskScore,
+    counterpartyRisk,
+  } = analytics;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -730,22 +716,22 @@ function RiskView({ analytics }) {
         <StatCard
           label="Risk Level"
           value={riskAssessment.level}
-          sub={`Score: ${riskAssessment.score.toFixed(1)}/10`}
+          sub={`Score: ${riskAssessment.score}/100`}
           accent={
-            riskAssessment.level === 'Low'
+            riskAssessment.level === 'low'
               ? 'var(--green)'
-              : riskAssessment.level === 'Medium'
+              : riskAssessment.level === 'medium'
                 ? 'var(--yellow)'
                 : 'var(--red)'
           }
         />
         <StatCard
           label="Diversification"
-          value={`${diversificationScore.toFixed(1)}/10`}
+          value={`${diversificationScore.toFixed(0)}/100`}
           sub={
-            diversificationScore >= 7
+            diversificationScore >= 70
               ? 'Well diversified'
-              : diversificationScore >= 4
+              : diversificationScore >= 40
                 ? 'Moderate'
                 : 'Concentrated'
           }
@@ -756,6 +742,18 @@ function RiskView({ analytics }) {
           value={`${volatility.toFixed(2)}%`}
           sub={volatility < 5 ? 'Low' : volatility < 15 ? 'Moderate' : 'High'}
           accent="var(--orange)"
+        />
+        <StatCard
+          label="Concentration"
+          value={`${concentrationRiskScore}/100`}
+          sub={concentrationRiskScore >= 70 ? 'High' : concentrationRiskScore >= 35 ? 'Moderate' : 'Low'}
+          accent={concentrationRiskScore >= 70 ? 'var(--red)' : concentrationRiskScore >= 35 ? 'var(--yellow)' : 'var(--green)'}
+        />
+        <StatCard
+          label="Counterparty"
+          value={`${counterpartyRisk.score}/100`}
+          sub={`${counterpartyRisk.issuerCount} issuer${counterpartyRisk.issuerCount === 1 ? '' : 's'}`}
+          accent={counterpartyRisk.level === 'high' ? 'var(--red)' : counterpartyRisk.level === 'medium' ? 'var(--yellow)' : 'var(--green)'}
         />
       </div>
 
@@ -780,15 +778,49 @@ function RiskView({ analytics }) {
                   marginBottom: '4px',
                 }}
               >
-                {factor.name}
+                {factor.name || factor.factor}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                {factor.description}
+                {factor.description || factor.factor}
               </div>
             </div>
           ))}
         </div>
       </Panel>
+
+      {counterpartyRisk.issuerExposures.length > 0 && (
+        <Panel title="Counterparty Exposure">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {counterpartyRisk.issuerExposures.slice(0, 5).map((issuer) => (
+              <div
+                key={issuer.issuer}
+                style={{
+                  padding: '10px 12px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: '12px',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {issuer.assets.join(', ')}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {issuer.issuer.slice(0, 10)}...{issuer.issuer.slice(-8)}
+                  </div>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--cyan)', fontWeight: 700 }}>
+                  {issuer.percentage.toFixed(1)}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       {/* Recommendations */}
       {riskAssessment.recommendations && riskAssessment.recommendations.length > 0 && (

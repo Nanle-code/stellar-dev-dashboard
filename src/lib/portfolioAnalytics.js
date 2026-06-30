@@ -58,6 +58,10 @@ export function calculateDiversificationScore(portfolioItems) {
   return Math.max(0, Math.min(100, normalizedScore))
 }
 
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
 /**
  * Identify concentration risk (assets > 25% allocation)
  */
@@ -67,11 +71,144 @@ export function identifyConcentrationRisks(portfolioItems) {
   return portfolioItems
     .filter(item => (item.allocation || 0) > CONCENTRATION_THRESHOLD)
     .map(item => ({
+      asset: item.code,
       code: item.code,
       allocation: item.allocation,
+      percentage: item.allocation,
       valueUsd: item.valueUsd,
-      riskLevel: item.allocation > 50 ? 'high' : 'medium'
+      riskLevel: item.allocation > 50 ? 'high' : 'medium',
+      message: `${item.code} represents ${item.allocation.toFixed(1)}% of the portfolio`
     }))
+}
+
+/**
+ * Score concentration risk using the largest position and HHI.
+ * 0 = balanced allocation, 100 = one asset dominates the portfolio.
+ */
+export function calculateConcentrationRiskScore(portfolioItems) {
+  if (!portfolioItems || portfolioItems.length === 0) return 0
+
+  const allocations = portfolioItems.map(item => item.allocation || 0)
+  const largestAllocation = Math.max(...allocations)
+  const hhi = allocations.reduce((sum, allocation) => sum + Math.pow(allocation, 2), 0)
+  const hhiScore = Math.max(0, (hhi - (10000 / Math.max(portfolioItems.length, 1))) / 100)
+  const largestScore = largestAllocation <= 25 ? largestAllocation * 0.6 : 15 + ((largestAllocation - 25) / 75) * 85
+
+  return clampScore((largestScore * 0.65) + (hhiScore * 0.35))
+}
+
+/**
+ * Assess issuer/counterparty exposure from Stellar trustline issuers.
+ * Native XLM is protocol exposure, while issued assets carry counterparty risk.
+ */
+export function assessCounterpartyRisk(portfolioItems) {
+  if (!portfolioItems || portfolioItems.length === 0) {
+    return {
+      score: 0,
+      level: 'low',
+      issuerCount: 0,
+      largestIssuerExposure: 0,
+      unpricedExposure: 0,
+      issuerExposures: [],
+      factors: [],
+      recommendations: []
+    }
+  }
+
+  const totalValue = portfolioItems.reduce((sum, item) => sum + (item.valueUsd || 0), 0)
+  const issuerMap = new Map()
+  let issuedValue = 0
+  let unpricedAssets = 0
+  let unpricedAmount = 0
+
+  portfolioItems.forEach((item) => {
+    if (!item.issuer) {
+      return
+    }
+
+    if (!item.valueUsd || item.valueUsd <= 0) {
+      unpricedAssets += 1
+      unpricedAmount += item.amount || 0
+      return
+    }
+
+    issuedValue += item.valueUsd
+    const current = issuerMap.get(item.issuer) || { issuer: item.issuer, valueUsd: 0, assets: [] }
+    current.valueUsd += item.valueUsd
+    current.assets.push(item.code)
+    issuerMap.set(item.issuer, current)
+  })
+
+  const issuerExposures = Array.from(issuerMap.values())
+    .map((entry) => ({
+      ...entry,
+      percentage: totalValue > 0 ? (entry.valueUsd / totalValue) * 100 : 0,
+      assets: Array.from(new Set(entry.assets))
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+
+  const issuerCount = issuerExposures.length
+  const largestIssuerExposure = issuerExposures[0]?.percentage || 0
+  const issuedExposure = totalValue > 0 ? (issuedValue / totalValue) * 100 : 0
+  const unpricedExposure = portfolioItems.length > 0 ? (unpricedAssets / portfolioItems.length) * 100 : 0
+
+  let score = issuedExposure * 0.25 + largestIssuerExposure * 0.55 + unpricedExposure * 0.2
+  if (issuerCount === 1 && issuedExposure > 20) score += 10
+  if (issuerCount > 0 && issuerCount < 3 && issuedExposure > 50) score += 8
+  score = clampScore(score)
+
+  const factors = []
+  const recommendations = []
+
+  if (largestIssuerExposure >= 35) {
+    factors.push({
+      name: 'High issuer exposure',
+      factor: 'High issuer exposure',
+      impact: 'high',
+      description: `One issuer backs ${largestIssuerExposure.toFixed(1)}% of priced portfolio value.`
+    })
+    recommendations.push('Reduce exposure to the largest issuer or add assets backed by independent issuers.')
+  } else if (largestIssuerExposure >= 15) {
+    factors.push({
+      name: 'Moderate issuer exposure',
+      factor: 'Moderate issuer exposure',
+      impact: 'medium',
+      description: `Largest issuer exposure is ${largestIssuerExposure.toFixed(1)}% of portfolio value.`
+    })
+  }
+
+  if (unpricedAssets > 0) {
+    factors.push({
+      name: 'Unpriced trustlines',
+      factor: 'Unpriced trustlines',
+      impact: unpricedAssets > 2 ? 'medium' : 'low',
+      description: `${unpricedAssets} issued asset${unpricedAssets === 1 ? '' : 's'} lack pricing data and may hide counterparty risk.`
+    })
+    recommendations.push('Review unpriced trustlines and remove stale or unknown assets.')
+  }
+
+  if (issuerCount === 0) {
+    factors.push({
+      name: 'Protocol-only exposure',
+      factor: 'Protocol-only exposure',
+      impact: 'low',
+      description: 'No priced issued assets were found in the portfolio.'
+    })
+  }
+
+  return {
+    score,
+    level: score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low',
+    issuerCount,
+    largestIssuerExposure,
+    issuedExposure,
+    unpricedExposure,
+    unpricedAssets,
+    unpricedAmount,
+    issuerExposures,
+    factors,
+    recommendations
+  }
 }
 
 // ── Performance Tracking ──────────────────────────────────────────────────────
@@ -109,7 +246,7 @@ export function calculate24hPortfolioChange(portfolioItems) {
   let totalPreviousValue = 0
 
   for (const item of portfolioItems) {
-    if (!item.valueUsd || !item.change24h) continue
+    if (item.valueUsd === null || item.valueUsd === undefined || item.change24h === null || item.change24h === undefined) continue
 
     const currentValue = item.valueUsd
     const previousValue = currentValue / (1 + item.change24h / 100)
@@ -190,8 +327,9 @@ export async function fetchHistoricalPerformance(server, accountId, currentBalan
  * @param {Array} historicalData - Array of { value, timestamp }
  * @returns {number} Volatility percentage
  */
-export function calculateVolatility(historicalData) {
+export function calculateVolatility(historicalData, options = {}) {
   if (!historicalData || historicalData.length < 2) return 0
+  const annualized = options.annualized === true
 
   // Calculate daily returns
   const returns = []
@@ -211,8 +349,8 @@ export function calculateVolatility(historicalData) {
   // Calculate variance
   const variance = returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length
 
-  // Standard deviation (volatility)
-  const volatility = Math.sqrt(variance) * 100
+  // Standard deviation of observed returns. Annualize only when explicitly requested.
+  const volatility = Math.sqrt(variance) * (annualized ? Math.sqrt(365) : 1) * 100
 
   return volatility
 }
@@ -235,54 +373,93 @@ export function calculateSharpeRatio(portfolioReturn, volatility, riskFreeRate =
  * @returns {Object} { level: 'low'|'medium'|'high', score: 0-100, factors: [] }
  */
 export function assessPortfolioRisk(metrics) {
-  const { volatility = 0, diversificationScore = 0, concentrationRisks = [] } = metrics
+  const {
+    volatility = 0,
+    diversificationScore = 0,
+    concentrationRisks = [],
+    concentrationRiskScore = 0,
+    counterpartyRisk = { score: 0, factors: [], recommendations: [] },
+    unpricedAssetCount = 0,
+    assetCount = 0
+  } = metrics
 
-  let riskScore = 0
   const factors = []
+  const recommendations = []
 
-  // Volatility contribution (0-40 points)
-  if (volatility > 10) {
-    riskScore += 40
-    factors.push({ factor: 'High volatility', impact: 'high' })
-  } else if (volatility > 5) {
-    riskScore += 20
-    factors.push({ factor: 'Moderate volatility', impact: 'medium' })
+  const volatilityScore = clampScore((volatility / 15) * 100)
+  const diversificationRiskScore = clampScore(100 - diversificationScore)
+  const counterpartyScore = counterpartyRisk.score || 0
+  const valuationRiskScore = assetCount > 0 ? clampScore((unpricedAssetCount / assetCount) * 100) : 0
+
+  let riskScore = clampScore(
+    volatilityScore * 0.3 +
+    concentrationRiskScore * 0.3 +
+    counterpartyScore * 0.25 +
+    valuationRiskScore * 0.15
+  )
+
+  if (volatility >= 10) {
+    factors.push({ name: 'High volatility', factor: 'High volatility', impact: 'high', description: `Portfolio value volatility is ${volatility.toFixed(2)}%.` })
+    recommendations.push('Consider reducing exposure to assets with large recent price swings.')
+  } else if (volatility >= 5) {
+    factors.push({ name: 'Moderate volatility', factor: 'Moderate volatility', impact: 'medium', description: `Portfolio value volatility is ${volatility.toFixed(2)}%.` })
   } else {
-    factors.push({ factor: 'Low volatility', impact: 'low' })
+    factors.push({ name: 'Low volatility', factor: 'Low volatility', impact: 'low', description: `Portfolio value volatility is ${volatility.toFixed(2)}%.` })
   }
 
-  // Diversification contribution (0-30 points)
   if (diversificationScore < 30) {
-    riskScore += 30
-    factors.push({ factor: 'Poor diversification', impact: 'high' })
+    factors.push({ name: 'Poor diversification', factor: 'Poor diversification', impact: 'high', description: 'Portfolio allocation is heavily concentrated.' })
+    recommendations.push('Add exposure to additional assets or reduce the largest position.')
   } else if (diversificationScore < 60) {
-    riskScore += 15
-    factors.push({ factor: 'Moderate diversification', impact: 'medium' })
+    factors.push({ name: 'Moderate diversification', factor: 'Moderate diversification', impact: 'medium', description: 'Portfolio has some diversification, but allocation can be improved.' })
   } else {
-    factors.push({ factor: 'Good diversification', impact: 'low' })
+    factors.push({ name: 'Good diversification', factor: 'Good diversification', impact: 'low', description: 'Portfolio allocation is reasonably balanced.' })
   }
 
-  // Concentration contribution (0-30 points)
   if (concentrationRisks.length > 0) {
     const highRiskCount = concentrationRisks.filter(r => r.riskLevel === 'high').length
     if (highRiskCount > 0) {
-      riskScore += 30
-      factors.push({ factor: `${highRiskCount} highly concentrated asset(s)`, impact: 'high' })
+      factors.push({ name: 'High concentration', factor: `${highRiskCount} highly concentrated asset(s)`, impact: 'high', description: 'At least one asset exceeds 50% of portfolio value.' })
+      recommendations.push('Rebalance positions above 50% of portfolio value.')
     } else {
-      riskScore += 15
-      factors.push({ factor: `${concentrationRisks.length} concentrated asset(s)`, impact: 'medium' })
+      factors.push({ name: 'Concentration', factor: `${concentrationRisks.length} concentrated asset(s)`, impact: 'medium', description: 'One or more assets exceed 25% of portfolio value.' })
     }
+  }
+
+  ;(counterpartyRisk.factors || []).forEach((factor) => factors.push(factor))
+  ;(counterpartyRisk.recommendations || []).forEach((recommendation) => recommendations.push(recommendation))
+
+  if (factors.some((factor) => factor.impact === 'high')) {
+    riskScore = Math.max(riskScore, 45)
+  } else if (factors.some((factor) => factor.impact === 'medium')) {
+    riskScore = Math.max(riskScore, 25)
+  }
+
+  if (unpricedAssetCount > 0) {
+    recommendations.push('Confirm pricing and liquidity for assets without market data before increasing exposure.')
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('Maintain periodic reviews as prices, issuers, and allocations change.')
   }
 
   // Determine risk level
   let level = 'low'
-  if (riskScore > 60) level = 'high'
-  else if (riskScore > 30) level = 'medium'
+  if (riskScore >= 70) level = 'high'
+  else if (riskScore >= 35) level = 'medium'
 
   return {
     level,
     score: riskScore,
-    factors
+    factors,
+    recommendations: Array.from(new Set(recommendations)),
+    components: {
+      volatility: volatilityScore,
+      concentration: concentrationRiskScore,
+      diversification: diversificationRiskScore,
+      counterparty: counterpartyScore,
+      valuation: valuationRiskScore
+    }
   }
 }
 
@@ -416,12 +593,19 @@ export function generatePortfolioSummary(portfolioItems, historicalData = []) {
   const allocation = calculateAssetAllocation(portfolioItems)
   const diversificationScore = calculateDiversificationScore(allocation)
   const concentrationRisks = identifyConcentrationRisks(allocation)
+  const concentrationRiskScore = calculateConcentrationRiskScore(allocation)
+  const counterpartyRisk = assessCounterpartyRisk(allocation)
   const performance24h = calculate24hPortfolioChange(portfolioItems)
   const volatility = calculateVolatility(historicalData)
+  const unpricedAssetCount = portfolioItems.filter(item => item.priceUsd === null || item.valueUsd === null).length
   const riskAssessment = assessPortfolioRisk({
     volatility,
     diversificationScore,
-    concentrationRisks
+    concentrationRisks,
+    concentrationRiskScore,
+    counterpartyRisk,
+    unpricedAssetCount,
+    assetCount: portfolioItems.length
   })
 
   const totalValue = portfolioItems.reduce((sum, item) => sum + (item.valueUsd || 0), 0)
@@ -433,7 +617,10 @@ export function generatePortfolioSummary(portfolioItems, historicalData = []) {
     allocation,
     diversificationScore,
     concentrationRisks,
+    concentrationRiskScore,
+    counterpartyRisk,
     performance24h,
+    change24h: performance24h.changePercent,
     volatility,
     riskAssessment,
     topAssets: allocation.slice(0, 5),
@@ -451,6 +638,8 @@ export default {
   calculate24hPortfolioChange,
   fetchHistoricalPerformance,
   calculateVolatility,
+  calculateConcentrationRiskScore,
+  assessCounterpartyRisk,
   calculateSharpeRatio,
   assessPortfolioRisk,
   calculateAssetPnL,

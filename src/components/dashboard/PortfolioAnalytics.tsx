@@ -689,9 +689,9 @@ export default function PortfolioAnalytics() {
       <Panel title="Risk Assessment">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '12px' }}>
-            <div style={{ 
-              padding: '16px', 
-              background: 'var(--bg-card)', 
+            <div style={{
+              padding: '16px',
+              background: 'var(--bg-card)',
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border)'
             }}>
@@ -736,6 +736,35 @@ export default function PortfolioAnalytics() {
                 {analytics.concentrationRisks.length}
               </div>
             </div>
+
+            <div style={{
+              padding: '16px',
+              background: 'var(--bg-card)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)'
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                COUNTERPARTY RISK
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {analytics.counterpartyRisk.score}/100
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {analytics.counterpartyRisk.issuerCount} issuer{analytics.counterpartyRisk.issuerCount === 1 ? '' : 's'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: '8px' }}>
+            {Object.entries(analytics.riskAssessment.components || {}).map(([label, score]: [string, any]) => (
+              <div key={label} style={{ padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</div>
+                <div style={{ height: '6px', background: 'var(--bg-elevated)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(score, 100)}%`, height: '100%', background: score >= 70 ? 'var(--red)' : score >= 35 ? 'var(--amber)' : 'var(--green)' }} />
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px', fontFamily: 'var(--font-mono)' }}>{score}/100</div>
+              </div>
+            ))}
           </div>
 
           {/* Risk Factors */}
@@ -797,6 +826,66 @@ export default function PortfolioAnalytics() {
                     <span style={{ color: 'var(--text-muted)' }}>
                       {risk.allocation.toFixed(1)}% of portfolio
                     </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {analytics.counterpartyRisk.issuerExposures.length > 0 && (
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-muted)' }}>
+                Counterparty Exposure
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {analytics.counterpartyRisk.issuerExposures.slice(0, 5).map((issuer: any) => (
+                  <div
+                    key={issuer.issuer}
+                    style={{
+                      padding: '10px 12px',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{issuer.assets.join(', ')}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+                        {issuer.issuer.slice(0, 10)}...{issuer.issuer.slice(-8)}
+                      </div>
+                    </div>
+                    <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>{issuer.percentage.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {analytics.riskAssessment.recommendations?.length > 0 && (
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-muted)' }}>
+                Recommendations
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {analytics.riskAssessment.recommendations.map((rec: string, index: number) => (
+                  <div
+                    key={index}
+                    style={{
+                      padding: '10px 12px',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--cyan-dim)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '12px',
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {rec}
                   </div>
                 ))}
               </div>

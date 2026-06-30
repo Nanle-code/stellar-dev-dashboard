@@ -96,6 +96,7 @@ export function calculatePortfolioValue(balances, prices) {
 
   for (const balance of balances) {
     const code = balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
+    const issuer = balance.asset_type === 'native' ? null : balance.asset_issuer;
     const amount = parseFloat(balance.balance) || 0;
     const price = prices[code];
 
@@ -105,6 +106,7 @@ export function calculatePortfolioValue(balances, prices) {
       items.push({
         code,
         amount,
+        issuer,
         priceUsd: price.usd,
         valueUsd: usdValue,
         change24h: price.usd_24h_change,
@@ -113,6 +115,7 @@ export function calculatePortfolioValue(balances, prices) {
       items.push({
         code,
         amount,
+        issuer,
         priceUsd: null,
         valueUsd: null,
         change24h: null,

@@ -21,18 +21,48 @@ const COLORS = {
   red: '#ff1744',
   indigo: '#6366f1',
   teal: '#14b8a6',
+} as const
+
+const COLOR_LIST = [COLORS.cyan, COLORS.purple, COLORS.amber, COLORS.green, COLORS.red, COLORS.indigo, COLORS.teal]
+
+interface Operation {
+  created_at?: string | Date;
+  amount?: string;
+  type?: string;
+  from?: string;
+  to?: string;
+  source_account?: string;
+  account?: string;
 }
 
-function opsTimeRanges(operations) {
+interface DailyVolume {
+  date: string;
+  xlm: number;
+  tx: number;
+}
+
+interface TimeAnalysisResult {
+  hours: number[];
+  days: number[];
+  weeks: Record<string, number>;
+  dailyVolumes: Record<string, DailyVolume>;
+  typeCounts: Record<string, number>;
+  heatmap: Record<string, number>;
+  totalXlm: number;
+  firstDate: number | null;
+  lastDate: number | null;
+}
+
+function opsTimeRanges(operations: Operation[]): TimeAnalysisResult {
   const hours = new Array(24).fill(0)
   const days = new Array(7).fill(0)
-  const weeks = {}
-  const dailyVolumes = {}
-  const typeCounts = {}
-  const heatmap = {}
+  const weeks: Record<string, number> = {}
+  const dailyVolumes: Record<string, DailyVolume> = {}
+  const typeCounts: Record<string, number> = {}
+  const heatmap: Record<string, number> = {}
   let totalXlm = 0
-  let firstDate = null
-  let lastDate = null
+  let firstDate: number | null = null
+  let lastDate: number | null = null
 
   for (const op of operations) {
     if (!op.created_at) continue
@@ -70,7 +100,7 @@ function opsTimeRanges(operations) {
   return { hours, days, weeks, dailyVolumes, typeCounts, heatmap, totalXlm, firstDate, lastDate }
 }
 
-function heatmapColor(count, max) {
+function heatmapColor(count: number, max: number): string {
   if (max === 0) return '#0f1820'
   const ratio = count / max
   if (ratio > 0.8) return '#00e5ff'
@@ -87,24 +117,28 @@ const CUSTOM_TOOLTIP = {
   border: '1px solid #1a2332',
 }
 
+function formatXLM(amount: number | string): string {
+  if (amount === 0 || amount === '0') return '0'
+  const v = typeof amount === 'string' ? parseFloat(amount) : amount
+  if (isNaN(v)) return '—'
+  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`
+  if (v >= 1) return v.toFixed(1)
+  return v.toFixed(4)
+}
+
 export default function TimeAnalysis() {
-  const operations = useStore((s) => s.operations)
-  const { labelMap } = useAddressLabels()
+  const operations: Operation[] = useStore((s) => s.operations) || []
+  const { labelMap } = useAddressLabels() as { labelMap: Record<string, { label?: string }> }
 
   const analysis = useMemo(() => opsTimeRanges(operations), [operations])
 
   const hourlyData = useMemo(() => {
-    return HOUR_LABELS.map((label, i) => ({
-      hour: label,
-      count: analysis.hours[i],
-    }))
+    return HOUR_LABELS.map((label, i) => ({ hour: label, count: analysis.hours[i] }))
   }, [analysis.hours])
 
   const dailyData = useMemo(() => {
-    return DAY_LABELS.map((label, i) => ({
-      day: label,
-      count: analysis.days[i],
-    }))
+    return DAY_LABELS.map((label, i) => ({ day: label, count: analysis.days[i] }))
   }, [analysis.days])
 
   const weeklyData = useMemo(() => {
@@ -146,10 +180,11 @@ export default function TimeAnalysis() {
   }, [analysis.firstDate, analysis.lastDate])
 
   const topAddresses = useMemo(() => {
-    const addrCount = {}
+    const addrCount: Record<string, number> = {}
     for (const op of operations) {
-      for (const field of ['from', 'to', 'source_account', 'account']) {
-        if (op[field]) addrCount[op[field]] = (addrCount[op[field]] || 0) + 1
+      for (const field of ['from', 'to', 'source_account', 'account'] as (keyof Operation)[]) {
+        const val = op[field]
+        if (val && typeof val === 'string') addrCount[val] = (addrCount[val] || 0) + 1
       }
     }
     return Object.entries(addrCount)
@@ -166,23 +201,19 @@ export default function TimeAnalysis() {
   }
 
   const totalOps = operations.length
+  const peakHour = hourlyData.reduce((a, b) => a.count > b.count ? a : b).hour
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Summary bar */}
-      <div style={{
-        display: 'flex', gap: '1px', background: '#1a2332', borderRadius: '8px', overflow: 'hidden',
-      }}>
+      <div style={{ display: 'flex', gap: '1px', background: '#1a2332', borderRadius: '8px', overflow: 'hidden' }}>
         <SummaryStat label="Total Operations" value={totalOps.toLocaleString()} color={COLORS.cyan} />
         <SummaryStat label="Time Span" value={timeSpan} color={COLORS.indigo} small />
         <SummaryStat label="Volume (XLM)" value={analysis.totalXlm > 0 ? formatXLM(analysis.totalXlm) : '—'} color={COLORS.amber} />
         <SummaryStat label="Op Types" value={Object.keys(analysis.typeCounts).length} color={COLORS.purple} />
-        <SummaryStat label="Peak Hour" value={`${hourlyData.reduce((a, b) => a.count > b.count ? a : b).hour}`} color={COLORS.teal} />
+        <SummaryStat label="Peak Hour" value={peakHour} color={COLORS.teal} />
       </div>
 
-      {/* Chart grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        {/* Hourly Activity */}
         <ChartCard title="Hourly Activity" subtitle="Operations by hour of day">
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
             <BarChart data={hourlyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -199,7 +230,6 @@ export default function TimeAnalysis() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Daily Activity */}
         <ChartCard title="Daily Activity" subtitle="Operations by day of week">
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
             <BarChart data={dailyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -217,7 +247,6 @@ export default function TimeAnalysis() {
         </ChartCard>
       </div>
 
-      {/* Weekly Activity (full width) */}
       <ChartCard title="Weekly Activity" subtitle="Operations per week">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={weeklyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -230,7 +259,6 @@ export default function TimeAnalysis() {
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* Volume Trends + Op Frequencies side by side */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         <ChartCard title="Volume Trends" subtitle="XLM volume per day">
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -238,7 +266,7 @@ export default function TimeAnalysis() {
               <CartesianGrid strokeDasharray="3 3" stroke="#1a2332" />
               <XAxis dataKey="date" tick={{ ...AXIS_TICK_STYLE, fontSize: 9 }} interval="preserveStartEnd" />
               <YAxis tick={AXIS_TICK_STYLE} width={40} tickFormatter={(v) => formatXLM(v)} />
-              <Tooltip contentStyle={CUSTOM_TOOLTIP} formatter={(v) => [formatXLM(v), 'XLM']} labelFormatter={(l) => `Date: ${l}`} />
+              <Tooltip contentStyle={CUSTOM_TOOLTIP} formatter={(v: number) => [formatXLM(v), 'XLM']} labelFormatter={(l) => `Date: ${l}`} />
               <Area type="monotone" dataKey="xlm" stroke={COLORS.amber} fill={COLORS.amber} fillOpacity={0.15} strokeWidth={1.5} />
             </AreaChart>
           </ResponsiveContainer>
@@ -253,7 +281,7 @@ export default function TimeAnalysis() {
               <Tooltip contentStyle={CUSTOM_TOOLTIP} formatter={(v) => [v, 'Count']} />
               <Bar dataKey="count" radius={[0, 2, 2, 0]}>
                 {opTypeData.map((_, i) => (
-                  <Cell key={i} fill={[COLORS.cyan, COLORS.purple, COLORS.amber, COLORS.green, COLORS.red, COLORS.indigo, COLORS.teal][i % 7]} />
+                  <Cell key={i} fill={COLOR_LIST[i % COLOR_LIST.length]} />
                 ))}
               </Bar>
             </BarChart>
@@ -261,7 +289,6 @@ export default function TimeAnalysis() {
         </ChartCard>
       </div>
 
-      {/* Account Activity Patterns — custom heatmap + top addresses */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         <ChartCard title="Activity Heatmap" subtitle="Hour × Day of week">
           <div style={{ padding: '8px', overflowX: 'auto' }}>
@@ -288,8 +315,8 @@ export default function TimeAnalysis() {
                         minHeight: '10px',
                         transition: 'var(--transition)',
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.outline = '1px solid var(--text-secondary)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.outline = 'none' }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.outline = '1px solid var(--text-secondary)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.outline = 'none' }}
                     />
                   ))}
                 </React.Fragment>
@@ -319,13 +346,11 @@ export default function TimeAnalysis() {
                 <span style={{
                   height: `${Math.max(4, (count / topAddresses[0][1]) * 20)}px`,
                   width: '3px', borderRadius: '2px',
-                  background: [COLORS.cyan, COLORS.purple, COLORS.amber, COLORS.green, COLORS.red, COLORS.indigo, COLORS.teal][i % 7],
+                  background: COLOR_LIST[i % COLOR_LIST.length],
                   flexShrink: 0,
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
+                  <div style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {labelMap[addr]?.label || shortAddress(addr)}
                   </div>
                   <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
@@ -341,12 +366,9 @@ export default function TimeAnalysis() {
   )
 }
 
-function SummaryStat({ label, value, color, small }) {
+function SummaryStat({ label, value, color, small }: { label: string; value: string | number; color: string; small?: boolean }) {
   return (
-    <div style={{
-      flex: 1, padding: '10px 12px', background: '#0d1520',
-      display: 'flex', flexDirection: 'column', gap: '2px',
-    }}>
+    <div style={{ flex: 1, padding: '10px 12px', background: '#0d1520', display: 'flex', flexDirection: 'column', gap: '2px' }}>
       <div style={{ fontSize: '9px', color: color || 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
         {label}
       </div>
@@ -365,14 +387,9 @@ function SummaryStat({ label, value, color, small }) {
   )
 }
 
-function ChartCard({ title, subtitle, children }) {
+function ChartCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      background: '#0d1520',
-      border: '1px solid #1a2332',
-      borderRadius: '8px',
-      overflow: 'hidden',
-    }}>
+    <div style={{ background: '#0d1520', border: '1px solid #1a2332', borderRadius: '8px', overflow: 'hidden' }}>
       <div style={{ padding: '10px 12px', borderBottom: '1px solid #1a2332' }}>
         <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>{title}</div>
         <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '1px' }}>{subtitle}</div>
@@ -382,14 +399,4 @@ function ChartCard({ title, subtitle, children }) {
       </div>
     </div>
   )
-}
-
-function formatXLM(amount) {
-  if (amount === 0 || amount === '0') return '0'
-  const v = typeof amount === 'string' ? parseFloat(amount) : amount
-  if (isNaN(v)) return '—'
-  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`
-  if (v >= 1) return v.toFixed(1)
-  return v.toFixed(4)
 }

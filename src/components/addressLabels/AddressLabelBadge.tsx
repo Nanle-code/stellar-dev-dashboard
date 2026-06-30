@@ -4,12 +4,22 @@ import { useAddressLabels } from '../../hooks/useAddressLabels'
 import { CATEGORIES } from '../../lib/addressLabels'
 import { isValidPublicKey } from '../../lib/stellar'
 
-const categoryColor = (cat) => {
-  const found = CATEGORIES.find((c) => c.value === cat)
+interface Category {
+  value: string;
+  color: string;
+}
+
+function categoryColor(cat: string): string {
+  const found = (CATEGORIES as Category[]).find((c) => c.value === cat)
   return found ? found.color : '#6b7280'
 }
 
-export default function AddressLabelBadge({ address, showAddLabel = true }) {
+interface AddressLabelBadgeProps {
+  address: string;
+  showAddLabel?: boolean;
+}
+
+export default function AddressLabelBadge({ address, showAddLabel = true }: AddressLabelBadgeProps) {
   const { labelMap, addLabel } = useAddressLabels()
   const [adding, setAdding] = useState(false)
   const [inputValue, setInputValue] = useState('')
@@ -72,8 +82,8 @@ export default function AddressLabelBadge({ address, showAddLabel = true }) {
           verticalAlign: 'middle',
           transition: 'var(--transition)',
         }}
-        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.35'}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.35' }}
       >
         <Plus size={9} />
       </button>

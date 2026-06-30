@@ -1,30 +1,31 @@
 import React, { useEffect, useRef } from 'react';
 
-/**
- * FocusManager - Advanced focus management for keyboard navigation and accessibility
- * Handles focus trapping, focus restoration, and programmatic focus management
- */
+interface FocusManagerProps {
+  children: React.ReactNode;
+  trapFocus?: boolean;
+  restoreFocusOnUnmount?: boolean;
+  returnFocusElement?: string | HTMLElement | null;
+}
 
-export const FocusManager = ({
+export const FocusManager: React.FC<FocusManagerProps> = ({
   children,
   trapFocus = false,
   restoreFocusOnUnmount = false,
   returnFocusElement = null,
 }) => {
-  const containerRef = useRef(null);
-  const previousActiveElement = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<Element | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Store the previously focused element for restoration
     previousActiveElement.current = document.activeElement;
 
     if (trapFocus) {
-      const handleKeyDown = (event) => {
+      const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key !== 'Tab') return;
 
-        const focusableElements = containerRef.current.querySelectorAll(
+        const focusableElements = containerRef.current!.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
 
@@ -55,7 +56,7 @@ export const FocusManager = ({
         } else if (returnFocusElement instanceof HTMLElement) {
           returnFocusElement.focus();
         } else {
-          previousActiveElement.current.focus();
+          (previousActiveElement.current as HTMLElement).focus?.();
         }
       }
     };

@@ -7,6 +7,7 @@ import './styles/mobile-performance.css';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { DeveloperTools } from './components/DeveloperTools';
+import OnboardingFlow from './components/onboarding/OnboardingFlow';
 
 const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
 
@@ -36,10 +37,20 @@ function AppLoadingFallback() {
 }
 
 export default function App() {
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+
+  React.useEffect(() => {
+    const hasCompleted = localStorage.getItem('hasCompletedOnboarding');
+    if (!hasCompleted) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
   return (
     <I18nProvider>
       <AccessibilityProvider>
         <ErrorBoundary maxRetries={2}>
+          {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
           <Suspense fallback={<AppLoadingFallback />}>
             <Routes>
               <Route path="/connect" element={<DashboardLayout />} />

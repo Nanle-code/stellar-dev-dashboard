@@ -1,0 +1,288 @@
+{
+    "common": {
+        "loading": "加载中...",
+        "error": "错误",
+        "success": "成功",
+        "warning": "警告",
+        "info": "信息",
+        "cancel": "取消",
+        "confirm": "确认",
+        "save": "保存",
+        "close": "关闭",
+        "connect": "连接",
+        "disconnect": "断开连接",
+        "copy": "复制",
+        "copied": "已复制！",
+        "refresh": "刷新",
+        "submit": "提交",
+        "search": "搜索",
+        "filter": "筛选",
+        "clear": "清除",
+        "back": "返回",
+        "next": "下一步",
+        "previous": "上一步",
+        "yes": "是",
+        "no": "否",
+        "ok": "确定",
+        "retry": "重试",
+        "noData": "暂无数据",
+        "notAvailable": "不适用"
+    },
+    "nav": {
+        "overview": "概览",
+        "account": "账户",
+        "transactions": "交易",
+        "contracts": "合约",
+        "network": "网络",
+        "builder": "构建器",
+        "faucet": "水龙头",
+        "compare": "比较",
+        "wallet": "钱包",
+        "signer": "签名器",
+        "portfolio": "投资组合",
+        "txBuilder": "交易构建器",
+        "contractInteraction": "合约交互",
+        "contractABI": "合约 ABI",
+        "dex": "DEX 浏览器",
+        "explorers": "浏览器",
+        "realtime": "实时账本",
+        "charts": "图表与分析",
+        "assets": "资产",
+        "anchors": "锚点",
+        "search": "搜索",
+        "liveActivity": "实时活动",
+        "cacheStats": "缓存统计",
+        "multisig": "多重签名",
+        "analytics": "分析",
+        "systemHealth": "系统健康",
+        "audit": "审计日志",
+        "compare": "比较"
+    },
+    "connect": {
+        "title": "连接到 Stellar 网络",
+        "subtitle": "输入 Stellar 账户地址或连接您的钱包以开始使用。",
+        "placeholder": "G... (Stellar 公钥)",
+        "button": "连接账户",
+        "walletButton": "连接钱包",
+        "connecting": "连接中...",
+        "invalidAddress": "无效的 Stellar 地址",
+        "successMessage": "已成功连接到 {{address}}"
+    },
+    "overview": {
+        "title": "概览",
+        "balance": "余额",
+        "xlmBalance": "XLM 余额",
+        "totalAssets": "总资产",
+        "recentTransactions": "最近交易",
+        "accountAge": "账户年龄",
+        "sequence": "序列号",
+        "subentries": "子条目",
+        "thresholds": "阈值"
+    },
+    "account": {
+        "title": "账户",
+        "address": "地址",
+        "balance": "余额",
+        "assets": "资产",
+        "signers": "签名者",
+        "flags": "标志",
+        "data": "数据条目",
+        "notFound": "在网络上未找到账户",
+        "created": "创建时间",
+        "lastModified": "最后修改",
+        "homeDomain": "主域",
+        "inflationDest": "通胀目标"
+    },
+    "transactions": {
+        "title": "交易",
+        "hash": "哈希",
+        "date": "日期",
+        "operations": "操作",
+        "fee": "费用",
+        "status": "状态",
+        "successful": "成功",
+        "failed": "失败",
+        "pending": "待处理",
+        "memo": "备注",
+        "sourceAccount": "源账户",
+        "ledger": "账本",
+        "noTransactions": "未找到交易",
+        "loadMore": "加载更多",
+        "count_one": "{{count}} 笔交易",
+        "count_other": "{{count}} 笔交易"
+    },
+    "contracts": {
+        "title": "合约",
+        "id": "合约 ID",
+        "wasmHash": "WASM 哈希",
+        "storage": "存储",
+        "invoke": "调用",
+        "deploy": "部署",
+        "abi": "ABI",
+        "noContracts": "未找到合约",
+        "uploadWasm": "上传 WASM",
+        "functionName": "函数名称",
+        "arguments": "参数",
+        "result": "结果"
+    },
+    "network": {
+        "title": "网络统计",
+        "ledger": "最新账本",
+        "tps": "交易/秒",
+        "fee": "基础费用",
+        "protocol": "协议版本",
+        "nodes": "节点",
+        "baseFeeStroops": "基础费用（stroops）",
+        "closingTime": "平均关闭时间",
+        "mainnet": "主网",
+        "testnet": "测试网"
+    },
+    "faucet": {
+        "title": "测试网水龙头",
+        "subtitle": "为测试网账户注入开发用 XLM",
+        "address": "账户地址",
+        "fund": "注资账户",
+        "funding": "注资中...",
+        "successMessage": "已成功向 {{address}} 注入 {{amount}} XLM",
+        "errorMessage": "注资失败，请重试。",
+        "cooldown": "请等待 {{seconds}} 秒后再次请求"
+    },
+    "dex": {
+        "title": "DEX 浏览器",
+        "orderBook": "订单簿",
+        "trades": "最近交易",
+        "paths": "支付路径",
+        "selling": "卖出",
+        "buying": "买入",
+        "price": "价格",
+        "amount": "数量",
+        "total": "总计",
+        "spread": "价差"
+    },
+    "portfolio": {
+        "title": "投资组合价值",
+        "totalValue": "总价值",
+        "assets": "资产",
+        "allocation": "配置",
+        "performance": "绩效",
+        "value": "价值",
+        "change24h": "24小时变化"
+    },
+    "charts": {
+        "title": "图表与分析",
+        "networkMetrics": "网络指标",
+        "accountActivity": "账户活动",
+        "balanceHistory": "余额历史",
+        "timeRange": "时间范围",
+        "day": "天",
+        "week": "周",
+        "month": "月",
+        "year": "年"
+    },
+    "notifications": {
+        "connectSuccess": "已成功连接账户",
+        "connectError": "连接账户失败",
+        "copySuccess": "已复制到剪贴板",
+        "txSuccess": "交易提交成功",
+        "txError": "交易失败",
+        "networkError": "网络错误，请重试。"
+    },
+    "settings": {
+        "title": "设置",
+        "language": "语言",
+        "theme": "主题",
+        "dark": "深色",
+        "light": "浅色",
+        "network": "网络",
+        "currency": "货币"
+    },
+    "realtime": {
+        "title": "实时账本",
+        "live": "实时",
+        "paused": "已暂停",
+        "latestLedger": "最新账本",
+        "closedAt": "关闭时间",
+        "transactionCount": "交易数",
+        "operationCount": "操作数"
+    },
+    "wallet": {
+        "title": "钱包连接",
+        "connected": "钱包已连接",
+        "notConnected": "未连接钱包",
+        "address": "钱包地址",
+        "signTransaction": "签署交易",
+        "freighter": "Freighter",
+        "albedo": "Albedo",
+        "xbull": "xBull"
+    },
+    "signer": {
+        "title": "交易签名器",
+        "xdr": "交易 XDR",
+        "sign": "签署交易",
+        "signed": "已签名 XDR",
+        "submit": "提交到网络",
+        "pasteXdr": "在此粘贴交易 XDR..."
+    },
+    "builder": {
+        "title": "交易构建器",
+        "sourceAccount": "源账户",
+        "operation": "操作",
+        "addOperation": "添加操作",
+        "build": "构建交易",
+        "clear": "清除",
+        "operations": {
+            "payment": "支付",
+            "createAccount": "创建账户",
+            "changeTrust": "更改信任",
+            "manageOffer": "管理报价",
+            "setOptions": "设置选项"
+        }
+    },
+    "learningHub": {
+        "title": "学习中心",
+        "subtitle": "通过交互式教程、测验和认证掌握Stellar区块链开发",
+        "loading": "正在加载学习中心...",
+        "category": {
+            "all": "全部",
+            "basics": "基础",
+            "advanced": "高级",
+            "soroban": "soroban",
+            "assets": "资产",
+            "payments": "支付"
+        },
+        "stat": {
+            "level": "等级",
+            "completed": "已完成",
+            "points": "积分"
+        },
+        "tutorial": {
+            "noFound": "此分类中未找到教程",
+            "difficulty": {
+                "beginner": "初学者",
+                "intermediate": "中级",
+                "advanced": "高级"
+            },
+            "duration": "{{min}}分钟",
+            "completed": "已完成"
+        },
+        "tabs": {
+            "content": "内容",
+            "playground": "练习场",
+            "quiz": "测验"
+        },
+        "back": "← 返回中心",
+        "quiz": {
+            "testKnowledge": "测试你的知识",
+            "answerAll": "请回答所有问题",
+            "submit": "提交测验",
+            "passed": "🎉 恭喜！",
+            "failed": "😔 继续学习",
+            "score": "你的得分是 {{percent}}%（{{correct}}/{{total}}）"
+        },
+        "playground": {
+            "title": "交互式代码练习场",
+            "placeholder": "在此输入你的Stellar代码...",
+            "run": "运行代码"
+        }
+    }
+}

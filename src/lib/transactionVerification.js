@@ -5,6 +5,7 @@
 
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { fetchAccount, fetchTransactions, NETWORKS } from "./stellar";
+import { THRESHOLDS } from "./thresholds";
 
 /**
  * Risk levels
@@ -488,9 +489,9 @@ async function checkUnusualPatterns(operations, sourceAccount, network) {
  * Calculate risk level from score
  */
 function calculateRiskLevel(score) {
-  if (score >= 50) return RISK_LEVELS.CRITICAL;
-  if (score >= 30) return RISK_LEVELS.HIGH;
-  if (score >= 15) return RISK_LEVELS.MEDIUM;
+  if (score >= THRESHOLDS.CRITICAL) return RISK_LEVELS.CRITICAL;
+  if (score >= THRESHOLDS.HIGH) return RISK_LEVELS.HIGH;
+  if (score >= THRESHOLDS.MEDIUM) return RISK_LEVELS.MEDIUM;
   return RISK_LEVELS.LOW;
 }
 

@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useStore } from "../../lib/store";
 import {
   registerShortcut,
-  getAllShortcuts,
   getRecentAccounts,
   addRecentAccount,
   getTransactionTemplates,
@@ -17,67 +15,23 @@ function CommandPalette({ isOpen, onClose }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
-  const navigate = useNavigate();
-  const { connectedAddress, setConnectedAddress, network } = useStore();
+  const { setConnectedAddress, setActiveTab, setSelectedTemplateId } = useStore();
 
   const commands = [
     // Navigation
-    {
-      id: "nav-dashboard",
-      label: "Go to Dashboard",
-      category: "Navigation",
-      action: () => navigate("/"),
-    },
-    {
-      id: "nav-account",
-      label: "Go to Account",
-      category: "Navigation",
-      action: () => navigate("/account"),
-    },
-    {
-      id: "nav-transactions",
-      label: "Go to Transactions",
-      category: "Navigation",
-      action: () => navigate("/transactions"),
-    },
-    {
-      id: "nav-contracts",
-      label: "Go to Contracts",
-      category: "Navigation",
-      action: () => navigate("/contracts"),
-    },
-    {
-      id: "nav-assets",
-      label: "Go to Asset Discovery",
-      category: "Navigation",
-      action: () => navigate("/assets"),
-    },
-    {
-      id: "nav-dex",
-      label: "Go to DEX Explorer",
-      category: "Navigation",
-      action: () => navigate("/dex"),
-    },
+    { id: "nav-dashboard", label: "Go to Dashboard", category: "Navigation", action: () => setActiveTab("overview") },
+    { id: "nav-account", label: "Go to Account", category: "Navigation", action: () => setActiveTab("account") },
+    { id: "nav-transactions", label: "Go to Transactions", category: "Navigation", action: () => setActiveTab("transactions") },
+    { id: "nav-contracts", label: "Go to Contracts", category: "Navigation", action: () => setActiveTab("contracts") },
+    { id: "nav-assets", label: "Go to Asset Discovery", category: "Navigation", action: () => setActiveTab("assets") },
+    { id: "nav-dex", label: "Go to DEX Explorer", category: "Navigation", action: () => setActiveTab("dex") },
+    { id: "nav-analytics", label: "Go to Analytics", category: "Navigation", action: () => setActiveTab("analytics") },
+    { id: "nav-settings", label: "Go to Settings", category: "Navigation", action: () => setActiveTab("settings") },
 
     // Quick Actions
-    {
-      id: "action-connect",
-      label: "Connect Wallet",
-      category: "Actions",
-      action: () => navigate("/connect"),
-    },
-    {
-      id: "action-builder",
-      label: "Open Transaction Builder",
-      category: "Actions",
-      action: () => navigate("/builder"),
-    },
-    {
-      id: "action-faucet",
-      label: "Request Testnet Funds",
-      category: "Actions",
-      action: () => navigate("/faucet"),
-    },
+    { id: "action-builder", label: "Open Transaction Builder", category: "Actions", action: () => setActiveTab("txBuilder") },
+    { id: "action-faucet", label: "Request Testnet Funds", category: "Actions", action: () => setActiveTab("faucet") },
+    { id: "action-compare", label: "Compare Accounts", category: "Actions", action: () => setActiveTab("compare") },
 
     // Recent Accounts
     ...getRecentAccounts().map((acc) => ({
@@ -87,6 +41,7 @@ function CommandPalette({ isOpen, onClose }) {
       action: () => {
         setConnectedAddress(acc.publicKey);
         addRecentAccount(acc.publicKey);
+        setActiveTab("account");
         onClose();
       },
     })),
@@ -94,10 +49,11 @@ function CommandPalette({ isOpen, onClose }) {
     // Templates
     ...Object.values(getTransactionTemplates()).map((template) => ({
       id: `template-${template.id}`,
-      label: `Load Template: ${template.name}`,
+      label: `Load Template: ${template.label || template.name || template.id}`,
       category: "Templates",
       action: () => {
-        navigate("/builder", { state: { template } });
+        setSelectedTemplateId(template.id);
+        setActiveTab("txBuilder");
         onClose();
       },
     })),
@@ -157,7 +113,8 @@ function CommandPalette({ isOpen, onClose }) {
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.7)",
+        background: "rgba(0, 0, 0, 0.75)",
+        backdropFilter: "blur(4px)",
         zIndex: 9999,
         display: "flex",
         alignItems: "flex-start",
@@ -182,44 +139,50 @@ function CommandPalette({ isOpen, onClose }) {
         <div
           style={{ padding: "16px", borderBottom: "1px solid var(--border)" }}
         >
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a command or search..."
-            style={{
-              width: "100%",
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              padding: "12px 16px",
-              fontSize: "14px",
-              color: "var(--text-primary)",
-              outline: "none",
-            }}
-          />
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '16px' }}>🔍</span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search commands, pages, accounts..."
+              style={{
+                width: "100%",
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                padding: "12px 16px 12px 40px",
+                fontSize: "14px",
+                color: "var(--text-primary)",
+                outline: "none",
+              }}
+            />
+          </div>
         </div>
 
-        <div style={{ maxHeight: "calc(70vh - 80px)", overflowY: "auto" }}>
+        <div style={{ maxHeight: "calc(70vh - 130px)", overflowY: "auto" }}>
           {Object.entries(groupedCommands).map(([category, cmds]) => (
             <div key={category}>
               <div
                 style={{
                   padding: "8px 16px",
-                  fontSize: "11px",
-                  fontWeight: 600,
+                  fontSize: "10px",
+                  fontWeight: 700,
                   color: "var(--text-muted)",
                   textTransform: "uppercase",
-                  letterSpacing: "0.8px",
+                  letterSpacing: "1px",
                   background: "var(--bg-elevated)",
+                  borderBottom: '1px solid var(--border)',
+                  borderTop: '1px solid var(--border)',
                 }}
               >
                 {category}
               </div>
-              {cmds.map((cmd, idx) => {
+              {cmds.map((cmd) => {
                 const globalIndex = filteredCommands.indexOf(cmd);
+                const isSelected = globalIndex === selectedIndex;
                 return (
                   <div
                     key={cmd.id}
@@ -230,22 +193,17 @@ function CommandPalette({ isOpen, onClose }) {
                     style={{
                       padding: "12px 16px",
                       cursor: "pointer",
-                      background:
-                        globalIndex === selectedIndex
-                          ? "var(--cyan-dim)"
-                          : "transparent",
-                      borderLeft:
-                        globalIndex === selectedIndex
-                          ? "3px solid var(--cyan)"
-                          : "3px solid transparent",
+                      background: isSelected ? "var(--cyan-glow)" : "transparent",
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
                       transition: "var(--transition)",
                     }}
                   >
-                    <div
-                      style={{ fontSize: "13px", color: "var(--text-primary)" }}
-                    >
+                    <div style={{ fontSize: "13px", color: isSelected ? "var(--cyan)" : "var(--text-primary)", fontWeight: isSelected ? 600 : 400 }}>
                       {cmd.label}
                     </div>
+                    {isSelected && <span style={{ fontSize: '12px', color: 'var(--cyan)' }}>↵</span>}
                   </div>
                 );
               })}
@@ -253,15 +211,8 @@ function CommandPalette({ isOpen, onClose }) {
           ))}
 
           {filteredCommands.length === 0 && (
-            <div
-              style={{
-                padding: "32px",
-                textAlign: "center",
-                color: "var(--text-muted)",
-                fontSize: "13px",
-              }}
-            >
-              No commands found
+            <div style={{ padding: "48px 32px", textAlign: "center", color: "var(--text-muted)", fontSize: "14px" }}>
+              No matching commands found
             </div>
           )}
         </div>
@@ -274,11 +225,12 @@ function CommandPalette({ isOpen, onClose }) {
             gap: "16px",
             fontSize: "11px",
             color: "var(--text-muted)",
+            background: 'var(--bg-elevated)'
           }}
         >
-          <span>↑↓ Navigate</span>
-          <span>↵ Select</span>
-          <span>Esc Close</span>
+          <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>↑↓</kbd> Navigate</span>
+          <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>↵</kbd> Select</span>
+          <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>Esc</kbd> Close</span>
         </div>
       </div>
     </div>
@@ -298,8 +250,10 @@ function ShortcutsHelp({ isOpen, onClose }) {
     { key: "G then A", description: "Go to Account" },
     { key: "G then T", description: "Go to Transactions" },
     { key: "G then C", description: "Go to Contracts" },
+    { key: "G then X", description: "Go to DEX Explorer" },
+    { key: "G then S", description: "Go to Asset Discovery" },
+    { key: "G then G", description: "Scroll to top" },
     { key: "Ctrl/Cmd + B", description: "Open Transaction Builder" },
-    { key: "Ctrl/Cmd + S", description: "Save current transaction" },
     { key: "Escape", description: "Close modals/dialogs" },
     { key: "?", description: "Show this help" },
   ];
@@ -312,7 +266,8 @@ function ShortcutsHelp({ isOpen, onClose }) {
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.7)",
+        background: "rgba(0, 0, 0, 0.75)",
+        backdropFilter: "blur(4px)",
         zIndex: 9999,
         display: "flex",
         alignItems: "center",
@@ -327,9 +282,11 @@ function ShortcutsHelp({ isOpen, onClose }) {
           borderRadius: "var(--radius-lg)",
           width: "90%",
           maxWidth: "500px",
-          maxHeight: "80vh",
-          overflow: "auto",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+          maxHeight: "85vh",
+          overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
+          display: 'flex',
+          flexDirection: 'column'
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -340,10 +297,11 @@ function ShortcutsHelp({ isOpen, onClose }) {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            background: 'var(--bg-elevated)'
           }}
         >
-          <h2 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>
-            Keyboard Shortcuts
+          <h2 style={{ fontSize: "18px", fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⌨️</span> Keyboard Shortcuts
           </h2>
           <button
             onClick={onClose}
@@ -352,14 +310,16 @@ function ShortcutsHelp({ isOpen, onClose }) {
               border: "none",
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: "20px",
+              fontSize: "24px",
+              padding: 0,
+              lineHeight: 1
             }}
           >
             ×
           </button>
         </div>
 
-        <div style={{ padding: "24px" }}>
+        <div style={{ padding: "16px 24px", overflowY: 'auto' }}>
           {shortcuts.map((shortcut, idx) => (
             <div
               key={idx}
@@ -374,7 +334,7 @@ function ShortcutsHelp({ isOpen, onClose }) {
                     : "none",
               }}
             >
-              <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
                 {shortcut.description}
               </span>
               <kbd
@@ -382,16 +342,21 @@ function ShortcutsHelp({ isOpen, onClose }) {
                   background: "var(--bg-elevated)",
                   border: "1px solid var(--border)",
                   borderRadius: "var(--radius-sm)",
-                  padding: "4px 8px",
+                  padding: "4px 10px",
                   fontSize: "11px",
                   fontFamily: "var(--font-mono)",
-                  color: "var(--text-muted)",
+                  color: "var(--cyan)",
+                  boxShadow: '0 2px 0 var(--border)'
                 }}
               >
                 {shortcut.key}
               </kbd>
             </div>
           ))}
+        </div>
+        
+        <div style={{ padding: '16px 24px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+          Press any key to close this overlay.
         </div>
       </div>
     </div>
@@ -401,79 +366,41 @@ function ShortcutsHelp({ isOpen, onClose }) {
 /**
  * Enhanced Keyboard Navigation with Command Palette and Shortcuts
  */
-const KeyboardNavigation = ({ targetId = "main-content" }) => {
+const KeyboardNavigation = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
-  const navigate = useNavigate();
+  const { setActiveTab } = useStore();
   const gKeyPressed = useRef(false);
   const gKeyTimeout = useRef(null);
 
   useEffect(() => {
     // Command Palette: Ctrl/Cmd + K
-    const unregisterCmdK = registerShortcut(
-      "meta+k",
-      () => {
-        setCommandPaletteOpen(true);
-      },
-      { description: "Open command palette", category: "general" },
-    );
-
-    const unregisterCtrlK = registerShortcut(
-      "ctrl+k",
-      () => {
-        setCommandPaletteOpen(true);
-      },
-      { description: "Open command palette", category: "general" },
-    );
+    const unregisterCmdK = registerShortcut("meta+k", () => setCommandPaletteOpen(true));
+    const unregisterCtrlK = registerShortcut("ctrl+k", () => setCommandPaletteOpen(true));
 
     // Shortcuts Help: Ctrl/Cmd + / or ?
-    const unregisterHelp1 = registerShortcut(
-      "meta+/",
-      () => {
-        setShortcutsHelpOpen(true);
-      },
-      { description: "Show shortcuts", category: "general" },
-    );
+    const unregisterHelp1 = registerShortcut("meta+/", () => setShortcutsHelpOpen(true));
+    const unregisterHelp2 = registerShortcut("ctrl+/", () => setShortcutsHelpOpen(true));
+    const unregisterHelp3 = registerShortcut("shift+/", () => setShortcutsHelpOpen(true));
 
-    const unregisterHelp2 = registerShortcut(
-      "ctrl+/",
-      () => {
-        setShortcutsHelpOpen(true);
-      },
-      { description: "Show shortcuts", category: "general" },
-    );
+    // Navigation Shortcuts
+    const unregisterBuilder1 = registerShortcut("meta+b", () => setActiveTab("builder"));
+    const unregisterBuilder2 = registerShortcut("ctrl+b", () => setActiveTab("builder"));
 
-    const unregisterHelp3 = registerShortcut(
-      "shift+/",
-      () => {
-        setShortcutsHelpOpen(true);
-      },
-      { description: "Show shortcuts", category: "general" },
-    );
-
-    // Transaction Builder: Ctrl/Cmd + B
-    const unregisterBuilder1 = registerShortcut(
-      "meta+b",
-      () => {
-        navigate("/builder");
-      },
-      { description: "Open transaction builder", category: "navigation" },
-    );
-
-    const unregisterBuilder2 = registerShortcut(
-      "ctrl+b",
-      () => {
-        navigate("/builder");
-      },
-      { description: "Open transaction builder", category: "navigation" },
-    );
-
-    // G + key navigation
-    const handleGKey = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+    const handleKeyDown = (e) => {
+      // Don't trigger shortcuts when typing in inputs
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) {
+        if (e.key === "Escape") {
+          setCommandPaletteOpen(false);
+          setShortcutsHelpOpen(false);
+        }
         return;
+      }
 
-      if (e.key.toLowerCase() === "g") {
+      const key = e.key.toLowerCase();
+
+      // G + key navigation
+      if (key === "g") {
         if (gKeyPressed.current) {
           // Double G press - go to top
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -483,62 +410,47 @@ const KeyboardNavigation = ({ targetId = "main-content" }) => {
           gKeyPressed.current = true;
           gKeyTimeout.current = setTimeout(() => {
             gKeyPressed.current = false;
-          }, 1000);
+          }, 800);
         }
       } else if (gKeyPressed.current) {
-        e.preventDefault();
-        const key = e.key.toLowerCase();
-
+        let matched = true;
         switch (key) {
-          case "d":
-            navigate("/");
-            break;
-          case "a":
-            navigate("/account");
-            break;
-          case "t":
-            navigate("/transactions");
-            break;
-          case "c":
-            navigate("/contracts");
-            break;
-          case "x":
-            navigate("/dex");
-            break;
-          case "s":
-            navigate("/assets");
-            break;
+          case "d": setActiveTab("overview"); break;
+          case "a": setActiveTab("account"); break;
+          case "t": setActiveTab("transactions"); break;
+          case "c": setActiveTab("contracts"); break;
+          case "x": setActiveTab("dex"); break;
+          case "s": setActiveTab("assets"); break;
+          default: matched = false;
         }
-
-        gKeyPressed.current = false;
-        clearTimeout(gKeyTimeout.current);
+        
+        if (matched) {
+          e.preventDefault();
+          gKeyPressed.current = false;
+          clearTimeout(gKeyTimeout.current);
+        }
+      }
+      
+      // Escape to close everything
+      if (e.key === "Escape") {
+        setCommandPaletteOpen(false);
+        setShortcutsHelpOpen(false);
       }
     };
 
-    document.addEventListener("keydown", handleGKey);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      unregisterCmdK();
-      unregisterCtrlK();
-      unregisterHelp1();
-      unregisterHelp2();
-      unregisterHelp3();
-      unregisterBuilder1();
-      unregisterBuilder2();
-      document.removeEventListener("keydown", handleGKey);
-      clearTimeout(gKeyTimeout.current);
+      unregisterCmdK(); unregisterCtrlK();
+      unregisterHelp1(); unregisterHelp2(); unregisterHelp3();
+      unregisterBuilder1(); unregisterBuilder2();
+      document.removeEventListener("keydown", handleKeyDown);
+      if (gKeyTimeout.current) clearTimeout(gKeyTimeout.current);
     };
-  }, [navigate]);
+  }, [setActiveTab]);
 
   return (
     <>
-      <a
-        href={`#${targetId}`}
-        className="skip-link sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:p-4 focus:bg-white focus:text-black"
-      >
-        Skip to main content
-      </a>
-
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

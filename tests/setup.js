@@ -1,5 +1,15 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { server } from './mocks/server';
+
+// ─── MSW Horizon mock server (#171) ───────────────────────────────────────────
+// By default all tests run against the MSW mock layer, not live Horizon.
+// Set STELLAR_E2E_LIVE=1 in your environment to skip MSW and hit the real network.
+if (!process.env.STELLAR_E2E_LIVE) {
+  beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+}
 
 // ─── localStorage mock ────────────────────────────────────────────────────────
 const localStorageStore = {};
@@ -13,6 +23,21 @@ global.localStorage = {
 // ─── navigator.clipboard mock ─────────────────────────────────────────────────
 Object.assign(navigator, {
   clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+});
+
+// ─── window.matchMedia mock ─────────────────────────────────────────────────
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query) => ({
+    matches: query.includes('prefers-color-scheme: dark'),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
 });
 
 // ─── Stellar SDK mock ─────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@
 
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { getServer, NETWORKS } from './stellar';
+import { getStoredValue, setStoredValue } from './storage';
+import { measureAsync, recordCustomMetric } from './performanceMonitoring';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,12 +36,29 @@ export const SESSION_STATUS = {
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 export function isValidPublicKey(key) {
+  // Import the updated validation from stellar.ts
+  // Keypair.fromPublicKey only works for G..., so we need to check all formats
+  if (!key || typeof key !== 'string') return false
+
+  const trimmed = key.trim()
+
+  // Try G... Ed25519
   try {
-    StellarSdk.Keypair.fromPublicKey(key);
-    return true;
+    StellarSdk.Keypair.fromPublicKey(trimmed)
+    return true
   } catch {
-    return false;
+    // Fall through
   }
+
+  // Try M... muxed account
+  try {
+    return StellarSdk.StrKey.isValidMuxedAccount(trimmed)
+  } catch {
+    // Fall through
+  }
+
+  // Try name*domain federated address
+  return /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)
 }
 
 /**
@@ -166,7 +185,13 @@ export function addSignatureToXdr(txXdr, signerSecret, network = 'testnet') {
   const networkPassphrase = NETWORKS[network].passphrase;
   const tx = StellarSdk.TransactionBuilder.fromXDR(txXdr, networkPassphrase);
   const keypair = StellarSdk.Keypair.fromSecret(signerSecret);
+  const start = performance.now();
   tx.sign(keypair);
+  recordCustomMetric('TRANSACTION_SIGNING_DURATION', performance.now() - start, {
+    network,
+    signer: 'multisig-local-keypair',
+    signatureCount: tx.signatures.length,
+  });
   return tx.toXDR();
 }
 
@@ -218,38 +243,48 @@ export async function submitMultisigTransaction(txXdr, network = 'testnet') {
   const networkPassphrase = NETWORKS[network].passphrase;
   const server = getServer(network);
   const tx = StellarSdk.TransactionBuilder.fromXDR(txXdr, networkPassphrase);
-  return server.submitTransaction(tx);
+  return measureAsync(
+    'TRANSACTION_SUBMIT_DURATION',
+    () => server.submitTransaction(tx),
+    {
+      network,
+      operationCount: tx.operations?.length || 0,
+      source: 'multisig',
+    },
+  );
 }
 
-// ─── Session Management (localStorage) ───────────────────────────────────────
+// ─── Session Management (IndexedDB) ──────────────────────────────────────────
 
 /**
- * Load all multisig sessions from localStorage
- * @returns {object[]}
+ * Load all multisig sessions from IndexedDB via storage.js
+ * @returns {Promise<object[]>}
  */
-export function loadSessions() {
+export async function loadSessions() {
   try {
-    const raw = localStorage.getItem(MULTISIG_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const raw = await getStoredValue(MULTISIG_STORAGE_KEY);
+    if (typeof raw === 'string') return JSON.parse(raw);
+    return Array.isArray(raw) ? raw : [];
   } catch {
     return [];
   }
 }
 
 /**
- * Save sessions to localStorage
+ * Save sessions to IndexedDB via storage.js
  * @param {object[]} sessions
+ * @returns {Promise<void>}
  */
-export function saveSessions(sessions) {
-  localStorage.setItem(MULTISIG_STORAGE_KEY, JSON.stringify(sessions));
+export async function saveSessions(sessions) {
+  await setStoredValue(MULTISIG_STORAGE_KEY, sessions);
 }
 
 /**
  * Create a new signature collection session
  * @param {object} params
- * @returns {object} session
+ * @returns {Promise<object>} session
  */
-export function createSession({ txXdr, sourceAddress, description, requiredSigners, threshold, network }) {
+export async function createSession({ txXdr, sourceAddress, description, requiredSigners, threshold, network }) {
   const session = {
     id: `msig-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     txXdr,
@@ -264,9 +299,9 @@ export function createSession({ txXdr, sourceAddress, description, requiredSigne
     updatedAt: new Date().toISOString(),
   };
 
-  const sessions = loadSessions();
+  const sessions = await loadSessions();
   sessions.unshift(session);
-  saveSessions(sessions);
+  await saveSessions(sessions);
   return session;
 }
 
@@ -274,14 +309,14 @@ export function createSession({ txXdr, sourceAddress, description, requiredSigne
  * Update a session by id
  * @param {string} id
  * @param {object} updates
- * @returns {object|null} updated session
+ * @returns {Promise<object|null>} updated session
  */
-export function updateSession(id, updates) {
-  const sessions = loadSessions();
+export async function updateSession(id, updates) {
+  const sessions = await loadSessions();
   const idx = sessions.findIndex((s) => s.id === id);
   if (idx === -1) return null;
   sessions[idx] = { ...sessions[idx], ...updates, updatedAt: new Date().toISOString() };
-  saveSessions(sessions);
+  await saveSessions(sessions);
   return sessions[idx];
 }
 
@@ -289,9 +324,10 @@ export function updateSession(id, updates) {
  * Delete a session by id
  * @param {string} id
  */
-export function deleteSession(id) {
-  const sessions = loadSessions().filter((s) => s.id !== id);
-  saveSessions(sessions);
+export async function deleteSession(id) {
+  const sessions = await loadSessions();
+  const filtered = sessions.filter((s) => s.id !== id);
+  await saveSessions(filtered);
 }
 
 /**
@@ -299,10 +335,10 @@ export function deleteSession(id) {
  * @param {string} sessionId
  * @param {string} signerKey - public key
  * @param {string} signedXdr - XDR with this signer's signature added
- * @returns {object|null} updated session
+ * @returns {Promise<object|null>} updated session
  */
-export function addSignatureToSession(sessionId, signerKey, signedXdr) {
-  const sessions = loadSessions();
+export async function addSignatureToSession(sessionId, signerKey, signedXdr) {
+  const sessions = await loadSessions();
   const session = sessions.find((s) => s.id === sessionId);
   if (!session) return null;
 
@@ -324,6 +360,71 @@ export function addSignatureToSession(sessionId, signerKey, signedXdr) {
 
   const idx = sessions.findIndex((s) => s.id === sessionId);
   sessions[idx] = session;
-  saveSessions(sessions);
+  await saveSessions(sessions);
   return session;
+}
+
+/**
+ * Export a multisig session to a JSON string for sharing.
+ * @param {object} session
+ * @returns {string}
+ */
+export function exportSessionJson(session) {
+  return JSON.stringify({
+    version: "1.0",
+    type: "MultisigSession",
+    data: session
+  }, null, 2);
+}
+
+/**
+ * Import a multisig session from a JSON string.
+ * Merges signatures if the session already exists.
+ * @param {string} jsonString
+ * @returns {Promise<object>} updated or newly imported session
+ */
+export async function importSessionJson(jsonString) {
+  const parsed = JSON.parse(jsonString);
+  if (parsed.type !== "MultisigSession" || !parsed.data) {
+    throw new Error("Invalid session JSON format.");
+  }
+
+  const importedSession = parsed.data;
+  const sessions = await loadSessions();
+  const existingIdx = sessions.findIndex((s) => s.id === importedSession.id);
+
+  if (existingIdx === -1) {
+    sessions.unshift(importedSession);
+    await saveSessions(sessions);
+    return importedSession;
+  }
+
+  const existingSession = sessions[existingIdx];
+  let updated = false;
+
+  for (const sig of importedSession.collectedSignatures || []) {
+    const alreadySigned = existingSession.collectedSignatures.some(
+      (s) => s.signerKey === sig.signerKey
+    );
+    if (!alreadySigned) {
+      existingSession.collectedSignatures.push(sig);
+      existingSession.txXdr = sig.xdr; // take the latest XDR
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    const { met } = checkThresholdMet(
+      existingSession.collectedSignatures.map((s) => s.signerKey),
+      existingSession.requiredSigners,
+      existingSession.threshold
+    );
+    existingSession.status = met ? SESSION_STATUS.READY : SESSION_STATUS.COLLECTING;
+    existingSession.updatedAt = new Date().toISOString();
+
+    sessions[existingIdx] = existingSession;
+    await saveSessions(sessions);
+  }
+
+  return existingSession;
 }

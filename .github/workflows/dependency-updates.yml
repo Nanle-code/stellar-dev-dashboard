@@ -1,0 +1,48 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update-deps:
+    name: Check & Update Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check for outdated packages
+        run: npm outdated || true
+
+      - name: Security audit
+        run: npm audit --json > audit-report.json || true
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v7
+        with:
+          name: audit-report
+          path: audit-report.json
+
+  dependabot-config:
+    name: Verify Dependabot Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check dependabot config exists
+        run: |
+          if [ ! -f .github/dependabot.yml ]; then
+            echo "Warning: .github/dependabot.yml not found"
+          else
+            echo "Dependabot config found"
+          fi

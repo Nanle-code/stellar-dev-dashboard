@@ -6,7 +6,68 @@ import {
   Star, Network, Zap, Activity,
 } from 'lucide-react'
 
-const SCORE_COLORS = [
+interface ScoreColorTier {
+  min: number;
+  color: string;
+  label: string;
+}
+
+interface Relationship {
+  key: string;
+  addressA: string;
+  addressB: string;
+  score: number;
+  txCount: number;
+  totalAmount: number;
+  isBidirectional: boolean;
+  lastSeen?: string;
+  frequency: number;
+  volume: number;
+  recency: number;
+  directionality: number;
+  diversity: number;
+  types: string[];
+}
+
+interface RankedNode {
+  address: string;
+  isCentral: boolean;
+  importance: number;
+  relationshipCount: number;
+  totalTx: number;
+}
+
+interface Cluster {
+  size: number;
+  edgeCount: number;
+  members: string[];
+}
+
+interface ReportSummary {
+  totalRelationships: number;
+  highVolumeCount: number;
+  clusterCount: number;
+  frequentCounterparties: number;
+  largestClusterSize: number;
+  totalAddresses: number;
+}
+
+interface RelationshipReport {
+  summary: ReportSummary;
+  relationships: Relationship[];
+  clusters: Cluster[];
+  rankedNodes: RankedNode[];
+}
+
+interface RelationshipPanelProps {
+  report: RelationshipReport | null;
+  connectedAddress: string;
+  loading: boolean;
+  onSelectAddress?: (address: string) => void;
+  onClose?: () => void;
+}
+
+const SCORE_COLORS: ScoreColorTier[] = [
   { min: 0.8, color: '#ef4444', label: 'Very High' },
   { min: 0.6, color: '#f59e0b', label: 'High' },
   { min: 0.4, color: '#8b5cf6', label: 'Medium' },
@@ -14,18 +75,20 @@ const SCORE_COLORS = [
   { min: 0, color: '#14b8a6', label: 'Minimal' },
 ]
 
-function scoreColor(score) {
+function scoreColor(score: number): ScoreColorTier {
   for (const tier of SCORE_COLORS) {
     if (score >= tier.min) return tier
   }
   return SCORE_COLORS[SCORE_COLORS.length - 1]
 }
 
-function formatAmount(amount) {
+function formatAmount(amount: number): string {
   if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`
   if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`
   return amount.toFixed(2)
 }
+
+type LabelMap = Record<string, { label?: string; color?: string }>;
 
 export default function RelationshipPanel({
   report,
@@ -33,17 +96,17 @@ export default function RelationshipPanel({
   loading,
   onSelectAddress,
   onClose,
-}) {
-  const { labelMap } = useAddressLabels()
+}: RelationshipPanelProps) {
+  const { labelMap } = useAddressLabels() as { labelMap: LabelMap }
   const [activeTab, setActiveTab] = useState('relationships')
-  const [selectedKey, setSelectedKey] = useState(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  const selectedRel = useMemo(() => {
+  const selectedRel = useMemo<Relationship | null>(() => {
     if (!selectedKey || !report) return null
     return report.relationships.find((r) => r.key === selectedKey) || null
   }, [selectedKey, report])
 
-  const handleSelectRel = useCallback((rel) => {
+  const handleSelectRel = useCallback((rel: Relationship) => {
     setSelectedKey(selectedKey === rel.key ? null : rel.key)
   }, [selectedKey])
 
@@ -69,7 +132,6 @@ export default function RelationshipPanel({
       background: '#0d1520', borderLeft: '1px solid #1a2332',
       overflow: 'hidden',
     }}>
-      {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '10px 12px', borderBottom: '1px solid #1a2332',
@@ -85,7 +147,6 @@ export default function RelationshipPanel({
         )}
       </div>
 
-      {/* Summary stats */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1px',
         padding: '8px 12px', background: '#0a1018', borderBottom: '1px solid #1a2332',
@@ -98,7 +159,6 @@ export default function RelationshipPanel({
         <StatBox icon={<TrendingUp size={10} />} label="Total Addrs" value={summary.totalAddresses} />
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid #1a2332' }}>
         {[
           { id: 'relationships', label: 'Relationships', icon: <ArrowLeftRight size={11} /> },
@@ -121,7 +181,6 @@ export default function RelationshipPanel({
         ))}
       </div>
 
-      {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {activeTab === 'relationships' && (
           selectedRel ? <RelationshipDetail rel={selectedRel} onBack={() => setSelectedKey(null)} labelMap={labelMap} connectedAddress={connectedAddress} /> :
@@ -163,13 +222,14 @@ export default function RelationshipPanel({
             <EmptyState message="No clusters detected" />
           ) : (
             clusters.map((cluster, i) => (
-                <ClusterRow
-                  key={i}
-                  cluster={cluster}
-                  index={i}
-                  labelMap={labelMap}
-                  onSelectAddress={onSelectAddress}
-                />
+              <ClusterRow
+                key={i}
+                cluster={cluster}
+                index={i}
+                labelMap={labelMap}
+                connectedAddress={connectedAddress}
+                onSelectAddress={onSelectAddress}
+              />
             ))
           )
         )}
@@ -178,9 +238,7 @@ export default function RelationshipPanel({
   )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatBox({ icon, label, value }) {
+function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
     <div style={{ textAlign: 'center', padding: '4px 2px' }}>
       <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', fontSize: '9px', marginBottom: '2px' }}>
@@ -193,7 +251,14 @@ function StatBox({ icon, label, value }) {
   )
 }
 
-function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, onSelectAddress }) {
+function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, onSelectAddress }: {
+  rel: Relationship;
+  labelMap: LabelMap;
+  connectedAddress: string;
+  selected: boolean;
+  onClick: () => void;
+  onSelectAddress?: (address: string) => void;
+}) {
   const otherAddr = rel.addressA === connectedAddress ? rel.addressB : rel.addressA
   const otherLabel = labelMap[otherAddr]?.label || shortAddress(otherAddr)
   const c = scoreColor(rel.score)
@@ -207,8 +272,8 @@ function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, o
         background: selected ? '#1a2332' : 'transparent',
         transition: 'var(--transition)',
       }}
-      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = '#0f1a2a' }}
-      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent' }}
+      onMouseEnter={(e) => { if (!selected) (e.currentTarget as HTMLDivElement).style.background = '#0f1a2a' }}
+      onMouseLeave={(e) => { if (!selected) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, flex: 1 }}>
@@ -281,7 +346,12 @@ function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, o
   )
 }
 
-function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }) {
+function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }: {
+  rel: Relationship;
+  onBack: () => void;
+  labelMap: LabelMap;
+  connectedAddress: string;
+}) {
   const otherAddr = rel.addressA === connectedAddress ? rel.addressB : rel.addressA
   const c = scoreColor(rel.score)
 
@@ -314,18 +384,16 @@ function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }) {
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <div style={{ textAlign: 'center', padding: '6px 10px', background: '#1a2332', borderRadius: '4px', minWidth: '60px' }}>
-          <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>TX Count</div>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{rel.txCount}</div>
-        </div>
-        <div style={{ textAlign: 'center', padding: '6px 10px', background: '#1a2332', borderRadius: '4px', minWidth: '60px' }}>
-          <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Volume</div>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{formatAmount(rel.totalAmount)}</div>
-        </div>
-        <div style={{ textAlign: 'center', padding: '6px 10px', background: '#1a2332', borderRadius: '4px', minWidth: '60px' }}>
-          <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Types</div>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{rel.types.length}</div>
-        </div>
+        {[
+          { label: 'TX Count', value: String(rel.txCount) },
+          { label: 'Volume', value: formatAmount(rel.totalAmount) },
+          { label: 'Types', value: String(rel.types.length) },
+        ].map(({ label, value }) => (
+          <div key={label} style={{ textAlign: 'center', padding: '6px 10px', background: '#1a2332', borderRadius: '4px', minWidth: '60px' }}>
+            <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{label}</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</div>
+          </div>
+        ))}
       </div>
 
       <ScoreBar label="Frequency" value={rel.frequency} />
@@ -337,7 +405,7 @@ function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }) {
   )
 }
 
-function ScoreBar({ label, value }) {
+function ScoreBar({ label, value }: { label: string; value: number }) {
   const pct = (value * 100).toFixed(0)
   const color = scoreColor(value).color
   return (
@@ -353,7 +421,12 @@ function ScoreBar({ label, value }) {
   )
 }
 
-function AddressRow({ node, rank, labelMap, onSelect }) {
+function AddressRow({ node, rank, labelMap, onSelect }: {
+  node: RankedNode;
+  rank: number;
+  labelMap: LabelMap;
+  onSelect?: (address: string) => void;
+}) {
   const top3 = rank <= 3
   const label = labelMap[node.address]?.label
   return (
@@ -364,8 +437,8 @@ function AddressRow({ node, rank, labelMap, onSelect }) {
         transition: 'var(--transition)',
       }}
       onClick={() => onSelect?.(node.address)}
-      onMouseEnter={(e) => e.currentTarget.style.background = '#0f1a2a'}
-      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#0f1a2a' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
     >
       <span style={{
         width: '16px', fontSize: '10px', fontWeight: top3 ? 700 : 400,
@@ -397,7 +470,13 @@ function AddressRow({ node, rank, labelMap, onSelect }) {
   )
 }
 
-function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddress }) {
+function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddress }: {
+  cluster: Cluster;
+  index: number;
+  labelMap: LabelMap;
+  connectedAddress: string;
+  onSelectAddress?: (address: string) => void;
+}) {
   return (
     <div style={{ padding: '10px 12px', borderBottom: '1px solid #111c2e' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
@@ -443,7 +522,7 @@ function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddres
   )
 }
 
-function EmptyState({ message }) {
+function EmptyState({ message }: { message: string }) {
   return (
     <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
       {message}

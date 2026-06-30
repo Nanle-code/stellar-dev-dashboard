@@ -69,13 +69,29 @@ export default function Overview() {
         setSavedLayouts(allLayouts);
 
         let initialWidgets: WidgetConfig[];
-        if (activeLayout && activeLayout.widgets.length > 0) {
-          initialWidgets = activeLayout.widgets;
+        if (activeLayout && activeLayout.widgets && activeLayout.widgets.length > 0) {
+          // Convert DashboardLayout widgets to WidgetConfig, ensuring height is present
+          initialWidgets = activeLayout.widgets.map(w => ({
+            id: w.id,
+            type: w.type,
+            height: w.height || 260,
+            span: w.span || 1,
+          })) as WidgetConfig[];
           setActiveLayoutName(activeLayout.name);
         } else {
           // Fall back to legacy single layout
           const savedLayout = await getDashboardLayout();
-          initialWidgets = (savedLayout && savedLayout.length > 0) ? savedLayout : DEFAULT_WIDGETS;
+          if (savedLayout && savedLayout.length > 0) {
+            // Convert WidgetLayout[] to WidgetConfig[] with default height
+            initialWidgets = savedLayout.map(w => ({
+              id: w.id,
+              type: w.type,
+              height: w.height || 260,
+              span: w.span || 1,
+            })) as WidgetConfig[];
+          } else {
+            initialWidgets = DEFAULT_WIDGETS;
+          }
           setActiveLayoutName('Default');
         }
 

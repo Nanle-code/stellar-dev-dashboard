@@ -10,6 +10,7 @@ import {
   WebhookEndpoint,
   WebhookEvent,
   WebhookEventType,
+  WebhookProvider,
 } from '../../lib/webhooks';
 
 export const Webhooks: React.FC = () => {
@@ -234,6 +235,19 @@ const EndpointCard: React.FC<{
             <code style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{endpoint.url}</code>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+            {endpoint.provider && endpoint.provider !== 'custom' && (
+              <span
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  background: 'var(--primary-light)',
+                  borderRadius: '0.25rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--primary)',
+                }}
+              >
+                {endpoint.provider === 'zapier' ? 'Zapier' : 'Make.com'}
+              </span>
+            )}
             {endpoint.events.map((event) => (
               <span
                 key={event}
@@ -382,6 +396,7 @@ const CreateEndpointModal: React.FC<{
   onSuccess: () => void;
 }> = ({ onClose, onSuccess }) => {
   const [url, setUrl] = useState('');
+  const [provider, setProvider] = useState<WebhookProvider>('custom');
   const [selectedEvents, setSelectedEvents] = useState<WebhookEventType[]>(['all']);
   const [submitting, setSubmitting] = useState(false);
 
@@ -393,7 +408,12 @@ const CreateEndpointModal: React.FC<{
 
     setSubmitting(true);
     try {
-      await webhookManager.createEndpoint(url, selectedEvents);
+      await webhookManager.createEndpoint(
+        url,
+        selectedEvents,
+        provider === 'custom' ? undefined : { integration: provider },
+        provider,
+      );
       onSuccess();
     } catch (error) {
       alert('Failed to create endpoint: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -465,6 +485,29 @@ const CreateEndpointModal: React.FC<{
                 fontSize: '0.9rem',
               }}
             />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
+              Automation Platform
+            </label>
+            <select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value as WebhookProvider)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid var(--border)',
+                borderRadius: '0.375rem',
+                background: 'var(--surface-1)',
+                color: 'var(--text-primary)',
+                fontSize: '0.9rem',
+              }}
+            >
+              <option value="custom">Custom webhook</option>
+              <option value="zapier">Zapier</option>
+              <option value="make">Make.com</option>
+            </select>
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>

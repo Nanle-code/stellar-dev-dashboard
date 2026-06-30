@@ -14,6 +14,7 @@
  */
 
 import { getServer } from './stellar'
+import { triggerTransactionAutomation } from './automationIntegrations'
 import type { Transaction } from 'stellar-sdk'
 
 export interface TransactionNotification {
@@ -295,6 +296,22 @@ class TransactionNotificationStore {
       status: 'success',
       read: false,
       network,
+    })
+
+    void triggerTransactionAutomation({
+      id: `${accountId}-${tx.hash || tx.id || tx.created_at}`,
+      accountId,
+      transaction: tx,
+      timestamp: new Date(tx.created_at).getTime(),
+      type: categoryInfo.type,
+      amount: categoryInfo.amount,
+      asset: categoryInfo.asset,
+      from: categoryInfo.from,
+      to: categoryInfo.to,
+      status: 'success',
+      network,
+    }).catch((err) => {
+      console.warn('Failed to trigger transaction automation:', err)
     })
   }
 

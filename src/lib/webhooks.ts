@@ -6,11 +6,13 @@
 import { v4 as uuidv4 } from 'uuid';
 
 export type WebhookEventType = 'payment' | 'trust' | 'contract' | 'account_merge' | 'all';
+export type WebhookProvider = 'custom' | 'zapier' | 'make';
 
 export interface WebhookEndpoint {
   id: string;
   url: string;
   events: WebhookEventType[];
+  provider?: WebhookProvider;
   secret: string;
   enabled: boolean;
   createdAt: string;
@@ -91,7 +93,8 @@ class WebhookManager {
   async createEndpoint(
     url: string,
     events: WebhookEventType[],
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    provider: WebhookProvider = 'custom'
   ): Promise<WebhookEndpoint> {
     if (!this.db) await this.initialize();
 
@@ -99,6 +102,7 @@ class WebhookManager {
       id: uuidv4(),
       url,
       events,
+      provider,
       secret: this.generateSecret(),
       enabled: true,
       createdAt: new Date().toISOString(),
@@ -215,6 +219,7 @@ class WebhookManager {
           'X-Webhook-Signature': signature,
           'X-Webhook-Event-Type': event.type,
           'X-Webhook-Event-Id': event.id,
+          'X-Automation-Provider': endpoint.provider || 'custom',
         },
         body: JSON.stringify(event.payload),
       });

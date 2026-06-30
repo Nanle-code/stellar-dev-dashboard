@@ -398,6 +398,14 @@ export default function Settings() {
         </button>
       </div>
 
+      <div style={styles.section}>
+        <p style={styles.sectionTitle}>Extensions</p>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Review installed plugins, manage permissions, and install sandboxed marketplace extensions.
+        </div>
+        <PluginRegistryView placement="settings" />
+      </div>
+
       <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
         <FieldLabel>Export &amp; Import</FieldLabel>
         <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px" }}>

@@ -46,6 +46,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'pathExplorer', label: 'Path Explorer', icon: '⇢' },
   { id: 'explorers', label: 'Explorer Links', icon: '⊞' },
   
+  { type: 'header', label: 'PAYMENTS' },
+  { id: 'paymentChannels', label: 'Pay Channels', icon: '⇶' },
+
   { type: 'header', label: 'TOOLS' },
   { id: 'wallet', label: 'Wallet', icon: '⊡' },
   { id: 'signer', label: 'Signer', icon: '✎' },

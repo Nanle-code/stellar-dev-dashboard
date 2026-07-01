@@ -4,6 +4,7 @@ import { useStore } from "../../lib/store";
 import { fetchOrderBook, fetchTrades, parseAssetString } from "../../lib/dex";
 import type { OrderBookEntry, SpreadInfo } from "./types";
 import LiquidityPools from "./LiquidityPools";
+import { useNetworkDiagnostics } from "../../hooks/useNetworkDiagnostics";
 
 interface OrderBookData {
   bids: OrderBookEntry[]
@@ -107,6 +108,7 @@ export default function DEXExplorer() {
   const [trades, setTrades] = useState<TradeRecord[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const diag = useNetworkDiagnostics();
 
   useEffect(() => {
     if (sessionStorage.getItem("dex:poolPair")) {
@@ -155,7 +157,7 @@ export default function DEXExplorer() {
             DEX Explorer
           </div>
           <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "4px", fontFamily: "var(--font-mono)" }}>
-            Order books, trades, and AMM liquidity pools
+            Order books, trades, AMM pools, and diagnostics
           </div>
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
@@ -165,11 +167,38 @@ export default function DEXExplorer() {
           <ViewButton active={activeView === "pools"} onClick={() => setActiveView("pools")}>
             Liquidity Pools
           </ViewButton>
+          <ViewButton active={activeView === "diagnostics"} onClick={() => setActiveView("diagnostics")}>
+            Diagnostics
+          </ViewButton>
         </div>
       </div>
 
       {activeView === "pools" ? (
         <LiquidityPools />
+      ) : activeView === "diagnostics" ? (
+        <div style={{ padding: "20px", background: "var(--bg-card)", borderRadius: "var(--radius-lg)" }}>
+          <h3 style={{ color: "var(--text-primary)" }}>Network Diagnostics</h3>
+          <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--text-secondary)" }}>
+            {diag.loading ? "Running diagnostics..." : `Last updated: ${new Date(diag.updatedAt).toLocaleTimeString()}`}
+          </div>
+          {diag.alerts.length > 0 && (
+            <div style={{ marginTop: "10px", color: "var(--red)" }}>
+              {diag.alerts.length} alert(s) detected.
+            </div>
+          )}
+          <div style={{ marginTop: "15px" }}>
+             {/* Simplified diagnostics view */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              {diag.nodeStatusRows.map(node => (
+                <div key={node.nodeId} style={{ border: "1px solid var(--border)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ fontWeight: "bold" }}>{node.label}</div>
+                  <div>Status: {node.status}</div>
+                  <div>Ping: {node.latencyMs ? `${Math.round(node.latencyMs)}ms` : "N/A"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
         <>
       <div

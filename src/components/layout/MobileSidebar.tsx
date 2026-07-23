@@ -38,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "collaboration", label: "Collaboration", icon: "◌" },
   { id: "txPatterns", label: "AI Patterns", icon: "🧠" },
   { id: "security", label: "Security", icon: "🛡️" },
+  { id: "dependencyManagement", label: "Dependencies", icon: "📦" },
 ];
 
 /**

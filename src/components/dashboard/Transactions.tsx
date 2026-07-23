@@ -15,6 +15,7 @@ import { VirtualTxList, VirtualOpList, TX_ROW_HEIGHT, OP_ROW_HEIGHT } from './Vi
 import TransactionFilterPanel from '../filters/TransactionFilterPanel'
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge'
 import { useAddressLabels } from '../../hooks/useAddressLabels'
+import { generateTransactionDescription } from '../../lib/aiTransactionDescription'
 
 const VIRTUAL_SCROLL_THRESHOLD = 200
 const PAGE_SIZE = 100
@@ -134,14 +135,20 @@ export default function Transactions() {
     const q = normalizeSearch(query)
 
     if (q) {
-      list = list.filter((tx) => searchableText([
-        tx.hash,
-        tx.memo,
-        tx.source_account,
-        addressLabels[tx.source_account],
-        tx.ledger,
-        tx.operation_count,
-      ]).includes(q))
+      list = list.filter((tx) => {
+        const descRes = generateTransactionDescription(tx as any, addressLabels)
+        return searchableText([
+          tx.hash,
+          tx.memo,
+          tx.source_account,
+          addressLabels[tx.source_account],
+          tx.ledger,
+          tx.operation_count,
+          descRes.description,
+          descRes.summary,
+          descRes.category,
+        ]).includes(q)
+      })
     }
 
     return filterRecords(list, filterExpressions)

@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, MouseEvent, ChangeEvent } from 'react'
 import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { useStore } from '../../lib/store'
-import { clusterTransactionsSmart, SmartTransactionCluster } from '../../lib/transactionPatternAnalysis'
+import { clusterTransactionsSmart, SmartTransactionCluster, StellarTransaction } from '../../lib/transactionPatternAnalysis'
 import { shortAddress } from '../../lib/stellar'
 import { exportCsv, flattenTransaction } from '../../utils/export'
 
@@ -15,19 +15,29 @@ export default function TransactionClusterView() {
     return clusterTransactionsSmart(transactions, operations, algorithm)
   }, [transactions, operations, algorithm])
 
-  const toggleCluster = (id: string | number) => {
+  const toggleCluster = (id: string | number, e: MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
     const next = new Set(expandedClusters)
     if (next.has(id)) next.delete(id)
     else next.add(id)
     setExpandedClusters(next)
   }
 
-  const handleExportCluster = (cluster: SmartTransactionCluster) => {
+  const handleExportCluster = (cluster: SmartTransactionCluster, e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
     exportCsv(
       cluster.transactions.map(flattenTransaction),
       `stellar-cluster-${cluster.label.toLowerCase().replace(/\s+/g, '-')}`,
       ['id', 'hash', 'ledger', 'created_at', 'source_account', 'fee_charged', 'operation_count', 'successful', 'memo_type', 'memo']
     )
+  }
+
+  const handleAlgorithmChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setAlgorithm(e.target.value as 'dbscan' | 'hierarchical')
+  }
+
+  const handleClusterClick = (clusterId: string | number) => {
+    setSelectedClusterId(clusterId === selectedClusterId ? null : clusterId)
   }
 
   return (
@@ -38,7 +48,7 @@ export default function TransactionClusterView() {
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Algorithm:</span>
           <select
             value={algorithm}
-            onChange={(e) => setAlgorithm(e.target.value as 'dbscan' | 'hierarchical')}
+            onChange={handleAlgorithmChange}
             style={{
               padding: '4px 8px',
               background: 'var(--bg-elevated)',
@@ -69,7 +79,7 @@ export default function TransactionClusterView() {
               cursor: 'pointer',
               transition: 'var(--transition)'
             }}
-            onClick={() => setSelectedClusterId(cluster.id === selectedClusterId ? null : cluster.id)}
+            onClick={() => handleClusterClick(cluster.id)}
           >
             <div
               style={{
@@ -78,10 +88,7 @@ export default function TransactionClusterView() {
                 justifyContent: 'space-between',
                 marginBottom: '8px'
               }}
-              onClick={(e) => {
-                e.stopPropagation()
-                toggleCluster(cluster.id)
-              }}
+              onClick={(e) => toggleCluster(cluster.id, e)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {expandedClusters.has(cluster.id) ? (
@@ -134,10 +141,7 @@ export default function TransactionClusterView() {
             )}
 
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleExportCluster(cluster)
-              }}
+              onClick={(e) => handleExportCluster(cluster, e)}
               style={{
                 width: '100%',
                 padding: '6px 10px',
@@ -161,7 +165,7 @@ export default function TransactionClusterView() {
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Transactions:</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
-                  {cluster.transactions.map((tx) => (
+                  {cluster.transactions.map((tx: StellarTransaction) => (
                     <div
                       key={tx.id}
                       style={{

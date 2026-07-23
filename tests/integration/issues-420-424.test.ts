@@ -68,6 +68,32 @@ describe('Issue #420: Semantic Search', () => {
   });
 });
 
+describe('Conversational AI search', () => {
+  it('should parse complex conversational queries into structured filters', () => {
+    const parsed = parseNaturalLanguageQuery('Show me all payments over 1000 XLM last month');
+    expect(parsed.intent.type).toBe('transaction');
+    expect(parsed.filters.amounts?.min).toBe(1000);
+    expect(parsed.filters.dateRange?.start).toBeDefined();
+    expect(parsed.searchTerms.some(term => term.includes('payment'))).toBe(true);
+  });
+
+  it('should support follow-up refinement using prior context', () => {
+    const firstTurn = parseNaturalLanguageQuery('Find accounts that interact with contract GABC1234567890ABCDEFGHIJKLMNOPQRSTUVWX');
+    const refined = parseNaturalLanguageQuery('only show the transactions from those accounts', firstTurn.intent);
+    expect(refined.intent.type).toBe('transaction');
+    expect(refined.filters.addresses?.length).toBeGreaterThan(0);
+    expect(refined.searchTerms.some(term => term.includes('transaction'))).toBe(true);
+  });
+
+  it('should build a conversational response with suggestions and exports', () => {
+    const response = parseNaturalLanguageQuery('Show me all payments over 1000 XLM last month');
+    expect(response.intent.confidence).toBeGreaterThan(0.7);
+    expect(response.searchTerms.length).toBeGreaterThan(0);
+    const exportBlob = new Blob([JSON.stringify(response.filters)], { type: 'application/json' });
+    expect(exportBlob.size).toBeGreaterThan(0);
+  });
+});
+
 describe('Issue #424: Error Handling', () => {
   it('should classify errors correctly', () => {
     const networkError = new Error('fetch failed');

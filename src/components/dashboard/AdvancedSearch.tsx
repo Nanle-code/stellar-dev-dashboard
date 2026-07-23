@@ -31,6 +31,7 @@ import advancedSearchService from '../../lib/advancedSearch.js';
 import auditTrail from '../../lib/auditTrail.js';
 import { format } from 'date-fns';
 import SemanticSearchPanel from '../search/SemanticSearchPanel';
+import ConversationalAIInterface from '../search/ConversationalAIInterface';
 
 export default function AdvancedSearch() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -167,15 +168,16 @@ export default function AdvancedSearch() {
     setSearchAnalytics(advancedSearchService.getSearchAnalytics());
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim() && !hasActiveFilters()) {
+  const handleSearch = async (overrideQuery?: string) => {
+    const activeQuery = (overrideQuery ?? searchQuery).trim();
+    if (!activeQuery && !hasActiveFilters()) {
       return;
     }
 
     setLoading(true);
     try {
       const query = {
-        text: searchQuery.trim(),
+        text: activeQuery,
         types: selectedTypes,
         filters: buildFilters(),
         sort,
@@ -185,9 +187,12 @@ export default function AdvancedSearch() {
 
       const results = advancedSearchService.search(query);
       setSearchResults(results);
+      if (overrideQuery) {
+        setSearchQuery(activeQuery);
+      }
 
       auditTrail.logUserAction('Performed advanced search', {
-        query: searchQuery.trim(),
+        query: activeQuery,
         types: selectedTypes,
         resultCount: results.total,
         searchTime: results.searchTime
@@ -195,7 +200,7 @@ export default function AdvancedSearch() {
       loadData();
 
     } catch (error) {
-      auditTrail.logError(error, { operation: 'advancedSearch', query: searchQuery });
+      auditTrail.logError(error, { operation: 'advancedSearch', query: activeQuery });
       console.error('Search failed:', error);
     } finally {
       setLoading(false);
@@ -416,6 +421,33 @@ export default function AdvancedSearch() {
             placeholder="Try 'recent XLM payments', 'failed soroban contracts', 'testnet account'…"
           />
         </div>
+      )}
+
+      {/* Conversational AI assistant */}
+      {!semanticMode && (
+        <ConversationalAIInterface
+          onSubmit={(query, parsed) => {
+            setSearchQuery(query);
+            const queryPayload = {
+              text: query,
+              types: selectedTypes,
+              filters: {
+                ...buildFilters(),
+                ...(parsed.filters.addresses ? { addressFilter: parsed.filters.addresses[0] } : {}),
+                ...(parsed.filters.amounts ? { amountRange: { min: parsed.filters.amounts.min?.toString() ?? '', max: parsed.filters.amounts.max?.toString() ?? '' } } : {}),
+              },
+              sort,
+              page: pagination.page,
+              limit: pagination.limit,
+            };
+            setSearchResults(advancedSearchService.search(queryPayload));
+            loadData();
+          }}
+          placeholder="Ask for payments, accounts, contracts, or operations"
+          isBusy={loading}
+          resultsSummary={searchResults ? `${searchResults.total ?? 0} results ready for review.` : undefined}
+          onExport={() => exportResults()}
+        />
       )}
 
       {/* Search Bar — keyword mode only */}

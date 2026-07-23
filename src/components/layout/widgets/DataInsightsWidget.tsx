@@ -2,7 +2,11 @@ import React, { useEffect } from 'react';
 import WidgetBase from './WidgetBase';
 import { useStore } from '../../../lib/store';
 
-export default function DataInsightsWidget({ onRefresh }) {
+interface DataInsightsWidgetProps {
+  onRefresh?: () => void;
+}
+
+export default function DataInsightsWidget({ onRefresh }: DataInsightsWidgetProps) {
   const {
     analytics,
     isGeneratingInsights,
@@ -18,7 +22,7 @@ export default function DataInsightsWidget({ onRefresh }) {
     }
   }, [connectedAddress, transactions, operations, generateDataInsights]);
 
-  const getSeverityColor = (severity) => {
+  const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'high': return 'var(--red)';
       case 'medium': return 'var(--amber)';
@@ -27,7 +31,7 @@ export default function DataInsightsWidget({ onRefresh }) {
     }
   };
 
-  const getSeverityBg = (severity) => {
+  const getSeverityBg = (severity: string) => {
     switch (severity) {
       case 'high': return 'var(--red-glow-sm)';
       case 'medium': return 'var(--amber-glow-sm)';
@@ -36,7 +40,7 @@ export default function DataInsightsWidget({ onRefresh }) {
     }
   };
 
-  const getIcon = (type) => {
+  const getIcon = (type: string) => {
     switch (type) {
       case 'trend': return '📈';
       case 'outlier': return '⚠️';

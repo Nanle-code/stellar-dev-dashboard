@@ -214,10 +214,10 @@ jobs:
     needs: [lint, type-check, test]
     env:
       # Per-chunk gzip budgets in kilobytes.
-      BUDGET_MAIN_KB: 50       # app entry chunk (index-*.js)
-      BUDGET_VENDOR_KB: 500    # any single vendor chunk
-      BUDGET_STELLAR_KB: 800   # stellar-sdk chunk (large, but isolated)
-      BUDGET_TOTAL_KB: 2000    # total gzipped JS across all chunks
+      BUDGET_MAIN_KB: 50 # app entry chunk (index-*.js)
+      BUDGET_VENDOR_KB: 500 # any single vendor chunk
+      BUDGET_STELLAR_KB: 800 # stellar-sdk chunk (large, but isolated)
+      BUDGET_TOTAL_KB: 2000 # total gzipped JS across all chunks
     steps:
       - uses: actions/checkout@v6
 

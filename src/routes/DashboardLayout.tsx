@@ -36,6 +36,8 @@ import OfflineBanner from '../components/layout/OfflineBanner';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import DevToolbar from '../components/dashboard/DevToolbar';
+import DebugAssistantButton from '../components/debug/DebugAssistantButton';
+import DebugAssistantPanel from '../components/debug/DebugAssistantPanel';
 
 interface SearchResult {
   type?: string;
@@ -225,6 +227,9 @@ export default function DashboardLayout() {
     setActiveTab,
     preferencesOpen,
     setPreferencesOpen,
+    debugAssistantOpen,
+    debugAssistantIssueCount,
+    toggleDebugAssistant,
   } = useStore();
   const { isMobile, isTablet } = useResponsive();
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
@@ -424,6 +429,14 @@ export default function DashboardLayout() {
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
         />
+        <DebugAssistantButton
+          onClick={() => toggleDebugAssistant()}
+          isOpen={debugAssistantOpen}
+          issueCount={debugAssistantIssueCount}
+        />
+        {debugAssistantOpen && (
+          <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />
+        )}
         {isMobile && <MobileNavigation />}
         {preferencesOpen && (
           <div

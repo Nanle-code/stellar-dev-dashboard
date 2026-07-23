@@ -12,6 +12,7 @@ const TAB_LOADERS: Record<string, () => Promise<unknown>> = {
   transactions: () => import('../components/dashboard/Transactions'),
   contracts: () => import('../components/dashboard/Contracts'),
   network: () => import('../components/dashboard/NetworkStats'),
+  feeForecast: () => import('../components/dashboard/NetworkFeeForecast'),
   builder: () => import('../components/dashboard/Builder'),
   faucet: () => import('../components/dashboard/Faucet'),
   compare: () => import('../components/dashboard/AccountComparison'),

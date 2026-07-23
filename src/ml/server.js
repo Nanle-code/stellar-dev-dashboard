@@ -15,6 +15,17 @@ app.post('/score', async (req, res) => {
   }
 });
 
+const { analyzeCorrelations } = require('./correlation');
+app.post('/api/correlation', (req, res) => {
+  try {
+    const timeseriesData = req.body;
+    const result = analyzeCorrelations(timeseriesData);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // simple feedback endpoint: accept {tx, label}
 app.post('/feedback', (req, res) => {
   try {

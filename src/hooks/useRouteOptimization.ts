@@ -19,6 +19,7 @@ interface Route {
 
 export function useRouteOptimization() {
   const {
+    routes,
     rankedRoutes,
     selectedRoute,
     slippagePredictions,
@@ -34,6 +35,7 @@ export function useRouteOptimization() {
     setError,
     addOptimizationHistory,
     updatePerformanceMetrics,
+    clearOptimization,
   } = useRouteOptimizationStore()
 
   const optimizeRoutes = useCallback(async (
@@ -93,15 +95,16 @@ export function useRouteOptimization() {
   }, [setSelectedRoute])
 
   const recordExecution = useCallback((
-    route: Route,
+    _route: Route,
     result: { success: boolean; actualSlippage: number; executionTime: number }
   ) => {
-    const metrics = {
-      totalOptimizations: 1,
-      avgImprovement: result.success ? 1 : 0,
-      successRate: result.success ? 1 : 0,
-    }
-    updatePerformanceMetrics(metrics)
+    const current = useRouteOptimizationStore.getState().performanceMetrics
+    const total = current.totalOptimizations + 1
+    updatePerformanceMetrics({
+      totalOptimizations: total,
+      avgImprovement: (current.avgImprovement * current.totalOptimizations + (result.success ? 1 : 0)) / total,
+      successRate: (current.successRate * current.totalOptimizations + (result.success ? 1 : 0)) / total,
+    })
   }, [updatePerformanceMetrics])
 
   return {

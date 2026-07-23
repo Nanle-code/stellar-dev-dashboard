@@ -6,9 +6,23 @@ export interface SearchIntent {
     assets?: string[];
     dateRanges?: Array<{ start?: Date; end?: Date }>;
     operationTypes?: string[];
+    keywords?: string[];
   };
   query: string;
   confidence: number;
+}
+
+interface ParseResult {
+  filters: {
+    addresses?: string[];
+    amounts?: { min?: number; max?: number };
+    assets?: string[];
+    dateRange?: { start?: Date; end?: Date };
+    operationTypes?: string[];
+    keywords?: string[];
+  };
+  searchTerms: string[];
+  intent: SearchIntent;
 }
 
 const INTENT_PATTERNS = {
@@ -34,9 +48,10 @@ const INTENT_PATTERNS = {
   ],
 };
 
-const STELLAR_ADDRESS_REGEX = /[A-Z0-9]{56}/g;
+const STELLAR_ADDRESS_REGEX = /\bG[A-Z0-9]{2,55}\b/g;
 const AMOUNT_REGEX = /(\d+(?:\.\d+)?)\s*([A-Z]{3,})?/g;
 const ASSET_REGEX = /\b([A-Z]{3,})\b/g;
+const OPERATION_KEYWORDS = ['payment', 'create account', 'manage offer', 'set options', 'change trust', 'allow trust', 'account merge', 'inflation', 'manage data', 'bump sequence'];
 const DATE_KEYWORDS = {
   today: () => new Date(),
   yesterday: () => new Date(Date.now() - 86400000),
@@ -45,19 +60,29 @@ const DATE_KEYWORDS = {
 };
 
 export function classifyIntent(query: string): SearchIntent {
-  const lowerQuery = query.toLowerCase();
   let type: SearchIntent['type'] = 'general';
   let confidence = 0.5;
 
-  for (const [intentType, patterns] of Object.entries(INTENT_PATTERNS)) {
-    for (const pattern of patterns) {
-      if (pattern.test(query)) {
-        type = intentType as SearchIntent['type'];
-        confidence = 0.9;
-        break;
-      }
-    }
-    if (confidence > 0.5) break;
+  const lowerQuery = query.toLowerCase();
+  const conversationalKeywords = ['show me', 'find', 'list', 'look up', 'search', 'display'];
+  const hasConversationalKeyword = conversationalKeywords.some(keyword => lowerQuery.includes(keyword));
+
+  if (/(transaction|transactions|payment|payments|transfer|transfers|send|sent)/i.test(lowerQuery)) {
+    type = 'transaction';
+    confidence = 0.9;
+  } else if (/(operation|operations|create account|manage offer|set options|change trust|allow trust)/i.test(lowerQuery)) {
+    type = 'operation';
+    confidence = 0.84;
+  } else if (/(account|accounts|balance|wallet)/i.test(lowerQuery)) {
+    type = 'account';
+    confidence = 0.85;
+  } else if (/(contract|smart contract|invoke)/i.test(lowerQuery)) {
+    type = 'contract';
+    confidence = 0.88;
+  }
+
+  if (hasConversationalKeyword && type === 'general') {
+    confidence = 0.6;
   }
 
   const entities = extractEntities(query);
@@ -100,24 +125,33 @@ export function extractEntities(query: string): SearchIntent['entities'] {
     }
   }
 
+  const operationMatches = OPERATION_KEYWORDS.filter((keyword) => query.toLowerCase().includes(keyword));
+  if (operationMatches.length > 0) {
+    entities.operationTypes = operationMatches;
+  }
+
+  const keywordTerms = query
+    .replace(STELLAR_ADDRESS_REGEX, '')
+    .replace(AMOUNT_REGEX, '')
+    .split(/\s+/)
+    .filter((term) => term.length > 2 && !['show','me','find','list','look','up','search','display','the','and','for','from','to','all','over','only','those','that','with','last','month','week','today','yesterday'].includes(term.toLowerCase()));
+  if (keywordTerms.length > 0) {
+    entities.keywords = [...new Set(keywordTerms)];
+  }
+
   return entities;
 }
 
-export function parseNaturalLanguageQuery(query: string): {
-  filters: {
-    addresses?: string[];
-    amounts?: { min?: number; max?: number };
-    assets?: string[];
-    dateRange?: { start?: Date; end?: Date };
-    operationTypes?: string[];
-  };
-  searchTerms: string[];
-  intent: SearchIntent;
-} {
+export function parseNaturalLanguageQuery(query: string, context?: SearchIntent): ParseResult {
   const intent = classifyIntent(query);
   const filters: any = {};
 
-  if (intent.entities.addresses) {
+  const contextAddresses = context?.entities.addresses;
+  if (contextAddresses && contextAddresses.length > 0) {
+    filters.addresses = contextAddresses;
+  }
+
+  if (intent.entities.addresses && intent.entities.addresses.length > 0) {
     filters.addresses = intent.entities.addresses;
   }
 
@@ -140,13 +174,39 @@ export function parseNaturalLanguageQuery(query: string): {
     filters.operationTypes = intent.entities.operationTypes;
   }
 
+  if (intent.entities.keywords && intent.entities.keywords.length > 0) {
+    filters.keywords = intent.entities.keywords;
+  }
+
   const searchTerms = query
     .replace(STELLAR_ADDRESS_REGEX, '')
     .replace(AMOUNT_REGEX, '')
     .split(/\s+/)
-    .filter(term => term.length > 2 && !['the', 'and', 'for', 'from', 'to'].includes(term.toLowerCase()));
+    .filter(term => term.length > 2 && !['the', 'and', 'for', 'from', 'to', 'show', 'me', 'find', 'list', 'look', 'up', 'search', 'display', 'all', 'over', 'only', 'those', 'that', 'with', 'last', 'month', 'week', 'today', 'yesterday'].includes(term.toLowerCase()));
 
   return { filters, searchTerms, intent };
+}
+
+export function buildConversationResponse(query: string, context: SearchIntent | null, results: { total?: number } = {}) {
+  const parsed = parseNaturalLanguageQuery(query, context ?? undefined);
+  const summary = `I found a ${parsed.intent.type} request${parsed.filters.amounts ? ' with amount filters' : ''}${parsed.filters.dateRange ? ' and a time window' : ''}. I can refine it further for ${parsed.intent.type === 'contract' ? 'contract interactions' : 'matching Stellar data'}.`;
+  const suggestions = [
+    parsed.intent.type === 'transaction' ? 'Show the matching transactions in a table' : 'Show the matching results in a table',
+    parsed.intent.type === 'account' ? 'Summarize the account activity' : 'Suggest related queries',
+    'Export these results as JSON',
+  ];
+  const followUpQuestions = [
+    parsed.intent.type === 'transaction' ? 'Filter these to only successful payments' : 'Narrow the results to a specific account',
+    parsed.intent.type === 'contract' ? 'Show accounts that interacted with this contract' : 'Show related operations for these results',
+  ];
+
+  return {
+    parsed,
+    summary,
+    suggestions: [...new Set(suggestions)].slice(0, 3),
+    followUpQuestions,
+    resultCount: results.total ?? 0,
+  };
 }
 
 export function generateSearchSuggestions(query: string, history: string[]): string[] {

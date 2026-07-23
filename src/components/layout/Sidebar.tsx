@@ -53,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'wallet', label: 'Wallet', icon: '⊡' },
   { id: 'signer', label: 'Signer', icon: '✎' },
   { id: 'multisig', label: 'Multisig', icon: '⊕' },
+  { id: 'multiAgent', label: 'Multi-Agent', icon: '🤖' },
   { id: 'did', label: 'DID', icon: '🆔' },
   { id: 'alertRules', label: 'Alerts', icon: '🔔' },
   { id: 'portfolio', label: 'Portfolio', icon: '◐' },

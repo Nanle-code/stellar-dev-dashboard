@@ -4,9 +4,8 @@ import {
   saveNotificationPreferences,
   resetNotificationPreferences,
   defaultNotificationPreferences,
-  type NotificationPreferences as NotificationPreferencesType,
 } from '../../lib/notificationPreferences'
-import { NOTIFICATION_CATEGORIES, PRIORITY_ORDER, type NotificationCategory, type NotificationPriority } from '../../lib/notificationCategories'
+import { NOTIFICATION_CATEGORIES, PRIORITY_ORDER } from '../../lib/notificationCategories'
 import {
   Bell,
   BellOff,

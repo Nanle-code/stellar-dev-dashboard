@@ -3,6 +3,7 @@ import { useStore } from '../../lib/store'
 import { shortAddress, getOperationLabel, fetchTransactions, fetchOperations } from '../../lib/stellar'
 import CopyableValue from './CopyableValue'
 import { format } from 'date-fns'
+import { analyzeTransactions } from '../../lib/aiSummarizer'
 
 export default function Transactions() {
   const {
@@ -28,6 +29,13 @@ export default function Transactions() {
     network,
   } = useStore()
   const [view, setView] = useState('transactions')
+
+  const txAnalysis = React.useMemo(() => {
+    if (view === 'transactions' && transactions.length > 0) {
+      return analyzeTransactions(transactions);
+    }
+    return null;
+  }, [transactions, view]);
 
   async function handleLoadMoreTransactions() {
     if (!connectedAddress || !txHasMore || !txNextCursor || txPagingLoading) return
@@ -85,6 +93,42 @@ export default function Transactions() {
       </div>
 
       {view === 'transactions' && (
+        <>
+          {txAnalysis && txAnalysis.status === 'success' && (
+            <div style={{
+              background: 'var(--cyan-glow-sm)',
+              border: '1px solid var(--cyan-dim)',
+              borderRadius: 'var(--radius-md)',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--cyan)', fontSize: '14px', fontWeight: 600 }}>
+                <span>✨</span> AI Insights for {transactions.length} transactions
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '12px' }}>
+                {txAnalysis.bulletPoints.map((point, i) => {
+                  let icon = '🔹';
+                  let color = 'var(--text-secondary)';
+                  if (point.includes('anomalous') || point.includes('Warning')) {
+                    icon = '⚠️';
+                    color = 'var(--amber)';
+                  } else if (point.includes('upward trend')) {
+                    icon = '📈';
+                    color = 'var(--green)';
+                  }
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color }}>
+                      <span style={{ fontSize: '14px' }}>{icon}</span>
+                      <span style={{ lineHeight: '1.4' }}>{point}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             <span>Hash</span>
@@ -174,6 +218,7 @@ export default function Transactions() {
             </>
           )}
         </div>
+        </>
       )}
 
       {view === 'operations' && (

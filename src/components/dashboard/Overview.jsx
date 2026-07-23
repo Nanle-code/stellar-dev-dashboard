@@ -16,6 +16,7 @@ import NetworkStatsWidget from '../layout/widgets/NetworkStatsWidget';
 import AccountStatsWidget from '../layout/widgets/AccountStatsWidget';
 import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
+import AiSummaryWidget from '../layout/widgets/AiSummaryWidget';
 
 // Default widget layout
 const DEFAULT_WIDGETS = [
@@ -50,6 +51,14 @@ const DEFAULT_WIDGETS = [
     width: 300,
     height: 280,
     span: 1
+  },
+  {
+    id: 'aiSummary-default',
+    type: 'aiSummary',
+    component: React.createElement(AiSummaryWidget, { key: 'aiSummary-default' }),
+    width: 400,
+    height: 350,
+    span: 2
   }
 ];
 
@@ -84,7 +93,8 @@ export default function Overview() {
       networkStats: NetworkStatsWidget,
       accountStats: AccountStatsWidget,
       quickActions: QuickActionsWidget,
-      priceTicker: PriceTickerWidget
+      priceTicker: PriceTickerWidget,
+      aiSummary: AiSummaryWidget
     };
     return components[type] || BalanceWidget;
   };

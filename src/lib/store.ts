@@ -80,6 +80,12 @@ export interface StoreState {
   setContractData: (data: SorobanRpc.Api.LedgerEntryResult) => void
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
+
+  // AI Summaries
+  aiSummaryLoading: boolean
+  aiSummaryData: any | null
+  setAiSummaryLoading: (v: boolean) => void
+  setAiSummaryData: (data: any) => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -99,6 +105,7 @@ export const useStore = create<StoreState>((set) => ({
       opsNextCursor: null,
       opsHasMore: false,
       opsPagingLoading: false,
+      aiSummaryData: null,
     })
   },
 
@@ -177,4 +184,10 @@ export const useStore = create<StoreState>((set) => ({
   setContractData: (data) => set({ contractData: data, contractError: null }),
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
+
+  // AI Summaries
+  aiSummaryLoading: false,
+  aiSummaryData: null,
+  setAiSummaryLoading: (v) => set({ aiSummaryLoading: v }),
+  setAiSummaryData: (data) => set({ aiSummaryData: data }),
 }))

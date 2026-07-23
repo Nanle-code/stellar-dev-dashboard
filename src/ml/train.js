@@ -1,7 +1,7 @@
 // Training pipeline: trains Isolation Forest and a simple TFJS classifier for pattern recognition
 const fs = require('fs');
 const path = require('path');
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
 const { extractFeatures } = require('./feature_extraction');
 const { IsolationForest } = require('./isolation_forest');
 

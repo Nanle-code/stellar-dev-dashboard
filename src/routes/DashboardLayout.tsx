@@ -84,6 +84,7 @@ const TABS: Record<string, TabComponent> = {
   featureFlags: lazyTab(() => import('../components/dashboard/FeatureFlags')),
   systemHealth: lazyTab(() => import('../components/dashboard/SystemHealth')),
   performance: lazyTab(() => import('../components/dashboard/PerformanceMonitor')),
+  logAnalyzer: lazyTab(() => import('../components/dashboard/LogAnalyzer')),
   settings: lazyTab(() => import('../components/dashboard/Settings')),
   collaboration: lazyTab(() => import('../components/dashboard/CollaborationTab')),
   audit: lazyTab(() => import('../components/dashboard/AuditLog')),
@@ -99,6 +100,7 @@ const TABS: Record<string, TabComponent> = {
   compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
   security: lazyTab(() => import('../components/dashboard/SecurityDashboard')),
   txAnalytics: TransactionAnalytics,
+  contractRecommendations: lazyTab(() => import('../components/dashboard/ContractRecommendations')),
 };
 
 function TabLoadingFallback() {

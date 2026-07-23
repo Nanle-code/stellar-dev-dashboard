@@ -1,14 +1,39 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const { scoreTransaction, loadModels } = require('./scoringEngine');
+const { FederatedLearningIntegration } = require('./federated/integration');
 
 const app = express();
 app.use(bodyParser.json());
+
+// Initialize federated learning integration
+const federatedIntegration = new FederatedLearningIntegration({
+  enableFederatedLearning: process.env.ENABLE_FEDERATED === 'true',
+  federatedServerUrl: process.env.FEDERATED_SERVER_URL || 'http://localhost:4002',
+  privacy: {
+    epsilon: parseFloat(process.env.PRIVACY_EPSILON) || 1.0,
+    delta: parseFloat(process.env.PRIVACY_DELTA) || 1e-5
+  }
+});
+
+// Initialize on startup
+federatedIntegration.initialize().catch(console.error);
 
 app.post('/score', async (req, res) => {
   try {
     const tx = req.body;
     const result = await scoreTransaction(tx);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Federated learning scoring endpoint
+app.post('/score-federated', async (req, res) => {
+  try {
+    const tx = req.body;
+    const result = await federatedIntegration.scoreTransactionWithFederated(tx);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -33,57 +58,100 @@ app.post('/feedback', (req, res) => {
 });
 
 // Liquidity Prediction API Endpoints
-app.get('/api/liquidity/predict', (req, res) => {
-  try {
-    const pair = req.query.pair || 'XLM:USDC';
-    const { predictLiquidityAndPrice } = require('./liquidityPredictionModel');
-    const { liquidityEngine } = require('../lib/liquidityEngine');
-    const snapshot = liquidityEngine.generateSampleMarketSnapshot(pair);
-    const prediction = predictLiquidityAndPrice(snapshot);
-    res.json(prediction);
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/liquidity/slippage', (req, res) => {
-  try {
-    const { pair = 'XLM:USDC', amount = 1000 } = req.body;
-    const { predictLiquidityAndPrice, calculateOrderBookSlippage } = require('./liquidityPredictionModel');
-    const { liquidityEngine } = require('../lib/liquidityEngine');
-    const snapshot = liquidityEngine.generateSampleMarketSnapshot(pair);
-    const actualSlippage = calculateOrderBookSlippage(snapshot.bids, snapshot.asks, amount, true);
-    const prediction = predictLiquidityAndPrice(snapshot);
-    const forecastItem = prediction.slippageForecast.find(s => s.orderSizeUsd === amount) || {
-      orderSizeUsd: amount,
-      predictedSlippagePct: actualSlippage + 0.15,
-      actualDepthSlippagePct: actualSlippage,
-      predictionErrorPct: 0.15,
-    };
-    res.json(forecastItem);
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/liquidity/metrics', (req, res) => {
-  try {
-    const { getModelMetrics } = require('./liquidityPredictionModel');
-    res.json(getModelMetrics());
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/liquidity/train', (req, res) => {
-  try {
-    const { getModelMetrics } = require('./liquidityPredictionModel');
-    const metrics = getModelMetrics();
-    res.json({
-      success: true,
-      message: 'Model retrained on historical DEX order book data and on-chain indicators.',
-      metrics,
-    });
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

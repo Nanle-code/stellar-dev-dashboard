@@ -97,7 +97,15 @@ function ScrollProgress({ loaded, hasMore, loading }) {
 
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 
-function TxRow({ tx, network, style }) {
+const TxRow = React.memo(function TxRow({ tx, network, style }) {
+  const formattedDate = useMemo(() => {
+    try {
+      return format(new Date(tx.created_at), 'MMM d, HH:mm')
+    } catch (e) {
+      return tx.created_at
+    }
+  }, [tx.created_at])
+
   return (
     <div
       style={{
@@ -156,16 +164,24 @@ function TxRow({ tx, network, style }) {
           {tx.operation_count} op{tx.operation_count !== 1 ? 's' : ''}
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-          {format(new Date(tx.created_at), 'MMM d, HH:mm')}
+          {formattedDate}
         </div>
       </div>
     </div>
   )
-}
+})
 
 // ─── Operation Row ────────────────────────────────────────────────────────────
 
-function OpRow({ op, style }) {
+const OpRow = React.memo(function OpRow({ op, style }) {
+  const formattedDate = useMemo(() => {
+    try {
+      return format(new Date(op.created_at), 'MMM d, HH:mm')
+    } catch (e) {
+      return op.created_at
+    }
+  }, [op.created_at])
+
   return (
     <div
       style={{
@@ -221,11 +237,11 @@ function OpRow({ op, style }) {
         )}
       </div>
       <div style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
-        {format(new Date(op.created_at), 'MMM d, HH:mm')}
+        {formattedDate}
       </div>
     </div>
   )
-}
+})
 
 // ─── Virtualised list (tx + ops) ─────────────────────────────────────────────
 // useVirtualScroll already attaches its own scroll listener for virtualisation.
@@ -260,6 +276,7 @@ function VirtualTxList({ items, network, onLoadMore, hasMore, loading }) {
         const now = Date.now()
         if (now - lastLoadRef.current >= 300) {
           lastLoadRef.current = now
+          loadingRef.current = true
           onLoadMoreRef.current()
         }
       }
@@ -310,6 +327,7 @@ function VirtualOpList({ items, onLoadMore, hasMore, loading }) {
         const now = Date.now()
         if (now - lastLoadRef.current >= 300) {
           lastLoadRef.current = now
+          loadingRef.current = true
           onLoadMoreRef.current()
         }
       }
@@ -399,6 +417,11 @@ export default function Transactions() {
   // Track in-flight requests to prevent duplicate calls
   const txLoadingRef = useRef(false)
   const opsLoadingRef = useRef(false)
+
+  React.useEffect(() => {
+    txLoadingRef.current = false
+    opsLoadingRef.current = false
+  }, [connectedAddress, network])
 
   const filteredTransactions = useMemo(() => {
     let list = transactions

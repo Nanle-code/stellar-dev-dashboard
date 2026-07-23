@@ -655,6 +655,7 @@ export function analyzeTransactionPatterns(
 
 // ---------------------------------------------------------------------------
 // ML / AI Pattern Recognition & Anomaly Detection (D-005)
+// Fee Prediction Enhancement (AI-Enhanced Transaction Fee Prediction #535)
 // ---------------------------------------------------------------------------
 
 // ---- Isolation Forest ----

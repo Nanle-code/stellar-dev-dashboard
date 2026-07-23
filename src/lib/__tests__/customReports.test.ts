@@ -8,7 +8,10 @@ import {
   exportReportAsCsv,
   exportReportAsJson,
   getNextRunPreview,
+  loadSavedReportTemplates,
+  parseNaturalLanguageRequest,
   REPORT_TEMPLATES,
+  saveReportTemplate,
   transformReportData,
 } from "../customReports";
 
@@ -38,13 +41,31 @@ const analytics = {
 
 describe("custom reports", () => {
   it("ships the required Stellar report templates", () => {
-    expect(REPORT_TEMPLATES.map((template) => template.id)).toEqual([
-      "account-activity",
-      "portfolio-performance",
-      "transaction-analysis",
-      "network-health",
-    ]);
+    expect(REPORT_TEMPLATES.length).toBeGreaterThanOrEqual(20);
+    expect(REPORT_TEMPLATES.map((template) => template.id)).toContain("account-activity");
+    expect(REPORT_TEMPLATES.map((template) => template.id)).toContain("network-health");
     expect(REPORT_TEMPLATES.every((template) => template.components.length >= 3)).toBe(true);
+  });
+
+  it("parses natural-language requests and persists saved report templates", () => {
+    const parsed = parseNaturalLanguageRequest("Create a weekly account activity report for GABC with emphasis on risks and fees");
+
+    expect(parsed.templateId).toBe("account-activity");
+    expect(parsed.accountId).toBe("GABC");
+    expect(parsed.focusAreas).toEqual(expect.arrayContaining(["risks", "fees"]));
+
+    const saved = saveReportTemplate({
+      id: "saved-weekly-account",
+      name: "Weekly Account Summary",
+      description: "A saved report template",
+      resource: "accounts",
+      components: REPORT_TEMPLATES[0].components,
+      category: "account",
+      tags: ["weekly", "account"],
+    });
+
+    expect(saved.id).toBe("saved-weekly-account");
+    expect(loadSavedReportTemplates()).toEqual(expect.arrayContaining([expect.objectContaining({ id: "saved-weekly-account" })]));
   });
 
   it("builds account-scoped Horizon queries with filters", () => {

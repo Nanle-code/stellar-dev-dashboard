@@ -18,10 +18,14 @@ import {
   createReportSchedule,
   exportReportAsCsv,
   exportReportAsJson,
+  getAllReportTemplates,
   getNextRunPreview,
   getReportTemplate,
+  loadSavedReportTemplates,
+  parseNaturalLanguageRequest,
   REPORT_COMPONENT_PALETTE,
   REPORT_TEMPLATES,
+  saveReportTemplate,
   transformReportData,
   type ReportComponentDefinition,
   type ReportResource,
@@ -80,9 +84,15 @@ export default function CustomReports({ analytics }: CustomReportsProps) {
   const [email, setEmail] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
   const [components, setComponents] = useState(REPORT_TEMPLATES[0].components);
+  const [requestText, setRequestText] = useState("Create a weekly account activity report for GABC with emphasis on risks and fees");
+  const [savedTemplates, setSavedTemplates] = useState(loadSavedReportTemplates());
 
   const template = getReportTemplate(templateId);
-  const reportData = useMemo(() => transformReportData(template.id, analytics || {}), [analytics, template.id]);
+  const parsedRequest = useMemo(() => parseNaturalLanguageRequest(requestText), [requestText]);
+  const reportData = useMemo(
+    () => transformReportData(template.id, analytics || {}, { focusAreas: parsedRequest.focusAreas, request: parsedRequest.prompt }),
+    [analytics, parsedRequest.focusAreas, parsedRequest.prompt, template.id],
+  );
   const query = useMemo(
     () =>
       buildHorizonQuery({
@@ -116,6 +126,27 @@ export default function CustomReports({ analytics }: CustomReportsProps) {
     setTemplateId(nextTemplate.id);
     setResource(nextTemplate.resource);
     setComponents(nextTemplate.components);
+  };
+
+  const handleRequestApply = () => {
+    const nextTemplate = getReportTemplate(parsedRequest.templateId);
+    setTemplateId(nextTemplate.id);
+    setResource(nextTemplate.resource);
+    setAccountId(parsedRequest.accountId || accountId);
+    setComponents(nextTemplate.components);
+  };
+
+  const handleSaveTemplate = () => {
+    const saved = saveReportTemplate({
+      ...template,
+      id: `${template.id}-saved-${Date.now()}`,
+      name: `${template.name} (Saved)`,
+      description: `${template.description} Saved from the dashboard.`,
+      category: template.category || "custom",
+      tags: [...(template.tags || []), "saved"],
+    });
+    setSavedTemplates(loadSavedReportTemplates());
+    return saved;
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -164,6 +195,9 @@ export default function CustomReports({ analytics }: CustomReportsProps) {
           </div>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button type="button" style={buttonStyle} onClick={handleSaveTemplate} title="Save current template">
+            <Save size={14} /> Save
+          </button>
           <button type="button" style={buttonStyle} onClick={exportCsv} title="Export CSV">
             <Download size={14} /> CSV
           </button>
@@ -181,13 +215,22 @@ export default function CustomReports({ analytics }: CustomReportsProps) {
           <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-muted)" }}>
             Template
             <select value={templateId} onChange={(event) => handleTemplateChange(event.target.value)} style={fieldStyle}>
-              {REPORT_TEMPLATES.map((reportTemplate) => (
+              {getAllReportTemplates().map((reportTemplate) => (
                 <option key={reportTemplate.id} value={reportTemplate.id}>
                   {reportTemplate.name}
                 </option>
               ))}
             </select>
           </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-muted)" }}>
+            Prompt
+            <textarea value={requestText} onChange={(event) => setRequestText(event.target.value)} rows={3} style={{ ...fieldStyle, minHeight: "80px" }} />
+          </label>
+
+          <button type="button" style={buttonStyle} onClick={handleRequestApply}>
+            Generate report from prompt
+          </button>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: "8px" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-muted)" }}>
@@ -298,6 +341,34 @@ export default function CustomReports({ analytics }: CustomReportsProps) {
               </div>
             ))}
           </div>
+
+          {reportData.insights && reportData.insights.length > 0 && (
+            <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px" }}>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "6px" }}>AI insights</div>
+              <ul style={{ margin: 0, paddingLeft: "16px", display: "grid", gap: "6px", fontSize: "12px" }}>
+                {reportData.insights.map((insight) => (
+                  <li key={insight}>{insight}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+            Parsed focus: {parsedRequest.focusAreas.join(", ")} {parsedRequest.accountId ? `· account ${parsedRequest.accountId}` : ""}
+          </div>
+
+          {savedTemplates.length > 0 && (
+            <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "10px" }}>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "6px" }}>Saved templates</div>
+              <div style={{ display: "grid", gap: "6px" }}>
+                {savedTemplates.map((item) => (
+                  <button key={item.id} type="button" style={{ ...buttonStyle, justifyContent: "flex-start" }} onClick={() => handleTemplateChange(item.id)}>
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px", color: "var(--text-muted)" }}>

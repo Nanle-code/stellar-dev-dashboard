@@ -655,6 +655,7 @@ export function analyzeTransactionPatterns(
 
 // ---------------------------------------------------------------------------
 // ML / AI Pattern Recognition & Anomaly Detection (D-005)
+// Fee Prediction Enhancement (AI-Enhanced Transaction Fee Prediction #535)
 // ---------------------------------------------------------------------------
 
 // ---- Isolation Forest ----
@@ -837,12 +838,39 @@ export function extractTrainingData(
 
   const fees = rawValues.map((r) => r.fee).filter((f) => f > 0).sort((a, b) => a - b)
   const medianFee = fees.length ? fees[Math.floor(fees.length / 2)] : 100
+  const amounts = rawValues.map((r) => r.amount).filter((a) => a > 0).sort((a, b) => a - b)
+  const medianAmount = amounts.length ? amounts[Math.floor(amounts.length / 2)] : 100
+
+  // Calculate time intervals for regularity detection
+  const timeIntervals: number[] = []
+  for (let i = 1; i < rawValues.length; i++) {
+    if (rawValues[i].timeDiff > 0) {
+      timeIntervals.push(rawValues[i].timeDiff)
+    }
+  }
+  const medianInterval = timeIntervals.length ? timeIntervals[Math.floor(timeIntervals.length / 2)] : 3600
 
   const augmentedFeatures: number[][] = []
   const augmentedLabels: number[][] = []
 
+  // 10+ pattern classes
+  const patternClasses = [
+    'Normal',
+    'High Frequency Burst',
+    'Fee Spike',
+    'Failure Storm',
+    'Regular Payments',
+    'Batch Operations',
+    'Large Value Transfers',
+    'Memo-Tagged Transactions',
+    'Night-Time Activity',
+    'New Counterparty',
+    'Weekend Activity'
+  ]
+
   for (let i = 0; i < features.length; i++) {
     const txId = transactionIds[i]
+    const tx = transactions.find((t) => t.id === txId)
     const raw = rawValues[i]
     const isFailed = features[i][5]
     const txFeedback = feedback[txId]
@@ -852,28 +880,67 @@ export function extractTrainingData(
     if (txFeedback === 'deny') {
       labelIndex = 0 // Override to Normal
     } else if (txFeedback === 'confirm') {
+      // User-confirmed patterns
       if (isFailed === 1) {
         labelIndex = 3 // Failure Storm
       } else if (raw.fee > medianFee * 10) {
         labelIndex = 2 // Fee Spike
       } else if (raw.timeDiff > 0 && raw.timeDiff < 5) {
         labelIndex = 1 // High Frequency Burst
-      } else {
-        labelIndex = 2 // anomaly default
-      }
-    } else {
-      if (isFailed === 1) {
-        labelIndex = 3
-      } else if (raw.fee > medianFee * 10) {
-        labelIndex = 2
-      } else if (raw.timeDiff > 0 && raw.timeDiff < 5) {
-        labelIndex = 1
+      } else if (raw.amount > medianAmount * 10) {
+        labelIndex = 6 // Large Value Transfers
+      } else if (tx?.memo && tx.memo.trim()) {
+        labelIndex = 7 // Memo-Tagged Transactions
+      } else if (Number(tx?.operation_count) > 1) {
+        labelIndex = 5 // Batch Operations
+      } else if (raw.timeDiff > 0 && Math.abs(raw.timeDiff - medianInterval) < medianInterval * 0.1) {
+        labelIndex = 4 // Regular Payments
       } else {
         labelIndex = 0
       }
+    } else {
+      // Auto-detected patterns
+      if (isFailed === 1) {
+        labelIndex = 3 // Failure Storm
+      } else if (raw.fee > medianFee * 10) {
+        labelIndex = 2 // Fee Spike
+      } else if (raw.timeDiff > 0 && raw.timeDiff < 5) {
+        labelIndex = 1 // High Frequency Burst
+      } else if (raw.amount > medianAmount * 10) {
+        labelIndex = 6 // Large Value Transfers
+      } else if (tx?.memo && tx.memo.trim()) {
+        labelIndex = 7 // Memo-Tagged Transactions
+      } else if (Number(tx?.operation_count) > 1) {
+        labelIndex = 5 // Batch Operations
+      } else if (raw.timeDiff > 0 && Math.abs(raw.timeDiff - medianInterval) < medianInterval * 0.1) {
+        labelIndex = 4 // Regular Payments
+      } else {
+        // Check for night-time activity (midnight to 6 AM UTC)
+        const hour = new Date(tx?.created_at || Date.now()).getUTCHours()
+        if (hour >= 0 && hour < 6) {
+          labelIndex = 8 // Night-Time Activity
+        }
+        // Check for weekend activity
+        const day = new Date(tx?.created_at || Date.now()).getUTCDay()
+        if (day === 0 || day === 6) {
+          labelIndex = 10 // Weekend Activity
+        }
+        // Check for new counterparty (first interaction)
+        const txOps = operations.filter((o) => o.transaction_hash === tx?.hash)
+        const hasNewCounterparty = txOps.some((op) => {
+          const counterparty = op.from === tx?.source_account ? op.to : op.from
+          const priorInteractions = operations.filter((o) => 
+            o.from === counterparty || o.to === counterparty
+          ).length
+          return priorInteractions <= 1
+        })
+        if (hasNewCounterparty) {
+          labelIndex = 9 // New Counterparty
+        }
+      }
     }
 
-    const oneHot = [0, 0, 0, 0]
+    const oneHot = new Array(patternClasses.length).fill(0)
     oneHot[labelIndex] = 1
 
     augmentedFeatures.push(features[i])
@@ -894,7 +961,7 @@ export function extractTrainingData(
 let mlModel: tf.LayersModel | null = null
 let isModelTraining = false
 
-export async function initOrLoadModel(inputDim = 6): Promise<tf.LayersModel> {
+export async function initOrLoadModel(inputDim = 6, numClasses = 11): Promise<tf.LayersModel> {
   if (mlModel) return mlModel
 
   try {
@@ -909,20 +976,22 @@ export async function initOrLoadModel(inputDim = 6): Promise<tf.LayersModel> {
     const model = tf.sequential()
     model.add(
       tf.layers.dense({
-        units: 16,
+        units: 32,
         activation: 'relu',
         inputShape: [inputDim],
       })
     )
+    model.add(tf.layers.dropout({ rate: 0.2 }))
     model.add(
       tf.layers.dense({
-        units: 8,
+        units: 16,
         activation: 'relu',
       })
     )
+    model.add(tf.layers.dropout({ rate: 0.1 }))
     model.add(
       tf.layers.dense({
-        units: 4,
+        units: numClasses,
         activation: 'softmax',
       })
     )
@@ -949,7 +1018,7 @@ export async function trainMLModel(
   isModelTraining = true
 
   try {
-    const model = await initOrLoadModel(6)
+    const model = await initOrLoadModel(6, 11)
     const { features, labels } = extractTrainingData(transactions, operations, feedback)
 
     if (features.length === 0) {
@@ -961,7 +1030,7 @@ export async function trainMLModel(
     const ys = tf.tensor2d(labels)
 
     const history = await model.fit(xs, ys, {
-      epochs: 10,
+      epochs: 15,
       batchSize: Math.min(32, features.length),
       shuffle: true,
       verbose: 0,
@@ -1059,7 +1128,7 @@ export async function scoreTransaction(
   let confidence = 1.0
 
   try {
-    const model = await initOrLoadModel(6)
+    const model = await initOrLoadModel(6, 11)
     const inputTensor = tf.tensor2d([x])
     const predTensor = model.predict(inputTensor) as tf.Tensor
     const probabilities = await predTensor.data()
@@ -1068,16 +1137,42 @@ export async function scoreTransaction(
     predTensor.dispose()
 
     const maxIdx = probabilities.indexOf(Math.max(...probabilities))
-    const classes = ['Normal', 'High Frequency Burst', 'Fee Spike', 'Failure Storm']
+    const classes = [
+      'Normal',
+      'High Frequency Burst',
+      'Fee Spike',
+      'Failure Storm',
+      'Regular Payments',
+      'Batch Operations',
+      'Large Value Transfers',
+      'Memo-Tagged Transactions',
+      'Night-Time Activity',
+      'New Counterparty',
+      'Weekend Activity'
+    ]
     predictedClass = classes[maxIdx]
     confidence = probabilities[maxIdx]
   } catch {
+    // Fallback to heuristic classification
     if (isFailed === 1) {
       predictedClass = 'Failure Storm'
     } else if (fee > 5000) {
       predictedClass = 'Fee Spike'
     } else if (timeDiff > 0 && timeDiff < 5) {
       predictedClass = 'High Frequency Burst'
+    } else if (totalAmt > 10000) {
+      predictedClass = 'Large Value Transfers'
+    } else if (tx?.memo && tx.memo.trim()) {
+      predictedClass = 'Memo-Tagged Transactions'
+    } else if (Number(tx?.operation_count) > 1) {
+      predictedClass = 'Batch Operations'
+    } else {
+      const hour = new Date(tx?.created_at || Date.now()).getUTCHours()
+      if (hour >= 0 && hour < 6) {
+        predictedClass = 'Night-Time Activity'
+      } else {
+        predictedClass = 'Normal'
+      }
     }
   }
 

@@ -98,6 +98,7 @@ const TABS: Record<string, TabComponent> = {
   compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
   security: lazyTab(() => import('../components/dashboard/SecurityDashboard')),
   txAnalytics: TransactionAnalytics,
+  predictiveTrends: lazyTab(() => import('../components/dashboard/PredictiveTrendChart')),
 };
 
 function TabLoadingFallback() {

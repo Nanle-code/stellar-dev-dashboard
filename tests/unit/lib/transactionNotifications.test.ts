@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { transactionNotificationStore } from '../lib/transactionNotifications'
-import type { TransactionNotification } from '../lib/transactionNotifications'
+import { transactionNotificationStore } from '../../../src/lib/transactionNotifications'
+import type { TransactionNotification } from '../../../src/lib/transactionNotifications'
 
 describe('TransactionNotificationStore', () => {
   beforeEach(() => {

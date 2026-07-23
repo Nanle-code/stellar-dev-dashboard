@@ -276,6 +276,10 @@ export interface StoreState {
   sessionRecordingActive: boolean
   sessionRecordingId: string | null
   setSessionRecordingActive: (active: boolean, id?: string | null) => void
+
+  // Capacity planning
+  capacityPredictionHorizon: number
+  setCapacityPredictionHorizon: (days: number) => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -518,10 +522,14 @@ export const useStore = create<StoreState>((set) => ({
 
   comparisonSlots: [],
   addComparisonSlot: () => set((state) => ({
-    comparisonSlots: [...state.comparisonSlots, { key: '', data: null, loading: false, error: null }],
+    comparisonSlots: state.comparisonSlots.length >= 5
+      ? state.comparisonSlots
+      : [...state.comparisonSlots, { key: '', data: null, loading: false, error: null }],
   })),
   removeComparisonSlot: (index) => set((state) => ({
-    comparisonSlots: state.comparisonSlots.filter((_, i) => i !== index),
+    comparisonSlots: state.comparisonSlots.length <= 2
+      ? state.comparisonSlots
+      : state.comparisonSlots.filter((_, i) => i !== index),
   })),
   reorderComparisonSlots: (orderedSlots) => set({ comparisonSlots: orderedSlots }),
   setComparisonKey: (index, key) => set((state) => {
@@ -541,7 +549,7 @@ export const useStore = create<StoreState>((set) => ({
   }),
   setComparisonError: (index, error) => set((state) => {
     const next = [...state.comparisonSlots]
-    if (next[index]) next[index].error = error
+    if (next[index]) { next[index].error = error; next[index].data = null }
     return { comparisonSlots: next }
   }),
 
@@ -575,7 +583,11 @@ export const useStore = create<StoreState>((set) => ({
   streamLedgers: [],
   streamError: null,
   setStreamStatus: (status) => set({ streamStatus: status }),
-  addStreamLedger: (l) => set((state) => ({ streamLedgers: [l, ...state.streamLedgers].slice(0, 50) })),
+  addStreamLedger: (l) => set((state) => {
+    const exists = state.streamLedgers.some((s) => s.sequence === l.sequence)
+    if (exists) return {}
+    return { streamLedgers: [l, ...state.streamLedgers].slice(0, 50) }
+  }),
   clearStreamLedgers: () => set({ streamLedgers: [] }),
   setStreamError: (e) => set({ streamError: e }),
 
@@ -604,6 +616,10 @@ export const useStore = create<StoreState>((set) => ({
   sessionRecordingActive: false,
   sessionRecordingId: null,
   setSessionRecordingActive: (active, id = null) => set({ sessionRecordingActive: active, sessionRecordingId: id ?? null }),
+
+  // Capacity planning
+  capacityPredictionHorizon: 30,
+  setCapacityPredictionHorizon: (days) => set({ capacityPredictionHorizon: days }),
 }))
 
 // ─── Expose store for e2e testing ────────────────────────────────────────────

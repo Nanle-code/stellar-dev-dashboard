@@ -5,6 +5,7 @@ import type {
   PaymentPathRecord,
 } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
+import { generateInsights, type AnalyticsSummary } from './analytics'
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -80,6 +81,11 @@ export interface StoreState {
   setContractData: (data: SorobanRpc.Api.LedgerEntryResult) => void
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
+
+  // Analytics
+  analytics: AnalyticsSummary | null
+  isGeneratingInsights: boolean
+  generateDataInsights: () => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -177,4 +183,12 @@ export const useStore = create<StoreState>((set) => ({
   setContractData: (data) => set({ contractData: data, contractError: null }),
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
+
+  // Analytics
+  analytics: null,
+  isGeneratingInsights: false,
+  generateDataInsights: () => set((state) => {
+    const summary = generateInsights(state.transactions, state.operations)
+    return { analytics: summary, isGeneratingInsights: false }
+  }),
 }))

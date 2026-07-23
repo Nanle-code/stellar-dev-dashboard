@@ -16,9 +16,18 @@ import NetworkStatsWidget from '../layout/widgets/NetworkStatsWidget';
 import AccountStatsWidget from '../layout/widgets/AccountStatsWidget';
 import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
+import DataInsightsWidget from '../layout/widgets/DataInsightsWidget';
 
 // Default widget layout
 const DEFAULT_WIDGETS = [
+  {
+    id: 'insights-default',
+    type: 'dataInsights',
+    component: React.createElement(DataInsightsWidget, { key: 'insights-default' }),
+    width: 350,
+    height: 300,
+    span: 2
+  },
   {
     id: 'balance-default',
     type: 'balance',
@@ -84,7 +93,8 @@ export default function Overview() {
       networkStats: NetworkStatsWidget,
       accountStats: AccountStatsWidget,
       quickActions: QuickActionsWidget,
-      priceTicker: PriceTickerWidget
+      priceTicker: PriceTickerWidget,
+      dataInsights: DataInsightsWidget
     };
     return components[type] || BalanceWidget;
   };

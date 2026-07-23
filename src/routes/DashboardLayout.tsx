@@ -72,6 +72,7 @@ const TABS: Record<string, TabComponent> = {
   contractInteraction: lazyTab(() => import('../components/dashboard/ContractInteraction')),
   contractABI: lazyTab(() => import('../components/dashboard/ContractABI')),
   dex: lazyTab(() => import('../components/dashboard/DEXExplorer')),
+  liquidityPrediction: lazyTab(() => import('../components/dashboard/LiquidityPredictionDashboard')),
   pathExplorer: lazyTab(() => import('../components/dashboard/PathExplorer')),
   explorers: lazyTab(() => import('../components/dashboard/ExplorerEmbed')),
   realtime: lazyTab(() => import('../components/dashboard/RealTimeLedger')),

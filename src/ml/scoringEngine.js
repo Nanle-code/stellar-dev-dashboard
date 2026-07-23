@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
 const { extractFeatures } = require('./feature_extraction');
 const { IsolationForest } = require('./isolation_forest');
 

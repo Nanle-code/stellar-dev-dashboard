@@ -57,43 +57,101 @@ app.post('/feedback', (req, res) => {
   }
 });
 
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
 // Federated learning feedback endpoint
-app.post('/feedback-federated', async (req, res) => {
-  try {
-    const { tx, label, privacyBudget } = req.body;
-    const result = await federatedIntegration.collectFeedback(tx, label, privacyBudget);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
 
 // Participate in federated learning round
-app.post('/federated-train', async (req, res) => {
-  try {
-    const { transactions } = req.body;
-    const result = await federatedIntegration.participateInFederatedRound(transactions);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
 
 // Get federated learning status
-app.get('/federated-status', (req, res) => {
-  try {
-    const status = federatedIntegration.getFederatedStatus();
-    res.json(status);
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
 // Sync with federated server
-app.post('/federated-sync', async (req, res) => {
-  try {
-    const result = await federatedIntegration.syncWithServer();
-    res.json({ success: result });
+app.post('/federated-sync', ...);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

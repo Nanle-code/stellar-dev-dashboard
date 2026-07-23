@@ -70,6 +70,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: '⚙' },
   { id: 'audit', label: 'Audit', icon: '⊟' },
   { id: 'security', label: 'Security', icon: '🛡️' },
+  { id: 'dependencyManagement', label: 'Dependencies', icon: '📦' },
 ];
 
 export interface SidebarProps {

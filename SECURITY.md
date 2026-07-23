@@ -26,6 +26,7 @@ We enforce a strict CSP through both Nginx and React-level meta tags.
 ### 2. Automated Guardrails
 - **Dependabot**: Monitors `npm` and `github-actions` ecosystems daily for updates.
 - **CI Security Audit**: Every push and pull request triggers an `npm audit --audit-level=high` check. Failure to meet this threshold blocks the deployment pipeline.
+- **Intelligent Dependency Management (#602)**: In-app analysis engine (`src/lib/dependencyManagement.ts`) correlates vulnerability databases / npm audit data, produces risk-scored update recommendations, detects version conflicts, and exposes a dashboard tab (`Dependencies`) plus the Security Dashboard dependency panel.
 
 ## Reporting a Vulnerability
 If you discover a security vulnerability within this project, please send an e-mail to security@stellar-dev-dashboard.org. All security vulnerabilities will be promptly addressed.

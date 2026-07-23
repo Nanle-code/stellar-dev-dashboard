@@ -1,4 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { analyzeDependencies } from '../../lib/dependencyManagement';
+import {
+  SAMPLE_AUDIT,
+  SAMPLE_LOCK_PACKAGES,
+  SAMPLE_MANIFEST,
+  SAMPLE_REGISTRY,
+} from '../../data/dependencySample';
 
 // ─────────────────────────── Types ───────────────────────────
 
@@ -63,16 +70,26 @@ const MOCK_SCANNERS: ScannerResult[] = [
   { id: 'trivy', tool: 'Trivy', icon: '🛡️', status: 'idle', findings: 0, lastRun: 'Never', description: 'All-in-one vulnerability & secret scanner' },
 ];
 
-const MOCK_DEPS: Dependency[] = [
-  { name: '@stellar/stellar-sdk', version: '11.0.0', latestVersion: '12.3.1', vulnerabilities: 0, license: 'Apache-2.0', licenseRisk: 'ok', outdated: true },
-  { name: 'react', version: '18.2.0', latestVersion: '18.3.0', vulnerabilities: 0, license: 'MIT', licenseRisk: 'ok', outdated: true },
-  { name: 'lodash', version: '4.17.20', latestVersion: '4.17.21', vulnerabilities: 1, license: 'MIT', licenseRisk: 'ok', outdated: true },
-  { name: 'axios', version: '1.4.0', latestVersion: '1.7.2', vulnerabilities: 2, license: 'MIT', licenseRisk: 'ok', outdated: true },
-  { name: 'jsonwebtoken', version: '9.0.0', latestVersion: '9.0.2', vulnerabilities: 0, license: 'MIT', licenseRisk: 'ok', outdated: false },
-  { name: 'ws', version: '8.11.0', latestVersion: '8.18.0', vulnerabilities: 1, license: 'MIT', licenseRisk: 'ok', outdated: true },
-  { name: 'crypto-browserify', version: '3.12.0', latestVersion: '3.12.0', vulnerabilities: 0, license: 'MIT', licenseRisk: 'ok', outdated: false },
-  { name: 'helmet', version: '7.0.0', latestVersion: '7.1.0', vulnerabilities: 0, license: 'MIT', licenseRisk: 'ok', outdated: true },
-];
+/** Real analysis from Intelligent Dependency Management (#602) — replaces static mocks. */
+function buildAnalyzedDependencies(): Dependency[] {
+  const result = analyzeDependencies({
+    manifest: SAMPLE_MANIFEST,
+    lockPackages: SAMPLE_LOCK_PACKAGES,
+    audit: SAMPLE_AUDIT,
+    registry: SAMPLE_REGISTRY,
+  });
+  return result.packages
+    .filter((p) => p.kind === 'direct' || p.kind === 'dev')
+    .map((p) => ({
+      name: p.name,
+      version: p.version,
+      latestVersion: p.latestVersion,
+      vulnerabilities: p.vulnerabilities.length,
+      license: p.license,
+      licenseRisk: p.licenseRisk,
+      outdated: p.outdated,
+    }));
+}
 
 const MOCK_SAST: SASTFinding[] = [
   { id: 's1', rule: 'no-hardcoded-credentials', file: 'src/lib/stellar.ts', line: 42, severity: 'critical', message: 'Potential hardcoded API secret in source file.', category: 'exposure' },
@@ -284,28 +301,29 @@ function StatusDot({ status }: { status: ScanStatus }) {
 function DependencyScanning() {
   const [filter, setFilter] = useState<'all' | 'vulnerable' | 'outdated'>('all');
   const [search, setSearch] = useState('');
+  const deps = useMemo(() => buildAnalyzedDependencies(), []);
 
-  const filtered = MOCK_DEPS.filter(d => {
+  const filtered = deps.filter(d => {
     if (filter === 'vulnerable' && d.vulnerabilities === 0) return false;
     if (filter === 'outdated' && !d.outdated) return false;
     if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const vulnTotal = MOCK_DEPS.reduce((a, b) => a + b.vulnerabilities, 0);
-  const outdatedTotal = MOCK_DEPS.filter(d => d.outdated).length;
-  const licenseWarnings = MOCK_DEPS.filter(d => d.licenseRisk !== 'ok').length;
+  const vulnTotal = deps.reduce((a, b) => a + b.vulnerabilities, 0);
+  const outdatedTotal = deps.filter(d => d.outdated).length;
+  const licenseWarnings = deps.filter(d => d.licenseRisk !== 'ok').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <SectionHeader
         title="Dependency Scanning"
-        subtitle="Vulnerability, license, and freshness analysis for all project dependencies."
+        subtitle="Vulnerability, license, and freshness analysis powered by Intelligent Dependency Management (#602)."
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
         {[
-          { label: 'Total Deps', value: MOCK_DEPS.length, color: 'var(--cyan, #06b6d4)' },
+          { label: 'Total Deps', value: deps.length, color: 'var(--cyan, #06b6d4)' },
           { label: 'Vulnerabilities', value: vulnTotal, color: vulnTotal > 0 ? '#ef4444' : '#22c55e' },
           { label: 'Outdated', value: outdatedTotal, color: outdatedTotal > 0 ? '#eab308' : '#22c55e' },
           { label: 'License Warnings', value: licenseWarnings, color: licenseWarnings > 0 ? '#f97316' : '#22c55e' },

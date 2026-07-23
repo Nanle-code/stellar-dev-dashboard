@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation as useI18nextTranslation } from "react-i18next";
 import { useI18nContext } from "../components/I18nProvider.jsx";
+import { RTL_LANGUAGES } from "../i18n/index.js";
 
 /**
  * useTranslation
@@ -38,8 +39,20 @@ import { useI18nContext } from "../components/I18nProvider.jsx";
  */
 export function useTranslation(ns = "translation") {
   const { t, i18n, ready } = useI18nextTranslation(ns);
-  const { currentLanguage, changeLanguage, supportedLanguages, isRTL } =
-    useI18nContext();
+  const {
+    currentLanguage,
+    currentLocale,
+    changeLanguage,
+    supportedLanguages,
+    localeProfile,
+    culturalAdaptations,
+    regionalContent,
+    formatDateTime,
+    formatNumber: formatLocaleNumber,
+    formatCurrency,
+    validateLocale,
+    isRTL,
+  } = useI18nContext();
 
   /**
    * Safe translate — returns the key itself when a translation is missing,
@@ -53,14 +66,72 @@ export function useTranslation(ns = "translation") {
     [t],
   );
 
+  /**
+   * Pluralize helper (#107).
+   * Delegates to i18next count interpolation:
+   *   tPlural('transactions.count', 3) → uses key 'transactions.count_one' or 'transactions.count_other'
+   *
+   * @param {string} key
+   * @param {number} count
+   * @param {Record<string, unknown>} [extra]  Additional interpolation values
+   */
+  const tPlural = useCallback(
+    (key, count, extra = {}) => safeT(key, { count, ...extra }),
+    [safeT],
+  );
+
+  /**
+   * Format a number according to the current locale (#107).
+   * @param {number} value
+   * @param {Intl.NumberFormatOptions} [opts]
+   */
+  const formatNumber = useCallback(
+    (value, opts = {}) => {
+      try {
+        return formatLocaleNumber(value, opts);
+      } catch {
+        return String(value);
+      }
+    },
+    [formatLocaleNumber],
+  );
+
+  /**
+   * Format a date according to the current locale (#107).
+   * @param {Date | string | number} date
+   * @param {Intl.DateTimeFormatOptions} [opts]
+   */
+  const formatDate = useCallback(
+    (date, opts = { dateStyle: "medium" }) => {
+      try {
+        return formatDateTime(date, opts);
+      } catch {
+        return String(date);
+      }
+    },
+    [formatDateTime],
+  );
+
+  /** true if the active language is RTL (#107) */
+  const isRTLActive = isRTL || RTL_LANGUAGES.has(currentLanguage);
+
   return {
     t: safeT,
+    tPlural,
+    formatNumber,
+    formatDate,
     i18n,
     ready,
     currentLanguage,
+    currentLocale,
     changeLanguage,
     supportedLanguages,
-    isRTL,
+    localeProfile,
+    culturalAdaptations,
+    regionalContent,
+    formatCurrency,
+    validateLocale,
+    isRTL: isRTLActive,
   };
 }
 

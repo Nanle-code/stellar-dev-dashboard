@@ -63,30 +63,33 @@ export async function fetchAllAssets(network = "testnet", limit = 200) {
  * Fetch all AMM liquidity pools, optionally filtered by asset.
  */
 export async function fetchLiquidityPools(network = "testnet", limit = 50, assetFilter = null) {
-  const server = getServer(network);
   const key = cache.generateKey("pools", { network, limit, assetFilter });
   const cached = cache.get(key);
   if (cached) return cached;
 
-  let req = server.liquidityPools().limit(limit);
-  if (assetFilter) req = req.forAssets(assetFilter);
+  const params = new URLSearchParams({ limit: String(limit) });
+  const reserves = normalizePoolReserves(assetFilter);
+  if (reserves) params.set("reserves", reserves);
 
-  const pools = await req.call();
-  const result = (pools.records || []).map(enrichPool);
+  const pools = await horizonGet(network, `/liquidity_pools?${params.toString()}`);
+  const result = (pools._embedded?.records || pools.records || []).map(enrichPool);
   cache.set(key, result, TTL.POOLS);
   return result;
+}
+
+export async function fetchLiquidityPoolsByAssetPair(assetA, assetB, network = "testnet", limit = 50) {
+  return fetchLiquidityPools(network, limit, [assetA, assetB]);
 }
 
 /**
  * Fetch a single pool by ID with full detail.
  */
 export async function fetchPoolById(poolId, network = "testnet") {
-  const server = getServer(network);
   const key = cache.generateKey("pool-detail", { poolId, network });
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const pool = await server.liquidityPools().liquidityPoolId(poolId).call();
+  const pool = await horizonGet(network, `/liquidity_pools/${encodeURIComponent(poolId)}`);
   const result = enrichPool(pool);
   cache.set(key, result, TTL.POOL_DETAIL);
   return result;
@@ -111,15 +114,107 @@ export async function fetchPoolTrades(poolId, network = "testnet", limit = 50) {
  * Fetch operations (deposits/withdrawals) for a pool.
  */
 export async function fetchPoolOperations(poolId, network = "testnet", limit = 50) {
-  const server = getServer(network);
   const key = cache.generateKey("pool-ops", { poolId, network, limit });
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const ops = await server.operations().forLiquidityPool(poolId).order("desc").limit(limit).call();
-  const result = ops.records || [];
+  const params = new URLSearchParams({ order: "desc", limit: String(limit) });
+  const ops = await horizonGet(network, `/liquidity_pools/${encodeURIComponent(poolId)}/operations?${params.toString()}`);
+  const result = ops._embedded?.records || ops.records || [];
   cache.set(key, result, TTL.TRADES);
   return result;
+}
+
+export async function fetchAccountLiquidityPoolPositions(publicKey, network = "testnet") {
+  const server = getServer(network);
+  const key = cache.generateKey("account-pool-positions", { publicKey, network });
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const account = await server.loadAccount(publicKey);
+  const poolShareBalances = (account.balances || []).filter(
+    (balance) => balance.asset_type === "liquidity_pool_shares"
+  );
+
+  const result = await Promise.all(
+    poolShareBalances.map(async (balance) => {
+      const poolId = balance.liquidity_pool_id;
+      let pool = null;
+      try {
+        pool = poolId ? await fetchPoolById(poolId, network) : null;
+      } catch {
+        pool = null;
+      }
+
+      const shares = parseFloat(balance.balance) || 0;
+      const sharePercent = pool?.totalShares > 0 ? (shares / pool.totalShares) * 100 : 0;
+
+      return {
+        poolId,
+        shares,
+        balance: balance.balance,
+        limit: balance.limit,
+        buyingLiabilities: balance.buying_liabilities,
+        sellingLiabilities: balance.selling_liabilities,
+        sharePercent,
+        pool,
+      };
+    })
+  );
+
+  cache.set(key, result, TTL.POOL_DETAIL);
+  return result;
+}
+
+export async function fetchAccountLiquidityPoolHistory(publicKey, network = "testnet", limit = 50, poolId = null) {
+  const server = getServer(network);
+  const key = cache.generateKey("account-pool-history", { publicKey, network, limit, poolId });
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const ops = await server.operations().forAccount(publicKey).order("desc").limit(limit).call();
+  const result = (ops.records || []).filter((op) => {
+    const isPoolOperation = op.type === "liquidity_pool_deposit" || op.type === "liquidity_pool_withdraw";
+    if (!isPoolOperation) return false;
+    if (!poolId) return true;
+    return op.liquidity_pool_id === poolId;
+  });
+
+  cache.set(key, result, TTL.TRADES);
+  return result;
+}
+
+async function horizonGet(network, path) {
+  const baseUrl = NETWORKS[network]?.horizonUrl || NETWORKS.testnet.horizonUrl;
+  const response = await fetch(`${baseUrl}${path}`);
+
+  if (!response.ok) {
+    throw new Error(`Horizon request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function normalizePoolReserves(assetFilter) {
+  if (!assetFilter) return null;
+  if (Array.isArray(assetFilter)) {
+    return assetFilter.filter(Boolean).map(normalizePoolAsset).join(",");
+  }
+  return normalizePoolAsset(assetFilter);
+}
+
+function normalizePoolAsset(asset) {
+  if (!asset) return "";
+  if (typeof asset === "string") {
+    const trimmed = asset.trim();
+    return trimmed === "XLM" ? "native" : trimmed;
+  }
+  if (asset.isNative?.()) return "native";
+  if (asset.getCode && asset.getIssuer) return `${asset.getCode()}:${asset.getIssuer()}`;
+  if (asset.type === "native" || asset.asset_type === "native") return "native";
+  const code = asset.code || asset.asset_code;
+  const issuer = asset.issuer || asset.asset_issuer;
+  return code && issuer ? `${code}:${issuer}` : "";
 }
 
 // ─── Pool Enrichment ──────────────────────────────────────────────────────────

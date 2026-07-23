@@ -1,0 +1,310 @@
+/**
+ * Mobile Performance Optimizations (Issue #140)
+ * - Lazy rendering with content-visibility
+ * - GPU acceleration hints
+ * - Reduced paint complexity
+ * - Better scrolling performance
+ */
+
+/* ── Content visibility for off-screen content ───────────────────────────── */
+.lazy-render {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 500px;
+}
+
+.lazy-render-sm {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 200px;
+}
+
+/* ── GPU acceleration for smooth animations ──────────────────────────────── */
+.gpu-accelerate {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.gpu-accelerate-scroll {
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+}
+
+/* ── Reduce repaints on mobile ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Contain layout shifts */
+  .mobile-card,
+  .chart-container,
+  .widget-container {
+    contain: layout style paint;
+  }
+
+  /* Reduce paint complexity */
+  .mobile-shadow-light {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Optimize scroll containers */
+  .mobile-scroll-container {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Prevent layout shifts from images/charts */
+  img,
+  svg,
+  .chart-responsive {
+    aspect-ratio: attr(width) / attr(height);
+    height: auto;
+  }
+
+  /* Defer expensive content */
+  .below-fold {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 400px;
+  }
+
+  /* Reduce animation complexity */
+  * {
+    animation-timing-function: linear;
+  }
+}
+
+/* ── Resource hints for faster loading ───────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Preload critical assets */
+  body {
+    font-display: swap;
+  }
+
+  /* Simplify gradients on mobile */
+  .gradient-complex {
+    background: var(--bg-surface);
+  }
+
+  /* Remove expensive filters on low-end devices */
+  @media (max-width: 768px) and (pointer: coarse) {
+    .backdrop-blur-mobile-disable {
+      backdrop-filter: none !important;
+      background: var(--bg-surface) !important;
+    }
+  }
+}
+
+/* ── Scrollbar optimization ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Thinner scrollbars on mobile */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  /* Hide scrollbars on mobile (optional) */
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── 4G/slow connection optimizations ────────────────────────────────────── */
+@media (prefers-reduced-data: reduce) {
+  /* Disable background grid on slow connections */
+  body::before {
+    display: none;
+  }
+
+  /* Reduce image quality */
+  img {
+    image-rendering: auto;
+  }
+
+  /* Simplify animations */
+  * {
+    animation-duration: 0.1s !important;
+    transition-duration: 0.1s !important;
+  }
+}
+
+/* ── Battery-saving mode ─────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce),
+       (prefers-reduced-data: reduce) {
+  .animate-in,
+  .pulse,
+  .spinner {
+    animation: none !important;
+  }
+
+  /* Disable expensive visual effects */
+  .gradient,
+  .glow,
+  .shadow-complex {
+    background: var(--bg-surface) !important;
+    box-shadow: none !important;
+  }
+}
+
+/* ── Loading states ──────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elevated) 25%,
+    var(--bg-hover) 50%,
+    var(--bg-elevated) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--bg-elevated);
+  }
+}
+
+/* ── Mobile table optimizations ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Convert tables to cards */
+  .table-mobile-card {
+    display: block;
+  }
+
+  .table-mobile-card thead {
+    display: none;
+  }
+
+  .table-mobile-card tbody {
+    display: block;
+  }
+
+  .table-mobile-card tr {
+    display: block;
+    margin-bottom: 12px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .table-mobile-card td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border: none;
+  }
+
+  .table-mobile-card td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Horizontal scroll for wide tables */
+  .table-scroll-mobile {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: block;
+    width: 100%;
+  }
+
+  .table-scroll-mobile table {
+    min-width: 600px;
+  }
+}
+
+/* ── Image lazy loading placeholder ──────────────────────────────────────── */
+img[loading="lazy"] {
+  background: var(--bg-elevated);
+  min-height: 100px;
+}
+
+/* ── Chart optimizations ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Reduce chart complexity */
+  .recharts-cartesian-grid-horizontal line:nth-child(n+5) {
+    display: none;
+  }
+
+  .recharts-cartesian-grid-vertical line:nth-child(n+5) {
+    display: none;
+  }
+
+  /* Simplify tooltips */
+  .recharts-tooltip-wrapper {
+    font-size: 11px !important;
+  }
+
+  /* Hide chart legends on very small screens */
+  @media (max-width: 480px) {
+    .recharts-legend-wrapper {
+      display: none !important;
+    }
+  }
+}
+
+/* ── Input optimization (prevent iOS zoom) ───────────────────────────────── */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+
+  /* Better tap targets for form controls */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  label {
+    min-height: var(--touch-target);
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ── Focus states for keyboard nav ───────────────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  /* Visible focus for touch + keyboard users */
+  *:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* Remove focus outline when using mouse/touch only */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* ── Safe area handling for notched devices ──────────────────────────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .mobile-nav-bar,
+  .bottom-sheet {
+    padding-bottom: calc(var(--content-padding-mobile) + env(safe-area-inset-bottom));
+  }
+
+  .mobile-header {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .full-screen-modal {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

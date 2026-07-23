@@ -11,12 +11,13 @@
 // ─── DB config ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'stellar-dev-dashboard';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORES = {
   APP_STATE:  'app-state',    // Zustand persistence
   API_CACHE:  'api-cache',    // TTL-aware API response cache
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
+  CONTRACT_HISTORY: 'contract-history', // Contract interactions
 };
 
 // ─── DB open ──────────────────────────────────────────────────────────────────
@@ -44,6 +45,13 @@ function openDB() {
 
       if (!db.objectStoreNames.contains(STORES.OFFLINE_Q)) {
         db.createObjectStore(STORES.OFFLINE_Q, { keyPath: 'id', autoIncrement: true });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.CONTRACT_HISTORY)) {
+        const store = db.createObjectStore(STORES.CONTRACT_HISTORY, { keyPath: 'id' });
+        store.createIndex('contractId', 'contractId', { unique: false });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+        store.createIndex('type', 'type', { unique: false });
       }
     };
 
@@ -245,6 +253,42 @@ export async function clearOfflineQueue() {
   } catch { /* ignore */ }
 }
 
+// ─── Contract History Store ──────────────────────────────────────────────────
+export async function addContractInteraction(record) {
+  try {
+    await tx(STORES.CONTRACT_HISTORY, 'readwrite', (s) => s.put(record));
+  } catch { /* ignore */ }
+}
+
+export async function getContractInteractions(filters = {}) {
+  try {
+    const all = await tx(STORES.CONTRACT_HISTORY, 'readonly', (s) => s.getAll()) ?? [];
+    let results = all.sort((a, b) => b.timestamp - a.timestamp);
+    
+    if (filters.contractId) {
+      results = results.filter(r => r.contractId.toLowerCase().includes(filters.contractId.toLowerCase()));
+    }
+    if (filters.functionName) {
+      results = results.filter(r => r.functionName.toLowerCase().includes(filters.functionName.toLowerCase()));
+    }
+    if (filters.type && filters.type !== 'all') {
+      results = results.filter(r => r.type === filters.type);
+    }
+    if (filters.status && filters.status !== 'all') {
+      results = results.filter(r => r.status === filters.status);
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+export async function clearContractInteractions() {
+  try {
+    await tx(STORES.CONTRACT_HISTORY, 'readwrite', (s) => s.clear());
+  } catch { /* ignore */ }
+}
+
 // ─── Storage stats ────────────────────────────────────────────────────────────
 
 /**
@@ -269,4 +313,46 @@ export async function storageStats() {
 // Prune expired API cache entries 3 seconds after module load
 if (typeof window !== 'undefined') {
   setTimeout(() => pruneExpiredApiCache().catch(() => {}), 3_000);
+}
+
+// ─── Encrypted storage ────────────────────────────────────────────────────────
+// Wraps setStoredValue/getStoredValue with AES-GCM encryption.
+// Import lazily to avoid loading crypto code unless needed.
+
+/**
+ * Store a value encrypted with a passphrase.
+ * The stored record contains { ciphertext, iv, salt } — no plaintext is persisted.
+ *
+ * @param {string} key
+ * @param {string} plaintext   String value to encrypt (JSON.stringify objects first)
+ * @param {string} passphrase  User-provided passphrase
+ */
+export async function setEncryptedValue(key, plaintext, passphrase) {
+  const { encrypt } = await import('./encryption.js');
+  const encrypted = await encrypt(plaintext, passphrase);
+  await setStoredValue(`enc:${key}`, encrypted);
+}
+
+/**
+ * Retrieve and decrypt a value stored with setEncryptedValue.
+ * Returns null if the key doesn't exist.
+ * Throws if the passphrase is wrong or data is corrupted.
+ *
+ * @param {string} key
+ * @param {string} passphrase
+ * @returns {Promise<string|null>}
+ */
+export async function getEncryptedValue(key, passphrase) {
+  const record = await getStoredValue(`enc:${key}`);
+  if (!record) return null;
+  const { decrypt } = await import('./encryption.js');
+  return decrypt(record.ciphertext, passphrase, record.iv, record.salt);
+}
+
+/**
+ * Remove an encrypted value.
+ * @param {string} key
+ */
+export async function removeEncryptedValue(key) {
+  await removeStoredValue(`enc:${key}`);
 }

@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from "react";
+import * as StellarSdk from "@stellar/stellar-sdk";
+import { fetchAccount, fetchTransactions, NETWORKS } from "./stellar";
+import { isWhitelistedAddress } from "../../lib/riskWhitelist.js";
+import { logApprovedHighRiskTransaction } from "../../lib/highRiskLogger.js";
 import {
   verifyTransaction,
   RISK_LEVELS,
@@ -77,6 +81,7 @@ export default function TransactionVerification({
   transaction,
   network = "testnet",
   sourceAccount = null,
+  onOverride = () => {},
 }) {
   const [verification, setVerification] = useState(null);
   const [loading, setLoading] = useState(true);

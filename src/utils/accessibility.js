@@ -1,4 +1,6 @@
 // src/utils/accessibility.js
+import { TRANSACTION_TEMPLATES } from "../lib/transactionTemplates.js";
+import { getCachedUserTransactionTemplates } from "../lib/transactionTemplateVault.ts";
 let listeners = [];
 
 /**
@@ -230,39 +232,28 @@ export const clearAllShortcuts = () => {
 /**
  * Transaction template storage
  */
-const TEMPLATE_STORAGE_KEY = "stellar_transaction_templates";
 
 /**
- * Save transaction template
- * @param {object} template - Template data
- * @returns {string} Template ID
- */
-export const saveTransactionTemplate = (template) => {
-  const templates = getTransactionTemplates();
-  const id = template.id || `template-${Date.now()}`;
-
-  templates[id] = {
-    ...template,
-    id,
-    createdAt: template.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
-  return id;
-};
-
-/**
- * Get all transaction templates
- * @returns {object} Templates object
+ * Get all transaction templates (built-ins + any unlocked user templates).
+ *
+ * Note: user templates are stored encrypted in IndexedDB and are only
+ * available here after the user unlocks them in the UI (cached in-memory).
+ *
+ * @returns {object} Templates keyed by id
  */
 export const getTransactionTemplates = () => {
-  try {
-    const stored = localStorage.getItem(TEMPLATE_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
+  const builtIns = TRANSACTION_TEMPLATES.map((t) => ({
+    ...t,
+    label: t.label || t.name,
+  }));
+  const user = getCachedUserTransactionTemplates();
+  const all = [...user, ...builtIns];
+  const byId = {};
+  all.forEach((t) => {
+    if (!t?.id) return;
+    byId[t.id] = t;
+  });
+  return byId;
 };
 
 /**
@@ -275,15 +266,7 @@ export const getTransactionTemplate = (id) => {
   return templates[id] || null;
 };
 
-/**
- * Delete transaction template
- * @param {string} id - Template ID
- */
-export const deleteTransactionTemplate = (id) => {
-  const templates = getTransactionTemplates();
-  delete templates[id];
-  localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
-};
+// NOTE: CRUD operations live in src/lib/transactionTemplateVault.ts (encrypted).
 
 /**
  * Recent accounts storage

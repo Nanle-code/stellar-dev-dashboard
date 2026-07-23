@@ -7,6 +7,10 @@ vi.mock('../../../src/lib/storage', () => ({
 vi.mock('../../../src/utils/stateSync', () => ({
   broadcastStateChange: vi.fn(),
   onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(undefined),
+  loadSyncedState: vi.fn().mockResolvedValue(null),
+  resolveStateConflict: vi.fn((local) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
 }));
 
 import { useStore } from '../../../src/lib/store';
@@ -31,6 +35,9 @@ describe('useStore', () => {
         { key: '', data: null, loading: false, error: null },
         { key: '', data: null, loading: false, error: null },
       ],
+      streamStatus: 'disconnected',
+      streamLedgers: [],
+      streamError: null,
     }, false); // false = merge, preserves action functions
   });
 
@@ -126,5 +133,73 @@ describe('useStore', () => {
     ]}, false);
     useStore.getState().removeComparisonSlot(0);
     expect(useStore.getState().comparisonSlots).toHaveLength(2);
+  });
+
+  it('setComparisonKey updates a slot and clears error/data', () => {
+    useStore.getState().setComparisonKey(0, 'GABC');
+    const slot = useStore.getState().comparisonSlots[0];
+    expect(slot.key).toBe('GABC');
+    expect(slot.error).toBeNull();
+    expect(slot.data).toBeNull();
+  });
+
+  it('setComparisonData updates slot data', () => {
+    useStore.getState().setComparisonData(0, { id: 'GABC' });
+    expect(useStore.getState().comparisonSlots[0].data).toEqual({ id: 'GABC' });
+  });
+
+  it('setComparisonLoading toggles slot loading', () => {
+    useStore.getState().setComparisonLoading(0, true);
+    expect(useStore.getState().comparisonSlots[0].loading).toBe(true);
+  });
+
+  it('setComparisonError sets error and clears data', () => {
+    useStore.getState().setComparisonData(0, { id: 'GABC' });
+    useStore.getState().setComparisonError(0, 'not found');
+    const slot = useStore.getState().comparisonSlots[0];
+    expect(slot.error).toBe('not found');
+    expect(slot.data).toBeNull();
+  });
+
+  it('reorderComparisonSlots replaces all slots', () => {
+    const reordered = [
+      { key: 'A', data: null, loading: false, error: null },
+      { key: 'B', data: null, loading: false, error: null },
+    ];
+    useStore.getState().reorderComparisonSlots(reordered);
+    expect(useStore.getState().comparisonSlots).toEqual(reordered);
+  });
+
+  // ─── Streaming ──────────────────────────────────────────────────────────────
+
+  it('setStreamStatus updates stream status', () => {
+    useStore.getState().setStreamStatus('connected');
+    expect(useStore.getState().streamStatus).toBe('connected');
+  });
+
+  it('addStreamLedger prepends ledger and caps at 50', () => {
+    for (let i = 0; i < 55; i++) {
+      useStore.getState().addStreamLedger({ sequence: i });
+    }
+    const ledgers = useStore.getState().streamLedgers;
+    expect(ledgers).toHaveLength(50);
+    expect(ledgers[0].sequence).toBe(54);
+  });
+
+  it('addStreamLedger deduplicates by sequence', () => {
+    useStore.getState().addStreamLedger({ sequence: 1 });
+    useStore.getState().addStreamLedger({ sequence: 1 });
+    expect(useStore.getState().streamLedgers).toHaveLength(1);
+  });
+
+  it('clearStreamLedgers empties the list', () => {
+    useStore.getState().addStreamLedger({ sequence: 1 });
+    useStore.getState().clearStreamLedgers();
+    expect(useStore.getState().streamLedgers).toHaveLength(0);
+  });
+
+  it('setStreamError stores the error', () => {
+    useStore.getState().setStreamError('connection lost');
+    expect(useStore.getState().streamError).toBe('connection lost');
   });
 });

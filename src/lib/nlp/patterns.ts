@@ -10,12 +10,11 @@
  */
 
 import {
-  assetTypeForCode,
+  
   extractAmount,
   extractAssetToken,
   extractPrice,
-  isNativeAssetWord,
-  looksLikePublicKey,
+
   normalizeAmount,
   resolveAsset,
   resolveDestination,
@@ -34,10 +33,10 @@ export interface Pattern {
   /** Higher wins when two patterns match with equal specificity. */
   weight: number;
   regex: RegExp;
-  build: (
-    match: RegExpMatchArray,
-    clause: string,
-    ctx: ResolutionContext,
+ build: (
+    _match: RegExpMatchArray,
+    _clause: string,
+    _ctx: ResolutionContext,
   ) => PatternMatchOutput;
   /** Example phrasings, used by the test suite and the UI hint list. */
   examples: string[];

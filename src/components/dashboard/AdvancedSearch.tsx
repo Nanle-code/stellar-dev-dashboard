@@ -25,10 +25,12 @@ import {
   Share2,
   BellRing,
   Copy,
+  Zap,
 } from 'lucide-react';
 import advancedSearchService from '../../lib/advancedSearch.js';
 import auditTrail from '../../lib/auditTrail.js';
 import { format } from 'date-fns';
+import SemanticSearchPanel from '../search/SemanticSearchPanel';
 
 export default function AdvancedSearch() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +49,8 @@ export default function AdvancedSearch() {
   const [createAlertOnSave, setCreateAlertOnSave] = useState(false);
   const [alertCron, setAlertCron] = useState('0 * * * *');
   const [shareToken, setShareToken] = useState('');
-  
+  const [semanticMode, setSemanticMode] = useState(false);
+
   const [filters, setFilters] = useState({
     dateRange: { start: '', end: '' },
     assetType: '',
@@ -68,6 +71,79 @@ export default function AdvancedSearch() {
     page: 1,
     limit: 20
   });
+
+  /**
+   * Build a flat array of SemanticDocuments from the advancedSearch indexed
+   * data so that SemanticSearchPanel can work without duplicating any fetching.
+   * We generate these from the search history (previous results) + any
+   * cached result items currently available in advancedSearchService.
+   */
+  const semanticDocuments = useMemo(() => {
+    const docs: Array<{ id: string; text: string; metadata?: Record<string, unknown> }> = [];
+
+    // Pull recent search history entries as documents
+    const history = advancedSearchService.getSearchHistory().slice(0, 30);
+    history.forEach((entry, idx) => {
+      const q = entry.query?.text;
+      if (q) {
+        docs.push({
+          id: `history-${idx}`,
+          text: q,
+          metadata: {
+            type: 'search_history',
+            resultCount: entry.resultCount ?? 0,
+            timestamp: entry.timestamp ?? '',
+          },
+        });
+      }
+    });
+
+    // Pull saved searches
+    advancedSearchService.getSavedSearches().forEach((saved) => {
+      const q = saved.query?.text;
+      if (q) {
+        docs.push({
+          id: `saved-${saved.id}`,
+          text: `${saved.name} ${q}`,
+          metadata: {
+            type: 'saved_search',
+            name: saved.name,
+            folder: saved.folder ?? 'General',
+          },
+        });
+      }
+    });
+
+    // If we have live search results, include them as indexable items
+    if (searchResults?.results) {
+      searchResults.results.forEach((item: any) => {
+        const textParts = [
+          item.type,
+          item.operationType,
+          item.asset,
+          item.memo,
+          item.status,
+          item.address,
+          item.transactionHash,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        if (textParts.trim()) {
+          docs.push({
+            id: `result-${item.id}`,
+            text: textParts,
+            metadata: {
+              type: item.type,
+              status: item.status ?? '',
+              amount: item.amount ?? '',
+            },
+          });
+        }
+      });
+    }
+
+    return docs;
+  }, [searchResults]);
 
   useEffect(() => {
     loadData();
@@ -268,7 +344,82 @@ export default function AdvancedSearch() {
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Semantic mode toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          onClick={() => setSemanticMode(false)}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '999px',
+            border: `1px solid ${!semanticMode ? 'var(--cyan)' : 'var(--border)'}`,
+            background: !semanticMode ? 'rgba(6, 182, 212, 0.12)' : 'var(--bg-elevated)',
+            color: !semanticMode ? 'var(--cyan)' : 'var(--text-muted)',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            transition: 'all 0.15s',
+          }}
+        >
+          <Search size={12} /> Keyword Search
+        </button>
+        <button
+          onClick={() => setSemanticMode(true)}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '999px',
+            border: `1px solid ${semanticMode ? 'var(--cyan)' : 'var(--border)'}`,
+            background: semanticMode ? 'rgba(6, 182, 212, 0.12)' : 'var(--bg-elevated)',
+            color: semanticMode ? 'var(--cyan)' : 'var(--text-muted)',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            transition: 'all 0.15s',
+          }}
+        >
+          <Zap size={12} /> Semantic Search
+          <span style={{
+            padding: '1px 5px',
+            background: 'rgba(6,182,212,0.2)',
+            borderRadius: '999px',
+            fontSize: '9px',
+            fontWeight: 700,
+            letterSpacing: '0.3px',
+            color: 'var(--cyan)',
+          }}>AI</span>
+        </button>
+        {semanticMode && (
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>
+            Understands synonyms, typos, and intent. Rate results to improve ranking.
+          </span>
+        )}
+      </div>
+
+      {/* Semantic Search Panel */}
+      {semanticMode && (
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+          }}
+        >
+          <SemanticSearchPanel
+            documents={semanticDocuments}
+            title="AI Semantic Search"
+            placeholder="Try 'recent XLM payments', 'failed soroban contracts', 'testnet account'…"
+          />
+        </div>
+      )}
+
+      {/* Search Bar — keyword mode only */}
+      {!semanticMode && (
       <div
         style={{
           background: 'var(--bg-card)',
@@ -767,9 +918,11 @@ export default function AdvancedSearch() {
           </div>
         </div>
       )}
+      {/* end keyword search bar */}
+      )}
 
       {/* Search Results */}
-      {searchResults && (
+      {!semanticMode && searchResults && (
         <div
           style={{
             background: 'var(--bg-card)',

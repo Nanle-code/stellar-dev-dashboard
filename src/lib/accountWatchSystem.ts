@@ -16,6 +16,7 @@
 
 import type { NetworkName } from './stellar'
 import { fetchAccount, isValidPublicKey } from './stellar'
+import { AdaptiveThresholdController, type AlertFeedback } from './adaptiveAlertThresholds'
 import type {
   AccountSnapshot,
   AggregatedBalance,
@@ -110,6 +111,7 @@ export function evaluateWatchRules(
   rules: WatchRule[],
   snapshots: AccountSnapshot[],
   previous?: Map<string, AccountSnapshot>,
+  adaptiveControllers?: Map<string, AdaptiveThresholdController>,
 ): RiskAlert[] {
   const alerts: RiskAlert[] = []
 
@@ -124,20 +126,37 @@ export function evaluateWatchRules(
       if (snap.error) continue
       const current = balanceOf(snap, rule.assetCode)
 
-      if (rule.kind === 'balance_below' && current < rule.threshold) {
+      const controller = adaptiveControllers?.get(rule.id) ?? new AdaptiveThresholdController({
+        baselineThreshold: rule.threshold,
+        minThreshold: Math.max(1, rule.threshold * 0.25),
+        maxThreshold: Math.max(rule.threshold * 3, 1000),
+      })
+
+      if (!adaptiveControllers?.has(rule.id)) {
+        adaptiveControllers?.set(rule.id, controller)
+      }
+
+      const optimization = controller.optimize({
+        currentValue: current,
+        baselineThreshold: rule.threshold,
+        severity: current > rule.threshold ? 'warning' : 'info',
+      })
+      const effectiveThreshold = optimization.recommendedThreshold
+
+      if (rule.kind === 'balance_below' && current < effectiveThreshold) {
         alerts.push(
-          makeAlert(snap.address, 'warning', rule.kind, 'Balance below threshold', `${rule.assetCode} balance ${current} is below ${rule.threshold}`),
+          makeAlert(snap.address, 'warning', rule.kind, 'Balance below threshold', `${rule.assetCode} balance ${current} is below ${effectiveThreshold}`),
         )
-      } else if (rule.kind === 'balance_above' && current > rule.threshold) {
+      } else if (rule.kind === 'balance_above' && current > effectiveThreshold) {
         alerts.push(
-          makeAlert(snap.address, 'info', rule.kind, 'Balance above threshold', `${rule.assetCode} balance ${current} is above ${rule.threshold}`),
+          makeAlert(snap.address, 'info', rule.kind, 'Balance above threshold', `${rule.assetCode} balance ${current} is above ${effectiveThreshold}`),
         )
       } else if (rule.kind === 'balance_change_pct' && previous) {
         const prev = previous.get(snap.address)
         if (prev && !prev.error) {
           const before = balanceOf(prev, rule.assetCode)
           const pct = percentChange(before, current)
-          if (Math.abs(pct) >= rule.threshold) {
+          if (Math.abs(pct) >= effectiveThreshold) {
             alerts.push(
               makeAlert(snap.address, 'critical', rule.kind, 'Large balance change', `${rule.assetCode} moved ${pct.toFixed(1)}% (${before} → ${current})`),
             )
@@ -264,6 +283,7 @@ export class AccountWatchSystem {
   private listeners = new Set<Listener>()
   private timer: ReturnType<typeof setInterval> | null = null
   private refreshing = false
+  private adaptiveControllers = new Map<string, AdaptiveThresholdController>()
 
   constructor(options: AccountWatchOptions = {}) {
     this.network = options.network ?? 'testnet'
@@ -364,7 +384,7 @@ export class AccountWatchSystem {
       )
 
       const previous = this.lastSnapshots
-      const alerts = evaluateWatchRules(this.rules, snapshots, previous)
+      const alerts = evaluateWatchRules(this.rules, snapshots, previous, this.adaptiveControllers)
       const anomalies = detectAnomalies(snapshots, previous, this.anomalyThresholdPct)
       for (const anomaly of anomalies) {
         alerts.push(
@@ -396,6 +416,33 @@ export class AccountWatchSystem {
     return { snapshots, insights: aggregateBalances(snapshots), alerts, anomalies }
   }
 
+  recordFeedback(ruleId: string, feedback: AlertFeedback, currentValue?: number, baselineThreshold?: number): void {
+    const rule = this.rules.find((candidate) => candidate.id === ruleId)
+    const controller = this.adaptiveControllers.get(ruleId) ?? new AdaptiveThresholdController({
+      baselineThreshold: baselineThreshold ?? rule?.threshold ?? 0,
+      minThreshold: 1,
+      maxThreshold: 1000,
+    })
+
+    if (!this.adaptiveControllers.has(ruleId)) {
+      this.adaptiveControllers.set(ruleId, controller)
+    }
+
+    const context = {
+      currentValue: currentValue ?? rule?.threshold ?? controller.getCurrentThreshold(),
+      baselineThreshold: baselineThreshold ?? rule?.threshold ?? controller.getCurrentThreshold(),
+      feedback,
+    }
+
+    controller.optimize(context)
+
+    if (feedback === 'true_positive' || feedback === 'false_positive' || feedback === 'false_negative') {
+      controller.observeOutcome(
+        feedback === 'true_positive' ? 'true_positive' : feedback === 'false_positive' ? 'false_positive' : 'false_negative',
+      )
+    }
+  }
+
   private async fetchSnapshot(address: string): Promise<AccountSnapshot> {
     try {
       const account = await fetchAccount(address, this.network)
@@ -422,9 +469,18 @@ export class AccountWatchSystem {
   private persist(): void {
     try {
       if (typeof localStorage === 'undefined') return
+      const adaptiveThresholds = Object.fromEntries(
+        Array.from(this.adaptiveControllers.entries()).map(([ruleId, controller]) => [ruleId, controller.toSnapshot()]),
+      )
+
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ accounts: this.accounts, rules: this.rules, network: this.network }),
+        JSON.stringify({
+          accounts: this.accounts,
+          rules: this.rules,
+          network: this.network,
+          adaptiveThresholds,
+        }),
       )
     } catch {
       // Persistence is best-effort; ignore quota / serialization failures.
@@ -440,10 +496,19 @@ export class AccountWatchSystem {
         accounts: WatchedAccount[]
         rules: WatchRule[]
         network: NetworkName
+        adaptiveThresholds: Record<string, unknown>
       }>
       if (Array.isArray(parsed.accounts)) this.accounts = parsed.accounts
       if (Array.isArray(parsed.rules)) this.rules = parsed.rules
       if (parsed.network) this.network = parsed.network
+      if (parsed.adaptiveThresholds && typeof parsed.adaptiveThresholds === 'object') {
+        this.adaptiveControllers = new Map(
+          Object.entries(parsed.adaptiveThresholds).map(([ruleId, snapshot]) => [
+            ruleId,
+            AdaptiveThresholdController.fromSnapshot(snapshot as any),
+          ]),
+        )
+      }
     } catch {
       // Corrupt state — start fresh rather than crash.
     }

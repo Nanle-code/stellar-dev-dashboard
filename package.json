@@ -6,7 +6,8 @@
   "scripts": {
     "ml:train": "node src/ml/train.js",
     "ml:server": "node src/ml/server.js",
-    "ml:federated-server": "node src/ml/federated/server.js",
+    "ml:build:train": "node src/ml/build_prediction/train.js",
+    "ml:build:server": "node src/ml/build_prediction/server.js",
     "dev": "vite",
     "build": "vite build",
     "build:analyze": "ANALYZE=1 vite build",

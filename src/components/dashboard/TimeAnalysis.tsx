@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useStore } from '../../lib/store'
 import { shortAddress } from '../../lib/stellar'
 import { useAddressLabels } from '../../hooks/useAddressLabels'
@@ -8,6 +8,8 @@ import {
   ResponsiveContainer, AreaChart, Area, Cell,
 } from 'recharts'
 import { format, getHours, getDay, parseISO } from 'date-fns'
+import { recommendAggregationStrategy, aggregateData, assessAggregationQuality } from '../../lib/dataAggregation'
+import DataAggregationOptimizer from './DataAggregationOptimizer'
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`)
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -147,10 +149,52 @@ export default function TimeAnalysis() {
       .sort((a, b) => a.week.localeCompare(b.week))
   }, [analysis.weeks])
 
+  // Convert operations to raw points for timeseries aggregation
+  const rawPoints = useMemo(() => {
+    return operations
+      .map(op => {
+        const d = op.created_at ? (typeof op.created_at === 'string' ? parseISO(op.created_at) : new Date(op.created_at)) : new Date()
+        return {
+          timestamp: d.toISOString(),
+          xlm: op.amount ? parseFloat(op.amount) : 0,
+          tx: 1
+        }
+      })
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+  }, [operations])
+
+  // Suggest optimal aggregation strategy
+  const recommendation = useMemo(() => {
+    return recommendAggregationStrategy(rawPoints, 'line', 'balanced')
+  }, [rawPoints])
+
+  const [selectedInterval, setSelectedInterval] = useState<any>('none')
+
+  // Auto-apply recommendation
+  useEffect(() => {
+    if (recommendation && recommendation.interval) {
+      setSelectedInterval(recommendation.interval)
+    }
+  }, [recommendation])
+
+  // Automatically aggregate raw points into selectedInterval
+  const aggregatedPoints = useMemo(() => {
+    return aggregateData(rawPoints, 'timestamp', ['xlm', 'tx'], selectedInterval, 'sum')
+  }, [rawPoints, selectedInterval])
+
+  // Assess quality
+  const quality = useMemo(() => {
+    return assessAggregationQuality(rawPoints, aggregatedPoints, 'timestamp', ['xlm', 'tx'])
+  }, [rawPoints, aggregatedPoints])
+
+  // Format aggregated points for the volume area chart
   const volumeData = useMemo(() => {
-    return Object.values(analysis.dailyVolumes)
-      .sort((a, b) => a.date.localeCompare(b.date))
-  }, [analysis.dailyVolumes])
+    return aggregatedPoints.map(p => ({
+      date: p.timestamp,
+      xlm: p.xlm || 0,
+      tx: p.tx || 0
+    }))
+  }, [aggregatedPoints])
 
   const opTypeData = useMemo(() => {
     return Object.entries(analysis.typeCounts)
@@ -256,11 +300,19 @@ export default function TimeAnalysis() {
             <Tooltip contentStyle={CUSTOM_TOOLTIP} formatter={(v) => [v, 'Operations']} />
             <Bar dataKey="count" fill={COLORS.indigo} radius={[2, 2, 0, 0]} />
           </BarChart>
-        </ResponsiveContainer>
       </ChartCard>
 
+      <DataAggregationOptimizer
+        recommendation={recommendation}
+        quality={quality}
+        selectedInterval={selectedInterval}
+        onIntervalChange={setSelectedInterval}
+        rawCount={rawPoints.length}
+        aggregatedCount={aggregatedPoints.length}
+      />
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <ChartCard title="Volume Trends" subtitle="XLM volume per day">
+        <ChartCard title="Volume Trends" subtitle="XLM volume per interval">
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
             <AreaChart data={volumeData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a2332" />

@@ -9,6 +9,8 @@ import {
   getFeedbackStats,
   getRecommendationQuality,
   clearInteractionHistory,
+  getParameterSuggestions,
+  detectParameterAnomalies,
 } from '../lib/contractRecommendations'
 
 export function useContractRecommendations({
@@ -71,6 +73,19 @@ export function useContractRecommendations({
     setLastRefresh(Date.now())
   }, [])
 
+  const getParamSuggestions = useCallback((funcName, paramDefs) => {
+    return getParameterSuggestions(contractId, funcName, paramDefs)
+  }, [contractId])
+
+  const getAnomalies = useCallback((funcName, args, paramDefs) => {
+    return detectParameterAnomalies({
+      contractId,
+      functionName: funcName,
+      args,
+      parameterDefinitions: paramDefs
+    })
+  }, [contractId])
+
   return {
     recommendations,
     history,
@@ -81,6 +96,8 @@ export function useContractRecommendations({
     feedback,
     refresh,
     clearHistory,
+    getParamSuggestions,
+    getAnomalies,
   }
 }
 

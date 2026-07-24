@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useStore } from '../../lib/store'
 import ContractDeployerView from '../deployment/ContractDeployer'
 import ContractRecommendations from './ContractRecommendations'
@@ -9,6 +9,9 @@ import {
   NETWORKS,
   simulateContractCall,
 } from '../../lib/stellar'
+import { parseContractWasm } from '../../lib/contractInvoker'
+import { useContractRecommendations } from '../../hooks/useContractRecommendations'
+import { Sparkles, AlertTriangle, AlertCircle } from 'lucide-react'
 import {
   buildContractWorkspace,
   generateDeploymentPlan,
@@ -158,8 +161,9 @@ export default function Contracts() {
     functionName: '',
     sourceAccount: connectedAddress || '',
     secretKey: '',
-    args: [{ type: 'string', value: '' }],
+    args: [{ type: 'string', value: '', name: '' }],
   })
+  const [contractFunctions, setContractFunctions] = useState([])
   const [simulateLoading, setSimulateLoading] = useState(false)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [invokeError, setInvokeError] = useState('')
@@ -175,6 +179,94 @@ export default function Contracts() {
   const isMainnet = network === 'mainnet'
   const inspectInputError = inspectInput.trim() !== '' && !isValidContractId(inspectInput.trim())
   const invokeContractError = invokeForm.contractId.trim() !== '' && !isValidContractId(invokeForm.contractId.trim())
+
+  useEffect(() => {
+    if (!invokeForm.contractId || !isValidContractId(invokeForm.contractId.trim())) {
+      setContractFunctions([])
+      return
+    }
+    let isCurrent = true
+    parseContractWasm(invokeForm.contractId.trim(), network)
+      .then(res => {
+        if (isCurrent && res && res.functions) {
+          setContractFunctions(res.functions)
+        }
+      })
+      .catch(err => {
+        if (isCurrent) {
+          console.warn("Failed to load contract specification for recommendations:", err)
+        }
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [invokeForm.contractId, network])
+
+  const {
+    recommendations,
+    track,
+    getParamSuggestions,
+    getAnomalies,
+  } = useContractRecommendations({
+    contractFunctions,
+    contractId: invokeForm.contractId,
+    currentFunction: invokeForm.functionName,
+  })
+
+  const currentFuncMeta = contractFunctions.find(f => f.name === invokeForm.functionName)
+  const parameterDefinitions = currentFuncMeta?.parameters || []
+
+  const mappedArgsForAnomaly = invokeForm.args.map((arg, idx) => ({
+    name: parameterDefinitions[idx]?.name || arg.name || `arg${idx}`,
+    type: arg.type,
+    value: arg.value
+  }))
+
+  const anomalies = getAnomalies(invokeForm.functionName, mappedArgsForAnomaly, parameterDefinitions)
+  const suggestions = getParamSuggestions(invokeForm.functionName, parameterDefinitions)
+
+  function applyAllSuggestions() {
+    if (!suggestions) return
+    setInvokeForm(current => {
+      const nextArgs = current.args.map((arg, idx) => {
+        const paramName = parameterDefinitions[idx]?.name
+        if (paramName && suggestions[paramName]) {
+          return { ...arg, value: suggestions[paramName].value }
+        }
+        return arg
+      })
+      return { ...current, args: nextArgs }
+    })
+  }
+
+  function applySingleSuggestion(index, value) {
+    updateArgument(index, 'value', value)
+  }
+
+  // Auto-setup arguments when function changes
+  useEffect(() => {
+    if (parameterDefinitions.length > 0) {
+      setInvokeForm(current => {
+        const nextArgs = parameterDefinitions.map(param => {
+          const lowerType = String(param.type).toLowerCase()
+          let type = 'string'
+          if (lowerType.includes('bool')) type = 'bool'
+          else if (['int', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'u256', 'i256'].some(t => lowerType.includes(t))) type = 'int'
+          else if (lowerType.includes('address')) type = 'address'
+
+          const sug = suggestions && suggestions[param.name]
+          const sugVal = sug && sug.confidence > 0 ? sug.value : ''
+
+          return {
+            name: param.name,
+            type,
+            value: sugVal
+          }
+        })
+        return { ...current, args: nextArgs }
+      })
+    }
+  }, [invokeForm.functionName, contractFunctions])
 
   const invocationPreview = useMemo(() => ({
     contractId: invokeForm.contractId.trim(),
@@ -201,7 +293,7 @@ export default function Contracts() {
   function addArgument() {
     setInvokeForm((current) => ({
       ...current,
-      args: [...current.args, { type: 'string', value: '' }],
+      args: [...current.args, { type: 'string', value: '', name: '' }],
     }))
   }
 
@@ -280,8 +372,32 @@ export default function Contracts() {
     try {
       const result = await simulateContractCall(invocationPreview)
       setSimulationResult(result)
+      track({
+        contractId: invokeForm.contractId,
+        functionName: invokeForm.functionName,
+        args: invokeForm.args.map((a, i) => ({
+          name: parameterDefinitions[i]?.name || a.name || `arg${i}`,
+          type: a.type,
+          value: a.value
+        })),
+        sourceAccount: invokeForm.sourceAccount || connectedAddress,
+        network,
+        status: 'simulated'
+      })
     } catch (error) {
       setInvokeError(error.message || 'Simulation failed')
+      track({
+        contractId: invokeForm.contractId,
+        functionName: invokeForm.functionName,
+        args: invokeForm.args.map((a, i) => ({
+          name: parameterDefinitions[i]?.name || a.name || `arg${i}`,
+          type: a.type,
+          value: a.value
+        })),
+        sourceAccount: invokeForm.sourceAccount || connectedAddress,
+        network,
+        status: 'error'
+      })
     } finally {
       setSimulateLoading(false)
     }
@@ -301,8 +417,32 @@ export default function Contracts() {
         network,
       })
       setSubmitResult(result)
+      track({
+        contractId: invokeForm.contractId,
+        functionName: invokeForm.functionName,
+        args: invokeForm.args.map((a, i) => ({
+          name: parameterDefinitions[i]?.name || a.name || `arg${i}`,
+          type: a.type,
+          value: a.value
+        })),
+        sourceAccount: invokeForm.sourceAccount || connectedAddress,
+        network,
+        status: 'success'
+      })
     } catch (error) {
       setInvokeError(error.message || 'Submission failed')
+      track({
+        contractId: invokeForm.contractId,
+        functionName: invokeForm.functionName,
+        args: invokeForm.args.map((a, i) => ({
+          name: parameterDefinitions[i]?.name || a.name || `arg${i}`,
+          type: a.type,
+          value: a.value
+        })),
+        sourceAccount: invokeForm.sourceAccount || connectedAddress,
+        network,
+        status: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
@@ -419,6 +559,27 @@ export default function Contracts() {
         title="Invoke Contract"
         subtitle="Build a contract call, simulate it through Soroban RPC, and optionally submit it on Testnet using a secret key."
       >
+        {anomalies.filter(a => a.type === 'sequence_anomaly').map((anomaly, ai) => (
+          <div
+            key={ai}
+            style={{
+              marginBottom: "14px",
+              padding: "10px 14px",
+              background: "rgba(245, 158, 11, 0.1)",
+              border: "1px solid var(--amber-dim)",
+              borderRadius: "var(--radius-md)",
+              color: "var(--amber)",
+              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <AlertTriangle size={15} />
+            <span>{anomaly.message}</span>
+          </div>
+        ))}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '18px' }}>
           <LabeledField label="Contract ID">
             <input
@@ -430,12 +591,40 @@ export default function Contracts() {
           </LabeledField>
 
           <LabeledField label="Function">
-            <input
-              value={invokeForm.functionName}
-              onChange={(event) => updateField('functionName', event.target.value)}
-              placeholder="increment"
-              style={textInputStyle()}
-            />
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <input
+                value={invokeForm.functionName}
+                onChange={(event) => updateField('functionName', event.target.value)}
+                placeholder="increment"
+                style={textInputStyle()}
+              />
+              {recommendations.length > 0 && (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                  <span style={{ fontSize: "10px", color: "var(--text-muted)", alignSelf: "center" }}>AI Suggested:</span>
+                  {recommendations.slice(0, 3).map((rec) => (
+                    <button
+                      key={rec.functionName}
+                      onClick={() => updateField('functionName', rec.functionName)}
+                      style={{
+                        padding: "2px 6px",
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "4px",
+                        color: "var(--cyan)",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "3px"
+                      }}
+                      title={rec.explanation}
+                    >
+                      <Sparkles size={8} /> {rec.functionName}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </LabeledField>
 
           <LabeledField label="Source Account">
@@ -449,40 +638,142 @@ export default function Contracts() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-            Typed Arguments
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.8px',
+            display: "flex",
+            alignItems: "center",
+            gap: "6px"
+          }}>
+            <span>Typed Arguments</span>
+            {Object.keys(suggestions).length > 0 && (
+              <button
+                onClick={applyAllSuggestions}
+                style={{
+                  background: "var(--cyan-glow)",
+                  border: "1px solid var(--cyan-dim)",
+                  borderRadius: "4px",
+                  color: "var(--cyan)",
+                  fontSize: "9px",
+                  padding: "2px 6px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  fontWeight: 600
+                }}
+              >
+                <Sparkles size={9} /> Autofill AI Suggestions
+              </button>
+            )}
           </div>
           <ActionButton label="Add Argument" onClick={addArgument} tone="secondary" />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
-          {invokeForm.args.map((arg, index) => (
-            <div key={index} style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: '10px', alignItems: 'center' }}>
-              <select
-                value={arg.type}
-                onChange={(event) => updateArgument(index, 'type', event.target.value)}
-                style={textInputStyle()}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
+          {invokeForm.args.map((arg, index) => {
+            const paramName = parameterDefinitions[index]?.name
+            const paramType = parameterDefinitions[index]?.type
+            const hasSpecName = !!paramName
+
+            const fieldAnomalies = anomalies.filter(a => a.parameterName === (paramName || `arg${index}`))
+            const fieldSuggestion = suggestions[paramName]
+
+            return (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                  padding: "10px",
+                  background: "var(--bg-elevated)",
+                  borderRadius: "var(--radius-md)",
+                  border: fieldAnomalies.some(a => a.severity === 'error') ? "1px solid var(--red-dim)" : "1px solid var(--border)",
+                }}
               >
-                {ARGUMENT_TYPES.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                {hasSpecName && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--text-primary)" }}>
+                      {paramName} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>({paramType})</span>
+                    </span>
+                    {fieldSuggestion && fieldSuggestion.confidence > 0 && arg.value !== fieldSuggestion.value && (
+                      <button
+                        onClick={() => applySingleSuggestion(index, fieldSuggestion.value)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--cyan)",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        title={fieldSuggestion.explanation}
+                      >
+                        <Sparkles size={10} /> Fill: "{fieldSuggestion.value}"
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: '10px', alignItems: 'center' }}>
+                  <select
+                    value={arg.type}
+                    onChange={(event) => updateArgument(index, 'type', event.target.value)}
+                    style={textInputStyle()}
+                    disabled={hasSpecName}
+                  >
+                    {ARGUMENT_TYPES.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    value={arg.value}
+                    onChange={(event) => updateArgument(index, 'value', event.target.value)}
+                    placeholder={arg.type === 'bool' ? 'true or false' : hasSpecName ? `Enter ${paramName}` : 'Argument value'}
+                    style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                  />
+
+                  <ActionButton
+                    label="Remove"
+                    onClick={() => removeArgument(index)}
+                    disabled={invokeForm.args.length === 1 || hasSpecName}
+                    tone="secondary"
+                  />
+                </div>
+
+                {fieldSuggestion && fieldSuggestion.confidence > 0 && (
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "10px", color: "var(--text-muted)", marginLeft: "4px" }}>
+                    <Sparkles size={10} style={{ color: "var(--cyan)" }} />
+                    <span>AI Suggested: <strong>{fieldSuggestion.value}</strong> — {fieldSuggestion.explanation}</span>
+                  </div>
+                )}
+
+                {fieldAnomalies.map((anomaly, ai) => (
+                  <div
+                    key={ai}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "11px",
+                      color: anomaly.severity === "error" ? "var(--red)" : "var(--amber)",
+                      marginLeft: "4px",
+                      marginTop: "2px"
+                    }}
+                  >
+                    <AlertCircle size={12} />
+                    <span>{anomaly.message}</span>
+                  </div>
                 ))}
-              </select>
-
-              <input
-                value={arg.value}
-                onChange={(event) => updateArgument(index, 'value', event.target.value)}
-                placeholder={arg.type === 'bool' ? 'true or false' : 'Argument value'}
-                style={textInputStyle()}
-              />
-
-              <ActionButton
-                label="Remove"
-                onClick={() => removeArgument(index)}
-                disabled={invokeForm.args.length === 1}
-                tone="secondary"
-              />
-            </div>
-          ))}
+              </div>
+            )
+          })}
         </div>
 
         <div style={{
@@ -516,12 +807,12 @@ export default function Contracts() {
           <ActionButton
             label={simulateLoading ? 'Simulating...' : 'Simulate'}
             onClick={handleSimulate}
-            disabled={simulateLoading || submitLoading}
+            disabled={simulateLoading || submitLoading || anomalies.some(a => a.severity === 'error')}
           />
           <ActionButton
             label={submitLoading ? 'Submitting...' : 'Submit'}
             onClick={handleSubmit}
-            disabled={isMainnet || submitLoading || simulateLoading}
+            disabled={isMainnet || submitLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
             tone="secondary"
           />
         </div>
@@ -564,7 +855,7 @@ export default function Contracts() {
 
       {contractData && (
         <ContractRecommendations
-          contractFunctions={[]}
+          contractFunctions={contractFunctions}
           contractId={invokeForm.contractId}
           currentFunction={invokeForm.functionName}
           onSelectFunction={(fnName) => setInvokeForm((prev) => ({ ...prev, functionName: fnName }))}

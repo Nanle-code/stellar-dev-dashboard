@@ -190,6 +190,253 @@ export function clearInteractionHistory() {
   saveHistory([])
 }
 
+export function getWorkflowSuggestions(contractId) {
+  const history = loadHistory()
+  const contractHistory = history
+    .filter(h => h.contractId === contractId && h.status !== 'error')
+    .reverse()
+
+  const transitions = {}
+  for (let i = 0; i < contractHistory.length - 1; i++) {
+    const current = contractHistory[i].functionName
+    const next = contractHistory[i + 1].functionName
+    if (!transitions[current]) transitions[current] = {}
+    transitions[current][next] = (transitions[current][next] || 0) + 1
+  }
+  return transitions
+}
+
+export function getParameterSuggestions(contractId, functionName, parameterDefinitions = []) {
+  const history = loadHistory()
+  const successfulCalls = history.filter(
+    h => h.contractId === contractId &&
+         h.functionName === functionName &&
+         (h.status === 'success' || h.status === 'simulated')
+  )
+
+  const suggestions = {}
+
+  parameterDefinitions.forEach(param => {
+    const name = param.name
+    const type = param.type
+
+    const values = []
+    successfulCalls.forEach(call => {
+      let val = undefined
+      if (Array.isArray(call.args)) {
+        const found = call.args.find(a => a && (a.name === name || a.paramName === name))
+        if (found) {
+          val = found.value
+        } else {
+          const idx = parameterDefinitions.indexOf(param)
+          if (idx !== -1 && call.args[idx]) {
+            const argItem = call.args[idx]
+            val = typeof argItem === 'object' && argItem !== null ? argItem.value : argItem
+          }
+        }
+      } else if (call.args && typeof call.args === 'object') {
+        val = call.args[name]
+      }
+
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        values.push(val)
+      }
+    })
+
+    if (values.length > 0) {
+      const counts = {}
+      values.forEach(v => {
+        const str = String(v)
+        counts[str] = (counts[str] || 0) + 1
+      })
+
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
+      const topValue = sorted[0][0]
+      const count = sorted[0][1]
+      const confidence = count / values.length
+
+      suggestions[name] = {
+        value: topValue,
+        confidence: Math.round(confidence * 100) / 100,
+        explanation: `Matches your most frequent value (${count}/${values.length} successful calls).`,
+        historyCount: values.length
+      }
+    } else {
+      let fallbackVal = ''
+      const lowerType = String(type).toLowerCase()
+      if (lowerType.includes('bool')) fallbackVal = 'false'
+      else if (['int', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'u256', 'i256'].some(t => lowerType.includes(t))) fallbackVal = '0'
+
+      suggestions[name] = {
+        value: fallbackVal,
+        confidence: 0,
+        explanation: 'Default value recommendation (no historical pattern found).',
+        historyCount: 0
+      }
+    }
+  })
+
+  return suggestions
+}
+
+export function detectParameterAnomalies({
+  contractId,
+  functionName,
+  args = [],
+  parameterDefinitions = []
+}) {
+  const anomalies = []
+  const history = loadHistory()
+
+  const argsMap = {}
+  args.forEach(arg => {
+    if (arg && arg.name) {
+      argsMap[arg.name] = arg
+    }
+  })
+
+  parameterDefinitions.forEach(param => {
+    const name = param.name
+    const type = param.type
+    const arg = argsMap[name]
+    const isRequired = param.required !== false
+
+    if (!arg || arg.value === undefined || arg.value === null || String(arg.value).trim() === '') {
+      if (isRequired) {
+        anomalies.push({
+          parameterName: name,
+          severity: 'error',
+          message: `Parameter "${name}" is required but missing.`,
+          type: 'missing'
+        })
+      }
+      return
+    }
+
+    const valStr = String(arg.value).trim()
+    const lowerType = String(type).toLowerCase()
+
+    if (lowerType.includes('bool')) {
+      if (valStr !== 'true' && valStr !== 'false') {
+        anomalies.push({
+          parameterName: name,
+          severity: 'error',
+          message: `Value "${valStr}" is not a valid boolean. Expected "true" or "false".`,
+          type: 'type_mismatch'
+        })
+      }
+    } else if (
+      ['int', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'u256', 'i256'].some(t => lowerType.includes(t))
+    ) {
+      try {
+        BigInt(valStr)
+      } catch {
+        anomalies.push({
+          parameterName: name,
+          severity: 'error',
+          message: `Value "${valStr}" is not a valid integer. Expected a numeric string or number.`,
+          type: 'type_mismatch'
+        })
+      }
+    } else if (lowerType.includes('address')) {
+      const isValidStellarAddress = /^[G|C][A-D0-9]{55}$/.test(valStr)
+      if (!isValidStellarAddress) {
+        anomalies.push({
+          parameterName: name,
+          severity: 'error',
+          message: `Value "${valStr}" is not a valid Stellar Address (must be 56 characters starting with G or C).`,
+          type: 'type_mismatch'
+        })
+      }
+    }
+
+    const successfulCalls = history.filter(
+      h => h.contractId === contractId &&
+           h.functionName === functionName &&
+           (h.status === 'success' || h.status === 'simulated')
+    )
+
+    const pastValues = []
+    successfulCalls.forEach(call => {
+      let val = undefined
+      if (Array.isArray(call.args)) {
+        const found = call.args.find(a => a && (a.name === name || a.paramName === name))
+        if (found) val = found.value
+      } else if (call.args && typeof call.args === 'object') {
+        val = call.args[name]
+      }
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        pastValues.push(val)
+      }
+    })
+
+    if (pastValues.length > 0) {
+      if (['int', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'u256', 'i256'].some(t => lowerType.includes(t))) {
+        try {
+          const numVal = Number(BigInt(valStr))
+          const numPastVals = pastValues.map(v => Number(BigInt(v))).filter(v => !isNaN(v))
+
+          if (numPastVals.length > 0) {
+            const maxVal = Math.max(...numPastVals)
+            const minVal = Math.min(...numPastVals)
+
+            if (numVal < 0 && minVal >= 0) {
+              anomalies.push({
+                parameterName: name,
+                severity: 'warning',
+                message: `Unusual negative value (${numVal}). Successful past invocations only used non-negative values.`,
+                type: 'out_of_bounds'
+              })
+            }
+
+            if (maxVal > 0 && numVal > maxVal * 10) {
+              anomalies.push({
+                parameterName: name,
+                severity: 'warning',
+                message: `Unusually large value (${numVal}). More than 10x your previous maximum successful value (${maxVal}).`,
+                type: 'out_of_bounds'
+              })
+            }
+          }
+        } catch {}
+      }
+
+      if (lowerType.includes('address')) {
+        const hasBeenUsed = pastValues.some(v => String(v).toLowerCase() === valStr.toLowerCase())
+        if (!hasBeenUsed) {
+          anomalies.push({
+            parameterName: name,
+            severity: 'warning',
+            message: `This address (${valStr.slice(0, 8)}...) has not been used with this contract in your past interactions.`,
+            type: 'novel_address'
+          })
+        }
+      }
+    }
+  })
+
+  const transitions = getWorkflowSuggestions(contractId)
+  const lastInteraction = history.find(h => h.contractId === contractId)
+  const lastFunction = lastInteraction ? lastInteraction.functionName : null
+
+  if (lastFunction && transitions[lastFunction]) {
+    const transitionCounts = transitions[lastFunction]
+    const totalTrans = Object.values(transitionCounts).reduce((a, b) => a + b, 0)
+    const callCount = transitionCounts[functionName] || 0
+    const prob = callCount / totalTrans
+
+    if (totalTrans >= 2 && prob === 0) {
+      anomalies.push({
+        severity: 'warning',
+        message: `Unusual calling sequence: "${functionName}" has never followed "${lastFunction}" in your previous workflows.`,
+        type: 'sequence_anomaly'
+      })
+    }
+  }
+
+  return anomalies
+}
+
 export function getRecommendations({
   contractFunctions = [],
   contractId = '',
@@ -203,12 +450,15 @@ export function getRecommendations({
 
   const profile = recData.userProfile
   const history = loadHistory()
-  const functionNames = functions.map(f => f.name)
   const featureVectors = buildTfIdf(extractFeatures(functions))
   const contractType = inferContractType(functions)
 
   const useCaseRecs = COMMON_USE_CASES[contractType]?.[context] || []
   const scoreMap = {}
+
+  const transitions = getWorkflowSuggestions(contractId)
+  const lastInteraction = history.find(h => h.contractId === contractId)
+  const lastFunction = lastInteraction ? lastInteraction.functionName : null
 
   for (let i = 0; i < functions.length; i++) {
     const fn = functions[i]
@@ -231,6 +481,16 @@ export function getRecommendations({
     if (recentCount > 0) {
       score += Math.min(recentCount * 3, 10)
       reasons.push(`Recently invoked`)
+    }
+
+    if (lastFunction && transitions[lastFunction] && transitions[lastFunction][name]) {
+      const transCount = transitions[lastFunction][name]
+      const totalTrans = Object.values(transitions[lastFunction]).reduce((a, b) => a + b, 0)
+      const prob = transCount / totalTrans
+      if (prob > 0.25) {
+        score += prob * 12
+        reasons.push(`Suggested next step (${Math.round(prob * 100)}% workflow probability)`)
+      }
     }
 
     if (functions.length > 1) {

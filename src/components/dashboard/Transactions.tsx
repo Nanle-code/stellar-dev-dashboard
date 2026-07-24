@@ -518,6 +518,7 @@ export default function Transactions() {
           ) : useVirtualOp ? (
             <VirtualOpList
               items={filteredOperations}
+              network={network}
               onLoadMore={handleLoadMoreOperations}
               hasMore={opsHasMore}
               loading={opsPagingLoading}

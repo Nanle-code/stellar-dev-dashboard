@@ -19,7 +19,7 @@ interface VirtualTxListProps {
 
 interface VirtualOpListProps {
   items: Horizon.ServerApi.OperationRecord[]
-  network: string
+  network?: string
   onLoadMore?: () => void
   hasMore?: boolean
   loading?: boolean

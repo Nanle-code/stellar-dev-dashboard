@@ -38,6 +38,7 @@ import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import DevToolbar from '../components/dashboard/DevToolbar';
 import DebugAssistantButton from '../components/debug/DebugAssistantButton';
 import DebugAssistantPanel from '../components/debug/DebugAssistantPanel';
+import ConversationPanel from '../components/conversation/ConversationPanel';
 
 interface SearchResult {
   type?: string;
@@ -236,6 +237,7 @@ export default function DashboardLayout() {
   } = useStore();
   const { isMobile, isTablet } = useResponsive();
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
+  const [conversationOpen, setConversationOpen] = useState<boolean>(false);
 
   useEffect(() => {
     // v2: full multi-layer cache initialization (warm, prune, SW bridge)
@@ -440,6 +442,54 @@ export default function DashboardLayout() {
         {debugAssistantOpen && (
           <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />
         )}
+
+        {/* Conversational Navigation Button */}
+        <button
+          type="button"
+          onClick={() => setConversationOpen(!conversationOpen)}
+          aria-label={conversationOpen ? 'Close navigation assistant' : 'Open navigation assistant'}
+          style={{
+            position: 'fixed',
+            right: '20px',
+            bottom: isMobile ? 'calc(60px + 78px)' : '78px',
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            border: `2px solid ${conversationOpen ? 'var(--cyan)' : 'var(--border)'}`,
+            background: conversationOpen ? 'var(--cyan-glow)' : 'var(--bg-card)',
+            color: conversationOpen ? 'var(--cyan)' : 'var(--text-primary)',
+            cursor: 'pointer',
+            boxShadow: conversationOpen
+              ? '0 0 20px var(--cyan-glow)'
+              : '0 6px 18px rgba(0, 0, 0, 0.25)',
+            zIndex: 1061,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            transition: 'all 180ms ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!conversationOpen) {
+              e.currentTarget.style.borderColor = 'var(--cyan-dim)';
+              e.currentTarget.style.boxShadow = '0 0 12px var(--cyan-glow)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!conversationOpen) {
+              e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.25)';
+            }
+          }}
+        >
+          <span aria-hidden="true">{conversationOpen ? '✕' : '💬'}</span>
+        </button>
+
+        <ConversationPanel
+          isOpen={conversationOpen}
+          onClose={() => setConversationOpen(false)}
+        />
+
         {isMobile && <MobileNavigation />}
         {preferencesOpen && (
           <div

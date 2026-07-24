@@ -12,6 +12,40 @@ export interface SWStats {
   lastUpdated: number;
 }
 
+// ─── Message handler registry ─────────────────────────────────────────────────────
+
+const messageHandlers = new Map<string, (data?: unknown) => void>();
+
+/**
+ * Register a handler for a specific SW message type.
+ */
+export function onSWMessage(messageType: string, handler: (data?: unknown) => void): void {
+  messageHandlers.set(messageType, handler);
+}
+
+/**
+ * Dispatch a message from the SW to registered handlers.
+ * Called by the SW message listener.
+ */
+export function dispatchSWMessage(messageType: string, data?: unknown): void {
+  const handler = messageHandlers.get(messageType);
+  if (handler) {
+    handler(data);
+  }
+}
+
+// Set up the SW message listener
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const { type, data } = event.data;
+    if (type) {
+      dispatchSWMessage(type, data);
+    }
+  });
+}
+
+// ─── Cache operations ─────────────────────────────────────────────────────────────
+
 /**
  * Put a value into the SW cache for the given URL.
  * This posts a message to the SW which then updates its cache.
@@ -75,4 +109,19 @@ export async function swGetStats(timeout: number = 500): Promise<SWStats | null>
       type: 'CACHE_GET_STATS',
     });
   });
+}
+
+// ─── Warm-up operations ───────────────────────────────────────────────────────────
+
+/**
+ * Warm the SW cache by pre-fetching a list of URLs.
+ * This triggers the SW to cache these responses for offline use.
+ */
+export function swWarmUrls(urls: string[]): void {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'CACHE_WARM_URLS',
+      urls,
+    });
+  }
 }

@@ -2,8 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const tf = require('@tensorflow/tfjs-node');
-const { extractFeatures } = require('./feature_extraction');
-const { IsolationForest } = require('./isolation_forest');
+const { extractFeatures } = require('./feature_extraction.cjs');
+const { IsolationForest } = require('./isolation_forest.cjs');
 
 async function train() {
   const dataPath = path.resolve(__dirname, 'data', 'train.json');

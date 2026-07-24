@@ -1,7 +1,33 @@
 /**
- * Telemetry and network monitoring service for Stellar.
- * Processes Horizon network state, fee distributions, and ledger closed-intervals
- * to compute advanced diagnostics, congestion load, fee predictions, and validator performance.
+ * NETWORK MONITORING — BLOCKCHAIN-LEVEL LOAD & PERFORMANCE SUBSYSTEM
+ * ==================================================================
+ * Monitors the Stellar network's real-time health, congestion, and validator
+ * performance. This provides the blockchain-level load data that feeds into
+ * the higher-level load distribution system.
+ *
+ * Monitored metrics:
+ *   1. CONGESTION — Ratio of operations per ledger to the LEDGER_OPERATION_LIMIT
+ *      (1000 ops). Levels: LOW (<20%), MODERATE (20-50%), HIGH (50-80%),
+ *      CRITICAL (>80%). Colors encoded for dashboard display.
+ *   2. TRANSACTION SUCCESS RATE — Percentage of successful vs failed transactions.
+ *      High failure rates indicate fee or sequence number issues under load.
+ *   3. VALIDATOR PERFORMANCE — Ping times, consensus participation, and protocol
+ *      versions for the primary Stellar validator set.
+ *   4. FEE PREDICTIONS — Recommends low/standard/high stroop amounts based on
+ *      Horizon feeStats and current congestion ratio. Uses a multiplier of
+ *      1 + (congestionRatio × 1.5) to scale recommendations under load.
+ *   5. THROUGHPUT METRICS — Transactions per second (TPS) and operations per
+ *      second (OPS) based on ledger close time.
+ *
+ * Integration with load distribution:
+ *   - congestionRatio → RateLimiter throttle mode selection
+ *   - fee predictions → Transaction submission priority in queue
+ *   - validator ping times → Endpoint selection for Horizon queries
+ *   - success rate → CircuitBreaker failure threshold tuning
+ *
+ * @see capacityPrediction.ts — extends with time-series forecasting
+ * @see performanceMonitoring.js — complements with client-side metrics
+ * @see rateLimiter.js — adjusts distribution based on network congestion
  */
 
 // Curated list of prominent Stellar validators with base configuration

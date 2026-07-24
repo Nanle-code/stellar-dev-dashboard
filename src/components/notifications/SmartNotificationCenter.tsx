@@ -401,7 +401,11 @@ function SmartNotificationCard({
 
 // ─── Filter chip ──────────────────────────────────────────────────────────────
 
-function FilterChip({ active, onClick, children }) {
+function FilterChip({ active, onClick, children }: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
   return (
     <button
       onClick={onClick}
@@ -427,7 +431,10 @@ function FilterChip({ active, onClick, children }) {
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
-function Badge({ color, children }) {
+function Badge({ color, children }: {
+  color: string
+  children: React.ReactNode
+}) {
   return (
     <span style={{
       padding: '1px 5px',

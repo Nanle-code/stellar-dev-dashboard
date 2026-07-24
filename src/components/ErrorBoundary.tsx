@@ -1,15 +1,19 @@
 import React, { Component, ReactElement, ReactNode } from 'react';
 import ErrorFallback from './ErrorFallback';
+import { IntelligentErrorRecovery } from './errors/IntelligentErrorRecovery';
 import { handleGlobalError, retryWithBackoff as retryUtil } from '../utils/errorHandler';
 import { createLogger } from '../utils/logger';
 import { ErrorDetails } from '../types/error';
 import { selfHealingManager } from '../lib/errorHandling/SelfHealingManager';
+import { analyzeError, type RecoveryGuidance } from '../lib/errorHandling/ErrorRecoveryEngine';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactElement;
   onRetry?: () => Promise<void>;
   maxRetries?: number;
+  /** Show intelligent error recovery guidance alongside the fallback */
+  showIntelligentRecovery?: boolean;
 }
 
 interface ErrorBoundaryState {
@@ -18,6 +22,7 @@ interface ErrorBoundaryState {
   errorDetails: ErrorDetails | null;
   retryCount: number;
   isRetrying: boolean;
+  recoveryGuidance: RecoveryGuidance | null;
 }
 
 const logger = createLogger('ErrorBoundary');
@@ -31,6 +36,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       errorDetails: null,
       retryCount: 0,
       isRetrying: false,
+      recoveryGuidance: null,
     };
   }
 
@@ -46,12 +52,16 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       retryCount: this.state.retryCount,
     });
 
+    // Generate intelligent recovery guidance
+    const recoveryGuidance = analyzeError(error, { context: 'ErrorBoundary' });
+
     logger.error('Caught error in ErrorBoundary', {
       errorBoundary: this.constructor.name,
       retryCount: this.state.retryCount,
+      recoverySolutions: recoveryGuidance.solutions.length,
     }, error);
 
-    this.setState({ errorDetails });
+    this.setState({ errorDetails, recoveryGuidance });
 
     // D-057 — Trigger self-healing for any degraded network services
     // that may have caused this render error indirectly.
@@ -72,6 +82,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       error: null,
       errorDetails: null,
       isRetrying: false,
+      recoveryGuidance: null,
     });
   };
 
@@ -116,15 +127,25 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
         });
       }
       return (
-        <ErrorFallback
-          error={this.state.error}
-          errorDetails={this.state.errorDetails}
-          resetErrorBoundary={this.resetErrorBoundary}
-          retryWithBackoff={this.retryWithBackoff}
-          isRetrying={this.state.isRetrying}
-          retryCount={this.state.retryCount}
-          maxRetries={this.props.maxRetries ?? 3}
-        />
+        <div>
+          <ErrorFallback
+            error={this.state.error}
+            errorDetails={this.state.errorDetails}
+            resetErrorBoundary={this.resetErrorBoundary}
+            retryWithBackoff={this.retryWithBackoff}
+            isRetrying={this.state.isRetrying}
+            retryCount={this.state.retryCount}
+            maxRetries={this.props.maxRetries ?? 3}
+          />
+          {this.props.showIntelligentRecovery !== false && this.state.recoveryGuidance && (
+            <div style={{ marginTop: '16px' }}>
+              <IntelligentErrorRecovery
+                guidance={this.state.recoveryGuidance}
+                onClose={this.resetErrorBoundary}
+              />
+            </div>
+          )}
+        </div>
       );
     }
     return this.props.children as ReactNode;

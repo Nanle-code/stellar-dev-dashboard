@@ -5,7 +5,7 @@ import App from "./App";
 import "./styles/globals.css";
 import { initMonitoring } from "./utils/monitoring";
 import { selfHealingManager } from "./lib/errorHandling/SelfHealingManager";
-import { registerBuiltInStrategies, registerNetworkProbes } from "./lib/errorHandling/RecoveryStrategyRegistry";
+import { registerBuiltInStrategies, registerNetworkProbes } from "./lib/errorHandling/RecoveryStrategyRegistry.ts";
 
 // ── Monitoring must be the very first thing that runs so Sentry and the
 //    global error handlers are in place before any React code executes.

@@ -342,21 +342,45 @@ describe('extractFeatures', () => {
 })
 
 describe('extractTrainingData', () => {
-  it('correctly generates labels and handles feedback weighting', () => {
+  it('correctly generates labels for 11 pattern classes', () => {
     const tx = makeTx({ fee_charged: '100' })
     const op = makeOp({ transaction_hash: tx.hash, amount: '10' })
 
     // Normal case
     const dataNormal = extractTrainingData([tx], [op], {})
     expect(dataNormal.features).toHaveLength(1)
-    expect(dataNormal.labels[0]).toEqual([1, 0, 0, 0]) // Normal label is index 0
+    expect(dataNormal.labels[0]).toHaveLength(11) // 11 pattern classes
+    expect(dataNormal.labels[0][0]).toBe(1) // Normal label is index 0
+  })
+
+  it('handles feedback weighting correctly', () => {
+    const tx = makeTx({ fee_charged: '100' })
+    const op = makeOp({ transaction_hash: tx.hash, amount: '10' })
 
     // Deny feedback should keep it Normal (label 0)
     const feedbackDeny = { [tx.id]: 'deny' as const }
-    const dataDeny = extractTrainingData([tx], [op], feedbackDeny)
-    expect(dataDeny.labels[0]).toEqual([1, 0, 0, 0])
+ const dataDeny = extractTrainingData([tx], [op], feedbackDeny)
+    expect(dataDeny.labels[0][0]).toBe(1) // Normal
     // Should duplicate features for weighting
     expect(dataDeny.features.length).toBeGreaterThan(1)
+  })
+
+  it('detects memo-tagged pattern', () => {
+    const tx = makeTx({ fee_charged: '100', memo: 'payment-ref-123' })
+    const op = makeOp({ transaction_hash: tx.hash, amount: '10' })
+
+    const data = extractTrainingData([tx], [op], {})
+    expect(data.labels[0]).toHaveLength(11)
+    expect(data.labels[0][7]).toBe(1) // Memo-Tagged Transactions is index 7
+  })
+
+  it('detects batch operations pattern', () => {
+    const tx = makeTx({ fee_charged: '100', operation_count: 3 })
+    const op = makeOp({ transaction_hash: tx.hash, amount: '10' })
+
+    const data = extractTrainingData([tx], [op], {})
+    expect(data.labels[0]).toHaveLength(11)
+    expect(data.labels[0][5]).toBe(1) // Batch Operations is index 5
   })
 })
 
@@ -375,6 +399,29 @@ describe('scoreTransaction', () => {
     expect(result.predictedClass).toBeDefined()
     expect(result.latencyMs).toBeLessThan(50)
     expect(result.explanations.length).toBeGreaterThan(0)
+  })
+
+  it('classifies into one of 11 pattern classes', async () => {
+    const tx = makeTx({ fee_charged: '100' })
+    const op = makeOp({ transaction_hash: tx.hash, amount: '10' })
+
+    const result = await scoreTransaction(tx, [op], [tx], [op])
+    
+    const validClasses = [
+      'Normal',
+      'High Frequency Burst',
+      'Fee Spike',
+      'Failure Storm',
+      'Regular Payments',
+      'Batch Operations',
+      'Large Value Transfers',
+      'Memo-Tagged Transactions',
+      'Night-Time Activity',
+      'New Counterparty',
+      'Weekend Activity'
+    ]
+    
+    expect(validClasses).toContain(result.predictedClass)
   })
 })
 

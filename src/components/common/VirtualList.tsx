@@ -80,7 +80,7 @@ function VirtualList<T>({
         const { scrollHeight, clientHeight } = containerRef.current;
         if (currentScrollTop + clientHeight >= scrollHeight - 200) {
           inFlightRef.current = true;
-          onLoadMoreRef.current();
+          onLoadMoreRef.current?.();
         }
       }
     }

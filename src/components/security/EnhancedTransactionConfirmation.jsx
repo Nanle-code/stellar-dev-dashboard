@@ -3,6 +3,7 @@ import { Shield, AlertTriangle, CheckCircle, XCircle, Clock, Mail, Copy } from '
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { NETWORKS } from '../../lib/stellar';
 import { RISK_LEVELS, verifyTransaction } from '../../lib/transactionVerification';
+import { isAddressWhitelisted, whitelistAddress, reportMaliciousAddress } from '../../lib/reputationSystem';
 
 function AmountVerificationInput({ onVerify, correctAmount }) {
   const [input, setInput] = useState('');
@@ -216,6 +217,7 @@ export default function EnhancedTransactionConfirmation({
   const [loading, setLoading] = useState(true);
   const [txDetails, setTxDetails] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [verificationTrigger, setVerificationTrigger] = useState(0);
 
   // Parse transaction and get details
   useEffect(() => {
@@ -240,7 +242,31 @@ export default function EnhancedTransactionConfirmation({
     if (transactionXdr) {
       parseAndVerify();
     }
-  }, [transactionXdr, network, sourceAccount]);
+  }, [transactionXdr, network, sourceAccount, verificationTrigger]);
+
+  const getRecipients = useCallback(() => {
+    if (!txDetails || !txDetails.operations) return [];
+    const recipients = new Set();
+    for (const op of txDetails.operations) {
+      if ((op.type === 'payment' || op.type === 'createAccount') && op.destination) {
+        recipients.add(op.destination);
+      }
+    }
+    return Array.from(recipients);
+  }, [txDetails]);
+
+  const handleWhitelist = (address) => {
+    whitelistAddress(address);
+    setVerificationTrigger(prev => prev + 1);
+  };
+
+  const handleReportPhishing = (address) => {
+    reportMaliciousAddress(address, 'User reported phishing');
+    setVerificationTrigger(prev => prev + 1);
+    if (onCancel) {
+      onCancel();
+    }
+  };
 
   // Determine if transaction is large
   const isLargeTransaction = useCallback(() => {
@@ -401,6 +427,128 @@ export default function EnhancedTransactionConfirmation({
             }}>
               {verification.riskLevel.charAt(0).toUpperCase() + verification.riskLevel.slice(1)} Risk
             </span>
+          </div>
+        )}
+
+        {/* Verification Warnings & Recommendations */}
+        {verification && verification.warnings && verification.warnings.length > 0 && (
+          <div style={{
+            background: 'var(--bg-elevated)',
+            border: `1px solid ${verification.riskLevel === RISK_LEVELS.CRITICAL ? 'var(--red)' : 'var(--amber)'}`,
+            borderRadius: 'var(--radius-md)',
+            padding: '16px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ 
+              fontSize: '13px', 
+              fontWeight: 600, 
+              color: verification.riskLevel === RISK_LEVELS.CRITICAL ? 'var(--red)' : 'var(--amber)',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <AlertTriangle size={16} />
+              <span>Security Warnings ({verification.warnings.length})</span>
+            </div>
+            
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.6' }}>
+              {verification.warnings.map((warning, index) => (
+                <li key={index} style={{ marginBottom: '6px' }}>{warning}</li>
+              ))}
+            </ul>
+
+            {verification.recommendations && verification.recommendations.length > 0 && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>
+                <strong>Recommendations:</strong>
+                <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px', lineHeight: '1.5' }}>
+                  {verification.recommendations.map((rec, index) => (
+                    <li key={index}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {/* Whitelist / Report Actions */}
+            {getRecipients().length > 0 && (
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Recipient Address Safety Controls:
+                </div>
+                {getRecipients().map((address) => {
+                  const whitelisted = isAddressWhitelisted(address);
+                  return (
+                    <div key={address} style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px', 
+                      background: 'var(--bg-base)', 
+                      padding: '10px', 
+                      borderRadius: 'var(--radius-sm)', 
+                      marginBottom: '8px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', wordBreak: 'break-all', color: 'var(--text-muted)' }}>
+                        {address}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {whitelisted ? (
+                          <span style={{ 
+                            fontSize: '12px', 
+                            color: 'var(--green)', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            fontWeight: 500
+                          }}>
+                            <CheckCircle size={14} /> Whitelisted (Trusted)
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleWhitelist(address)}
+                              style={{
+                                padding: '6px 12px',
+                                background: 'transparent',
+                                border: '1px solid var(--green)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '11px',
+                                color: 'var(--green)',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <CheckCircle size={12} /> Trust Recipient
+                            </button>
+                            <button
+                              onClick={() => handleReportPhishing(address)}
+                              style={{
+                                padding: '6px 12px',
+                                background: 'var(--red)',
+                                border: 'none',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '11px',
+                                color: 'var(--bg-base)',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <AlertTriangle size={12} /> Report Phishing
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

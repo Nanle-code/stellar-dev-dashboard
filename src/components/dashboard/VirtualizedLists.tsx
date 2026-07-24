@@ -179,26 +179,26 @@ const VirtualOpRow = React.memo(({ op }: VirtualOpRowProps) => {
         {'from' in op && op.from && (
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             from:
-            <AddressLabelBadge address={(op as Record<string, string>).from} />
+            <AddressLabelBadge address={(op as Record<string, string>).from as string} />
             <CopyableValue
-              value={(op as Record<string, string>).from}
+              value={(op as Record<string, string>).from as string}
               title="Copy source public key"
               textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
-              {shortAddress((op as Record<string, string>).from)}
+              {shortAddress((op as Record<string, string>).from as string)}
             </CopyableValue>
           </div>
         )}
         {'to' in op && op.to && (
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             to:
-            <AddressLabelBadge address={(op as Record<string, string>).to} />
+            <AddressLabelBadge address={(op as Record<string, string>).to as string} />
             <CopyableValue
-              value={(op as Record<string, string>).to}
+              value={(op as Record<string, string>).to as string}
               title="Copy destination public key"
               textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
-              {shortAddress((op as Record<string, string>).to)}
+              {shortAddress((op as Record<string, string>).to as string)}
             </CopyableValue>
           </div>
         )}

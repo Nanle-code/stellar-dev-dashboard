@@ -2,22 +2,49 @@ import React, { useState } from 'react'
 import { usePreferences } from '../../hooks/usePreferences'
 import AddressBook from './AddressBook'
 import ThemeSettings from './ThemeSettings'
+import AccessibilitySettings from '../accessibility/AccessibilitySettings'
+import { showTestNotification } from '../../utils/offline'
+import { Bell, Globe2 } from 'lucide-react'
+import { useI18nContext } from '../I18nProvider.jsx'
 
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'theme', label: 'Theme & Display' },
+  { id: 'presets', label: 'Presets & Sync' },
   { id: 'addresses', label: 'Address Book' },
+  { id: 'accessibility', label: 'Accessibility' },
+  { id: 'notifications', label: 'Notifications' },
 ]
 
 export default function UserPreferences({ onClose }) {
   const { preferences, update, reset, loading } = usePreferences()
+  const {
+    changeLanguage,
+    currentLanguage,
+    currentLocale,
+    supportedLanguages,
+    localeProfile,
+    regionalContent,
+    formatDateTime,
+    formatNumber,
+    formatCurrency,
+    isRTL,
+  } = useI18nContext()
   const [activeTab, setActiveTab] = useState('general')
   const [saved, setSaved] = useState(false)
+  const [shareToken, setShareToken] = useState('')
+  const validation = validatePreferences(preferences)
+  const syncStatus = getPreferenceSyncStatus(preferences)
 
   const handleChange = async (key, value) => {
     await update(key, value)
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
+  }
+
+  const handleLanguageChange = async (languageCode) => {
+    await changeLanguage(languageCode)
+    await handleChange('language', languageCode)
   }
 
   if (loading) {
@@ -64,7 +91,7 @@ export default function UserPreferences({ onClose }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '6px' }}>
+      <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -114,15 +141,37 @@ export default function UserPreferences({ onClose }) {
 
             <PreferenceRow label="Language">
               <select
-                value={preferences.language}
-                onChange={(e) => handleChange('language', e.target.value)}
+                value={currentLanguage || preferences.language}
+                onChange={(e) => handleLanguageChange(e.target.value)}
                 style={selectStyle}
               >
-                <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="zh">中文</option>
+                {supportedLanguages.map((language) => (
+                  <option key={language.code} value={language.code}>
+                    {language.nativeLabel} ({language.locale})
+                  </option>
+                ))}
               </select>
             </PreferenceRow>
+
+            <div style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-elevated)',
+              padding: '12px',
+              display: 'grid',
+              gap: '8px',
+              fontSize: '12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                <Globe2 size={14} />
+                {localeProfile.label}
+              </div>
+              <LocalePreview label="Region" value={`${localeProfile.region} / ${currentLocale} / ${isRTL ? 'RTL' : 'LTR'}`} />
+              <LocalePreview label="Date" value={formatDateTime('2026-06-25T15:30:00Z')} />
+              <LocalePreview label="Number" value={formatNumber(1234567.89)} />
+              <LocalePreview label="Currency" value={formatCurrency(1234.56)} />
+              <LocalePreview label="Local note" value={regionalContent.defaultNetworkNotice} />
+            </div>
 
             <PreferenceRow label="Compact Mode">
               <Toggle
@@ -144,6 +193,30 @@ export default function UserPreferences({ onClose }) {
                 onChange={(v) => handleChange('autoRefresh', v)}
               />
             </PreferenceRow>
+
+            <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
+              <button
+                onClick={showTestNotification}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-bright)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  transition: 'background 180ms ease',
+                }}
+              >
+                <Bell size={14} className="text-cyan" />
+                Test Push Notification
+              </button>
+            </div>
 
             <button
               onClick={reset}
@@ -168,6 +241,82 @@ export default function UserPreferences({ onClose }) {
           <ThemeSettings preferences={preferences} onChange={handleChange} />
         )}
 
+        {activeTab === 'presets' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+              {PREFERENCE_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => handlePreset(preset.id)}
+                  style={{
+                    ...presetButtonStyle,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
+                    <SlidersHorizontal size={14} />
+                    {preset.name}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '11px', lineHeight: 1.35 }}>
+                    {preset.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+              <StatusChip label="Schema" value={`v${preferences.schemaVersion}`} />
+              <StatusChip label="Options" value={validation.preferenceCount} />
+              <StatusChip label="Validation" value={validation.valid ? 'Valid' : `${validation.errors.length} errors`} />
+              <StatusChip label="Sync" value={syncStatus.state} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={handleExport} style={actionButtonStyle}>
+                <Download size={14} />
+                Export JSON
+              </button>
+              <button onClick={handleImport} style={actionButtonStyle}>
+                <Upload size={14} />
+                Import JSON
+              </button>
+              <button onClick={handleSharePreset} style={actionButtonStyle}>
+                <Share2 size={14} />
+                Share Preset
+              </button>
+              <button
+                onClick={() => handleChange('sync', { ...preferences.sync, pendingChanges: 0, lastSyncedAt: new Date().toISOString() })}
+                style={actionButtonStyle}
+              >
+                <RefreshCw size={14} />
+                Mark Synced
+              </button>
+            </div>
+
+            {shareToken && (
+              <div style={{
+                padding: '10px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-muted)',
+                fontSize: '11px',
+                overflowWrap: 'anywhere',
+              }}>
+                {shareToken}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'accessibility' && (
+          <AccessibilitySettings />
+        )}
+
+        {activeTab === 'notifications' && (
+          <NotificationPreferences />
+        )}
+
         {activeTab === 'addresses' && (
           <AddressBook />
         )}
@@ -183,6 +332,15 @@ function PreferenceRow({ label, children }) {
         {label}
       </span>
       {children}
+    </div>
+  )
+}
+
+function LocalePreview({ label, value }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(0, 1fr)', gap: '8px', alignItems: 'center' }}>
+      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}</span>
+      <span style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>{value}</span>
     </div>
   )
 }
@@ -229,4 +387,44 @@ const selectStyle = {
   fontFamily: 'var(--font-mono)',
   cursor: 'pointer',
   outline: 'none',
+}
+
+const presetButtonStyle = {
+  padding: '10px',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '7px',
+}
+
+const actionButtonStyle = {
+  padding: '8px 10px',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border-bright)',
+  borderRadius: 'var(--radius-md)',
+  color: 'var(--text-primary)',
+  fontSize: '12px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '7px',
+  cursor: 'pointer',
+}
+
+function StatusChip({ label, value }) {
+  return (
+    <div style={{
+      padding: '8px 10px',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)',
+      background: 'var(--bg-elevated)',
+      fontSize: '11px',
+    }}>
+      <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>{label}</div>
+      <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{value}</div>
+    </div>
+  )
 }

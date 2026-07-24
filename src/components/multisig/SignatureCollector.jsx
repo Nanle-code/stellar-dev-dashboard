@@ -1,206 +1,129 @@
 import React, { useState } from 'react';
-import { useStore } from '../../lib/store';
-import {
-  addSignatureToSession,
-  addSignatureToXdr,
-  SESSION_STATUS,
-  isValidPublicKey,
-} from '../../lib/multisig';
+import { exportSessionJson, addSignatureToSession, addSignatureToXdr, SESSION_STATUS } from '../../lib/multisig';
+import { SigningCoordinator } from '../../lib/multisig/SigningCoordinator';
 import { useNotifications } from '../../hooks/useNotifications';
-import SignatureStatus from './SignatureStatus';
 
-const inputStyle = {
-  background: 'var(--bg-elevated)',
-  border: '1px solid var(--border-bright)',
-  borderRadius: 'var(--radius-md)',
-  padding: '9px 12px',
-  color: 'var(--text-primary)',
-  fontSize: '12px',
-  fontFamily: 'var(--font-mono)',
-  outline: 'none',
-  width: '100%',
-};
-
-const btnStyle = (variant = 'primary', disabled = false) => ({
-  padding: '10px 18px',
-  borderRadius: 'var(--radius-md)',
-  border: `1px solid ${variant === 'primary' ? 'var(--cyan)' : 'var(--border)'}`,
-  background: variant === 'primary' ? 'var(--cyan-glow)' : 'transparent',
-  color: variant === 'primary' ? 'var(--cyan)' : 'var(--text-secondary)',
-  fontSize: '12px',
-  fontFamily: 'var(--font-mono)',
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  opacity: disabled ? 0.5 : 1,
-  transition: 'var(--transition)',
-});
-
-/**
- * Allows a co-signer to add their signature to a session using their secret key.
- * The secret key is never stored — it's used only in-memory to sign.
- */
 export default function SignatureCollector({ session, onSessionUpdate }) {
-  const { network } = useStore();
-  const { success, error: notifyError, warning } = useNotifications();
-
-  const [signerKey, setSignerKey] = useState('');
-  const [signerSecret, setSignerSecret] = useState('');
-  const [signing, setSigning] = useState(false);
+  const [publicKey, setPublicKey] = useState('');
+  const [secretKey, setSecretKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
+  const [importText, setImportText] = useState('');
+  
+  const { success, error } = useNotifications();
 
-  const alreadySigned = session.collectedSignatures.some((s) => s.signerKey === signerKey);
-  const isAuthorized = !signerKey || session.requiredSigners.some((s) => s.key === signerKey);
-  const keyValid = !signerKey || isValidPublicKey(signerKey);
+  if (session.status === SESSION_STATUS.SUBMITTED) {
+    return <div>Transaction has already been submitted.</div>;
+  }
+
+  const isRequired = session.requiredSigners.some(s => s.key === publicKey);
 
   const handleSign = async () => {
-    if (!signerSecret) {
-      warning('Missing Secret', 'Enter your secret key to sign');
-      return;
-    }
-    if (!signerKey || !isValidPublicKey(signerKey)) {
-      warning('Invalid Key', 'Enter a valid public key');
-      return;
-    }
-    if (!isAuthorized) {
-      warning('Not Authorized', 'This key is not a required signer for this session');
-      return;
-    }
-    if (alreadySigned) {
-      warning('Already Signed', 'This key has already signed this transaction');
-      return;
-    }
-
-    setSigning(true);
     try {
-      const signedXdr = addSignatureToXdr(session.txXdr, signerSecret, network);
-      const updated = addSignatureToSession(session.id, signerKey, signedXdr);
+      const newXdr = addSignatureToXdr(session.txXdr, secretKey, session.network);
+      const updated = await addSignatureToSession(session.id, publicKey, newXdr);
       if (updated) {
-        success('Signature Added', `${signerKey.slice(0, 8)}… signed successfully`);
-        setSignerSecret('');
-        if (onSessionUpdate) onSessionUpdate(updated);
+        success('Signature Added', 'Your signature has been added to the session.');
+        onSessionUpdate(updated);
+        setSecretKey('');
       }
-    } catch (err) {
-      notifyError('Signing Failed', err.message);
-    } finally {
-      setSigning(false);
+    } catch (e) {
+      error('Signing Failed', e.message);
     }
   };
 
-  const isSubmittable = session.status === SESSION_STATUS.READY || session.status === SESSION_STATUS.COLLECTING;
+  const handleExport = () => {
+    const json = exportSessionJson(session);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `multisig-session-${session.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    try {
+      const updatedSession = await SigningCoordinator.importAndMergeSession(importText);
+      onSessionUpdate(updatedSession);
+      setImportText('');
+      success('Import Successful', 'Session imported and signatures merged successfully!');
+    } catch (e) {
+      error('Import Failed', e.message);
+    }
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Signature status overview */}
-      <SignatureStatus session={session} />
-
-      {/* Sign form */}
-      {session.status !== SESSION_STATUS.SUBMITTED && session.status !== SESSION_STATUS.FAILED && (
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-        }}>
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Add Your Signature</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-              Your secret key is used only in-memory and never stored
-            </div>
-          </div>
-          <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                Your Public Key
-              </span>
-              <input
-                style={{ ...inputStyle, borderColor: !keyValid ? 'var(--red)' : 'var(--border-bright)' }}
-                placeholder="G... your public key"
-                value={signerKey}
-                onChange={(e) => setSignerKey(e.target.value.trim())}
-                aria-label="Your public key"
-              />
-              {!keyValid && <span style={{ fontSize: '10px', color: 'var(--red)' }}>Invalid public key</span>}
-              {signerKey && !isAuthorized && (
-                <span style={{ fontSize: '10px', color: 'var(--amber)' }}>⚠ This key is not in the required signers list</span>
-              )}
-              {alreadySigned && (
-                <span style={{ fontSize: '10px', color: 'var(--green)' }}>✓ Already signed</span>
-              )}
-            </label>
-
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                Secret Key
-              </span>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showSecret ? 'text' : 'password'}
-                  style={{ ...inputStyle, paddingRight: '44px' }}
-                  placeholder="S... secret key"
-                  value={signerSecret}
-                  onChange={(e) => setSignerSecret(e.target.value.trim())}
-                  aria-label="Your secret key"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSecret((v) => !v)}
-                  style={{
-                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px',
-                  }}
-                  aria-label={showSecret ? 'Hide secret key' : 'Show secret key'}
-                >
-                  {showSecret ? '🙈' : '👁'}
-                </button>
-              </div>
-            </label>
-
-            <button
-              style={btnStyle('primary', signing || alreadySigned || !signerKey || !signerSecret)}
-              onClick={handleSign}
-              disabled={signing || alreadySigned || !signerKey || !signerSecret}
+    <div className="signature-collector" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <div style={{ padding: '15px', border: '1px solid var(--border)', borderRadius: '6px' }}>
+        <h3>Add Your Signature</h3>
+        
+        <label style={{ display: 'block', marginBottom: '10px' }}>
+          Your Public Key
+          <input 
+            style={{ display: 'block', width: '100%', marginTop: '5px' }}
+            value={publicKey} 
+            onChange={e => setPublicKey(e.target.value)} 
+          />
+        </label>
+        {publicKey && !isRequired && <div style={{ color: 'var(--amber)', fontSize: '12px', marginBottom: '10px' }}>Warning: Not in the required signers</div>}
+        
+        <label style={{ display: 'block', marginBottom: '10px' }}>
+          Your Secret Key
+          <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+            <input 
+              style={{ flex: 1 }}
+              type={showSecret ? "text" : "password"} 
+              value={secretKey} 
+              onChange={e => setSecretKey(e.target.value)} 
+            />
+            <button 
+              className="btn-secondary"
+              aria-label={showSecret ? "Hide Secret Key" : "Show Secret Key"}
+              onClick={() => setShowSecret(!showSecret)}
             >
-              {signing ? 'Signing…' : 'Sign Transaction'}
+              {showSecret ? "Hide" : "Show"}
             </button>
           </div>
-        </div>
-      )}
+        </label>
 
-      {/* XDR export */}
-      <div style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
-        overflow: 'hidden',
-      }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Current XDR</div>
-          <button
-            style={btnStyle('secondary')}
-            onClick={() => { navigator.clipboard.writeText(session.txXdr); success('Copied', 'XDR copied'); }}
-          >
-            Copy
-          </button>
-        </div>
-        <div style={{ padding: '14px 18px' }}>
-          <textarea
-            readOnly
-            value={session.txXdr}
-            rows={3}
-            style={{
-              width: '100%',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px',
-              color: 'var(--text-secondary)',
-              fontSize: '11px',
-              fontFamily: 'var(--font-mono)',
-              resize: 'vertical',
-              outline: 'none',
-            }}
-            aria-label="Current transaction XDR"
+        <label style={{ display: 'block', marginBottom: '10px' }}>
+          Current Transaction XDR
+          <textarea 
+            style={{ display: 'block', width: '100%', marginTop: '5px' }}
+            readOnly 
+            aria-label="Current Transaction XDR" 
+            value={session.txXdr} 
           />
+        </label>
+
+        <button 
+          className="btn-primary"
+          onClick={handleSign} 
+          disabled={!secretKey.trim()}
+          aria-label="Sign Transaction"
+        >
+          Sign Transaction
+        </button>
+      </div>
+      
+      <div style={{ padding: '15px', border: '1px solid var(--border)', borderRadius: '6px' }}>
+        <h3>Offline Co-Signers</h3>
+        <div style={{ marginBottom: '10px' }}>
+          <button onClick={handleExport} className="btn-secondary">
+            Export Session (JSON)
+          </button>
+          <small style={{ display: 'block', marginTop: '4px', color: 'var(--text-muted)' }}>Send this to offline co-signers to collect signatures.</small>
+        </div>
+        
+        <div>
+          <textarea 
+            value={importText} 
+            onChange={e => setImportText(e.target.value)} 
+            placeholder="Paste co-signer's session JSON here..."
+            style={{ width: '100%', minHeight: '80px', marginBottom: '8px' }}
+          />
+          <button onClick={handleImport} className="btn-primary" disabled={!importText.trim()}>Import & Merge Partial XDR</button>
         </div>
       </div>
     </div>

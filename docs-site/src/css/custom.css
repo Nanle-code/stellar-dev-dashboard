@@ -1,0 +1,108 @@
+/**
+ * Stellar Dev Dashboard — Docusaurus custom theme
+ * Matches the dark dashboard aesthetic
+ */
+
+:root {
+  --ifm-color-primary: #7c84ff;
+  --ifm-color-primary-dark: #5c66ff;
+  --ifm-color-primary-darker: #4d57ff;
+  --ifm-color-primary-darkest: #2433ff;
+  --ifm-color-primary-light: #9ca2ff;
+  --ifm-color-primary-lighter: #abb1ff;
+  --ifm-color-primary-lightest: #d2d5ff;
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(124, 132, 255, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #7c84ff;
+  --ifm-background-color: #0f1820;
+  --ifm-background-surface-color: #162030;
+  --ifm-navbar-background-color: #0b1219;
+  --ifm-footer-background-color: #0b1219;
+  --ifm-code-background: #1a2535;
+  --docusaurus-highlighted-code-line-bg: rgba(124, 132, 255, 0.15);
+}
+
+/* Navbar */
+.navbar {
+  border-bottom: 1px solid rgba(124, 132, 255, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+/* Hero section */
+.hero--primary {
+  background: linear-gradient(135deg, #0b1219 0%, #162030 50%, #1a1f3a 100%);
+}
+
+/* Code blocks */
+.prism-code {
+  border-radius: 8px;
+  border: 1px solid rgba(124, 132, 255, 0.2);
+}
+
+/* API Explorer badge styling */
+.api-method > .menu__link {
+  align-items: center;
+  justify-content: start;
+}
+
+.api-method > .menu__link::before {
+  width: 55px;
+  height: 20px;
+  font-size: 12px;
+  line-height: 20px;
+  text-transform: uppercase;
+  font-weight: 600;
+  border-radius: 4px;
+  margin-right: 8px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.api-method.get > .menu__link::before {
+  content: 'GET';
+  background-color: rgba(97, 175, 254, 0.15);
+  color: #61afef;
+  border: 1px solid rgba(97, 175, 254, 0.4);
+}
+
+.api-method.post > .menu__link::before {
+  content: 'POST';
+  background-color: rgba(152, 195, 121, 0.15);
+  color: #98c379;
+  border: 1px solid rgba(152, 195, 121, 0.4);
+}
+
+/* Admonition styling */
+.alert--info {
+  border-left-color: var(--ifm-color-primary);
+}
+
+/* Table styling */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table th {
+  background-color: rgba(124, 132, 255, 0.1);
+  border: 1px solid rgba(124, 132, 255, 0.2);
+  padding: 8px 12px;
+}
+
+table td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 12px;
+}
+
+/* Copy button */
+.clean-btn.copyButton_node_modules {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.clean-btn.copyButton_node_modules:hover {
+  opacity: 1;
+}

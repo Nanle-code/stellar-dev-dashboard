@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { useStore } from '../../lib/store'
+import { useResponsive } from '../../hooks/useResponsive'
 import { TOOLTIP_STYLE, AXIS_TICK_STYLE, CHART_COLORS } from '../../lib/chartUtils'
 import {
   exportChartDataAsCsv,
@@ -21,7 +22,9 @@ const PIE_COLORS = [CHART_COLORS.cyan, CHART_COLORS.amber, CHART_COLORS.green, C
 
 export default function AccountActivityChart() {
   const { transactions, operations, txLoading, opsLoading } = useStore()
+  const { isMobile } = useResponsive()
   const [exportOpen, setExportOpen] = useState(false)
+  const [selected, setSelected] = useState(null)
   const txChartRef = useRef(null)
   const opsChartRef = useRef(null)
 
@@ -125,18 +128,28 @@ export default function AccountActivityChart() {
         </div>
       ) : (
         <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {selected && (
+            <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', padding: '12px', color: 'var(--text-primary)', fontSize: '12px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+              <div>
+                <strong>{selected.label}</strong>
+                <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{selected.type === 'day' ? 'Transactions by day' : 'Operations by type'}</div>
+              </div>
+              <div style={{ fontWeight: 700 }}>{selected.value}</div>
+            </div>
+          )}
+
           {/* Transactions by day */}
           {txByDay.length > 0 && (
             <div>
               <div style={sectionLabel}>Transactions by Day</div>
-              <div ref={txChartRef} style={{ height: '200px' }}>
+              <div ref={txChartRef} style={{ height: isMobile ? 180 : 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={txByDay}>
+                  <BarChart data={txByDay} onClick={(e) => e?.activePayload?.[0] && setSelected({ type: 'day', label: e.activeLabel, value: `${e.activePayload[0].payload.successful} successful / ${e.activePayload[0].payload.failed} failed` })} margin={{ left: isMobile ? -8 : 0, right: isMobile ? -8 : 0, top: 8, bottom: 0 }} barSize={isMobile ? 14 : 18}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="day" tick={AXIS_TICK_STYLE} />
-                    <YAxis tick={AXIS_TICK_STYLE} allowDecimals={false} />
+                    <XAxis dataKey="day" tick={{ ...AXIS_TICK_STYLE, fontSize: isMobile ? 10 : 11 }} angle={isMobile ? -20 : 0} textAnchor={isMobile ? 'end' : 'middle'} />
+                    <YAxis tick={AXIS_TICK_STYLE} allowDecimals={false} width={isMobile ? 32 : 48} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 4 : 0 }} layout={isMobile ? 'horizontal' : 'horizontal'} verticalAlign="bottom" align="center" />
                     <Bar dataKey="successful" name="Successful" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} />
                     <Bar dataKey="failed" name="Failed" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} />
                   </BarChart>
@@ -149,7 +162,7 @@ export default function AccountActivityChart() {
           {opsByType.length > 0 && (
             <div>
               <div style={sectionLabel}>Operation Types</div>
-              <div ref={opsChartRef} style={{ height: '240px' }}>
+              <div ref={opsChartRef} style={{ height: isMobile ? 220 : 240 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -158,16 +171,17 @@ export default function AccountActivityChart() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      outerRadius={80}
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      labelLine={{ stroke: 'var(--text-muted)' }}
+                      outerRadius={isMobile ? 60 : 80}
+                      label={isMobile ? false : ({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={!isMobile}
+                      onClick={(entry) => setSelected({ type: 'operation', label: entry.name, value: `${entry.value} operations` })}
                     >
                       {opsByType.map((entry) => (
                         <Cell key={`cell-${entry.name}`} fill={colorMap[entry.name]} />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11 }} verticalAlign="bottom" align={isMobile ? 'center' : 'right'} layout={isMobile ? 'horizontal' : 'vertical'} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>

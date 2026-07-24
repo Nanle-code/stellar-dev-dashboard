@@ -1,0 +1,29 @@
+{
+  "id": "community.activity-radar",
+  "name": "Activity Radar",
+  "version": "1.2.0",
+  "description": "Surfaces recent dashboard activity in a sandboxed extension frame.",
+  "author": {
+    "name": "Community Labs"
+  },
+  "permissions": [
+    "dashboard:read",
+    "data:read"
+  ],
+  "runtime": {
+    "mode": "iframe",
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "srcDoc": "<!doctype html><html><body><h1>Activity Radar</h1></body></html>"
+  },
+  "widgets": [
+    {
+      "id": "community.activity-radar.settings",
+      "title": "Activity Radar",
+      "placement": "settings",
+      "kind": "iframe"
+    }
+  ],
+  "dataSources": []
+}

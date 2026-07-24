@@ -235,5 +235,52 @@
             "manageOffer": "Manage Offer",
             "setOptions": "Set Options"
         }
+    },
+    "learningHub": {
+        "title": "Learning Hub",
+        "subtitle": "Master Stellar blockchain development with interactive tutorials, quizzes, and certifications",
+        "loading": "Loading learning hub...",
+        "category": {
+            "all": "all",
+            "basics": "basics",
+            "advanced": "advanced",
+            "soroban": "soroban",
+            "assets": "assets",
+            "payments": "payments"
+        },
+        "stat": {
+            "level": "Level",
+            "completed": "Completed",
+            "points": "Points"
+        },
+        "tutorial": {
+            "noFound": "No tutorials found in this category",
+            "difficulty": {
+                "beginner": "beginner",
+                "intermediate": "intermediate",
+                "advanced": "advanced"
+            },
+            "duration": "{{min}} min",
+            "completed": "Completed"
+        },
+        "tabs": {
+            "content": "Content",
+            "playground": "Playground",
+            "quiz": "Quiz"
+        },
+        "back": "← Back to Hub",
+        "quiz": {
+            "testKnowledge": "Test Your Knowledge",
+            "answerAll": "Please answer all questions",
+            "submit": "Submit Quiz",
+            "passed": "🎉 Congratulations!",
+            "failed": "😔 Keep Learning",
+            "score": "You scored {{percent}}% ({{correct}} / {{total}})"
+        },
+        "playground": {
+            "title": "Interactive Code Playground",
+            "placeholder": "Write your Stellar code here...",
+            "run": "Run Code"
+        }
     }
 }

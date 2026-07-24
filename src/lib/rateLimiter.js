@@ -346,21 +346,95 @@ class RateLimiter {
   }
 
   /**
-   * Get rate limit for specific endpoint
+   * Get rate limit for specific endpoint with burst allowance
    * @param {string} endpoint - Endpoint identifier
-   * @returns {number} Maximum requests per window for this endpoint
+   * @param {string} tier - User tier (free, pro, enterprise)
+   * @returns {object} Limit configuration
    */
-  getEndpointLimit(endpoint) {
+  getEndpointLimit(endpoint, tier = 'free') {
+    const tierMultipliers = {
+      'free': 1,
+      'pro': 5,
+      'enterprise': 20
+    };
+
+    const multiplier = tierMultipliers[tier] || 1;
+
     const limits = {
-      'accounts': 20,
-      'transactions': 15,
-      'operations': 25,
-      'assets': 10,
-      'contracts': 5,
-      'default': 30
+      'accounts': { base: 20, burst: 5 },
+      'transactions': { base: 15, burst: 3 },
+      'operations': { base: 25, burst: 5 },
+      'assets': { base: 10, burst: 2 },
+      'contracts': { base: 5, burst: 1 },
+      'default': { base: 30, burst: 10 }
     };
     
-    return limits[endpoint] || limits.default;
+    const limit = limits[endpoint] || limits.default;
+    return {
+      limit: limit.base * multiplier,
+      burst: limit.burst * multiplier
+    };
+  }
+
+  /**
+   * Get rate limit headers for response
+   * @param {string} identifier - User ID or IP address
+   * @param {string} endpoint - Endpoint identifier
+   * @returns {object} Headers object
+   */
+  getRateLimitHeaders(identifier, endpoint) {
+    const bucket = this.buckets.get(identifier);
+    const limitConfig = this.getEndpointLimit(endpoint);
+    
+    if (!bucket) {
+      return {
+        'X-RateLimit-Limit': limitConfig.limit.toString(),
+        'X-RateLimit-Remaining': limitConfig.limit.toString(),
+        'X-RateLimit-Reset': (Date.now() + this.windowMs).toString(),
+        'X-RateLimit-Burst': limitConfig.burst.toString(),
+        'X-RateLimit-Burst-Remaining': limitConfig.burst.toString()
+      };
+    }
+
+    const remaining = Math.max(0, bucket.tokens);
+    const resetTime = bucket.lastRefill + this.windowMs;
+    const retryAfter = remaining === 0 ? Math.ceil((resetTime - Date.now()) / 1000) : 0;
+
+    return {
+      'X-RateLimit-Limit': limitConfig.limit.toString(),
+      'X-RateLimit-Remaining': remaining.toString(),
+      'X-RateLimit-Reset': resetTime.toString(),
+      'X-RateLimit-Burst': limitConfig.burst.toString(),
+      'X-RateLimit-Burst-Remaining': Math.max(0, limitConfig.burst - (this.maxRequests - remaining)).toString(),
+      ...(retryAfter > 0 && { 'Retry-After': retryAfter.toString() })
+    };
+  }
+
+  /**
+   * Get comprehensive rate limit metrics
+   * @returns {object} Metrics object
+   */
+  getMetrics() {
+    const endpointMetrics = {};
+    for (const [endpoint, count] of this.statistics.endpointUsage.entries()) {
+      const limitConfig = this.getEndpointLimit(endpoint);
+      endpointMetrics[endpoint] = {
+        requests: count,
+        limit: limitConfig.limit,
+        utilization: (count / limitConfig.limit) * 100
+      };
+    }
+
+    return {
+      ...this.getStatistics(),
+      endpointMetrics,
+      config: {
+        windowMs: this.windowMs,
+        maxRequests: this.maxRequests,
+        throttleMode: this.throttleMode,
+        maxQueueSize: this.maxQueueSize
+      }
+    };
   }
 
   /**

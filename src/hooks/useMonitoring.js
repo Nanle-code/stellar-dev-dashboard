@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { dispatchAlert } from "../lib/alertsService";
+
 import {
   collectHealthSnapshot,
   collectSystemHealthSnapshot,
@@ -55,7 +56,9 @@ export function useMonitoring(pollIntervalMs = 15000) {
   const score = useMemo(() => computeHealthScore(snapshot), [snapshot]);
 
   useEffect(() => {
-    alertCenter.push(evaluateAlertRules(snapshot, score));
+    const newAlerts = evaluateAlertRules(snapshot, score);
+    alertCenter.push(newAlerts);
+    newAlerts.forEach(dispatchAlert);
   }, [snapshot, score]);
 
   return {

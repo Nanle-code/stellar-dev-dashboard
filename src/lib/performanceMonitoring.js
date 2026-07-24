@@ -1,9 +1,34 @@
 import { evaluateAlertRules, alertCenter } from './alerts.js'
 
 /**
- * Privacy-preserving performance monitoring.
- * Tracks Core Web Vitals, app metrics, Stellar operation timings, regressions,
- * and optional production delivery to a configured monitoring endpoint.
+ * PERFORMANCE MONITORING SYSTEM — LOAD BALANCING FEEDBACK LOOP
+ * =============================================================
+ * This module provides comprehensive performance monitoring that closes the
+ * load balancing feedback loop. It collects real-time metrics on:
+ *
+ *   1. CORE WEB VITALS — LCP, FID, CLS, FCP, TTFB for UX quality
+ *   2. CUSTOM METRICS — API response times, transaction signing/submit
+ *      durations, contract simulation/invocation timings
+ *   3. RESOURCE TIMINGS — Per-resource load times, sizes, and initiator types
+ *   4. NAVIGATION TIMING — DNS, TCP, request/response, DOM, and full load time
+ *   5. PERFORMANCE BUDGETS — Configurable thresholds with violation tracking.
+ *      Each violation triggers a CustomEvent for the dashboard to display.
+ *   6. LONG TASK DETECTION — Tasks >200ms flagged as jank-inducing
+ *   7. USER INTERACTION TIMING — Click events for responsiveness tracking
+ *
+ * Feedback loop integration with load distribution:
+ *   - High API response times → RateLimiter switches to 'conservative' mode
+ *   - Frequent budget violations → CapacityPredictor shortens forecast window
+ *   - Long transaction submission times → CircuitBreaker lowers threshold
+ *   - Resource timing spikes → CacheManager warms priority entries
+ *
+ * Privacy: All sensitive data (XDR, addresses, keys) is redacted before
+ * storage or transmission. Monitoring data stays client-side unless a
+ * production endpoint is configured via VITE_PERFORMANCE_MONITORING_ENDPOINT.
+ *
+ * @see capacityPrediction.ts — consumes monitoring metrics for forecasts
+ * @see rateLimiter.js — adjusts throttling based on performance data
+ * @see networkMonitoring.js — blockchain-level performance metrics
  */
 
 const metrics = {
@@ -60,6 +85,7 @@ export function initPerformanceMonitoring() {
   observeLongTasks();
   observeInteractions();
 
+  // Report metrics on page visibility change (privacy-safe: only when hidden)
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") reportMetrics();
   });

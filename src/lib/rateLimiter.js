@@ -1,6 +1,51 @@
 /**
- * Advanced Rate Limiting and Request Queuing System
- * Implements token bucket algorithm with intelligent request batching and queue management
+ * DYNAMIC LOAD DISTRIBUTION — RATE LIMITER & REQUEST QUEUING SYSTEM
+ * ================================================================
+ * This is the core load distribution engine that implements token-bucket
+ * rate limiting with three-tier priority queuing. It distributes API request
+ * load across time, endpoints, and priority levels to ensure fair resource
+ * allocation and prevent endpoint saturation.
+ *
+ * Load Distribution Strategy:
+ * 1. TOKEN BUCKET — Each consumer (user/IP) gets a bucket of tokens that
+ *    refills over time. Burst allowance enables short traffic spikes while
+ *    enforcing the average rate limit. Tokens refill proportionally to
+ *    elapsed time for smooth rate enforcement.
+ *
+ * 2. PRIORITY QUEUING — Three queues (high/medium/low) process requests
+ *    in strict priority order. High-priority requests (e.g., transaction
+ *    submissions) are never starved by lower-priority operations (e.g.,
+ *    historical data queries).
+ *
+ * 3. ENDPOINT-AWARE LIMITING — Each endpoint type (accounts, transactions,
+ *    operations, assets, contracts) has configurable base limits and burst
+ *    allowances. The system tracks per-endpoint usage within each consumer
+ *    bucket, preventing any single endpoint from monopolizing capacity.
+ *
+ * 4. TIER-BASED MULTIPLIERS — Free/pro/enterprise tiers get different
+ *    capacity multipliers (1×, 5×, 20×) so resource distribution matches
+ *    service level agreements.
+ *
+ * 5. THROTTLE MODES — 'aggressive' allows maximum throughput up to limits;
+ *    'conservative' caps throughput at 1/3 of limit to maintain headroom
+ *    during uncertain load conditions. Mode can be toggled dynamically
+ *    based on capacity predictions from capacityPrediction.ts.
+ *
+ * 6. REQUEST BATCHING — Similar requests (same endpoint + method) are
+ *    grouped into batches for efficient parallel execution. Controlled by
+ *    batchSize and batchTimeout parameters.
+ *
+ * 7. RETRY WITH PRIORITY DECAY — Failed requests are retried at a lower
+ *    priority level (high→medium→low) to prevent retry storms.
+ *
+ * 8. STATISTICS & METRICS — Tracks total/queued/batched/rejected/dropped
+ *    requests, average response time, and per-endpoint usage for the
+ *    performance monitoring dashboard.
+ *
+ * Integration with load prediction (capacityPrediction.ts):
+ *   - Predicted high load → switch to 'conservative' mode
+ *   - Predicted low load → switch to 'aggressive' mode
+ *   - Growth trend → adjust maxQueueSize and batchTimeout
  */
 
 class RateLimiter {
@@ -347,6 +392,17 @@ class RateLimiter {
 
   /**
    * Get rate limit for specific endpoint with burst allowance
+   * Endpoint-specific limits enable fine-grained load distribution:
+   *   - accounts:    20 base + 5 burst  (frequent reads)
+   *   - transactions: 15 base + 3 burst  (moderate frequency)
+   *   - operations:  25 base + 5 burst  (high throughput)
+   *   - assets:      10 base + 2 burst  (low frequency)
+   *   - contracts:    5 base + 1 burst  (expensive Soroban ops)
+   *   - default:     30 base + 10 burst (fallback)
+   *
+   * These limits are scaled by tier multipliers and adjusted dynamically
+   * based on capacity predictions from the time-series model.
+   *
    * @param {string} endpoint - Endpoint identifier
    * @param {string} tier - User tier (free, pro, enterprise)
    * @returns {object} Limit configuration
@@ -570,19 +626,33 @@ class RateLimiter {
   }
 }
 
-// Create default rate limiter instance
+// ─── Singleton Instances (Load Distribution Tiers) ─────────────────────────
+
+/**
+ * Default rate limiter — general API requests.
+ * 30 req/min with aggressive throttling for maximum throughput.
+ * Used by: account lookups, transaction history, asset queries
+ */
 const rateLimiter = new RateLimiter({
   windowMs: 60000,
   maxRequests: 30,
 });
 
-// Create stricter rate limiter for expensive operations
+/**
+ * Strict rate limiter — expensive or high-impact operations.
+ * 10 req/min to ensure fair resource distribution for compute-heavy endpoints.
+ * Used by: contract simulations, fee prediction queries
+ */
 const strictRateLimiter = new RateLimiter({
   windowMs: 60000,
   maxRequests: 10,
 });
 
-// Create very strict rate limiter for write operations
+/**
+ * Write rate limiter — mutation operations with network state impact.
+ * 5 req/min to prevent accidental or malicious write storms.
+ * Used by: transaction submission, contract invocations, multisig operations
+ */
 const writeRateLimiter = new RateLimiter({
   windowMs: 60000,
   maxRequests: 5,

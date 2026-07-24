@@ -1,18 +1,32 @@
 /**
- * Cache Analytics Engine
+ * Cache Analytics Engine — Load Distribution Metrics & Feedback
+ * ==============================================================
+ * Collects and exposes real-time cache performance data that feeds into
+ * the load balancing feedback loop. Cache hit rates directly indicate
+ * how well the load distribution system is working — high hit rates mean
+ * requests are being served from cache instead of hitting API endpoints.
  *
- * Collects and exposes real-time cache performance data:
- *   - Hit rate per namespace and globally
+ * Collected metrics for load balancer tuning:
+ *   - Hit rate per namespace and globally (L1 memory, L2 IDB, L3 SW)
  *   - Cache size over time (ring buffer of snapshots)
- *   - Per-operation latency histograms (get / set / IDB read)
- *   - Memory footprint estimates (byte counts)
- *   - Eviction pressure by namespace
+ *   - Per-operation latency histograms (get / set / IDB read / SW read)
+ *   - Memory footprint estimates (byte counts) for capacity planning
+ *   - Eviction pressure by namespace (indicates cache undersizing)
+ *   - Prefetch success rate (predictive warming effectiveness)
  *   - Subscriber pattern for reactive UI updates
+ *
+ * Integration with load distribution:
+ *   Low hit rate  → RateLimiter tightens limits (more requests hitting network)
+ *   High evictions → CacheManager increases namespace maxSize
+ *   Slow get latency → CacheWarmingStrategy prefetches more aggressively
  *
  * Usage:
  *   cacheAnalytics.record('stellar', 'hit', 1.2);
  *   cacheAnalytics.recordSize('stellar', 42, 90_000);
  *   const report = cacheAnalytics.getReport('stellar');
+ *
+ * @see cacheManager.ts — parent module that calls analytics hooks
+ * @see performanceMonitoring.js — feeds into overall performance dashboard
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────

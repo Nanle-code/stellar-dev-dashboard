@@ -1,3 +1,31 @@
+/**
+ * ML Scoring Engine — Anomaly Detection for Load Distribution Security
+ * =====================================================================
+ * Combines Isolation Forest (unsupervised anomaly detection) with a TensorFlow
+ * neural network (supervised pattern classification) to score transactions
+ * for fraudulent or abnormal behavior. This protects the load distribution
+ * system from being exploited by malicious actors during congestion periods.
+ *
+ * Scoring approach:
+ *   1. ISOLATION FOREST — Random forest that isolates anomalies by randomly
+ *      partitioning features. Anomalies are easier to isolate (shorter path
+ *      lengths). Score is normalized 0-1. Weight: 70%.
+ *   2. TFJS NEURAL NET — Supervised classifier trained on labeled transaction
+ *      patterns. Outputs probability of fraudulent class. Weight: 30%.
+ *   3. COMBINED SCORE — Weighted average (0.7 × IF + 0.3 × NN). Threshold
+ *      for flagging: >0.6.
+ *
+ * Integration with load distribution:
+ *   - Flagged transactions are deprioritized in the RateLimiter queue
+ *   - High anomaly rates trigger CircuitBreaker sensitivity increase
+ *   - Anomaly patterns feed into capacityPrediction.ts for trend analysis
+ *   - Scoring results are recorded in performanceMonitoring.js metrics
+ *
+ * @see ../lib/rateLimiter.js — uses scores for priority queue demotion
+ * @see ../lib/errorHandling/CircuitBreaker.ts — adjusts thresholds on anomaly spikes
+ * @see ../lib/capacityPrediction.ts — correlates anomalies with load patterns
+ */
+
 const path = require('path');
 const fs = require('fs');
 const tf = require('@tensorflow/tfjs-node');

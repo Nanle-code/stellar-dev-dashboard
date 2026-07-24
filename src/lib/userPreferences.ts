@@ -105,6 +105,8 @@ export interface UserPreferences {
     cooldownPeriod: number // in seconds
     requireEmailConfirmation: boolean
     confirmationEmail: string
+    autoBlockHighRisk: boolean
+    highRiskThreshold: number // risk score threshold for auto-blocking counterparties
   }
   notificationPreferences?: import('./notificationPreferences').NotificationPreferences
 }
@@ -310,6 +312,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     cooldownPeriod: 30, // in seconds
     requireEmailConfirmation: false,
     confirmationEmail: '',
+    autoBlockHighRisk: false,
+    highRiskThreshold: 75,
   },
 }
 

@@ -63,3 +63,37 @@ export async function swCacheClearApi(): Promise<void> {
 export async function swGetStats(): Promise<SWStats> {
   return { cacheSize: 0, entries: 0, hitRate: 0 }
 }
+
+/**
+ * Warm the SW cache by fetching the given URLs and caching the responses.
+ * No-ops when no SW is active.
+ */
+/**
+ * Register a one-shot handler for a given SW message type.
+ * The handler is automatically removed after being called once.
+ */
+export function onSWMessage(type: string, handler: () => void): void {
+  if (!hasSW()) return
+  const listener = (event: MessageEvent) => {
+    if (event.data?.type === type) {
+      handler()
+      navigator.serviceWorker.removeEventListener('message', listener)
+    }
+  }
+  navigator.serviceWorker.addEventListener('message', listener)
+}
+
+/**
+ * Warm the SW cache by fetching the given URLs and caching the responses.
+ * No-ops when no SW is active.
+ */
+export async function swWarmUrls(urls: string[]): Promise<void> {
+  if (!hasSW()) return
+  for (const url of urls) {
+    try {
+      navigator.serviceWorker.controller!.postMessage({ type: 'SW_CACHE_PUT', url })
+    } catch {
+      // non-fatal
+    }
+  }
+}

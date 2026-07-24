@@ -282,5 +282,52 @@
             "placeholder": "Écrivez votre code Stellar ici...",
             "run": "Exécuter le code"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "Passer à",
+        "stats": {
+            "title": "Statistiques de traduction IA",
+            "languages": "Langues",
+            "tmEntries": "Entrées MT",
+            "communityContributions": "Corrections communautaires",
+            "accuracy": "Précision cible",
+            "apiStatus": "API de traduction automatique",
+            "apiConnected": "Connectée",
+            "apiNotConfigured": "Non configurée"
+        },
+        "demo": {
+            "title": "Essayer la traduction IA",
+            "subtitle": "Testez la traduction en temps réel, y compris les termes spécifiques à Stellar.",
+            "placeholder": "Entrez un texte à traduire...",
+            "targetLanguage": "Langue cible",
+            "translateBtn": "Traduire"
+        },
+        "api": {
+            "title": "API de traduction",
+            "description": "Connectez un endpoint compatible LibreTranslate pour une meilleure précision. La terminologie Stellar est toujours protégée.",
+            "endpointLabel": "URL du point d'accès API",
+            "keyLabel": "Clé API",
+            "keyOptional": "optionnel",
+            "saveBtn": "Configuration",
+            "saved": "Configuration enregistrée"
+        },
+        "correction": {
+            "title": "Soumettre une correction",
+            "description": "Vous avez trouvé une mauvaise traduction ? Soumettez une correction, elle sera appliquée immédiatement.",
+            "sourceText": "Texte anglais original",
+            "originalTranslation": "Traduction incorrecte",
+            "originalPlaceholder": "Collez la traduction incorrecte (optionnel)",
+            "correctedTranslation": "Votre correction",
+            "correctedPlaceholder": "Entrez la traduction correcte",
+            "targetLanguage": "Langue à corriger",
+            "submitBtn": "Soumettre la correction",
+            "submitted": "Correction enregistrée — merci !",
+            "errorEmpty": "Veuillez remplir le texte source et la correction."
+        },
+        "terms": {
+            "title": "Termes Stellar protégés",
+            "description": "Ces termes techniques ne sont jamais traduits automatiquement — ils sont toujours préservés tels quels.",
+            "more": "autres termes protégés"
+        }
     }
 }

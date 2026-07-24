@@ -282,5 +282,52 @@
             "placeholder": "Write your Stellar code here...",
             "run": "Run Code"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "Switch to",
+        "stats": {
+            "title": "AI Translation Stats",
+            "languages": "Languages",
+            "tmEntries": "TM Entries",
+            "communityContributions": "Community Fixes",
+            "accuracy": "Target Accuracy",
+            "apiStatus": "Machine Translation API",
+            "apiConnected": "Connected",
+            "apiNotConfigured": "Not configured"
+        },
+        "demo": {
+            "title": "Try AI Translation",
+            "subtitle": "Test real-time translation of any text, including Stellar-specific terms.",
+            "placeholder": "Enter text to translate...",
+            "targetLanguage": "Target language",
+            "translateBtn": "Translate"
+        },
+        "api": {
+            "title": "Translation API",
+            "description": "Connect a LibreTranslate-compatible endpoint for higher-accuracy machine translation. Stellar terminology is always protected regardless of the API used.",
+            "endpointLabel": "API Endpoint URL",
+            "keyLabel": "API Key",
+            "keyOptional": "optional",
+            "saveBtn": "Configuration",
+            "saved": "Configuration saved"
+        },
+        "correction": {
+            "title": "Contribute a Correction",
+            "description": "Found a mistranslation? Submit a correction and it will be used immediately via the Translation Memory.",
+            "sourceText": "Original English text",
+            "originalTranslation": "Incorrect translation",
+            "originalPlaceholder": "Paste the incorrect translation (optional)",
+            "correctedTranslation": "Your correction",
+            "correctedPlaceholder": "Enter the correct translation",
+            "targetLanguage": "Language being corrected",
+            "submitBtn": "Submit Correction",
+            "submitted": "Correction saved — thank you!",
+            "errorEmpty": "Please fill in the source text and corrected translation."
+        },
+        "terms": {
+            "title": "Protected Stellar Terms",
+            "description": "These technical terms are never machine-translated — they are always preserved verbatim to ensure accuracy across all languages.",
+            "more": "more terms protected"
+        }
     }
 }

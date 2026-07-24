@@ -282,5 +282,52 @@
             "placeholder": "Schreibe deinen Stellar-Code hier...",
             "run": "Code ausführen"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "Wechseln zu",
+        "stats": {
+            "title": "KI-Übersetzungsstatistiken",
+            "languages": "Sprachen",
+            "tmEntries": "TM-Einträge",
+            "communityContributions": "Community-Korrekturen",
+            "accuracy": "Zielgenauigkeit",
+            "apiStatus": "Maschinenübersetzungs-API",
+            "apiConnected": "Verbunden",
+            "apiNotConfigured": "Nicht konfiguriert"
+        },
+        "demo": {
+            "title": "KI-Übersetzung ausprobieren",
+            "subtitle": "Testen Sie die Echtzeit-Übersetzung beliebiger Texte einschließlich Stellar-spezifischer Begriffe.",
+            "placeholder": "Text zur Übersetzung eingeben...",
+            "targetLanguage": "Zielsprache",
+            "translateBtn": "Übersetzen"
+        },
+        "api": {
+            "title": "Übersetzungs-API",
+            "description": "Verbinde einen LibreTranslate-kompatiblen Endpunkt für höhere Genauigkeit. Stellar-Terminologie ist immer geschützt.",
+            "endpointLabel": "API-Endpunkt-URL",
+            "keyLabel": "API-Schlüssel",
+            "keyOptional": "optional",
+            "saveBtn": "Konfiguration",
+            "saved": "Konfiguration gespeichert"
+        },
+        "correction": {
+            "title": "Korrektur einreichen",
+            "description": "Falsche Übersetzung gefunden? Reiche eine Korrektur ein, die sofort übernommen wird.",
+            "sourceText": "Originaler englischer Text",
+            "originalTranslation": "Falsche Übersetzung",
+            "originalPlaceholder": "Falsche Übersetzung einfügen (optional)",
+            "correctedTranslation": "Deine Korrektur",
+            "correctedPlaceholder": "Richtige Übersetzung eingeben",
+            "targetLanguage": "Zu korrigierende Sprache",
+            "submitBtn": "Korrektur einreichen",
+            "submitted": "Korrektur gespeichert — danke!",
+            "errorEmpty": "Bitte fülle den Quelltext und die Korrektur aus."
+        },
+        "terms": {
+            "title": "Geschützte Stellar-Begriffe",
+            "description": "Diese technischen Begriffe werden nie maschinell übersetzt — sie werden immer unverändert beibehalten.",
+            "more": "weitere geschützte Begriffe"
+        }
     }
 }

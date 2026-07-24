@@ -282,5 +282,52 @@
             "placeholder": "ここにStellarコードを記入してください...",
             "run": "コードを実行"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "切り替え",
+        "stats": {
+            "title": "AI翻訳統計",
+            "languages": "言語",
+            "tmEntries": "翻訳メモリ件数",
+            "communityContributions": "コミュニティ修正",
+            "accuracy": "目標精度",
+            "apiStatus": "機械翻訳API",
+            "apiConnected": "接続済み",
+            "apiNotConfigured": "未設定"
+        },
+        "demo": {
+            "title": "AI翻訳を試す",
+            "subtitle": "Stellar固有の用語を含む任意のテキストのリアルタイム翻訳をテストします。",
+            "placeholder": "翻訳するテキストを入力...",
+            "targetLanguage": "対象言語",
+            "translateBtn": "翻訳"
+        },
+        "api": {
+            "title": "翻訳API",
+            "description": "LibreTranslate互換のエンドポイントを接続して精度を向上させます。Stellar用語は常に保護されます。",
+            "endpointLabel": "APIエンドポイントURL",
+            "keyLabel": "APIキー",
+            "keyOptional": "省略可",
+            "saveBtn": "設定",
+            "saved": "設定を保存しました"
+        },
+        "correction": {
+            "title": "修正を提供する",
+            "description": "誤訳を見つけましたか？修正を送信すると翻訳メモリを通じてすぐに反映されます。",
+            "sourceText": "元の英語テキスト",
+            "originalTranslation": "誤った翻訳",
+            "originalPlaceholder": "誤った翻訳を貼り付ける（任意）",
+            "correctedTranslation": "あなたの修正",
+            "correctedPlaceholder": "正しい翻訳を入力",
+            "targetLanguage": "修正する言語",
+            "submitBtn": "修正を送信",
+            "submitted": "修正を保存しました — ありがとうございます！",
+            "errorEmpty": "ソーステキストと修正内容を入力してください。"
+        },
+        "terms": {
+            "title": "保護されたStellar用語",
+            "description": "これらの技術用語は機械翻訳されません — 精度確保のため常にそのまま保持されます。",
+            "more": "以上の用語が保護されています"
+        }
     }
 }

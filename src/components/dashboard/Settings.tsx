@@ -8,6 +8,7 @@ import { saveAlertRule, getAlertRules, deleteAlertRule } from "../../lib/alertRu
 import { ALERT_RULE_TYPE, ALERT_CHANNEL } from "../../lib/alerts";
 import PluginRegistryView from "./PluginRegistryView";
 import DataExport from "./DataExport";
+import LanguageSettings from "./LanguageSettings";
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
 
@@ -204,6 +205,11 @@ export default function Settings() {
       >
         Settings
       </h2>
+
+      {/* ── Language & AI Translation ── */}
+      <div style={styles.section}>
+        <LanguageSettings />
+      </div>
 
       {updateReady && (
         <div style={{ ...styles.banner, ...styles.updateBanner } as React.CSSProperties}>

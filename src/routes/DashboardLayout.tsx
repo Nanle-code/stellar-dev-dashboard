@@ -57,6 +57,7 @@ const lazyNamedTab = (loader: () => Promise<Record<string, unknown>>, exportName
 
 const Overview = lazyTab(() => import('../components/dashboard/Overview'));
 const TransactionAnalytics = lazy(() => import('../components/dashboard/TransactionAnalyticsDashboard'));
+const RefactoringAdvisor = lazyTab(() => import('../components/dashboard/RefactoringAdvisor'));
 
 const TABS: Record<string, TabComponent> = {
   overview: Overview,
@@ -101,7 +102,7 @@ const TABS: Record<string, TabComponent> = {
   compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
   security: lazyTab(() => import('../components/dashboard/SecurityDashboard')),
   txAnalytics: TransactionAnalytics,
-  contractRecommendations: lazyTab(() => import('../components/dashboard/ContractRecommendations')),
+  refactoring: RefactoringAdvisor,
 };
 
 function TabLoadingFallback() {

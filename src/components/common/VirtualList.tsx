@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, ReactNode, UIEvent } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import type { ReactNode, UIEvent } from 'react';
 
 interface VirtualListProps<T> {
   items: T[];
@@ -55,7 +56,7 @@ function VirtualList<T>({
   }, [items, rowHeight]);
 
   // Binary search to find the start index for a given scroll position
-  const findStartIndex = (scrollPos: number) => {
+  const findStartIndex = useCallback((scrollPos: number) => {
     let low = 0;
     let high = metadata.positions.length - 1;
 
@@ -68,7 +69,7 @@ function VirtualList<T>({
       }
     }
     return Math.max(0, low - 1);
-  };
+  }, [metadata.positions]);
 
   const handleScroll = useCallback((_e: UIEvent<HTMLDivElement>) => {
     if (containerRef.current) {
@@ -120,7 +121,7 @@ function VirtualList<T>({
       end: actualEnd,
       translateY: metadata.positions[actualStart],
     };
-  }, [scrollTop, containerHeight, overscan, items.length, metadata]);
+  }, [scrollTop, containerHeight, overscan, items.length, metadata, findStartIndex]);
 
   const visibleItems = items.slice(start, end).map((item, index) => {
     const actualIndex = start + index;
@@ -157,11 +158,11 @@ function VirtualList<T>({
           }}
         >
           {visibleItems}
-          
+
           {loading && (
-             <div style={{ padding: '20px', textAlign: 'center' }}>
-               <div className="spinner" />
-             </div>
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <div className="spinner" />
+            </div>
           )}
         </div>
       </div>

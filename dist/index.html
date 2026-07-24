@@ -1,27 +1,81 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stellar Developer Dashboard</title>
+    <script>
+      // Blocking script to restore the theme before initial paint (FOUC prevention)
+      (function () {
+        try {
+          var saved = localStorage.getItem('stellar-dashboard-theme');
+          if (saved === 'light' || saved === 'dark') {
+            document.documentElement.setAttribute('data-theme', saved);
+          } else if (saved === 'custom') {
+            // Restore custom theme CSS vars from localStorage
+            var varsRaw = localStorage.getItem('stellar-theme-vars');
+            if (varsRaw) {
+              try {
+                var vars = JSON.parse(varsRaw);
+                for (var key in vars) {
+                  if (vars.hasOwnProperty(key)) {
+                    document.documentElement.style.setProperty(key, vars[key]);
+                  }
+                }
+              } catch (e) {}
+            }
+            document.documentElement.setAttribute('data-theme', 'custom');
+          } else {
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="description" content="Real-time developer dashboard for the Stellar network" />
     <meta name="theme-color" content="#00e5ff" />
     <title>Stellar Dev Dashboard</title>
-    <!-- PWA manifest (#110) -->
+    <meta 
+      name="viewport" 
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" 
+    />
+
+    <!-- PWA / installability -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="theme-color" content="#1e2327" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="StellarDev" />
+
+    <!-- Apple touch icons (fallback for Safari) -->
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+
+    <!-- Preconnect to font providers -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="/assets/index-DmeHaBT_.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/react-vendor-SPg3fKAo.js">
-    <link rel="modulepreload" crossorigin href="/assets/ui-vendor-DXvUBX5E.js">
-    <link rel="modulepreload" crossorigin href="/assets/stellar-sdk-Cvw_bw6Y.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-ikyiLa6H.css">
+
+    <title>Stellar Dev Dashboard</title>
+    <meta
+      name="description"
+      content="Real-time developer dashboard for the Stellar network — balances, transactions, contracts, DEX explorer, and more."
+    />
+    <script type="module" crossorigin src="/assets/index-DEwO0ah3.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-Du79euYq.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-CsepHXsi.js">
+    <link rel="modulepreload" crossorigin href="/assets/stellar-sdk-or8ZbYCb.js">
+    <link rel="modulepreload" crossorigin href="/assets/deployment-BPDW632H.js">
+    <link rel="modulepreload" crossorigin href="/assets/i18n-z46-bNL3.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-vendor-BIh5SzZ7.js">
+    <link rel="modulepreload" crossorigin href="/assets/icons-vendor-BqasJArU.js">
+    <link rel="modulepreload" crossorigin href="/assets/date-vendor-boStncAG.js">
+    <link rel="modulepreload" crossorigin href="/assets/charts-OWQBHTRD.js">
+    <link rel="modulepreload" crossorigin href="/assets/assets-dICfUuxl.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CkE60VUj.css">
   </head>
   <body>
     <div id="root"></div>
-    <!-- content goes in here  -->
   </body>
 </html>
-
-

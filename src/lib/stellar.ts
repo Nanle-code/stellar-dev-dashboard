@@ -13,6 +13,8 @@ const stellarCache = new Cache({
   defaultTTL: TTL.ACCOUNT,
 });
 
+export { stellarCache };
+
 const simulationCache = new Cache({
   namespace: 'simulation',
   maxSize: 200,
@@ -1196,10 +1198,13 @@ export function isValidEd25519PublicKey(key: string): boolean {
  */
 export function isValidMuxedAccount(key: string): boolean {
   if (!key || typeof key !== 'string') return false
+  const trimmed = key.trim()
+  if (!trimmed.startsWith('M')) return false
   try {
-    return StellarSdk.StrKey.isValidEd25519PublicKey(key) || key.startsWith('M');
+    StellarSdk.MuxedAccount.fromAddress(trimmed, '0')
+    return true
   } catch {
-    return false;
+    return false
   }
 }
 
@@ -1207,7 +1212,13 @@ export function isValidMuxedAccount(key: string): boolean {
  * Check if address is a federated address (name*domain or name@domain)
  */
 export function isFederatedAddress(input: string): boolean {
-  return typeof input === 'string' && /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input);
+  if (typeof input !== 'string' || !input.trim()) return false
+  const trimmed = input.trim()
+  // name*domain.tld (Stellar federation) OR name@domain.tld (email-style)
+  return (
+    /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed) ||
+    /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)
+  )
 }
 
 /**

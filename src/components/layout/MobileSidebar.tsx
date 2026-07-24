@@ -39,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "txPatterns", label: "AI Patterns", icon: "🧠" },
   { id: "contractRecommendations", label: "Contract AI", icon: "💡" },
   { id: "security", label: "Security", icon: "🛡️" },
+  { id: "errorRecovery", label: "Recovery", icon: "🧠" },
 ];
 
 /**
@@ -104,11 +105,11 @@ export default function MobileSidebar() {
   // Combine refs
   useEffect(() => {
     if (drawerRef.current) {
-      swipeRef.current = drawerRef.current;
+      (swipeRef as React.MutableRefObject<HTMLElement | null>).current = drawerRef.current;
     }
   }, [swipeRef]);
 
-  const handleNavClick = (tabId) => {
+  const handleNavClick = (tabId: string) => {
     navigate(`/${tabId}`);
     close();
   };

@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   NotificationDeduplicator,
-  // SmartNotification type removed (JSX file)
+  type SmartNotification,
 } from '../../lib/notificationDeduplicator'
 import {
   NOTIFICATION_CATEGORIES,
   PRIORITY_ORDER,
-
-
+  type NotificationCategory,
+  type NotificationPriority,
 } from '../../lib/notificationCategories'
 import {
   filterNotifications,
+  type NotificationFilterConfig,
+  type NotificationSortMode,
 } from '../../lib/notificationFilter'
 import {
   loadNotificationPreferences,
@@ -399,7 +401,11 @@ function SmartNotificationCard({
 
 // ─── Filter chip ──────────────────────────────────────────────────────────────
 
-function FilterChip({ active, onClick, children }) {
+function FilterChip({ active, onClick, children }: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
   return (
     <button
       onClick={onClick}
@@ -425,7 +431,10 @@ function FilterChip({ active, onClick, children }) {
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
-function Badge({ color, children }) {
+function Badge({ color, children }: {
+  color: string
+  children: React.ReactNode
+}) {
   return (
     <span style={{
       padding: '1px 5px',

@@ -24,7 +24,7 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Keep type-check focused on the TypeScript migration surface. */
-    "allowJs": false,
+    "allowJs": true,
     "checkJs": false
   },
   "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.tsx"]

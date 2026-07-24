@@ -4,6 +4,7 @@ import { Download, Filter, Search, X } from 'lucide-react'
 const TransactionGraph = lazy(() => import('./TransactionGraph'))
 const TimeAnalysis = lazy(() => import('./TimeAnalysis'))
 const CrossNetworkPanel = lazy(() => import('./CrossNetworkPanel'))
+const TransactionClusterView = lazy(() => import('./TransactionClusterView'))
 import { format } from 'date-fns'
 import { useStore } from '../../lib/store'
 import { shortAddress, getOperationLabel, fetchTransactions, fetchOperations } from '../../lib/stellar'
@@ -105,7 +106,7 @@ export default function Transactions() {
     filterExpressions,
   } = useStore()
 
-  const [view, setView] = useState('transactions')
+  const [view, setView] = useState<'transactions' | 'operations' | 'graph' | 'time' | 'networks' | 'clusters'>('transactions')
   const [showFilters, setShowFilters] = useState(false)
   const {
     query,
@@ -363,6 +364,7 @@ export default function Transactions() {
           <Tab id="graph" label="Graph" />
           <Tab id="time" label="Time" />
           <Tab id="networks" label="Networks" />
+          <Tab id="clusters" label="Clusters" />
         </div>
       </div>
 
@@ -639,6 +641,18 @@ export default function Transactions() {
             </div>
           }>
             <CrossNetworkPanel />
+          </Suspense>
+        </div>
+      )}
+
+      {view === 'clusters' && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', padding: '16px' }}>
+          <Suspense fallback={
+            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+              Loading clusters...
+            </div>
+          }>
+            <TransactionClusterView />
           </Suspense>
         </div>
       )}

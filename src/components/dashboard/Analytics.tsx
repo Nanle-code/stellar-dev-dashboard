@@ -1,6 +1,7 @@
 import React from "react";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import AnalyticsChart from "../charts/AnalyticsChart";
+import CorrelationGraph from "../charts/CorrelationGraph";
 import { StatCard } from "./Card";
 import CustomReports from "./CustomReports";
 import type { AlertEntry } from "./types";
@@ -58,6 +59,8 @@ export default function Analytics() {
         <StatCard label="Base Fee" value={network.baseFee || 0} />
         <StatCard label="Avg Close Time" value={`${(network.averageCloseSeconds || 0).toFixed(2)}s`} />
       </div>
+
+      <CorrelationGraph />
 
       <div
         style={{

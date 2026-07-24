@@ -65,6 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'capacityPlanning', label: 'Capacity AI', icon: '📈' },
   { id: 'systemHealth', label: 'Health', icon: '⚕' },
   { id: 'monitoringDashboards', label: 'Monitoring', icon: '📊' },
+  { id: 'logAnalyzer', label: 'Log Analyzer', icon: '📋' },
   { id: 'dataExport', label: 'Export', icon: '⬇' },
   { id: 'collaboration', label: 'Collaboration', icon: '◌' },
   { id: 'governance', label: 'Governance', icon: '🗳' },

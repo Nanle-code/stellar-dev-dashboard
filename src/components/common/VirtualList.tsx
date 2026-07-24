@@ -25,6 +25,21 @@ function VirtualList<T>({
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
+  const onLoadMoreRef = useRef(onLoadMore);
+  const loadingRef = useRef(loading);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+    if (!loading) {
+      inFlightRef.current = false;
+    }
+  }, [loading]);
+
   // Cache for dynamic heights and positions
   const metadata = useMemo(() => {
     const positions: number[] = [0];

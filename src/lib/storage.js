@@ -11,13 +11,14 @@
 // ─── DB config ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'stellar-dev-dashboard';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORES = {
   APP_STATE:  'app-state',    // Zustand persistence
   API_CACHE:  'api-cache',    // TTL-aware API response cache
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
   CONTRACT_HISTORY: 'contract-history', // Contract interactions
+  BIOMETRIC_PROFILES: 'biometric-profiles', // Behavioral biometrics profiles
 };
 
 // ─── DB open ──────────────────────────────────────────────────────────────────
@@ -52,6 +53,12 @@ function openDB() {
         store.createIndex('contractId', 'contractId', { unique: false });
         store.createIndex('timestamp', 'timestamp', { unique: false });
         store.createIndex('type', 'type', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.BIOMETRIC_PROFILES)) {
+        const store = db.createObjectStore(STORES.BIOMETRIC_PROFILES, { keyPath: 'userId' });
+        store.createIndex('lastUpdated', 'lastUpdated', { unique: false });
+        store.createIndex('sampleCount', 'sampleCount', { unique: false });
       }
     };
 
@@ -287,6 +294,51 @@ export async function clearContractInteractions() {
   try {
     await tx(STORES.CONTRACT_HISTORY, 'readwrite', (s) => s.clear());
   } catch { /* ignore */ }
+}
+
+// ─── Biometric Profiles Store ─────────────────────────────────────────────────
+
+/**
+ * Persist a behavioral biometrics profile (insert or update).
+ * The profile object must have a `userId` field (used as the keyPath).
+ * @param {{ userId: string, lastUpdated: number, sampleCount: number, [key: string]: * }} profile
+ */
+export async function saveBiometricProfile(profile) {
+  try {
+    await tx(STORES.BIOMETRIC_PROFILES, 'readwrite', (s) => s.put(profile));
+  } catch { /* ignore */ }
+}
+
+/**
+ * Retrieve a behavioral biometrics profile by userId.
+ * Returns null if not found.
+ * @param {string} userId
+ * @returns {Promise<*|null>}
+ */
+export async function getBiometricProfile(userId) {
+  try {
+    return await tx(STORES.BIOMETRIC_PROFILES, 'readonly', (s) => s.get(userId)) ?? null;
+  } catch { return null; }
+}
+
+/**
+ * Delete a behavioral biometrics profile by userId.
+ * @param {string} userId
+ */
+export async function deleteBiometricProfile(userId) {
+  try {
+    await tx(STORES.BIOMETRIC_PROFILES, 'readwrite', (s) => s.delete(userId));
+  } catch { /* ignore */ }
+}
+
+/**
+ * Retrieve all stored behavioral biometrics profiles.
+ * @returns {Promise<Array>}
+ */
+export async function getAllBiometricProfiles() {
+  try {
+    return await tx(STORES.BIOMETRIC_PROFILES, 'readonly', (s) => s.getAll()) ?? [];
+  } catch { return []; }
 }
 
 // ─── Storage stats ────────────────────────────────────────────────────────────

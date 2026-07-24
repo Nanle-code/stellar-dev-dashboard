@@ -987,6 +987,85 @@ table {
     --bg-card: Canvas;
   }
 }
+/* ── Conversational Navigation Panel (#555) ─────────────────────────────── */
+
+@keyframes chatSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes voicePulse {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--red-glow);
+  }
+  50% {
+    box-shadow: 0 0 24px var(--red-glow), 0 0 48px var(--red-glow);
+  }
+}
+
+@keyframes voiceSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Conversation panel scrollbar */
+.conversation-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.conversation-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.conversation-panel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* Mobile responsive conversation panel */
+@media (max-width: 768px) {
+  .conversation-panel {
+    position: fixed !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 70vh !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    animation: chatSlideUp 0.3s ease !important;
+  }
+
+  @keyframes chatSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
 /* Smooth CSS transitions between light and dark themes */
 body, main, div, button, span, p, h1, h2, h3, section, header, aside {
   transition: background-color var(--transition, 0.25s ease), 

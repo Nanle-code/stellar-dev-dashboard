@@ -44,6 +44,7 @@ export type NavIntentType =
   | 'governance'
   | 'collaboration'
   | 'monitoringDashboards'
+  | 'codeReview'
   | 'dataExport'
   | 'claimableBalances'
   | 'designSystem'
@@ -250,6 +251,12 @@ export const NAV_COMMANDS: NavCommand[] = [
     keywords: ['logs', 'log analyzer', 'log analysis', 'log viewer', 'log']
   },
   {
+    id: 'codeReview', label: 'Code Review', category: 'Tools',
+    description: 'AI-powered code review with static analysis and best practices',
+    icon: '🔍', aliases: ['review code', 'code quality', 'code review assistant', 'code analysis'],
+    keywords: ['code review', 'review code', 'code quality', 'code analysis', 'static analysis', 'code review assistant', 'ai review', 'lint']
+  },
+  {
     id: 'settings', label: 'Settings', category: 'Tools',
     description: 'Configure dashboard settings and preferences',
     icon: '⚙', aliases: ['preferences', 'config', 'configuration', 'options'],
@@ -333,7 +340,7 @@ const CATEGORY_ALIASES: Record<string, NavIntentType[]> = {
   'build': ['builder', 'faucet'],
   'explore': ['dex', 'pathExplorer', 'explorers', 'charts'],
   'payments': ['wallet', 'signer', 'multisig'],
-  'tools': ['portfolio', 'analytics', 'logAnalyzer', 'settings', 'audit', 'security', 'systemHealth', 'governance', 'collaboration', 'monitoringDashboards', 'dataExport', 'designSystem', 'featureFlags'],
+  'tools': ['portfolio', 'analytics', 'logAnalyzer', 'codeReview', 'settings', 'audit', 'security', 'systemHealth', 'governance', 'collaboration', 'monitoringDashboards', 'dataExport', 'designSystem', 'featureFlags'],
   'system': ['connect', 'help'],
 };
 

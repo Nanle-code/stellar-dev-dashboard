@@ -100,6 +100,7 @@ const TABS: Record<string, TabComponent> = {
   governance: lazyTab(() => import('../components/dashboard/Governance')),
   monitoringDashboards: lazyTab(() => import('../components/dashboard/MonitoringDashboards')),
   devToolbar: lazyTab(() => import('../components/dashboard/DevToolbar')),
+  codeReview: lazyTab(() => import('../components/dashboard/CodeReviewAssistant')),
   compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
   security: lazyTab(() => import('../components/dashboard/SecurityDashboard')),
   txAnalytics: TransactionAnalytics,

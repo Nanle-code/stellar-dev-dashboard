@@ -116,7 +116,7 @@ describe('<Overview />', () => {
     const grid = screen.getByTestId('dashboard-grid');
     expect(grid).toBeInTheDocument();
     expect(grid).toHaveAttribute('data-editable', 'false');
-    expect(grid).toHaveTextContent('4 widgets');
+    expect(grid).toHaveTextContent('5 widgets');
   });
 
   it('toggles edit mode when the Edit button is clicked', async () => {
@@ -146,7 +146,7 @@ describe('<Overview />', () => {
 
     const grid = screen.getByTestId('dashboard-grid');
     expect(grid).toHaveAttribute('data-editable', 'false');
-    expect(grid).toHaveTextContent('4 widgets');
+    expect(grid).toHaveTextContent('5 widgets');
   });
 
   it('renders a green badge style for mainnet', async () => {

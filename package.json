@@ -6,7 +6,8 @@
   "scripts": {
     "ml:train": "node src/ml/train.js",
     "ml:server": "node src/ml/server.js",
-    "ml:federated-server": "node src/ml/federated/server.js",
+    "ml:build:train": "node src/ml/build_prediction/train.js",
+    "ml:build:server": "node src/ml/build_prediction/server.js",
     "dev": "vite",
     "build": "vite build",
     "build:analyze": "ANALYZE=1 vite build",
@@ -79,7 +80,8 @@
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",
     "@ledgerhq/hw-transport-webusb": "^6.29.4",
-    "@stellar/ledger": "^1.0.0"
+    "@stellar/ledger": "^1.0.0",
+    "@tensorflow/tfjs-node": "4.22.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",

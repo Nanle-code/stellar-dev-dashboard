@@ -62,6 +62,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'designSystem', label: 'Design System', icon: '◈' },
   { id: 'featureFlags', label: 'Flags', icon: '🚩' },
   { id: 'txPatterns', label: 'AI Patterns', icon: '🧠' },
+  { id: 'aiDescription', label: 'AI Descriptions', icon: '✨' },
+  { id: 'contractRecommendations', label: 'Contract AI', icon: '💡' },
   { id: 'capacityPlanning', label: 'Capacity AI', icon: '📈' },
   { id: 'systemHealth', label: 'Health', icon: '⚕' },
   { id: 'monitoringDashboards', label: 'Monitoring', icon: '📊' },

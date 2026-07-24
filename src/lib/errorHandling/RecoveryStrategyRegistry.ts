@@ -1,18 +1,13 @@
-import { selfHealingManager, type RecoveryStrategy } from './SelfHealingManager'
-
-const defaultStrategy: RecoveryStrategy = {
-  id: 'default',
-  name: 'Default Recovery',
-  description: 'Marks the service healthy after a short delay.',
-  apply: async () => {
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  },
-}
+/**
+ * RecoveryStrategyRegistry — stub
+ * The full implementation is not included in this repo snapshot.
+ * These no-ops prevent the build from breaking.
+ */
 
 export function registerBuiltInStrategies(): void {
-  selfHealingManager.registerStrategy(defaultStrategy)
+  // no-op stub
 }
 
 export async function registerNetworkProbes(): Promise<void> {
-  await Promise.resolve()
+  // no-op stub
 }

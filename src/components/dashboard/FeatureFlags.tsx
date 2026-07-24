@@ -1,12 +1,13 @@
-import React from 'react';
+import React from 'react'
+import Card from './Card'
 
+/** FeatureFlags — stub placeholder */
 export default function FeatureFlags() {
   return (
-    <section aria-label="Feature flags" style={{ display: 'grid', gap: '12px' }}>
-      <h2 style={{ margin: 0 }}>Feature Flags</h2>
-      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
-        Feature flag management is not available in the current build, but the tab remains available for future expansion.
-      </p>
-    </section>
-  );
+    <Card title="Feature Flags" subtitle="Manage experimental features">
+      <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+        Feature flag management coming soon.
+      </div>
+    </Card>
+  )
 }

@@ -400,3 +400,16 @@ export interface TabDefinition {
   label: string
   icon: React.ComponentType<{ size?: number }>
 }
+
+// ─── Capacity Prediction types (re-exported for component use) ────────────────
+
+export type {
+  CapacityDataPoint,
+  PredictionPoint,
+  ScenarioType,
+  ScenarioProjection,
+  FeatureAdoptionMetric,
+  InfraRecommendation,
+  CapacityPlanningReport,
+  CapacityPredictionResult,
+} from '../../lib/capacityPrediction'

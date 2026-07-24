@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../../lib/store'
 import ContractDeployerView from '../deployment/ContractDeployer'
+import ContractRecommendations from './ContractRecommendations'
 import {
   fetchContractInfo,
   invokeContract,
@@ -558,6 +559,16 @@ export default function Contracts() {
           setSession={setDebugSession}
           sourceCode={sourceEditor}
           onClose={() => setDebugSession(null)}
+        />
+      )}
+
+      {contractData && (
+        <ContractRecommendations
+          contractFunctions={[]}
+          contractId={invokeForm.contractId}
+          currentFunction={invokeForm.functionName}
+          onSelectFunction={(fnName) => setInvokeForm((prev) => ({ ...prev, functionName: fnName }))}
+          standalone={false}
         />
       )}
 

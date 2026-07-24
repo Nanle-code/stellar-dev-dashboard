@@ -36,6 +36,8 @@ import OfflineBanner from '../components/layout/OfflineBanner';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import DevToolbar from '../components/dashboard/DevToolbar';
+import DebugAssistantButton from '../components/debug/DebugAssistantButton';
+import DebugAssistantPanel from '../components/debug/DebugAssistantPanel';
 
 interface SearchResult {
   type?: string;
@@ -84,6 +86,7 @@ const TABS: Record<string, TabComponent> = {
   featureFlags: lazyTab(() => import('../components/dashboard/FeatureFlags')),
   systemHealth: lazyTab(() => import('../components/dashboard/SystemHealth')),
   performance: lazyTab(() => import('../components/dashboard/PerformanceMonitor')),
+  logAnalyzer: lazyTab(() => import('../components/dashboard/LogAnalyzer')),
   settings: lazyTab(() => import('../components/dashboard/Settings')),
   collaboration: lazyTab(() => import('../components/dashboard/CollaborationTab')),
   audit: lazyTab(() => import('../components/dashboard/AuditLog')),
@@ -227,6 +230,9 @@ export default function DashboardLayout() {
     setActiveTab,
     preferencesOpen,
     setPreferencesOpen,
+    debugAssistantOpen,
+    debugAssistantIssueCount,
+    toggleDebugAssistant,
   } = useStore();
   const { isMobile, isTablet } = useResponsive();
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
@@ -426,6 +432,14 @@ export default function DashboardLayout() {
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
         />
+        <DebugAssistantButton
+          onClick={() => toggleDebugAssistant()}
+          isOpen={debugAssistantOpen}
+          issueCount={debugAssistantIssueCount}
+        />
+        {debugAssistantOpen && (
+          <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />
+        )}
         {isMobile && <MobileNavigation />}
         {preferencesOpen && (
           <div

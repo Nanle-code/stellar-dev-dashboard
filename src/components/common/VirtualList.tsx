@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, ReactNode, UIEvent } from 'react';
 
-/**
- * A highly optimized virtualization component that handles dynamic row heights
- * and large datasets (10K+ items) while maintaining 60+ FPS.
- *
- * @param {Array} items - List of items to render
- * @param {Function|number} rowHeight - Height of a row or function returns height for index
- * @param {number} overscan - Number of items to render outside the viewport
- * @param {Function} children - Render prop for each item: (item, index) => ReactNode
- * @param {Function} onLoadMore - Called when the end of the list is approached
- * @param {boolean} loading - Whether additional items are being loaded
- */
-const VirtualList = ({
+interface VirtualListProps<T> {
+  items: T[];
+  rowHeight: number | ((index: number, item: T) => number);
+  overscan?: number;
+  children: (item: T, index: number) => ReactNode;
+  onLoadMore?: () => void;
+  loading?: boolean;
+  className?: string;
+  containerStyle?: React.CSSProperties;
+}
+
+const VirtualList = <T,>({
   items,
   rowHeight,
   overscan = 5,
@@ -20,8 +20,8 @@ const VirtualList = ({
   loading = false,
   className = '',
   containerStyle = {},
-}) => {
-  const containerRef = useRef(null);
+}: VirtualListProps<T>) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
@@ -42,7 +42,7 @@ const VirtualList = ({
 
   // Cache for dynamic heights and positions
   const metadata = useMemo(() => {
-    const positions = [0];
+    const positions: number[] = [0];
     let totalHeight = 0;
 
     for (let i = 0; i < items.length; i++) {
@@ -55,7 +55,7 @@ const VirtualList = ({
   }, [items, rowHeight]);
 
   // Binary search to find the start index for a given scroll position
-  const findStartIndex = (scrollPos) => {
+  const findStartIndex = (scrollPos: number) => {
     let low = 0;
     let high = metadata.positions.length - 1;
 
@@ -70,7 +70,7 @@ const VirtualList = ({
     return Math.max(0, low - 1);
   };
 
-  const handleScroll = useCallback((e) => {
+  const handleScroll = useCallback((_e: UIEvent<HTMLDivElement>) => {
     if (containerRef.current) {
       const currentScrollTop = containerRef.current.scrollTop;
       setScrollTop(currentScrollTop);
@@ -106,8 +106,7 @@ const VirtualList = ({
       containerRef.current.scrollTop = 0;
       setScrollTop(0);
     }
-  }, [items.length]); // Only reset when length changes significantly, or maybe on every update? 
-                       // Actually, better to reset on search, which usually changes list.
+  }, [items.length]);
 
   const { start, end, translateY } = useMemo(() => {
     const startIndex = findStartIndex(scrollTop);

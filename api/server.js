@@ -5,6 +5,7 @@ import { rateLimiter } from './middleware/rateLimiter.js';
 import { oauthAuth } from './middleware/auth.js';
 import { router as accountsRouter } from './routes/accounts.js';
 import { router as transactionsRouter } from './routes/transactions.js';
+import { router as accessControlRouter } from './routes/accessControl.js';
 
 const app = express();
 const server = createServer(app);
@@ -16,6 +17,7 @@ app.use(rateLimiter);
 // Public API routes
 app.use('/api/v1/accounts', oauthAuth, accountsRouter);
 app.use('/api/v1/transactions', oauthAuth, transactionsRouter);
+app.use('/api/v1/access-control', oauthAuth, accessControlRouter);
 
 // Documentation endpoint
 app.get('/api/docs', (req, res) => {

@@ -1,0 +1,7 @@
+[
+  {"userId":"alice","resource":"/projects/1","action":"read","timestamp":"2026-07-20T10:00:00.000Z"},
+  {"userId":"alice","resource":"/projects/1","action":"read","timestamp":"2026-07-20T10:05:00.000Z"},
+  {"userId":"bob","resource":"/projects/1","action":"write","timestamp":"2026-07-21T12:00:00.000Z"},
+  {"userId":"carol","resource":"/admin/settings","action":"manage","timestamp":"2026-07-22T09:00:00.000Z"},
+  {"userId":"alice","resource":"/projects/2","action":"read","timestamp":"2026-07-23T11:00:00.000Z"}
+]

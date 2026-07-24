@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "contracts", label: "Contracts", icon: "◻" },
   { id: "assets", label: "Assets", icon: "💎" },
   { id: "network", label: "Network", icon: "◎" },
+  { id: "validatorPredictor", label: "Validator AI", icon: "🛡️" },
   { id: "realtime", label: "Real-Time", icon: "◉" },
   { id: "builder", label: "Builder", icon: "⚒" },
   { id: "faucet", label: "Faucet", icon: "⬡" },

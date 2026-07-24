@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
 
   { type: 'header', label: 'NETWORK' },
   { id: 'network', label: 'Network Info', icon: '◎' },
+  { id: 'validatorPredictor', label: 'Validator AI', icon: '🛡️' },
   { id: 'realtime', label: 'Real-Time', icon: '◉' },
   { id: 'liveActivity', label: 'Live Activity', icon: '⚡' },
   { id: 'cacheStats', label: 'Cache Stats', icon: '⊞' },

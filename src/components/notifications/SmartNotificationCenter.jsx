@@ -1,18 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import {
-  NotificationDeduplicator,
-  type SmartNotification,
-} from '../../lib/notificationDeduplicator'
+import { NotificationDeduplicator } from '../../lib/notificationDeduplicator'
 import {
   NOTIFICATION_CATEGORIES,
   PRIORITY_ORDER,
-  type NotificationCategory,
-  type NotificationPriority,
 } from '../../lib/notificationCategories'
 import {
   filterNotifications,
-  type NotificationFilterConfig,
-  type NotificationSortMode,
 } from '../../lib/notificationFilter'
 import {
   loadNotificationPreferences,
@@ -35,7 +28,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+const CATEGORY_ICONS = {
   transaction: <ArrowLeftRight size={14} />,
   balance: <Wallet size={14} />,
   security: <Shield size={14} />,
@@ -45,32 +38,20 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   contract: <FileCode size={14} />,
 }
 
-const PRIORITY_COLORS: Record<NotificationPriority, string> = {
+const PRIORITY_COLORS = {
   critical: 'var(--red)',
   high: 'var(--amber)',
   medium: 'var(--cyan)',
   low: 'var(--text-muted)',
 }
 
-const SORT_MODES: { value: NotificationSortMode; label: string }[] = [
+const SORT_MODES = [
   { value: 'priority', label: 'Priority' },
   { value: 'recent', label: 'Recent' },
   { value: 'category', label: 'Category' },
 ]
 
 // ─── Props ────────────────────────────────────────────────────────────────────
-
-export interface SmartNotificationCenterProps {
-  open: boolean
-  onClose: () => void
-  notifications: SmartNotification[]
-  /** Called when the user dismisses/marks-read a notification group. */
-  onDismiss?: (id: string) => void
-  /** Called when user marks all as read. */
-  onMarkAllRead?: () => void
-  /** Called when user clears all. */
-  onClearAll?: () => void
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -81,10 +62,10 @@ export default function SmartNotificationCenter({
   onDismiss,
   onMarkAllRead,
   onClearAll,
-}: SmartNotificationCenterProps) {
-  const [filterConfig, setFilterConfig] = useState<NotificationFilterConfig | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<NotificationCategory | 'all'>('all')
-  const [sortMode, setSortMode] = useState<NotificationSortMode>('priority')
+}) {
+  const [filterConfig, setFilterConfig] = useState(null)
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [sortMode, setSortMode] = useState('priority')
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
@@ -270,9 +251,6 @@ export default function SmartNotificationCenter({
 function SmartNotificationCard({
   notification,
   onDismiss,
-}: {
-  notification: SmartNotification
-  onDismiss?: (id: string) => void
 }) {
   const info = NOTIFICATION_CATEGORIES[notification.category]
   const priorityColor = PRIORITY_COLORS[notification.priority]
@@ -448,7 +426,7 @@ function Badge({ color, children }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function timeAgo(ts: number): string {
+function timeAgo(ts) {
   const diff = Date.now() - ts
   if (diff < 60_000) return `${Math.max(1, Math.round(diff / 1000))}s ago`
   if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`
@@ -457,14 +435,14 @@ function timeAgo(ts: number): string {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const overlayStyle: React.CSSProperties = {
+const overlayStyle = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(0, 0, 0, 0.32)',
   zIndex: 1100,
 }
 
-const panelStyle: React.CSSProperties = {
+const panelStyle = {
   position: 'fixed',
   top: 0,
   right: 0,
@@ -479,7 +457,7 @@ const panelStyle: React.CSSProperties = {
   boxShadow: '-12px 0 32px rgba(0, 0, 0, 0.4)',
 }
 
-const headerStyle: React.CSSProperties = {
+const headerStyle = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -488,7 +466,7 @@ const headerStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-const actionBarStyle: React.CSSProperties = {
+const actionBarStyle = {
   display: 'flex',
   gap: '6px',
   padding: '8px 14px',
@@ -498,7 +476,7 @@ const actionBarStyle: React.CSSProperties = {
   flexWrap: 'wrap',
 }
 
-const actionBtnStyle: React.CSSProperties = {
+const actionBtnStyle = {
   padding: '4px 8px',
   fontSize: '10px',
   fontFamily: 'var(--font-mono)',
@@ -512,14 +490,14 @@ const actionBtnStyle: React.CSSProperties = {
   gap: '4px',
 }
 
-const filtersPanelStyle: React.CSSProperties = {
+const filtersPanelStyle = {
   padding: '8px 14px',
   borderBottom: '1px solid var(--border)',
   flexShrink: 0,
   background: 'var(--bg-elevated)',
 }
 
-const listStyle: React.CSSProperties = {
+const listStyle = {
   flex: 1,
   overflowY: 'auto',
   padding: '12px 14px',
@@ -528,7 +506,7 @@ const listStyle: React.CSSProperties = {
   gap: '10px',
 }
 
-const emptyStyle: React.CSSProperties = {
+const emptyStyle = {
   padding: '40px 20px',
   textAlign: 'center',
   color: 'var(--text-muted)',

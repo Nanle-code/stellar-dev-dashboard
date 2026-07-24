@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import type { ReactNode, UIEvent } from 'react';
 
-/**
- * A highly optimized virtualization component that handles dynamic row heights
- * and large datasets (10K+ items) while maintaining 60+ FPS.
- *
- * @param {Array} items - List of items to render
- * @param {Function|number} rowHeight - Height of a row or function returns height for index
- * @param {number} overscan - Number of items to render outside the viewport
- * @param {Function} children - Render prop for each item: (item, index) => ReactNode
- * @param {Function} onLoadMore - Called when the end of the list is approached
- * @param {boolean} loading - Whether additional items are being loaded
- */
-const VirtualList = ({
+interface VirtualListProps<T> {
+  items: T[];
+  rowHeight: number | ((index: number, item: T) => number);
+  overscan?: number;
+  children: (item: T, index: number) => ReactNode;
+  onLoadMore?: () => void;
+  loading?: boolean;
+  className?: string;
+  containerStyle?: React.CSSProperties;
+}
+
+function VirtualList<T>({
   items,
   rowHeight,
   overscan = 5,
@@ -20,18 +21,34 @@ const VirtualList = ({
   loading = false,
   className = '',
   containerStyle = {},
-}) => {
-  const containerRef = useRef(null);
+}: VirtualListProps<T>) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
+  const onLoadMoreRef = useRef(onLoadMore);
+  const loadingRef = useRef(loading);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+    if (!loading) {
+      inFlightRef.current = false;
+    }
+  }, [loading]);
+
   // Cache for dynamic heights and positions
   const metadata = useMemo(() => {
-    const positions = [0];
+    const positions: number[] = [0];
     let totalHeight = 0;
 
     for (let i = 0; i < items.length; i++) {
-      const height = typeof rowHeight === 'function' ? rowHeight(i, items[i]) : rowHeight;
+      const item = items[i];
+      const height = typeof rowHeight === 'function' ? rowHeight(i, item) : rowHeight;
       totalHeight += height;
       positions.push(totalHeight);
     }
@@ -40,7 +57,7 @@ const VirtualList = ({
   }, [items, rowHeight]);
 
   // Binary search to find the start index for a given scroll position
-  const findStartIndex = (scrollPos) => {
+  const findStartIndex = useCallback((scrollPos: number) => {
     let low = 0;
     let high = metadata.positions.length - 1;
 
@@ -53,25 +70,23 @@ const VirtualList = ({
       }
     }
     return Math.max(0, low - 1);
-  };
+  }, [metadata.positions]);
 
-  const handleScroll = useCallback((e) => {
-    // Use requestAnimationFrame for smoother scrolling performance
-    window.requestAnimationFrame(() => {
-      if (containerRef.current) {
-        const currentScrollTop = containerRef.current.scrollTop;
-        setScrollTop(currentScrollTop);
+  const handleScroll = useCallback((_e: UIEvent<HTMLDivElement>) => {
+    if (containerRef.current) {
+      const currentScrollTop = containerRef.current.scrollTop;
+      setScrollTop(currentScrollTop);
 
-        // Check if we need to load more
-        if (onLoadMore && !loading) {
-          const { scrollHeight, clientHeight } = containerRef.current;
-          if (currentScrollTop + clientHeight >= scrollHeight - 200) {
-            onLoadMore();
-          }
+      // Check if we need to load more
+      if (onLoadMoreRef.current && !loadingRef.current && !inFlightRef.current) {
+        const { scrollHeight, clientHeight } = containerRef.current;
+        if (currentScrollTop + clientHeight >= scrollHeight - 200) {
+          inFlightRef.current = true;
+          onLoadMoreRef.current?.();
         }
       }
-    });
-  }, [onLoadMore, loading]);
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -93,8 +108,7 @@ const VirtualList = ({
       containerRef.current.scrollTop = 0;
       setScrollTop(0);
     }
-  }, [items.length]); // Only reset when length changes significantly, or maybe on every update? 
-                       // Actually, better to reset on search, which usually changes list.
+  }, [items.length]);
 
   const { start, end, translateY } = useMemo(() => {
     const startIndex = findStartIndex(scrollTop);
@@ -108,12 +122,13 @@ const VirtualList = ({
       end: actualEnd,
       translateY: metadata.positions[actualStart],
     };
-  }, [scrollTop, containerHeight, overscan, items.length, metadata]);
+  }, [scrollTop, containerHeight, overscan, items.length, metadata, findStartIndex]);
 
   const visibleItems = items.slice(start, end).map((item, index) => {
     const actualIndex = start + index;
+    const itemHeight = typeof rowHeight === 'function' ? rowHeight(actualIndex, item) : rowHeight;
     return (
-      <div key={actualIndex} style={{ height: typeof rowHeight === 'function' ? rowHeight(actualIndex, item) : rowHeight }}>
+      <div key={actualIndex} style={{ height: itemHeight }}>
         {children(item, actualIndex)}
       </div>
     );
@@ -145,16 +160,16 @@ const VirtualList = ({
           }}
         >
           {visibleItems}
-          
+
           {loading && (
-             <div style={{ padding: '20px', textAlign: 'center' }}>
-               <div className="spinner" />
-             </div>
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <div className="spinner" />
+            </div>
           )}
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default VirtualList;

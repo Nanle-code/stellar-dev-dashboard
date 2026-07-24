@@ -20,15 +20,15 @@ import { useAddressLabels } from '../../hooks/useAddressLabels'
 const VIRTUAL_SCROLL_THRESHOLD = 200
 const PAGE_SIZE = 100
 
-function normalizeSearch(value) {
+function normalizeSearch(value: unknown): string {
   return String(value || '').toLowerCase().trim()
 }
 
-function searchableText(values) {
+function searchableText(values: unknown[]): string {
   return values.filter(Boolean).join(' ').toLowerCase()
 }
 
-function getOperationAccounts(op) {
+function getOperationAccounts(op: Record<string, unknown>): string[] {
   return [
     op.from,
     op.to,
@@ -43,15 +43,15 @@ function getOperationAccounts(op) {
     op.selling_asset_issuer,
     op.buying_asset_issuer,
     op.asset_issuer,
-  ].filter(Boolean)
+  ].filter((v): v is string => typeof v === 'string' && Boolean(v))
 }
 
-function flattenOperation(op) {
+function flattenOperation(op: Record<string, unknown>): Record<string, unknown> {
   return {
     id: op.id,
     transaction_hash: op.transaction_hash || '',
     type: op.type,
-    type_label: getOperationLabel(op.type),
+    type_label: getOperationLabel(op.type as string),
     created_at: op.created_at,
     from: op.from || '',
     to: op.to || '',
@@ -63,7 +63,7 @@ function flattenOperation(op) {
   }
 }
 
-function LoadingRows({ count, height }) {
+function LoadingRows({ count, height }: { count: number; height: number }) {
   return (
     <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {Array.from({ length: count }).map((_, i) => (
@@ -232,7 +232,7 @@ export default function Transactions() {
     )
   }
 
-  const Tab = ({ id, label }) => (
+  const Tab = ({ id, label }: { id: string; label: string }) => (
     <button
       onClick={() => setView(id)}
       style={{
@@ -518,6 +518,7 @@ export default function Transactions() {
           ) : useVirtualOp ? (
             <VirtualOpList
               items={filteredOperations}
+              network={network}
               onLoadMore={handleLoadMoreOperations}
               hasMore={opsHasMore}
               loading={opsPagingLoading}

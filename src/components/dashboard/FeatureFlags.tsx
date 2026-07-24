@@ -1,20 +1,13 @@
-/**
- * FeatureFlags.tsx — Stub component
- *
- * Placeholder for the feature flags management panel.
- */
-
 import React from 'react'
+import Card from './Card'
 
+/** FeatureFlags — stub placeholder */
 export default function FeatureFlags() {
   return (
-    <div style={{ padding: '24px' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
-        Feature Flags
-      </h2>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-        Feature flag management is not yet available.
-      </p>
-    </div>
+    <Card title="Feature Flags" subtitle="Manage experimental features">
+      <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+        Feature flag management coming soon.
+      </div>
+    </Card>
   )
 }

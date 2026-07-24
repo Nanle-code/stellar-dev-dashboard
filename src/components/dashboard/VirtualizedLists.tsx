@@ -95,15 +95,15 @@ const VirtualTxRow = React.memo(({ tx, network }: VirtualTxRowProps) => {
             Open
           </a>
         </div>
-        {tx.memo && (
+        {Boolean(tx.memo) && (
           <div style={{ fontSize: '11px', color: 'var(--amber)', marginLeft: '22px', marginBottom: '2px' }}>
-            memo: {tx.memo as string}
+            memo: {String(tx.memo)}
           </div>
         )}
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '22px' }}>
           fee: {tx.fee_charged} stroops
         </div>
-        {tx.source_account && (
+        {Boolean(tx.source_account) && (
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '22px' }}>
             source:
             <AddressLabelBadge address={tx.source_account} />
@@ -144,6 +144,12 @@ const VirtualOpRow = React.memo(({ op }: VirtualOpRowProps) => {
     }
   }, [op.created_at]);
 
+  const opRecord = op as Record<string, unknown>;
+  const fromAddr = typeof opRecord.from === 'string' ? opRecord.from : '';
+  const toAddr = typeof opRecord.to === 'string' ? opRecord.to : '';
+  const amountVal = typeof opRecord.amount === 'string' ? opRecord.amount : '';
+  const assetCode = typeof opRecord.asset_code === 'string' ? opRecord.asset_code : 'XLM';
+
   return (
     <div
       style={{
@@ -176,35 +182,35 @@ const VirtualOpRow = React.memo(({ op }: VirtualOpRowProps) => {
             {getOperationLabel(op.type)}
           </span>
         </div>
-        {'from' in op && op.from && (
+        {Boolean(fromAddr) && (
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             from:
-            <AddressLabelBadge address={(op as Record<string, string>).from as string} />
+            <AddressLabelBadge address={fromAddr} />
             <CopyableValue
-              value={(op as Record<string, string>).from as string}
+              value={fromAddr}
               title="Copy source public key"
               textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
-              {shortAddress((op as Record<string, string>).from as string)}
+              {shortAddress(fromAddr)}
             </CopyableValue>
           </div>
         )}
-        {'to' in op && op.to && (
+        {Boolean(toAddr) && (
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             to:
-            <AddressLabelBadge address={(op as Record<string, string>).to as string} />
+            <AddressLabelBadge address={toAddr} />
             <CopyableValue
-              value={(op as Record<string, string>).to as string}
+              value={toAddr}
               title="Copy destination public key"
               textStyle={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
-              {shortAddress((op as Record<string, string>).to as string)}
+              {shortAddress(toAddr)}
             </CopyableValue>
           </div>
         )}
-        {'amount' in op && op.amount && (
+        {Boolean(amountVal) && (
           <div style={{ fontSize: '11px', color: 'var(--amber)' }}>
-            {parseFloat((op as Record<string, string>).amount).toFixed(4)} {'asset_code' in op ? (op as Record<string, string>).asset_code : 'XLM'}
+            {parseFloat(amountVal).toFixed(4)} {assetCode}
           </div>
         )}
       </div>
@@ -223,14 +229,14 @@ export const VirtualTxList = ({ items, network, onLoadMore, hasMore, loading }: 
   };
 
   return (
-    <VirtualList
+    <VirtualList<Horizon.ServerApi.TransactionRecord>
       items={items}
       rowHeight={rowHeight}
       onLoadMore={onLoadMore}
       loading={loading}
       containerStyle={{ height: '600px' }}
     >
-      {(tx: Horizon.ServerApi.TransactionRecord, _index: number) => (
+      {(tx, _index) => (
         <VirtualTxRow tx={tx} network={network} />
       )}
     </VirtualList>
@@ -239,14 +245,14 @@ export const VirtualTxList = ({ items, network, onLoadMore, hasMore, loading }: 
 
 export const VirtualOpList = ({ items, network, onLoadMore, hasMore, loading }: VirtualOpListProps) => {
   return (
-    <VirtualList
+    <VirtualList<Horizon.ServerApi.OperationRecord>
       items={items}
       rowHeight={OP_ROW_HEIGHT}
       onLoadMore={onLoadMore}
       loading={loading}
       containerStyle={{ height: '600px' }}
     >
-      {(op: Horizon.ServerApi.OperationRecord, _index: number) => (
+      {(op, _index) => (
         <VirtualOpRow op={op} />
       )}
     </VirtualList>

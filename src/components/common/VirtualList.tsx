@@ -47,7 +47,8 @@ function VirtualList<T>({
     let totalHeight = 0;
 
     for (let i = 0; i < items.length; i++) {
-      const height = typeof rowHeight === 'function' ? rowHeight(i, items[i]) : rowHeight;
+      const item = items[i];
+      const height = typeof rowHeight === 'function' ? rowHeight(i, item) : rowHeight;
       totalHeight += height;
       positions.push(totalHeight);
     }
@@ -125,8 +126,9 @@ function VirtualList<T>({
 
   const visibleItems = items.slice(start, end).map((item, index) => {
     const actualIndex = start + index;
+    const itemHeight = typeof rowHeight === 'function' ? rowHeight(actualIndex, item) : rowHeight;
     return (
-      <div key={actualIndex} style={{ height: typeof rowHeight === 'function' ? rowHeight(actualIndex, item) : rowHeight }}>
+      <div key={actualIndex} style={{ height: itemHeight }}>
         {children(item, actualIndex)}
       </div>
     );

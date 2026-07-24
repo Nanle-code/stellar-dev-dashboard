@@ -78,8 +78,7 @@
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",
     "@ledgerhq/hw-transport-webusb": "^6.29.4",
-    "@stellar/ledger": "^1.0.0",
-    "@tensorflow/tfjs-node": "4.22.0"
+    "@stellar/ledger": "^1.0.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",

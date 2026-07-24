@@ -11,7 +11,7 @@ interface VirtualListProps<T> {
   containerStyle?: React.CSSProperties;
 }
 
-const VirtualList = <T,>({
+function VirtualList<T>({
   items,
   rowHeight,
   overscan = 5,
@@ -20,7 +20,7 @@ const VirtualList = <T,>({
   loading = false,
   className = '',
   containerStyle = {},
-}: VirtualListProps<T>) => {
+}: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -152,6 +152,6 @@ const VirtualList = <T,>({
       </div>
     </div>
   );
-};
+}
 
 export default VirtualList;

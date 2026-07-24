@@ -1,11 +1,12 @@
 import { create } from 'zustand'
-import { getStoredValue, setStoredValue } from './storage'
+import { getStoredValue } from './storage'
 import { syncState, onStateChange } from '../utils/stateSync'
-import type {
-  NetworkName,
-  NetworkStats,
-} from './stellar'
+import type { NetworkName, NetworkStats } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
+import { generateInsights, type AnalyticsSummary } from './analytics'
+import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SearchFilters {
   status: 'all' | 'success' | 'failed'
@@ -13,41 +14,124 @@ export interface SearchFilters {
   minFee: string
   maxFee: string
   type: string
+  minAmount: string
+  maxAmount: string
+  startDate: string
+  endDate: string
 }
 
-export interface ComparisonSlot { // ported
+export interface FilterExpression {
+  key: string
+  operator: string
+  value: unknown
+  not?: boolean
+}
+
+export interface ComparisonSlot {
   key: string
   data: Horizon.AccountResponse | null
   loading: boolean
   error: string | null
 }
 
-export interface Notification { // ported
+export interface Notification {
   id: string
   type: string
   title: string
   [key: string]: unknown
+  read?: boolean
+  timestamp?: number
 }
 
-export interface StreamLedger { // ported
+export interface StreamLedger {
   sequence: number
   [key: string]: unknown
 }
 
+export interface NetworkScopedData {
+  transactions: Horizon.ServerApi.TransactionRecord[]
+  txNextCursor: string | null
+  txHasMore: boolean
+  txPagingLoading: boolean
+  operations: Horizon.ServerApi.OperationRecord[]
+  opsNextCursor: string | null
+  opsHasMore: boolean
+  opsPagingLoading: boolean
+  accountData: Horizon.AccountResponse | null
+}
+
+export interface LedgerStatsEntry {
+  sequence: number
+  closedAt: string
+  baseFee: number
+  operationCount: number
+  txSuccessCount: number
+  txFailedCount: number
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const THEME_STORAGE_KEY = 'stellar-dashboard-theme'
+const SELECTED_NETWORK_KEY = 'stellar:selected-network'
+const STORE_PERSIST_KEY = 'store:preferences'
+
+export const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+  status: 'all',
+  memoOnly: false,
+  minFee: '',
+  maxFee: '',
+  type: 'all',
+  minAmount: '',
+  maxAmount: '',
+  startDate: '',
+  endDate: '',
+}
+
+const PERSIST_KEYS = [
+  'network', 'theme', 'customTheme', 'themeBuilderDraft', 'activeTab', 'savedSearches',
+  'multiSigMode', 'searchFilters', 'notificationHistory', 'unreadNotificationCount',
+] as const
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getInitialTheme = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY)
+    const theme = (saved === 'light' || saved === 'dark')
+      ? saved
+      : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', theme)
+    return theme
+  }
+  return 'dark'
+}
+
+function readInitialNetwork(): NetworkName {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(SELECTED_NETWORK_KEY)
+      if (raw === 'mainnet' || raw === 'testnet' || raw === 'futurenet' || raw === 'local' || raw === 'custom') {
+        return raw
+      }
+    }
+  } catch { /* ignore */ }
+  return 'testnet'
+}
+
+// ─── Store interface ──────────────────────────────────────────────────────────
 
 export interface StoreState {
-  // Network
   network: NetworkName
   setNetwork: (network: NetworkName) => void
-
-  // UI State (updated)
   theme: 'light' | 'dark'
   toggleTheme: () => void
+  customTheme: ThemeDefinition | null
+  setCustomTheme: (theme: ThemeDefinition | null) => void
+  themeBuilderDraft: ThemeDefinition | null
+  setThemeBuilderDraft: (draft: ThemeDefinition | null) => void
   isMobileMenuOpen: boolean
   setMobileMenuOpen: (open: boolean) => void
 
-  // Wallet / Account
   connectedAddress: string | null
   accountData: Horizon.AccountResponse | null
   accountLoading: boolean
@@ -57,49 +141,43 @@ export interface StoreState {
   setAccountLoading: (loading: boolean) => void
   setAccountError: (error: string | null) => void
 
-  // Transactions
   transactions: Horizon.ServerApi.TransactionRecord[]
   txLoading: boolean
-  setTransactions: (txs: Horizon.ServerApi.TransactionRecord[]) => void
-  appendTransactions: (txs: Horizon.ServerApi.TransactionRecord[]) => void
-  setTxLoading: (v: boolean) => void
   txNextCursor: string | null
   txHasMore: boolean
   txPagingLoading: boolean
+  setTransactions: (txs: Horizon.ServerApi.TransactionRecord[]) => void
+  appendTransactions: (txs: Horizon.ServerApi.TransactionRecord[]) => void
+  setTxLoading: (v: boolean) => void
   setTxNextCursor: (cursor: string | null) => void
   setTxHasMore: (hasMore: boolean) => void
   setTxPagingLoading: (v: boolean) => void
 
-  // Operations
   operations: Horizon.ServerApi.OperationRecord[]
   opsLoading: boolean
-  setOperations: (ops: Horizon.ServerApi.OperationRecord[]) => void
-  appendOperations: (ops: Horizon.ServerApi.OperationRecord[]) => void
-  setOpsLoading: (v: boolean) => void
   opsNextCursor: string | null
   opsHasMore: boolean
   opsPagingLoading: boolean
+  setOperations: (ops: Horizon.ServerApi.OperationRecord[]) => void
+  appendOperations: (ops: Horizon.ServerApi.OperationRecord[]) => void
+  setOpsLoading: (v: boolean) => void
   setOpsNextCursor: (cursor: string | null) => void
   setOpsHasMore: (hasMore: boolean) => void
   setOpsPagingLoading: (v: boolean) => void
 
-  // Network stats
   networkStats: NetworkStats | null
   statsLoading: boolean
   setNetworkStats: (stats: NetworkStats | ((prev: NetworkStats | null) => NetworkStats)) => void
   setStatsLoading: (v: boolean) => void
 
-  // Active tab
   activeTab: string
   setActiveTab: (tab: string) => void
 
-  // Faucet
   faucetLoading: boolean
   faucetResult: unknown
   setFaucetLoading: (v: boolean) => void
   setFaucetResult: (r: unknown) => void
 
-  // Contract explorer
   contractId: string
   contractData: SorobanRpc.Api.LedgerEntryResult | null
   contractLoading: boolean
@@ -108,26 +186,30 @@ export interface StoreState {
   setContractData: (data: SorobanRpc.Api.LedgerEntryResult) => void
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
+
+  // Analytics
+  analytics: AnalyticsSummary | null
+  isGeneratingInsights: boolean
+  generateDataInsights: () => void
+
   deploymentStatus: Record<string, unknown> | null
   setDeploymentStatus: (s: Record<string, unknown> | null) => void
+
   savedSearches: string[]
   setSavedSearches: (s: string[]) => void
+
   multiSigMode: boolean
   setMultiSigMode: (v: boolean) => void
 
-  // Template state
   selectedTemplateId: string | null
   setSelectedTemplateId: (id: string | null) => void
 
-  // Preferences panel
   preferencesOpen: boolean
   setPreferencesOpen: (open: boolean) => void
 
-  // Error state
   globalError: { message: string; category: string } | null
   setGlobalError: (err: { message: string; category: string } | null) => void
 
-  // Price feed state
   prices: Record<string, { usd: number | null; usd_24h_change: number | null }>
   pricesLoading: boolean
   pricesError: string | null
@@ -135,11 +217,16 @@ export interface StoreState {
   setPricesLoading: (loading: boolean) => void
   setPricesError: (error: string | null) => void
 
-  // Search Filters
   searchFilters: SearchFilters
   setSearchFilters: (filters: Partial<SearchFilters>) => void
 
-  // Comparison slots (ported)
+  filterExpressions: FilterExpression[]
+  setFilterExpressions: (exprs: FilterExpression[]) => void
+  addFilterExpression: (expr: FilterExpression) => void
+  removeFilterExpression: (index: number) => void
+  updateFilterExpression: (index: number, expr: Partial<FilterExpression>) => void
+  clearFilterExpressions: () => void
+
   comparisonSlots: ComparisonSlot[]
   addComparisonSlot: () => void
   removeComparisonSlot: (index: number) => void
@@ -149,19 +236,23 @@ export interface StoreState {
   setComparisonLoading: (index: number, loading: boolean) => void
   setComparisonError: (index: number, error: string | null) => void
 
-  // Wallet state (ported)
   walletConnected: boolean
   walletType: string | null
   walletPublicKey: string | null
   setWalletConnected: (connected: boolean, type?: string | null, publicKey?: string | null) => void
   disconnectWallet: () => void
 
-  // Notifications (ported)
   notifications: Notification[]
+  notificationHistory: Notification[]
+  unreadNotificationCount: number
   addNotification: (notification: Notification) => void
   removeNotification: (id: string) => void
+  addNotificationHistory: (notification: Notification) => void
+  markNotificationRead: (id: string) => void
+  markAllNotificationsRead: () => void
+  clearNotificationHistory: () => void
 
-  // Streaming (ported)
+  // Streaming
   streamStatus: string
   streamLedgers: StreamLedger[]
   streamError: string | null
@@ -169,50 +260,167 @@ export interface StoreState {
   addStreamLedger: (ledger: StreamLedger) => void
   clearStreamLedgers: () => void
   setStreamError: (e: string | null) => void
-}
 
-// ─── Persisted keys ───────────────────────────────────────────────────────────
-const PERSIST_KEYS: Array<keyof StoreState> = [
-  'network', 'theme', 'activeTab', 'savedSearches', 'multiSigMode', 'searchFilters',
-]
-const STORE_PERSIST_KEY = 'store:preferences'
+  // Ledger stats widget (Issue #267)
+  ledgerHistory: LedgerStatsEntry[]
+  baseFeeHistory: number[]
+  failedTxPercent: number
+  showLedgerStatsWidget: boolean
+  addLedgerStatsEntry: (entry: LedgerStatsEntry) => void
+  toggleLedgerStatsWidget: () => void
+
+  // Per-network data buckets for cross-network switching
+  perNetworkData: Record<string, NetworkScopedData>
+  setPerNetworkData: (network: string, data: Partial<NetworkScopedData>) => void
+  clearNetworkScopedData: () => void
+
+  // RBAC (#410)
+  currentUserRole: string
+  setCurrentUserRole: (role: string) => void
+
+  // Session Recording (#410)
+  sessionRecordingActive: boolean
+  sessionRecordingId: string | null
+  setSessionRecordingActive: (active: boolean, id?: string | null) => void
+
+  // Capacity planning
+  capacityPredictionHorizon: number
+  setCapacityPredictionHorizon: (days: number) => void
+}
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useStore = create<StoreState>((set, get) => ({
-  // Network
-  network: 'testnet',
+export const useStore = create<StoreState>((set) => ({
+  network: readInitialNetwork(),
+  perNetworkData: {},
   setNetwork: (network) => {
-    set({
-      network,
-      accountData: null,
-      transactions: [],
-      operations: [],
-      txNextCursor: null,
-      txHasMore: false,
-      txPagingLoading: false,
-      opsNextCursor: null,
-      opsHasMore: false,
-      opsPagingLoading: false,
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem(SELECTED_NETWORK_KEY, network) } catch { /* ignore */ }
+
+    // Stash current network data before switching
+    const stash = (prev: StoreState) => {
+      const current = prev.network
+      const scoped: NetworkScopedData = {
+        transactions: prev.transactions,
+        txNextCursor: prev.txNextCursor,
+        txHasMore: prev.txHasMore,
+        txPagingLoading: false,
+        operations: prev.operations,
+        opsNextCursor: prev.opsNextCursor,
+        opsHasMore: prev.opsHasMore,
+        opsPagingLoading: false,
+        accountData: prev.accountData,
+      }
+      return { ...prev.perNetworkData, [current]: scoped }
+    }
+
+    set((state) => {
+      const updatedData = stash(state)
+      const cached = updatedData[network]
+      const clear = {
+        networkStats: null,
+        statsLoading: false,
+        streamLedgers: [],
+        streamStatus: 'disconnected',
+        streamError: null,
+        contractData: null,
+        contractLoading: false,
+        contractError: null,
+        prices: {},
+        pricesLoading: false,
+        pricesError: null,
+        ledgerHistory: [],
+        baseFeeHistory: [],
+      }
+      if (cached) {
+        return {
+          network,
+          perNetworkData: updatedData,
+          ...clear,
+          accountData: cached.accountData,
+          transactions: cached.transactions,
+          txNextCursor: cached.txNextCursor,
+          txHasMore: cached.txHasMore,
+          txPagingLoading: false,
+          operations: cached.operations,
+          opsNextCursor: cached.opsNextCursor,
+          opsHasMore: cached.opsHasMore,
+          opsPagingLoading: false,
+        }
+      }
+      return {
+        network,
+        perNetworkData: updatedData,
+        ...clear,
+        accountData: null,
+        transactions: [],
+        txNextCursor: null,
+        txHasMore: false,
+        txPagingLoading: false,
+        operations: [],
+        opsNextCursor: null,
+        opsHasMore: false,
+        opsPagingLoading: false,
+      }
     })
   },
+  setPerNetworkData: (network, data) => set((state) => ({
+    perNetworkData: {
+      ...state.perNetworkData,
+      [network]: { ...(state.perNetworkData[network] || {
+        transactions: [], txNextCursor: null, txHasMore: false, txPagingLoading: false,
+        operations: [], opsNextCursor: null, opsHasMore: false, opsPagingLoading: false,
+        accountData: null,
+      }), ...data },
+    },
+  })),
+  clearNetworkScopedData: () => set((state) => ({
+    perNetworkData: {},
+    accountData: null,
+    transactions: [],
+    txNextCursor: null,
+    txHasMore: false,
+    txPagingLoading: false,
+    operations: [],
+    opsNextCursor: null,
+    opsHasMore: false,
+    opsPagingLoading: false,
+    networkStats: null,
+    statsLoading: false,
+    streamLedgers: [],
+    streamStatus: 'disconnected',
+    contractData: null,
+    prices: {},
+  })),
 
-  // UI State (updated)
-  theme: 'dark',
+  theme: getInitialTheme(),
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'light' ? 'dark' : 'light'
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(THEME_STORAGE_KEY, newTheme)
-    }
-    if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', newTheme)
-    }
+    if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_STORAGE_KEY, newTheme)
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', newTheme)
     return { theme: newTheme }
   }),
+
+  customTheme: null,
+  setCustomTheme: (theme) => {
+    if (theme && typeof localStorage !== 'undefined') saveThemeVarsToStorage(theme)
+    set({ customTheme: theme })
+  },
+
+  themeBuilderDraft: null,
+  setThemeBuilderDraft: (draft) => {
+    if (draft) {
+      applyCustomThemeToDOM(draft)
+      if (typeof localStorage !== 'undefined') saveThemeVarsToStorage(draft)
+    } else {
+      removeCustomThemeFromDOM()
+      if (typeof localStorage !== 'undefined') clearThemeVarsFromStorage()
+    }
+    set({ themeBuilderDraft: draft })
+  },
+
   isMobileMenuOpen: false,
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
 
-  // Wallet / Account
   connectedAddress: null,
   accountData: null,
   accountLoading: false,
@@ -222,59 +430,52 @@ export const useStore = create<StoreState>((set, get) => ({
   setAccountLoading: (loading) => set({ accountLoading: loading }),
   setAccountError: (error) => set({ accountError: error }),
 
-  // Transactions
   transactions: [],
   txLoading: false,
-  setTransactions: (txs) => set({ transactions: txs }),
-  appendTransactions: (txs) => set((state) => {
-    const existing = new Set(state.transactions.map(tx => tx.id))
-    const merged = [...state.transactions, ...txs.filter(tx => !existing.has(tx.id))]
-    return { transactions: merged }
-  }),
-  setTxLoading: (v) => set({ txLoading: v }),
   txNextCursor: null,
   txHasMore: false,
   txPagingLoading: false,
+  setTransactions: (txs) => set({ transactions: txs }),
+  appendTransactions: (txs) => set((state) => {
+    const existing = new Set(state.transactions.map(tx => tx.id))
+    return { transactions: [...state.transactions, ...txs.filter(tx => !existing.has(tx.id))] }
+  }),
+  setTxLoading: (v) => set({ txLoading: v }),
   setTxNextCursor: (cursor) => set({ txNextCursor: cursor }),
   setTxHasMore: (hasMore) => set({ txHasMore: hasMore }),
   setTxPagingLoading: (v) => set({ txPagingLoading: v }),
 
-  // Operations
   operations: [],
   opsLoading: false,
-  setOperations: (ops) => set({ operations: ops }),
-  appendOperations: (ops) => set((state) => {
-    const existing = new Set(state.operations.map(op => op.id))
-    const merged = [...state.operations, ...ops.filter(op => !existing.has(op.id))]
-    return { operations: merged }
-  }),
-  setOpsLoading: (v) => set({ opsLoading: v }),
   opsNextCursor: null,
   opsHasMore: false,
   opsPagingLoading: false,
+  setOperations: (ops) => set({ operations: ops }),
+  appendOperations: (ops) => set((state) => {
+    const existing = new Set(state.operations.map(op => op.id))
+    return { operations: [...state.operations, ...ops.filter(op => !existing.has(op.id))] }
+  }),
+  setOpsLoading: (v) => set({ opsLoading: v }),
   setOpsNextCursor: (cursor) => set({ opsNextCursor: cursor }),
   setOpsHasMore: (hasMore) => set({ opsHasMore: hasMore }),
   setOpsPagingLoading: (v) => set({ opsPagingLoading: v }),
 
-  // Network stats (updated)
   networkStats: null,
   statsLoading: false,
   setNetworkStats: (stats) => set((state) => ({
-    networkStats: typeof stats === 'function' ? stats(state.networkStats) : stats
+    networkStats: typeof stats === 'function' ? stats(state.networkStats) : stats,
+    statsLoading: false,
   })),
   setStatsLoading: (v) => set({ statsLoading: v }),
 
-  // Active tab
   activeTab: 'overview',
   setActiveTab: (tab) => set({ activeTab: tab }),
 
-  // Faucet
   faucetLoading: false,
   faucetResult: null,
   setFaucetLoading: (v) => set({ faucetLoading: v }),
   setFaucetResult: (r) => set({ faucetResult: r }),
 
-  // Contract explorer
   contractId: '',
   contractData: null,
   contractLoading: false,
@@ -283,26 +484,33 @@ export const useStore = create<StoreState>((set, get) => ({
   setContractData: (data) => set({ contractData: data, contractError: null }),
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
+
+  // Analytics
+  analytics: null,
+  isGeneratingInsights: false,
+  generateDataInsights: () => set((state) => {
+    const summary = generateInsights(state.transactions, state.operations)
+    return { analytics: summary, isGeneratingInsights: false }
+  }),
+
   deploymentStatus: null,
   setDeploymentStatus: (s) => set({ deploymentStatus: s }),
+
   savedSearches: [],
   setSavedSearches: (s) => set({ savedSearches: s }),
+
   multiSigMode: false,
   setMultiSigMode: (v) => set({ multiSigMode: v }),
 
-  // Template state
   selectedTemplateId: null,
   setSelectedTemplateId: (id) => set({ selectedTemplateId: id }),
 
-  // Preferences panel
   preferencesOpen: false,
   setPreferencesOpen: (open) => set({ preferencesOpen: open }),
 
-  // Error state
   globalError: null,
   setGlobalError: (err) => set({ globalError: err }),
 
-  // Price feed state
   prices: {},
   pricesLoading: false,
   pricesError: null,
@@ -310,93 +518,122 @@ export const useStore = create<StoreState>((set, get) => ({
   setPricesLoading: (loading) => set({ pricesLoading: loading }),
   setPricesError: (error) => set({ pricesError: error }),
 
-  // Search Filters
-  searchFilters: {
-    status: 'all',
-    memoOnly: false,
-    minFee: '',
-    maxFee: '',
-    type: 'all',
-  },
-  setSearchFilters: (filters) => set((state) => ({
-    searchFilters: { ...state.searchFilters, ...filters }
-  })),
+  searchFilters: DEFAULT_SEARCH_FILTERS,
+  setSearchFilters: (filters) => set((state) => ({ searchFilters: { ...state.searchFilters, ...filters } })),
 
-  // Comparison slots (ported)
-  comparisonSlots: [
-    { key: '', data: null, loading: false, error: null },
-    { key: '', data: null, loading: false, error: null },
-    { key: '', data: null, loading: false, error: null },
-  ],
-  addComparisonSlot: () => set((state) => {
-    if (state.comparisonSlots.length >= 5) return {}
-    return {
-      comparisonSlots: [...state.comparisonSlots, { key: '', data: null, loading: false, error: null }]
-    }
-  }),
-  removeComparisonSlot: (index) => set((state) => {
-    if (state.comparisonSlots.length <= 2) return {}
-    const slots = [...state.comparisonSlots]
-    slots.splice(index, 1)
-    return { comparisonSlots: slots }
-  }),
+  filterExpressions: [],
+  setFilterExpressions: (exprs) => set({ filterExpressions: exprs }),
+  addFilterExpression: (expr) => set((state) => ({ filterExpressions: [...state.filterExpressions, expr] })),
+  removeFilterExpression: (index) => set((state) => ({
+    filterExpressions: state.filterExpressions.filter((_, i) => i !== index),
+  })),
+  updateFilterExpression: (index, partial) => set((state) => ({
+    filterExpressions: state.filterExpressions.map((e, i) =>
+      i === index ? { ...e, ...partial } : e
+    ),
+  })),
+  clearFilterExpressions: () => set({ filterExpressions: [] }),
+
+  comparisonSlots: [],
+  addComparisonSlot: () => set((state) => ({
+    comparisonSlots: state.comparisonSlots.length >= 5
+      ? state.comparisonSlots
+      : [...state.comparisonSlots, { key: '', data: null, loading: false, error: null }],
+  })),
+  removeComparisonSlot: (index) => set((state) => ({
+    comparisonSlots: state.comparisonSlots.length <= 2
+      ? state.comparisonSlots
+      : state.comparisonSlots.filter((_, i) => i !== index),
+  })),
   reorderComparisonSlots: (orderedSlots) => set({ comparisonSlots: orderedSlots }),
   setComparisonKey: (index, key) => set((state) => {
-    const slots = [...state.comparisonSlots]
-    slots[index] = { ...slots[index], key, error: null, data: null }
-    return { comparisonSlots: slots }
+    const next = [...state.comparisonSlots]
+    if (next[index]) next[index].key = key
+    return { comparisonSlots: next }
   }),
   setComparisonData: (index, data) => set((state) => {
-    const slots = [...state.comparisonSlots]
-    slots[index] = { ...slots[index], data }
-    return { comparisonSlots: slots }
+    const next = [...state.comparisonSlots]
+    if (next[index]) { next[index].data = data; next[index].error = null }
+    return { comparisonSlots: next }
   }),
   setComparisonLoading: (index, loading) => set((state) => {
-    const slots = [...state.comparisonSlots]
-    slots[index] = { ...slots[index], loading }
-    return { comparisonSlots: slots }
+    const next = [...state.comparisonSlots]
+    if (next[index]) next[index].loading = loading
+    return { comparisonSlots: next }
   }),
   setComparisonError: (index, error) => set((state) => {
-    const slots = [...state.comparisonSlots]
-    slots[index] = { ...slots[index], error, data: null }
-    return { comparisonSlots: slots }
+    const next = [...state.comparisonSlots]
+    if (next[index]) { next[index].error = error; next[index].data = null }
+    return { comparisonSlots: next }
   }),
 
-  // Wallet state (ported)
   walletConnected: false,
   walletType: null,
   walletPublicKey: null,
-  setWalletConnected: (connected, type, publicKey) => set({
-    walletConnected: connected,
-    walletType: type || null,
-    walletPublicKey: publicKey || null,
-  }),
-  disconnectWallet: () => set({
-    walletConnected: false,
-    walletType: null,
-    walletPublicKey: null,
-  }),
+  setWalletConnected: (connected, type = null, publicKey = null) =>
+    set({ walletConnected: connected, walletType: type, walletPublicKey: publicKey }),
+  disconnectWallet: () => set({ walletConnected: false, walletType: null, walletPublicKey: null }),
 
-  // Notifications (ported)
   notifications: [],
-  addNotification: (notification) => set((state) => ({
-    notifications: [...state.notifications, notification]
+  notificationHistory: [],
+  unreadNotificationCount: 0,
+  addNotification: (notification) => set((state) => ({ notifications: [...state.notifications, notification] })),
+  removeNotification: (id) => set((state) => ({ notifications: state.notifications.filter(n => n.id !== id) })),
+  addNotificationHistory: (notification) => set((state) => ({
+    notificationHistory: [{ ...notification, read: false }, ...state.notificationHistory],
+    unreadNotificationCount: state.unreadNotificationCount + 1,
   })),
-  removeNotification: (id) => set((state) => ({
-    notifications: state.notifications.filter(n => n.id !== id)
+  markNotificationRead: (id) => set((state) => {
+    const history = state.notificationHistory.map(n => n.id === id && !n.read ? { ...n, read: true } : n)
+    return { notificationHistory: history, unreadNotificationCount: history.filter(n => !n.read).length }
+  }),
+  markAllNotificationsRead: () => set((state) => ({
+    notificationHistory: state.notificationHistory.map(n => ({ ...n, read: true })),
+    unreadNotificationCount: 0,
   })),
+  clearNotificationHistory: () => set({ notificationHistory: [], unreadNotificationCount: 0 }),
 
-  // Streaming (ported)
   streamStatus: 'disconnected',
   streamLedgers: [],
   streamError: null,
   setStreamStatus: (status) => set({ streamStatus: status }),
-  addStreamLedger: (ledger) => set((state) => {
-    if (state.streamLedgers.some(l => l.sequence === ledger.sequence)) return {}
-    return { streamLedgers: [ledger, ...state.streamLedgers.slice(0, 49)] }
+  addStreamLedger: (l) => set((state) => {
+    const exists = state.streamLedgers.some((s) => s.sequence === l.sequence)
+    if (exists) return {}
+    return { streamLedgers: [l, ...state.streamLedgers].slice(0, 50) }
   }),
   clearStreamLedgers: () => set({ streamLedgers: [] }),
   setStreamError: (e) => set({ streamError: e }),
+
+  // Ledger stats widget (Issue #267)
+  ledgerHistory: [],
+  baseFeeHistory: [],
+  failedTxPercent: 0,
+  showLedgerStatsWidget: true,
+  addLedgerStatsEntry: (entry) => set((state) => {
+    const history = [entry, ...state.ledgerHistory].slice(0, 50)
+    const totalTx = history.reduce((s, e) => s + e.txSuccessCount + e.txFailedCount, 0)
+    const failedTx = history.reduce((s, e) => s + e.txFailedCount, 0)
+    return {
+      ledgerHistory: history,
+      baseFeeHistory: history.map(e => e.baseFee),
+      failedTxPercent: totalTx > 0 ? Math.round((failedTx / totalTx) * 1000) / 10 : 0,
+    }
+  }),
+  toggleLedgerStatsWidget: () => set((state) => ({ showLedgerStatsWidget: !state.showLedgerStatsWidget })),
+
+  // RBAC (#410)
+  currentUserRole: 'viewer',
+  setCurrentUserRole: (role) => set({ currentUserRole: role }),
+
+  // Session Recording (#410)
+  sessionRecordingActive: false,
+  sessionRecordingId: null,
+  setSessionRecordingActive: (active, id = null) => set({ sessionRecordingActive: active, sessionRecordingId: id ?? null }),
+
+  // Capacity planning
+  capacityPredictionHorizon: 30,
+  setCapacityPredictionHorizon: (days) => set({ capacityPredictionHorizon: days }),
 }))
 
 // ─── Expose store for e2e testing ────────────────────────────────────────────
@@ -404,16 +641,34 @@ if (typeof window !== 'undefined') {
   (window as any).__store = useStore
 }
 
+// ─── System preference listener ───────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (localStorage.getItem(THEME_STORAGE_KEY)) return
+    const newTheme = e.matches ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', newTheme)
+    useStore.setState({ theme: newTheme })
+  })
+}
+
 // ─── Persistence middleware ───────────────────────────────────────────────────
 
 if (typeof window !== 'undefined') {
   getStoredValue(STORE_PERSIST_KEY).then((saved: Record<string, unknown> | null) => {
-    if (saved && typeof saved === 'object') {
-      const slice: Partial<StoreState> = {}
-      for (const key of PERSIST_KEYS) {
-        if (key in saved) (slice as Record<string, unknown>)[key] = saved[key as string]
+    if (!saved || typeof saved !== 'object') return
+    const slice: Partial<StoreState> = {}
+    for (const key of PERSIST_KEYS) {
+      if (key in saved) (slice as Record<string, unknown>)[key] = saved[key]
+    }
+    if (slice.searchFilters) {
+      slice.searchFilters = { ...DEFAULT_SEARCH_FILTERS, ...slice.searchFilters }
+    }
+    if (Object.keys(slice).length > 0) {
+      useStore.setState(slice)
+      const restored = slice as Record<string, unknown>
+      if (restored.themeBuilderDraft) {
+        applyCustomThemeToDOM(restored.themeBuilderDraft as ThemeDefinition)
       }
-      if (Object.keys(slice).length > 0) useStore.setState(slice)
     }
   }).catch(() => {})
 

@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../../lib/store'
+import { useResponsive } from '../../hooks/useResponsive'
 import { formatXLMValue, TOOLTIP_STYLE, AXIS_TICK_STYLE, CHART_COLORS } from '../../lib/chartUtils'
-import { fetchAccount, formatXLM, ee } from '../../lib/stellar'
+import { fetchAccount, formatXLM, getServer } from '../../lib/stellar'
 import { sparklinePath, throttle } from '../../utils/chartUtils'
 import Card from '../dashboard/Card'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts'
-import { Pause, Play, RefreshCw, AlertCircle } from 'lucide-react'
+import { Pause, Play, RefreshCw } from 'lucide-react'
 import { fetchHistoricalPerformance } from '../../lib/portfolioAnalytics'
 
 const BAR_COLORS = [CHART_COLORS.cyan, CHART_COLORS.amber, CHART_COLORS.green, CHART_COLORS.red, '#8884d8', '#82ca9d']
@@ -23,6 +24,7 @@ const HISTORY_LIMIT = 30
 
 export default function BalanceHistoryChart() {
   const { accountData, connectedAddress, network, setAccountData } = useStore()
+  const { isMobile } = useResponsive()
   const [pollMs, setPollMs] = useState(15000)
   const [tickAt, setTickAt] = useState(null)
   const [pulse, setPulse] = useState(false)
@@ -48,7 +50,7 @@ export default function BalanceHistoryChart() {
 
     const seedHistory = async () => {
       try {
-        const server = ee(network)
+        const server = getServer(network)
         const currentMap = {}
         balanceData.forEach(b => { currentMap[b.asset] = b.balance })
         
@@ -66,7 +68,7 @@ export default function BalanceHistoryChart() {
       } catch (e) { console.warn('History seeding failed', e) }
     }
     seedHistory()
-  }, [connectedAddress, network])
+  }, [connectedAddress, network, balanceData])
 
   // Append the current balance snapshot to per-asset history (capped).
   useEffect(() => {
@@ -161,20 +163,20 @@ export default function BalanceHistoryChart() {
     >
       <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Bar chart */}
-        <div style={{ height: Math.max(200, balanceData.length * 40) }}>
+        <div style={{ height: Math.max(isMobile ? 180 : 220, balanceData.length * (isMobile ? 36 : 40)) }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={balanceData} layout="vertical" margin={{ left: 10, right: 30 }}>
+            <BarChart data={balanceData} layout="vertical" margin={{ left: isMobile ? 0 : 10, right: isMobile ? 18 : 30, top: 4, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
               <XAxis type="number" tick={AXIS_TICK_STYLE} tickFormatter={(v) => v.toLocaleString()} />
               <YAxis
                 type="category" dataKey="asset" tick={AXIS_TICK_STYLE}
-                width={60}
+                width={isMobile ? 60 : 80}
               />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 formatter={(value) => [formatXLMValue(value, 4), 'Balance']}
               />
-              <Bar dataKey="balance" name="Balance" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="balance" name="Balance" radius={[0, 4, 4, 0]} barSize={isMobile ? 14 : 18}>
                 {balanceData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
                 ))}
@@ -183,24 +185,54 @@ export default function BalanceHistoryChart() {
           </ResponsiveContainer>
         </div>
 
-        {/* Summary table with live trend sparkline */}
-        <div>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 90px 1fr',
-            padding: '8px 12px', fontSize: '10px', color: 'var(--text-muted)',
-            textTransform: 'uppercase', letterSpacing: '1px',
-            borderBottom: '1px solid var(--border)',
-          }}>
-            <span>Asset</span>
-            <span style={{ textAlign: 'right' }}>Balance</span>
-            <span style={{ textAlign: 'center' }}>Trend</span>
-            <span style={{ textAlign: 'right' }}>Trust Limit</span>
-          </div>
+        {/* Summary cards with live trend sparkline */}
+        <div style={{ display: 'grid', gap: isMobile ? '12px' : '0' }}>
+          {!isMobile && (
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr 90px 1fr',
+              padding: '8px 12px', fontSize: '10px', color: 'var(--text-muted)',
+              textTransform: 'uppercase', letterSpacing: '1px',
+              borderBottom: '1px solid var(--border)',
+            }}>
+              <span>Asset</span>
+              <span style={{ textAlign: 'right' }}>Balance</span>
+              <span style={{ textAlign: 'center' }}>Trend</span>
+              <span style={{ textAlign: 'right' }}>Trust Limit</span>
+            </div>
+          )}
+
           {balanceData.map((item, i) => {
             const series = historyRef.current.get(item.asset) || []
             const color = BAR_COLORS[i % BAR_COLORS.length]
             const delta = series.length > 1 ? series[series.length - 1] - series[0] : 0
-            return (
+            return isMobile ? (
+              <div
+                key={item.asset + i}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '14px',
+                  display: 'grid',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                  <span style={{ color, fontWeight: 700 }}>{item.asset}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                    {item.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <span>Trend</span>
+                  <Sparkline values={series} color={delta >= 0 ? CHART_COLORS.green : CHART_COLORS.red} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <span>Trust Limit</span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{item.limit !== null ? formatXLM(item.limit) : '∞'}</span>
+                </div>
+              </div>
+            ) : (
               <div
                 key={item.asset + i}
                 data-history-snapshot={historySnapshot}

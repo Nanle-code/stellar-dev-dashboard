@@ -1,5 +1,6 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { getServer, NETWORKS, isValidPublicKey } from "./stellar";
+import { measureAsync, recordCustomMetric } from "./performanceMonitoring";
 
 export const OPERATION_TYPES = [
   { value: "payment", label: "Payment" },
@@ -22,6 +23,8 @@ export const OPERATION_TYPES = [
   // Fee-bump, sponsorship, and clawback operations (#196)
   { value: "feeBump", label: "Fee-Bump Transaction" },
   { value: "clawback", label: "Clawback" },
+  // Contract invocation
+  { value: "invokeHostFunction", label: "Invoke Host Function (Contract Call)" },
 ];
 
 export function createOperation(type, params) {
@@ -173,20 +176,51 @@ export function createOperation(type, params) {
         account: params.account,
       });
 
-    case "beginSponsoringFutureReserves":
-      return StellarSdk.Operation.beginSponsoringFutureReserves({
+    case "beginSponsoringFutureReserves": {
+      const op = StellarSdk.Operation.beginSponsoringFutureReserves({
         sponsoredId: params.sponsoredId,
       });
+      op.type = op._attributes.body._switch;
+      return op;
+    }
 
-    case "endSponsoringFutureReserves":
-      return StellarSdk.Operation.endSponsoringFutureReserves({});
+    case "endSponsoringFutureReserves": {
+      const op = StellarSdk.Operation.endSponsoringFutureReserves({});
+      op.type = op._attributes.body._switch;
+      return op;
+    }
 
-    case "clawback":
-      return StellarSdk.Operation.clawback({
+    case "clawback": {
+      if (parseFloat(params.amount) <= 0) {
+        throw new Error('Clawback amount must be positive');
+      }
+      const op = StellarSdk.Operation.clawback({
         asset: new StellarSdk.Asset(params.assetCode, params.assetIssuer),
         from: params.from,
         amount: params.amount,
       });
+      op.type = op._attributes.body._switch;
+      return op;
+    }
+
+    case "invokeHostFunction": {
+      const contract = new StellarSdk.Contract(params.contractId);
+      const args = (params.args || []).map(arg => {
+        switch (arg.type) {
+          case "string":
+            return StellarSdk.nativeToScVal(arg.value, { type: "string" });
+          case "int":
+            return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i128" });
+          case "address":
+            return StellarSdk.Address.fromString(arg.value).toScVal();
+          case "bool":
+            return StellarSdk.nativeToScVal(arg.value === "true", { type: "bool" });
+          default:
+            throw new Error(`Unsupported argument type: ${arg.type}`);
+        }
+      });
+      return contract.call(params.functionName, ...args);
+    }
 
     default:
       throw new Error(`Unsupported operation type: ${type}`);
@@ -202,12 +236,29 @@ export async function buildTransaction({
   timeout = 180,
   network = "testnet",
 }) {
-  if (!isValidPublicKey(sourceAccount)) {
-    throw new Error("Invalid source account");
-  }
-
   if (!operations || operations.length === 0) {
     throw new Error("At least one operation is required");
+  }
+
+  const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
+  const containsFeeBump = operations.some((op) => op.type === "feeBump");
+
+  if (feeBumpOnly) {
+    const op = operations[0];
+    return feeBump({
+      feeSource: op.params.feeSource,
+      baseFee: op.params.baseFee,
+      innerTransaction: op.params.innerTransaction,
+      network,
+    });
+  }
+
+  if (containsFeeBump) {
+    throw new Error("feeBump can only be used as a standalone transaction.");
+  }
+
+  if (!isValidPublicKey(sourceAccount)) {
+    throw new Error("Invalid source account");
   }
 
   const server = getServer(network);
@@ -248,39 +299,45 @@ export async function buildTransaction({
 export async function simulateTransaction(params) {
   try {
     const transaction = await buildTransaction(params);
-
-    // Validate operations
     const errors = [];
-    params.operations.forEach((op, index) => {
-      if (op.type === "payment") {
-        if (!isValidPublicKey(op.params.destination)) {
-          errors.push(`Operation ${index + 1}: Invalid destination`);
-        }
-        if (!op.params.amount || parseFloat(op.params.amount) <= 0) {
-          errors.push(`Operation ${index + 1}: Invalid amount`);
-        }
-      } else if (op.type === "createAccount") {
-        if (!isValidPublicKey(op.params.destination)) {
-          errors.push(`Operation ${index + 1}: Invalid destination`);
-        }
-        if (
-          !op.params.startingBalance ||
-          parseFloat(op.params.startingBalance) < 1
-        ) {
-          errors.push(
-            `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
-          );
-        }
-      }
-    });
+    const feeBumpOnly = params.operations.length === 1 && params.operations[0].type === "feeBump";
 
-    const estimatedFee = params.baseFee * params.operations.length;
+    if (!feeBumpOnly) {
+      // Validate non-fee-bump transaction operations
+      params.operations.forEach((op, index) => {
+        if (op.type === "payment") {
+          if (!isValidPublicKey(op.params.destination)) {
+            errors.push(`Operation ${index + 1}: Invalid destination`);
+          }
+          if (!op.params.amount || parseFloat(op.params.amount) <= 0) {
+            errors.push(`Operation ${index + 1}: Invalid amount`);
+          }
+        } else if (op.type === "createAccount") {
+          if (!isValidPublicKey(op.params.destination)) {
+            errors.push(`Operation ${index + 1}: Invalid destination`);
+          }
+          if (
+            !op.params.startingBalance ||
+            parseFloat(op.params.startingBalance) < 1
+          ) {
+            errors.push(
+              `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
+            );
+          }
+        }
+      });
+    }
+
+    const fee = parseInt(transaction.fee.toString(), 10);
+    const operationCount = feeBumpOnly
+      ? (transaction.innerTransaction?.operations.length ?? transaction.operations.length) + 1
+      : transaction.operations.length;
 
     return {
       success: errors.length === 0,
       errors,
-      fee: estimatedFee,
-      operationCount: transaction.operations.length,
+      fee,
+      operationCount,
       xdr: transaction.toXDR(),
       hash: transaction.hash().toString("hex"),
     };
@@ -324,10 +381,11 @@ export function feeBump({
   }
 
   try {
+    const innerTx = new StellarSdk.Transaction(innerTransaction, NETWORKS[network].passphrase)
     const wrappedTx = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
       feeSource,
       fee.toString(),
-      innerTransaction,
+      innerTx,
       NETWORKS[network].passphrase,
     );
     return wrappedTx;
@@ -346,10 +404,20 @@ export async function signAndSubmitTransaction(
   }
 
   const keypair = StellarSdk.Keypair.fromSecret(secretKey);
+  const signingStart = performance.now();
   transaction.sign(keypair);
+  recordCustomMetric("TRANSACTION_SIGNING_DURATION", performance.now() - signingStart, {
+    network,
+    operationCount: transaction.operations?.length || 0,
+    signer: "local-keypair",
+  });
 
   const server = getServer(network);
-  const response = await server.submitTransaction(transaction);
+  const response = await measureAsync(
+    "TRANSACTION_SUBMIT_DURATION",
+    () => server.submitTransaction(transaction),
+    { network, operationCount: transaction.operations?.length || 0 },
+  );
 
   return {
     hash: response.hash,

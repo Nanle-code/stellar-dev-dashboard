@@ -104,6 +104,77 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
+  visual-regression:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Restore baseline snapshots
+        uses: actions/cache@v5
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ github.base_ref || github.ref_name }}
+          restore-keys: visual-snapshots-
+
+      - name: Run visual regression tests
+        run: npm run test:visual
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diff-${{ github.run_number }}
+          path: |
+            tests/e2e/report/
+            test-results/
+          retention-days: 14
+
+      - name: Comment on PR with failure details
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ❌ Visual Regression Failures',
+                '',
+                'Screenshots differ from baseline. Download the **`visual-diff-${{ github.run_number }}`** artifact to review diffs.',
+                '',
+                'To update baselines intentionally, run locally:',
+                '```bash',
+                'npm run test:visual:update',
+                'git add tests/e2e/snapshots',
+                'git commit -m "chore: update visual baselines"',
+                '```',
+                '',
+                `Run: [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              ].join('\n')
+            })
+
+      - name: Save updated snapshots
+        if: success()
+        uses: actions/cache/save@v5
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ github.base_ref || github.ref_name }}
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -132,3 +203,135 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  # ── Bundle size budget ────────────────────────────────────────────────────
+  # Fails the PR if any chunk or total bundle exceeds its gzip budget.
+  # Add the label "skip-bundle-check" to the PR to bypass (e.g. intentional
+  # large dependency bump that will be addressed in a follow-up).
+  bundle-size:
+    name: Bundle Size Budget
+    runs-on: ubuntu-latest
+    needs: [lint, type-check, test]
+    env:
+      # Per-chunk gzip budgets in kilobytes.
+      BUDGET_MAIN_KB: 50 # app entry chunk (index-*.js)
+      BUDGET_VENDOR_KB: 500 # any single vendor chunk
+      BUDGET_STELLAR_KB: 800 # stellar-sdk chunk (large, but isolated)
+      BUDGET_TOTAL_KB: 2000 # total gzipped JS across all chunks
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Measure gzipped bundle sizes
+        id: measure
+        run: |
+          set -euo pipefail
+
+          echo "### Bundle Size Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Chunk | Gzip (KB) | Budget (KB) | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-----------|-------------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=0
+          TOTAL_KB=0
+
+          for CHUNK in dist/assets/*.js; do
+            [ -f "$CHUNK" ] || continue
+            CHUNK_NAME=$(basename "$CHUNK")
+            GZIP_KB=$(( $(gzip -c "$CHUNK" | wc -c) / 1024 ))
+            TOTAL_KB=$(( TOTAL_KB + GZIP_KB ))
+
+            # Determine per-chunk budget
+            if echo "$CHUNK_NAME" | grep -qE '^(index|main)-'; then
+              BUDGET=$BUDGET_MAIN_KB
+            elif echo "$CHUNK_NAME" | grep -q 'stellar-sdk'; then
+              BUDGET=$BUDGET_STELLAR_KB
+            else
+              BUDGET=$BUDGET_VENDOR_KB
+            fi
+
+            if [ "$GZIP_KB" -gt "$BUDGET" ]; then
+              echo "| \`$CHUNK_NAME\` | **${GZIP_KB}** | ${BUDGET} | ❌ over by $(( GZIP_KB - BUDGET )) KB |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::$CHUNK_NAME is ${GZIP_KB} KB gzipped (budget: ${BUDGET} KB)."
+              FAILED=$(( FAILED + 1 ))
+            else
+              echo "| \`$CHUNK_NAME\` | ${GZIP_KB} | ${BUDGET} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$TOTAL_KB" -gt "$BUDGET_TOTAL_KB" ]; then
+            echo "**Total JS (gzip): ${TOTAL_KB} KB — ❌ exceeds total budget of ${BUDGET_TOTAL_KB} KB**" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Total JS is ${TOTAL_KB} KB gzipped (budget: ${BUDGET_TOTAL_KB} KB)."
+            FAILED=$(( FAILED + 1 ))
+          else
+            echo "**Total JS (gzip): ${TOTAL_KB} KB — ✅ within total budget of ${BUDGET_TOTAL_KB} KB**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "failed=$FAILED"     >> "$GITHUB_OUTPUT"
+          echo "total_kb=$TOTAL_KB" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce budgets (skippable via label)
+        if: >
+          !contains(
+            github.event.pull_request.labels.*.name,
+            'skip-bundle-check'
+          )
+        run: |
+          FAILED=${{ steps.measure.outputs.failed }}
+          if [ "$FAILED" -gt "0" ]; then
+            echo "::error::$FAILED chunk(s) exceeded their size budget. See the step summary for details."
+            echo "::error::To bypass, add the 'skip-bundle-check' label to this PR and document the reason."
+            exit 1
+          fi
+          echo "✅ All chunks within budget. Total JS: ${{ steps.measure.outputs.total_kb }} KB gzipped."
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  # ── On-demand bundle visualizer ───────────────────────────────────────────
+  # Triggered manually (workflow_dispatch) or when the PR has the label
+  # "generate-bundle-report". Uploads dist/stats.html as a CI artifact.
+  analyze:
+    name: Bundle Visualizer
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(
+        github.event.pull_request.labels.*.name,
+        'generate-bundle-report'
+      )
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build with visualizer
+        run: npm run build:analyze
+        env:
+          ANALYZE: '1'
+
+      - name: Upload stats.html
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-stats
+          path: dist/stats.html
+          retention-days: 30

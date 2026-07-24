@@ -39,8 +39,20 @@ import { RTL_LANGUAGES } from "../i18n/index.js";
  */
 export function useTranslation(ns = "translation") {
   const { t, i18n, ready } = useI18nextTranslation(ns);
-  const { currentLanguage, changeLanguage, supportedLanguages, isRTL } =
-    useI18nContext();
+  const {
+    currentLanguage,
+    currentLocale,
+    changeLanguage,
+    supportedLanguages,
+    localeProfile,
+    culturalAdaptations,
+    regionalContent,
+    formatDateTime,
+    formatNumber: formatLocaleNumber,
+    formatCurrency,
+    validateLocale,
+    isRTL,
+  } = useI18nContext();
 
   /**
    * Safe translate — returns the key itself when a translation is missing,
@@ -76,12 +88,12 @@ export function useTranslation(ns = "translation") {
   const formatNumber = useCallback(
     (value, opts = {}) => {
       try {
-        return new Intl.NumberFormat(currentLanguage, opts).format(value);
+        return formatLocaleNumber(value, opts);
       } catch {
         return String(value);
       }
     },
-    [currentLanguage],
+    [formatLocaleNumber],
   );
 
   /**
@@ -92,12 +104,12 @@ export function useTranslation(ns = "translation") {
   const formatDate = useCallback(
     (date, opts = { dateStyle: "medium" }) => {
       try {
-        return new Intl.DateTimeFormat(currentLanguage, opts).format(new Date(date));
+        return formatDateTime(date, opts);
       } catch {
         return String(date);
       }
     },
-    [currentLanguage],
+    [formatDateTime],
   );
 
   /** true if the active language is RTL (#107) */
@@ -111,8 +123,14 @@ export function useTranslation(ns = "translation") {
     i18n,
     ready,
     currentLanguage,
+    currentLocale,
     changeLanguage,
     supportedLanguages,
+    localeProfile,
+    culturalAdaptations,
+    regionalContent,
+    formatCurrency,
+    validateLocale,
     isRTL: isRTLActive,
   };
 }

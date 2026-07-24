@@ -15,6 +15,7 @@ import {
   addSignatureToSession,
   SESSION_STATUS,
 } from '../../../src/lib/multisig';
+import { buildAccountFixture, buildPaymentTransaction } from '../../__factories__';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -22,14 +23,15 @@ const KEYPAIR_A = StellarSdk.Keypair.random();
 const KEYPAIR_B = StellarSdk.Keypair.random();
 const KEYPAIR_C = StellarSdk.Keypair.random();
 
-const mockAccountData = {
+const mockAccountData = buildAccountFixture({
   id: KEYPAIR_A.publicKey(),
+  account_id: KEYPAIR_A.publicKey(),
   signers: [
     { key: KEYPAIR_A.publicKey(), weight: 1, type: 'ed25519_public_key' },
     { key: KEYPAIR_B.publicKey(), weight: 2, type: 'ed25519_public_key' },
   ],
   thresholds: { low_threshold: 1, med_threshold: 2, high_threshold: 3 },
-};
+});
 
 // ─── isValidPublicKey ─────────────────────────────────────────────────────────
 
@@ -136,11 +138,7 @@ describe('checkThresholdMet', () => {
   });
 
   it('returns met=true when all signers have signed', () => {
-    const result = checkThresholdMet(
-      [KEYPAIR_A.publicKey(), KEYPAIR_B.publicKey()],
-      allSigners,
-      5
-    );
+    const result = checkThresholdMet([KEYPAIR_A.publicKey(), KEYPAIR_B.publicKey()], allSigners, 5);
     expect(result.met).toBe(true);
   });
 
@@ -182,19 +180,13 @@ describe('addSignatureToXdr / getSignersFromXdr', () => {
   let txXdr;
 
   beforeEach(() => {
-    const account = new StellarSdk.Account(KEYPAIR_A.publicKey(), '100');
-    const tx = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET,
-    })
-      .addOperation(StellarSdk.Operation.payment({
-        destination: KEYPAIR_B.publicKey(),
-        asset: StellarSdk.Asset.native(),
-        amount: '10',
-      }))
-      .setTimeout(300)
-      .build();
-    txXdr = tx.toXDR();
+    txXdr = buildPaymentTransaction({
+      sourceKeypair: KEYPAIR_A,
+      destination: KEYPAIR_B.publicKey(),
+      amount: '10',
+      network: StellarSdk.Networks.TESTNET,
+      timeout: 300,
+    }).toXDR();
   });
 
   it('adds a signature and returns new XDR', () => {

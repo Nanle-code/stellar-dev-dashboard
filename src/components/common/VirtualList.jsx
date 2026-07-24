@@ -25,21 +25,6 @@ const VirtualList = ({
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
-  const inFlightRef = useRef(false);
-  const loadingRef = useRef(loading);
-  const onLoadMoreRef = useRef(onLoadMore);
-
-  useEffect(() => {
-    loadingRef.current = loading;
-    if (!loading) {
-      inFlightRef.current = false;
-    }
-  }, [loading]);
-
-  useEffect(() => {
-    onLoadMoreRef.current = onLoadMore;
-  }, [onLoadMore]);
-
   // Cache for dynamic heights and positions
   const metadata = useMemo(() => {
     const positions = [0];
@@ -71,20 +56,22 @@ const VirtualList = ({
   };
 
   const handleScroll = useCallback((e) => {
-    if (containerRef.current) {
-      const currentScrollTop = containerRef.current.scrollTop;
-      setScrollTop(currentScrollTop);
+    // Use requestAnimationFrame for smoother scrolling performance
+    window.requestAnimationFrame(() => {
+      if (containerRef.current) {
+        const currentScrollTop = containerRef.current.scrollTop;
+        setScrollTop(currentScrollTop);
 
-      // Check if we need to load more
-      if (onLoadMoreRef.current && !loadingRef.current && !inFlightRef.current) {
-        const { scrollHeight, clientHeight } = containerRef.current;
-        if (currentScrollTop + clientHeight >= scrollHeight - 200) {
-          inFlightRef.current = true;
-          onLoadMoreRef.current();
+        // Check if we need to load more
+        if (onLoadMore && !loading) {
+          const { scrollHeight, clientHeight } = containerRef.current;
+          if (currentScrollTop + clientHeight >= scrollHeight - 200) {
+            onLoadMore();
+          }
         }
       }
-    }
-  }, []);
+    });
+  }, [onLoadMore, loading]);
 
   useEffect(() => {
     const container = containerRef.current;

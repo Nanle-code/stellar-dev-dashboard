@@ -69,9 +69,11 @@ async function dynamicImport(specifier) {
 
 /**
  * Open a Ledger transport (WebUSB preferred, WebHID fallback).
- * @returns {{ transport, stellarApp, publicKey }}
+ * @param {string} [derivationPath] – BIP-44 path, e.g. "44'/148'/1'" for account index 1.
+ *   Defaults to "44'/148'/0'" (first account).
+ * @returns {{ transport, stellarApp, publicKey, derivationPath }}
  */
-export async function connectLedger() {
+export async function connectLedger(derivationPath = DERIVATION_PATH) {
   const supported = await isLedgerSupported()
   if (!supported) {
     throw new Error(
@@ -90,18 +92,18 @@ export async function connectLedger() {
       // Try WebHID as fallback
       const TransportWebHID = (await dynamicImport('@ledgerhq/hw-transport-webhid')).default
       const transport = await TransportWebHID.create()
-      return await _finishConnect(transport)
+      return await _finishConnect(transport, derivationPath)
     }
 
     const transport = await TransportWebUSB.create()
-    return await _finishConnect(transport)
+    return await _finishConnect(transport, derivationPath)
   } catch (error) {
     ledgerStatus = LEDGER_STATUS.ERROR
     throw new Error(`Ledger connection failed: ${error.message}`)
   }
 }
 
-async function _finishConnect(transport) {
+async function _finishConnect(transport, derivationPath = DERIVATION_PATH) {
   let StellarLedger
   try {
     StellarLedger = (await dynamicImport('@stellar/ledger')).default
@@ -111,7 +113,7 @@ async function _finishConnect(transport) {
   }
 
   const stellarApp = new StellarLedger(transport)
-  const result = await stellarApp.getPublicKey(DERIVATION_PATH)
+  const result = await stellarApp.getPublicKey(derivationPath)
 
   ledgerStatus = LEDGER_STATUS.CONNECTED
   _activeStellarApp = stellarApp
@@ -121,6 +123,7 @@ async function _finishConnect(transport) {
     publicKey: result.publicKey,
     transport,
     stellarApp,
+    derivationPath,
   }
 }
 

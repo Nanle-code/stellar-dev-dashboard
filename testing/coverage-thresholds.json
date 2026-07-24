@@ -1,0 +1,11 @@
+{
+  "lines": 0,
+  "functions": 0,
+  "branches": 0,
+  "statements": 0,
+  "perFile": false,
+  "targetPaths": {
+    "src/utils/security.js": { "lines": 55, "functions": 40, "branches": 45, "statements": 55 },
+    "src/lib/import.js": { "lines": 70, "functions": 70, "branches": 60, "statements": 70 }
+  }
+}

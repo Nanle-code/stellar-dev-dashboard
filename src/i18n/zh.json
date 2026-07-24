@@ -237,5 +237,52 @@
             "manageOffer": "管理报价",
             "setOptions": "设置选项"
         }
+    },
+    "learningHub": {
+        "title": "学习中心",
+        "subtitle": "通过交互式教程、测验和认证掌握Stellar区块链开发",
+        "loading": "正在加载学习中心...",
+        "category": {
+            "all": "全部",
+            "basics": "基础",
+            "advanced": "高级",
+            "soroban": "soroban",
+            "assets": "资产",
+            "payments": "支付"
+        },
+        "stat": {
+            "level": "等级",
+            "completed": "已完成",
+            "points": "积分"
+        },
+        "tutorial": {
+            "noFound": "此分类中未找到教程",
+            "difficulty": {
+                "beginner": "初学者",
+                "intermediate": "中级",
+                "advanced": "高级"
+            },
+            "duration": "{{min}}分钟",
+            "completed": "已完成"
+        },
+        "tabs": {
+            "content": "内容",
+            "playground": "练习场",
+            "quiz": "测验"
+        },
+        "back": "← 返回中心",
+        "quiz": {
+            "testKnowledge": "测试你的知识",
+            "answerAll": "请回答所有问题",
+            "submit": "提交测验",
+            "passed": "🎉 恭喜！",
+            "failed": "😔 继续学习",
+            "score": "你的得分是 {{percent}}%（{{correct}}/{{total}}）"
+        },
+        "playground": {
+            "title": "交互式代码练习场",
+            "placeholder": "在此输入你的Stellar代码...",
+            "run": "运行代码"
+        }
     }
 }

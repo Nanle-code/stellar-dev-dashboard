@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "ml:train": "node src/ml/train.js",
+    "ml:train:phishing": "node src/ml/train_phishing.cjs",
     "ml:server": "node src/ml/server.js",
     "ml:build:train": "node src/ml/build_prediction/train.js",
     "ml:build:server": "node src/ml/build_prediction/server.js",

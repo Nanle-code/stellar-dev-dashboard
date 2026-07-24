@@ -21,24 +21,32 @@ global.localStorage = {
 };
 
 // ─── navigator.clipboard mock ─────────────────────────────────────────────────
-Object.assign(navigator, {
-  clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
-});
+if (typeof navigator !== 'undefined') {
+  Object.assign(navigator, {
+    clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+} else {
+  global.navigator = {
+    clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+  };
+}
 
 // ─── window.matchMedia mock ─────────────────────────────────────────────────
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation((query) => ({
-    matches: query.includes('prefers-color-scheme: dark'),
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query) => ({
+      matches: query.includes('prefers-color-scheme: dark'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
 
 // ─── Stellar SDK mock ─────────────────────────────────────────────────────────
 vi.mock('@stellar/stellar-sdk', async () => {

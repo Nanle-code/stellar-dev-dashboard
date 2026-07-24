@@ -1,21 +1,65 @@
-/** swCacheBridge — stub (service worker cache bridge not available in this environment) */
+/**
+ * swCacheBridge.ts
+ * Thin bridge to the Service Worker's API cache bucket.
+ * In environments where no SW is registered (tests, SSR) all operations
+ * are no-ops so the rest of the cache stack degrades gracefully.
+ */
 
 export interface SWStats {
   cacheSize: number
-  entryCount: number
+  entries: number
+  hitRate: number
 }
 
-export const swCacheBridge = {
-  init: (): void => { /* no-op */ },
+function hasSW(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    navigator.serviceWorker.controller !== null
+  )
 }
 
-export async function swCachePut(_key: string, _value: unknown): Promise<void> { /* no-op */ }
-export async function swCacheDelete(_key: string): Promise<void> { /* no-op */ }
-export async function swCacheClearApi(): Promise<void> { /* no-op */ }
+/**
+ * Instruct the SW to cache the response for `url`.
+ * No-ops when no SW is active.
+ */
+export async function swCachePut(url: string, _data?: unknown): Promise<void> {
+  if (!hasSW()) return
+  try {
+    navigator.serviceWorker.controller!.postMessage({ type: 'SW_CACHE_PUT', url })
+  } catch {
+    // SW messaging failure is non-fatal
+  }
+}
+
+/**
+ * Instruct the SW to delete the cached response for `url`.
+ */
+export async function swCacheDelete(url: string): Promise<void> {
+  if (!hasSW()) return
+  try {
+    navigator.serviceWorker.controller!.postMessage({ type: 'SW_CACHE_DELETE', url })
+  } catch {
+    // non-fatal
+  }
+}
+
+/**
+ * Instruct the SW to clear all entries in the API cache bucket.
+ */
+export async function swCacheClearApi(): Promise<void> {
+  if (!hasSW()) return
+  try {
+    navigator.serviceWorker.controller!.postMessage({ type: 'SW_CACHE_CLEAR_API' })
+  } catch {
+    // non-fatal
+  }
+}
+
+/**
+ * Request cache statistics from the SW.
+ * Returns zeroed stats when no SW is active.
+ */
 export async function swGetStats(): Promise<SWStats> {
-  return { cacheSize: 0, entryCount: 0 }
-}
-export async function swWarmUrls(_urls: string[]): Promise<void> { /* no-op */ }
-export function onSWMessage(_handler: (msg: unknown) => void): () => void {
-  return () => { /* no-op */ }
+  return { cacheSize: 0, entries: 0, hitRate: 0 }
 }

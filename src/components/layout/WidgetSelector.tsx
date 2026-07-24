@@ -7,6 +7,7 @@ import BalanceWidget from './widgets/BalanceWidget';
 import AssetsWidget from './widgets/AssetsWidget';
 import TransactionsWidget from './widgets/TransactionsWidget';
 import NetworkStatsWidget from './widgets/NetworkStatsWidget';
+import CongestionForecastWidget from './widgets/CongestionForecastWidget';
 import AccountStatsWidget from './widgets/AccountStatsWidget';
 import QuickActionsWidget from './widgets/QuickActionsWidget';
 import PriceTickerWidget from './widgets/PriceTickerWidget';
@@ -74,6 +75,15 @@ export const AVAILABLE_WIDGETS: Record<string, WidgetDefinition> = {
     icon: '🌐',
     component: NetworkStatsWidget,
     defaultSize: { width: 300, height: 280 },
+    category: 'network'
+  },
+  congestionForecast: {
+    id: 'congestionForecast',
+    name: 'Congestion Forecast',
+    description: 'Predict network congestion and recommend optimal transaction timing',
+    icon: '🚦',
+    component: CongestionForecastWidget,
+    defaultSize: { width: 360, height: 360 },
     category: 'network'
   },
   accountStats: {

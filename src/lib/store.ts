@@ -276,6 +276,12 @@ export interface StoreState {
   sessionRecordingActive: boolean
   sessionRecordingId: string | null
   setSessionRecordingActive: (active: boolean, id?: string | null) => void
+
+  // Debug Assistant (#AI)
+  debugAssistantOpen: boolean
+  debugAssistantIssueCount: number
+  toggleDebugAssistant: () => void
+  setDebugAssistantIssueCount: (count: number) => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -604,6 +610,12 @@ export const useStore = create<StoreState>((set) => ({
   sessionRecordingActive: false,
   sessionRecordingId: null,
   setSessionRecordingActive: (active, id = null) => set({ sessionRecordingActive: active, sessionRecordingId: id ?? null }),
+
+  // Debug Assistant (#AI)
+  debugAssistantOpen: false,
+  debugAssistantIssueCount: 0,
+  toggleDebugAssistant: () => set((state) => ({ debugAssistantOpen: !state.debugAssistantOpen })),
+  setDebugAssistantIssueCount: (count) => set({ debugAssistantIssueCount: count }),
 }))
 
 // ─── Expose store for e2e testing ────────────────────────────────────────────

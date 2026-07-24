@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "featureFlags", label: "Flags", icon: "🚩" },
   { id: "collaboration", label: "Collaboration", icon: "◌" },
   { id: "txPatterns", label: "AI Patterns", icon: "🧠" },
+  { id: "contractRecommendations", label: "Contract AI", icon: "💡" },
   { id: "security", label: "Security", icon: "🛡️" },
 ];
 

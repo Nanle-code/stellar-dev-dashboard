@@ -1,13 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   NotificationDeduplicator,
+  type SmartNotification,
 } from '../../lib/notificationDeduplicator'
 import {
   NOTIFICATION_CATEGORIES,
   PRIORITY_ORDER,
+  type NotificationCategory,
+  type NotificationPriority,
 } from '../../lib/notificationCategories'
 import {
   filterNotifications,
+  type NotificationFilterConfig,
+  type NotificationSortMode,
 } from '../../lib/notificationFilter'
 import {
   loadNotificationPreferences,
@@ -88,9 +93,9 @@ export default function SmartNotificationCenter({
     })
   }, [])
 
-  const categories = useMemo(() => {
+  const categories = useMemo((): NotificationCategory[] => {
     const cats = new Set(notifications.map((n) => n.category))
-    return Array.from(cats).sort()
+    return Array.from(cats).sort() as NotificationCategory[]
   }, [notifications])
 
   const processed = useMemo(() => {
@@ -396,7 +401,7 @@ function SmartNotificationCard({
 
 // ─── Filter chip ──────────────────────────────────────────────────────────────
 
-function FilterChip({ active, onClick, children }) {
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -422,7 +427,7 @@ function FilterChip({ active, onClick, children }) {
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
-function Badge({ color, children }) {
+function Badge({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span style={{
       padding: '1px 5px',

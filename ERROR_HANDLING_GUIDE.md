@@ -373,3 +373,16 @@ addBreadcrumb('Error recovered successfully', 'success', {
 ```
 
 This enhanced error handling system provides a robust foundation for managing errors in the Stellar Dev Dashboard, ensuring users have a smooth experience even when things go wrong.
+
+## Deterministic Testing for Error Handling
+
+To ensure robust error handling under various edge cases, the Stellar Dev Dashboard leverages **MSW (Mock Service Worker)** for deterministic integration testing. 
+
+The tests are located in `tests/integration/resilience.test.ts` and cover the following scenarios deterministically:
+- **Pagination**: Mocks `nextCursor` tokens to verify the application loads multiple pages of data correctly.
+- **Rate Limits (HTTP 429)**: Simulates API rate limiting to ensure exponential backoff or retry logic behaves as expected.
+- **Malformed XDR (HTTP 400)**: Simulates malformed transactions being rejected by Horizon to verify `tx_bad_seq` and other specific errors.
+- **RPC Failures (HTTP 500)**: Overrides Soroban RPC endpoints to trigger internal server errors, validating application stability under node failure.
+- **Protocol-version Changes**: Adjusts the mock `horizon_version` to simulate API deprecations and protocol version drifts.
+
+This testing approach guarantees that failure paths, fallback mechanisms, and boundary cases are verified consistently across different testing environments without relying on live network conditions.

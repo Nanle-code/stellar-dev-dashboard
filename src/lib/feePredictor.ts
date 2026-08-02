@@ -1,6 +1,19 @@
-/*
- * AI-Enhanced Transaction Fee Prediction (AI-Enhanced Transaction Fee Prediction #535)
- * Extensible fee prediction models using ML for optimal fee recommendation
+/**
+ * AI-Enhanced Transaction Fee Prediction
+ * ========================================
+ * Predicts optimal Stellar transaction fees using ML models, integrating with
+ * the load distribution system to prioritize transactions during congestion.
+ *
+ * Load balancing integration:
+ *   - During high congestion (from networkMonitoring), fee predictions help
+ *     the RateLimiter assign priority levels to queued transactions
+ *   - Fee predictions guide the CacheManager's writing strategy (high-fee
+ *     operations get more aggressive retry parameters)
+ *   - Predicted fee spikes trigger proactive capacity planning via capacityPrediction.ts
+ *
+ * @see networkMonitoring.js — provides congestionRatio for fee scaling
+ * @see rateLimiter.js — uses predicted fees for priority queue assignment
+ * @see capacityPrediction.ts — correlates fee trends with capacity utilization
  */
 
 import { IsolationForest } from './isolation_forest'

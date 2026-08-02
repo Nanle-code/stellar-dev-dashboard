@@ -1,16 +1,22 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { format } from 'date-fns'
-import type { Horizon } from '@stellar/stellar-sdk'
-import { useStore } from '../../lib/store'
-import { shortAddress, formatXLM, fetchAccountCreationDate, fetchAccountOffers, calculateAccountReserves } from '../../lib/stellar'
-import CopyableValue from './CopyableValue'
-import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates'
-import AddressLabelBadge from '../addressLabels/AddressLabelBadge'
-import type { AccountOffer, ReservesInfo, InfoRowProps } from './types'
+import React, { useEffect, useState, useMemo } from 'react';
+import { format } from 'date-fns';
+import type { Horizon } from '@stellar/stellar-sdk';
+import { useStore } from '../../lib/store';
+import {
+  shortAddress,
+  formatXLM,
+  fetchAccountCreationDate,
+  fetchAccountOffers,
+  calculateAccountReserves,
+} from '../../lib/stellar';
+import CopyableValue from './CopyableValue';
+import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates';
+import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
+import type { AccountOffer, ReservesInfo, InfoRowProps } from './types';
 
 function formatAsset(assetType: string, assetCode?: string): string {
-  if (assetType === 'native') return 'XLM'
-  return assetCode || 'Unknown'
+  if (assetType === 'native') return 'XLM';
+  return assetCode || 'Unknown';
 }
 
 function InfoRow({ label, value, mono = true, accent, copyValue, secondaryValue }: InfoRowProps) {
@@ -20,19 +26,39 @@ function InfoRow({ label, value, mono = true, accent, copyValue, secondaryValue 
     fontFamily: mono ? 'var(--font-mono)' : 'var(--font-display)',
     wordBreak: 'break-all',
     textAlign: 'right',
-  }
+  };
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: '16px',
-      padding: '10px 18px',
-      borderBottom: '1px solid var(--border)',
-    }}>
-      <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', flexShrink: 0 }}>{label}</span>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', minWidth: 0 }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: '16px',
+        padding: '10px 18px',
+        borderBottom: '1px solid var(--border)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.8px',
+          flexShrink: 0,
+        }}
+      >
+        {label}
+      </span>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '4px',
+          minWidth: 0,
+        }}
+      >
         {copyValue ? (
           <CopyableValue value={copyValue} textStyle={textStyle}>
             {value ?? '—'}
@@ -41,100 +67,197 @@ function InfoRow({ label, value, mono = true, accent, copyValue, secondaryValue 
           <span style={textStyle}>{value ?? '—'}</span>
         )}
         {secondaryValue && (
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+          <span
+            style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+          >
             {secondaryValue}
           </span>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 export default function Account() {
-  const { accountData, connectedAddress, network, networkStats } = useStore()
-  const [offers, setOffers] = useState<AccountOffer[]>([])
-  const [offersLoading, setOffersLoading] = useState(false)
-  const [offersError, setOffersError] = useState<string | null>(null)
-  const [createdAt, setCreatedAt] = useState<Date | null>(null)
-  const [createdAtLoading, setCreatedAtLoading] = useState(false)
+  const { accountData, connectedAddress, network, networkStats } = useStore();
+  const [offers, setOffers] = useState<AccountOffer[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [offersError, setOffersError] = useState<string | null>(null);
+  const [createdAt, setCreatedAt] = useState<Date | null>(null);
+  const [createdAtLoading, setCreatedAtLoading] = useState(false);
 
   const reserves = useMemo<ReservesInfo | null>(() => {
-    if (!accountData) return null
-    return calculateAccountReserves(accountData, networkStats, offers.length)
-  }, [accountData, networkStats, offers.length])
+    if (!accountData) return null;
+    return calculateAccountReserves(accountData, networkStats, offers.length);
+  }, [accountData, networkStats, offers.length]);
 
   useEffect(() => {
     if (!connectedAddress) {
-      setOffers([])
-      setOffersLoading(false)
-      setOffersError(null)
-      setCreatedAt(null)
-      setCreatedAtLoading(false)
-      return
+      setOffers([]);
+      setOffersLoading(false);
+      setOffersError(null);
+      setCreatedAt(null);
+      setCreatedAtLoading(false);
+      return;
     }
 
-    let isActive = true
+    let isActive = true;
 
-    setOffersLoading(true)
-    setOffersError(null)
-    setCreatedAtLoading(true)
-    setCreatedAt(null)
+    setOffersLoading(true);
+    setOffersError(null);
+    setCreatedAtLoading(true);
+    setCreatedAt(null);
 
     fetchAccountCreationDate(connectedAddress, network)
       .then((date: Date) => {
-        if (!isActive) return
-        setCreatedAt(date)
+        if (!isActive) return;
+        setCreatedAt(date);
       })
       .finally(() => {
-        if (!isActive) return
-        setCreatedAtLoading(false)
-      })
+        if (!isActive) return;
+        setCreatedAtLoading(false);
+      });
 
     fetchAccountOffers(connectedAddress, network)
       .then((res: AccountOffer[]) => {
-        if (!isActive) return
-        setOffers(res)
+        if (!isActive) return;
+        setOffers(res);
       })
       .catch((err: Error) => {
-        if (!isActive) return
-        setOffersError(err.message)
+        if (!isActive) return;
+        setOffersError(err.message);
       })
       .finally(() => {
-        if (!isActive) return
-        setOffersLoading(false)
-      })
+        if (!isActive) return;
+        setOffersLoading(false);
+      });
 
     return () => {
-      isActive = false
-    }
-  }, [connectedAddress, network])
+      isActive = false;
+    };
+  }, [connectedAddress, network]);
 
-  if (!accountData) return (
-    <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>No account loaded</div>
-  )
+  if (!accountData)
+    return (
+      <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+        No account loaded
+      </div>
+    );
 
-  const xlm = accountData.balances?.find((b: { asset_type: string }) => b.asset_type === 'native')
-  const otherAssets = accountData.balances?.filter((b: { asset_type: string }) => b.asset_type !== 'native') || []
-  const signers = accountData.signers || []
-  const flags = accountData.flags || {}
-  const thresholds = accountData.thresholds || {}
-  const createdValue = createdAtLoading ? 'Loading...' : createdAt ? format(new Date(createdAt), 'MMM d, yyyy') : 'Unknown'
+  const xlm = accountData.balances?.find((b: { asset_type: string }) => b.asset_type === 'native');
+  const otherAssets =
+    accountData.balances?.filter((b: { asset_type: string }) => b.asset_type !== 'native') || [];
+  const signers = accountData.signers || [];
+  const flags = accountData.flags || {};
+  const thresholds = accountData.thresholds || {};
+  const createdValue = createdAtLoading
+    ? 'Loading...'
+    : createdAt
+      ? format(new Date(createdAt), 'MMM d, yyyy')
+      : 'Unknown';
   const { getEstimate } = useAssetUsdEstimates({
     balances: accountData?.balances || [],
     connectedAddress,
     network,
     refreshKey: accountData,
-  })
-  const xlmEstimate = xlm ? getEstimate(xlm) : null
+  });
+  const xlmEstimate = xlm ? getEstimate(xlm) : null;
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Account Detail</div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>
+          Account Detail
+        </div>
+        <DataSourceBadge dataSource={dataSource} offline={offline} />
+      </div>
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Identity</div>
-        <InfoRow label="Public Key" value={connectedAddress} copyValue={connectedAddress ?? undefined} />
-        <InfoRow label="Account ID" value={accountData.account_id} copyValue={accountData.account_id} />
+      {offline && accountData && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px',
+            padding: '12px 16px',
+            background: dataSource === 'cache-stale' ? 'var(--amber-glow)' : 'var(--bg-elevated)',
+            border: `1px solid ${dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--border)'}`,
+            borderRadius: 'var(--radius-md)',
+            color: dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--text-muted)',
+            fontSize: '12px',
+            lineHeight: 1.5,
+          }}
+        >
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>
+            {dataSource === 'cache-stale' ? '⚠' : 'ℹ'}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontWeight: 600,
+                color: dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--text-secondary)',
+                marginBottom: '2px',
+              }}
+            >
+              {dataSource === 'cache-stale' ? 'Using stale cached data' : 'Offline read-only mode'}
+            </div>
+            <div>
+              {dataSource === 'cache-stale'
+                ? 'Cached account data is older than 5 minutes. All write actions are disabled. Reconnect to refresh.'
+                : 'Displaying last-known cached account data. Write actions (faucet, contract invocation, transaction submission) are blocked until reconnected.'}
+            </div>
+            {accountCachedAt && (
+              <div
+                style={{
+                  marginTop: '4px',
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                Last cached: {format(new Date(accountCachedAt), 'MMM d, yyyy HH:mm:ss')}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            fontSize: '13px',
+          }}
+        >
+          Identity
+        </div>
+        <InfoRow
+          label="Public Key"
+          value={connectedAddress}
+          copyValue={connectedAddress ?? undefined}
+        />
+        <InfoRow
+          label="Account ID"
+          value={accountData.account_id}
+          copyValue={accountData.account_id}
+        />
         <InfoRow label="Sequence" value={accountData.sequence} />
         <InfoRow label="Created" value={createdValue} mono={false} />
         <InfoRow
@@ -163,8 +286,23 @@ export default function Account() {
       </div>
 
       {reserves && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--border)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+            }}
+          >
             Reserve Breakdown
           </div>
           <InfoRow label="Base Reserve" value={formatXLM(reserves.baseReserve) + ' XLM'} />
@@ -172,30 +310,62 @@ export default function Account() {
           <InfoRow label="Asset Reserve" value={formatXLM(reserves.assetReserve) + ' XLM'} />
           <InfoRow label="Offer Reserve" value={formatXLM(reserves.offerReserve) + ' XLM'} />
           <InfoRow label="Subentry Reserve" value={formatXLM(reserves.subentryReserve) + ' XLM'} />
-          <div style={{ 
-            padding: '12px 18px', 
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--bg-elevated)'
-          }}>
+          <div
+            style={{
+              padding: '12px 18px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.8px',
+                }}
+              >
                 Total Locked
               </span>
-              <span style={{ fontSize: '12px', color: 'var(--amber)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--amber)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                }}
+              >
                 {formatXLM(reserves.totalReserves)} XLM
               </span>
             </div>
           </div>
-          <div style={{ 
-            padding: '12px 18px', 
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--cyan-glow-sm)'
-          }}>
+          <div
+            style={{
+              padding: '12px 18px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--cyan-glow-sm)',
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.8px',
+                }}
+              >
                 Available Spendable
               </span>
-              <span style={{ fontSize: '12px', color: 'var(--cyan)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--cyan)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                }}
+              >
                 {formatXLM(reserves.availableBalance)} XLM
               </span>
             </div>
@@ -219,15 +389,32 @@ export default function Account() {
         </div>
       )}
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            fontSize: '13px',
+          }}
+        >
           Asset Balances
         </div>
         {otherAssets.length === 0 ? (
-          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>No non-native assets</div>
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>
+            No non-native assets
+          </div>
         ) : (
           otherAssets.map((asset: Horizon.BalanceLine, index: number) => {
-            const estimate = getEstimate(asset)
+            const estimate = getEstimate(asset);
 
             return (
               <div
@@ -249,54 +436,134 @@ export default function Account() {
                     <CopyableValue
                       value={(asset as Horizon.BalanceLineAsset).asset_issuer}
                       title="Copy asset issuer public key"
-                      containerStyle={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '4px', fontFamily: 'var(--font-mono)' }}
-                      textStyle={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      containerStyle={{
+                        color: 'var(--text-muted)',
+                        fontSize: '11px',
+                        marginTop: '4px',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                      textStyle={{
+                        maxWidth: '220px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
                     >
-                      <AddressLabelBadge address={(asset as Horizon.BalanceLineAsset).asset_issuer} />
+                      <AddressLabelBadge
+                        address={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      />
                       {shortAddress((asset as Horizon.BalanceLineAsset).asset_issuer)}
                     </CopyableValue>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                  <span style={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: '4px',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: 'var(--cyan)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                    }}
+                  >
                     {formatXLM(asset.balance)}
                   </span>
                   {estimate && (
-                    <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+                    <span
+                      style={{
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '11px',
+                      }}
+                    >
                       Est. {formatEstimatedUsd(estimate.usd)}
                     </span>
                   )}
                 </div>
               </div>
-            )
+            );
           })
         )}
       </div>
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Thresholds</div>
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            fontSize: '13px',
+          }}
+        >
+          Thresholds
+        </div>
         <InfoRow label="Low" value={thresholds.low_threshold} />
         <InfoRow label="Medium" value={thresholds.med_threshold} />
         <InfoRow label="High" value={thresholds.high_threshold} />
       </div>
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>Flags</div>
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            fontSize: '13px',
+          }}
+        >
+          Flags
+        </div>
         {Object.entries(flags).map(([key, val]) => (
-          <div key={key} style={{
-            display: 'flex', justifyContent: 'space-between', padding: '10px 18px', borderBottom: '1px solid var(--border)',
-          }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+          <div
+            key={key}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '10px 18px',
+              borderBottom: '1px solid var(--border)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.8px',
+              }}
+            >
               {key.replace(/_/g, ' ')}
             </span>
-            <span style={{
-              fontSize: '11px',
-              padding: '2px 8px',
-              borderRadius: '3px',
-              background: val ? 'var(--green-glow)' : 'var(--bg-elevated)',
-              border: `1px solid ${val ? 'var(--green)' : 'var(--border)'}`,
-              color: val ? 'var(--green)' : 'var(--text-muted)',
-            }}>
+            <span
+              style={{
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '3px',
+                background: val ? 'var(--green-glow)' : 'var(--bg-elevated)',
+                border: `1px solid ${val ? 'var(--green)' : 'var(--border)'}`,
+                color: val ? 'var(--green)' : 'var(--text-muted)',
+              }}
+            >
               {val ? 'TRUE' : 'FALSE'}
             </span>
           </div>
@@ -304,15 +571,36 @@ export default function Account() {
       </div>
 
       {signers.length > 0 && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--border)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+            }}
+          >
             Signers ({signers.length})
           </div>
           {signers.map((s: Horizon.AccountSigner, i: number) => (
-            <div key={i} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 18px', borderBottom: i < signers.length - 1 ? '1px solid var(--border)' : 'none',
-            }}>
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 18px',
+                borderBottom: i < signers.length - 1 ? '1px solid var(--border)' : 'none',
+              }}
+            >
               <CopyableValue
                 value={s.key}
                 title="Copy signer public key"
@@ -325,34 +613,70 @@ export default function Account() {
                 <AddressLabelBadge address={s.key} />
                 {shortAddress(s.key)}
               </CopyableValue>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>weight: {s.weight}</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                weight: {s.weight}
+              </span>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            fontSize: '13px',
+          }}
+        >
           Open Offers
         </div>
         {offersLoading ? (
-          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>Loading offers...</div>
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>
+            Loading offers...
+          </div>
         ) : offersError ? (
-          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--red)' }}>Error: {offersError}</div>
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--red)' }}>
+            Error: {offersError}
+          </div>
         ) : offers.length === 0 ? (
-          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>No open offers</div>
+          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>
+            No open offers
+          </div>
         ) : (
           <div>
             {offers.map((offer, i) => (
-              <div key={offer.id} style={{
-                padding: '12px 18px',
-                borderBottom: i < offers.length - 1 ? '1px solid var(--border)' : 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Offer ID: {offer.id}</span>
+              <div
+                key={offer.id}
+                style={{
+                  padding: '12px 18px',
+                  borderBottom: i < offers.length - 1 ? '1px solid var(--border)' : 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    Offer ID: {offer.id}
+                  </span>
                   <a
                     href={`https://stellar.expert/explorer/${network}/offer/${offer.id}`}
                     target="_blank"
@@ -363,12 +687,24 @@ export default function Account() {
                   </a>
                 </div>
                 <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
-                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Selling:</span> {formatXLM(offer.amount)} {formatAsset(offer.selling.asset_type, offer.selling.asset_code)}</div>
-                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Buying:</span> {formatAsset(offer.buying.asset_type, offer.buying.asset_code)}</div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Selling:</span>{' '}
+                    {formatXLM(offer.amount)}{' '}
+                    {formatAsset(offer.selling.asset_type, offer.selling.asset_code)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Buying:</span>{' '}
+                    {formatAsset(offer.buying.asset_type, offer.buying.asset_code)}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
-                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Price:</span> {offer.price}</div>
-                  <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>Ratio:</span> {offer.price_r.n}/{offer.price_r.d}</div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Price:</span> {offer.price}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Ratio:</span> {offer.price_r.n}/
+                    {offer.price_r.d}
+                  </div>
                 </div>
               </div>
             ))}
@@ -376,10 +712,31 @@ export default function Account() {
         )}
       </div>
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '14px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>Claimable Balances</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>View and simulate claiming pending balances</div>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+              marginBottom: '4px',
+            }}
+          >
+            Claimable Balances
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            View and simulate claiming pending balances
+          </div>
         </div>
         <button
           onClick={() => useStore.getState().setActiveTab('claimableBalances')}
@@ -398,5 +755,5 @@ export default function Account() {
         </button>
       </div>
     </div>
-  )
+  );
 }

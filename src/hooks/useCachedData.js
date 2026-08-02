@@ -12,13 +12,14 @@
  *   useCacheStats          — live cache statistics for a debug panel
  */
 
-import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
-import cache, { TTL, isOffline } from '../lib/cache.js';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import cache, { TTL, isOffline as cacheIsOffline } from '../lib/cache.js';
 import {
   getCachedApiResponse,
   setCachedApiResponse,
   getOfflineQueue,
 } from '../lib/storage.js';
+import { evaluateDataSource, subscribeToConnectivity, isOnline } from '../lib/offlineReadOnly';
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -68,15 +69,26 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
     onError         = noop,
   } = opts;
 
-  const [data,    setData]    = useState(() => (cacheKey ? cache.get(cacheKey) : null));
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
-  const [stale,   setStale]   = useState(false);
-  const [source,  setSource]  = useState('init');
+  const [data,       setData]       = useState(() => (cacheKey ? cache.get(cacheKey) : null));
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState(null);
+  const [stale,      setStale]      = useState(false);
+  const [source,     setSource]     = useState('init');
+  const [cachedAt,   setCachedAt]   = useState(() => {
+    if (!cacheKey) return null;
+    const meta = cache._meta && cache._meta.get(cacheKey);
+    return meta?.createdAt ?? null;
+  });
+  const [online,     setOnline]     = useState(() => isOnline());
+  const [swCacheHit, setSwCacheHit] = useState(false);
 
   const mountedRef  = useRef(true);
   const fetchFnRef  = useRef(fetchFn);
   fetchFnRef.current = fetchFn;
+
+  useEffect(() => {
+    return subscribeToConnectivity(setOnline);
+  }, []);
 
   const doFetch = useCallback(async (skipCache = false) => {
     if (!cacheKey || !enabled) return;
@@ -124,6 +136,8 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
         setData(fresh);
         setStale(false);
         setSource('network');
+        setCachedAt(Date.now());
+        setSwCacheHit(false);
         setLoading(false);
         setError(null);
         onSuccess(fresh);
@@ -159,6 +173,7 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
         setData(value);
         setStale(false);
         setSource('subscription');
+        setCachedAt(Date.now());
       }
     });
   }, [cacheKey]);
@@ -169,7 +184,31 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
     doFetch(true);
   }, [cacheKey, doFetch]);
 
-  return { data, loading, error, stale, source, refetch, invalidate };
+  const dataSourceInfo = evaluateDataSource(
+    data !== null && data !== undefined,
+    {
+      cachedAt,
+      ttlMs: ttl,
+      fromServiceWorkerCache: swCacheHit,
+    },
+  );
+
+  return {
+    data,
+    loading,
+    error,
+    stale,
+    source,
+    refetch,
+    invalidate,
+    online,
+    offline: !online,
+    dataSource: dataSourceInfo.source,
+    dataSourceLabel: dataSourceInfo.label,
+    isLiveData: dataSourceInfo.isLive,
+    cachedAt: dataSourceInfo.cachedAt,
+    dataAgeMs: dataSourceInfo.ageMs,
+  };
 }
 
 // ─── useCachedAccount ─────────────────────────────────────────────────────────
@@ -313,23 +352,17 @@ export function useCachedItem(cacheKeyPrefix, id, fetchFn, opts = {}) {
 // ─── useOfflineStatus ─────────────────────────────────────────────────────────
 
 /**
- * Returns { online, queueLength } and updates reactively.
+ * Returns { online, offline, queueLength, writeSafe } and updates reactively.
+ *
+ * writeSafe is false when offline and unsafe writes are attempted (i.e. the
+ * UI should disable submit buttons).
  */
 export function useOfflineStatus() {
-  const [online, setOnline] = useState(() =>
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  const [online, setOnline] = useState(() => isOnline());
   const [queueLength, setQueueLength] = useState(0);
 
   useEffect(() => {
-    const onOnline  = () => setOnline(true);
-    const onOffline = () => setOnline(false);
-    window.addEventListener('online',  onOnline);
-    window.addEventListener('offline', onOffline);
-    return () => {
-      window.removeEventListener('online',  onOnline);
-      window.removeEventListener('offline', onOffline);
-    };
+    return subscribeToConnectivity(setOnline);
   }, []);
 
   // Poll queue length every 5 s
@@ -340,7 +373,12 @@ export function useOfflineStatus() {
     return () => clearInterval(id);
   }, []);
 
-  return { online, queueLength };
+  return {
+    online,
+    offline: !online,
+    queueLength,
+    writeSafe: online,
+  };
 }
 
 // ─── useCacheStats ────────────────────────────────────────────────────────────

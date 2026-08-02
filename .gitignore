@@ -9,3 +9,4 @@ coverage/
 .stryker-tmp/
 reports/
 storybook-static/
+node_modules

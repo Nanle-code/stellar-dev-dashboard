@@ -8,6 +8,8 @@ import { saveAlertRule, getAlertRules, deleteAlertRule } from "../../lib/alertRu
 import { ALERT_RULE_TYPE, ALERT_CHANNEL } from "../../lib/alerts";
 import PluginRegistryView from "./PluginRegistryView";
 import DataExport from "./DataExport";
+import LanguageSettings from "./LanguageSettings";
+import { revokeSentryConsent } from "../../utils/monitoring";
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
 
@@ -205,6 +207,11 @@ export default function Settings() {
         Settings
       </h2>
 
+      {/* ── Language & AI Translation ── */}
+      <div style={styles.section}>
+        <LanguageSettings />
+      </div>
+
       {updateReady && (
         <div style={{ ...styles.banner, ...styles.updateBanner } as React.CSSProperties}>
           <span style={{ ...styles.dot, background: '#63b3ed' } as React.CSSProperties} />
@@ -396,6 +403,39 @@ export default function Settings() {
         >
           Open Performance Monitor
         </button>
+      </div>
+
+      <div style={styles.section}>
+        <p style={styles.sectionTitle}>Privacy & Diagnostics</p>
+        <div style={styles.card}>
+          <div style={styles.row}>
+            <div>
+              <p style={styles.label}>Allow diagnostic data collection</p>
+              <p style={styles.description}>
+                Share crash reports and performance data to help improve Stellar Dev Dashboard.
+              </p>
+              <p style={{ ...styles.description, marginTop: "4px", fontSize: "11px", color: "var(--text-muted)" }}>
+                <strong>Data Retention Policy:</strong> Diagnostic data is anonymized and retained for a maximum of 30 days. It is used exclusively to improve application reliability.
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                checked={!!preferences.diagnosticsConsent}
+                onChange={(e) => {
+                  const consent = e.target.checked;
+                  setPreference('diagnosticsConsent', consent);
+                  if (!consent) {
+                    revokeSentryConsent();
+                  }
+                }}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                aria-label="Toggle diagnostics consent"
+              />
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>{preferences.diagnosticsConsent ? 'Enabled' : 'Disabled'}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div style={styles.section}>

@@ -88,6 +88,7 @@ New utility/lib files that contain pure business logic should be `.ts`. React co
 - Use semantic HTML (`<nav>`, `<ul>`, `<button>`) over generic `<div>` + `onClick`.
 - Add `aria-label` to icon-only buttons.
 - Announce dynamic changes via `<ScreenReaderAnnouncer>` where appropriate.
+- See [Keyboard Navigation Guide](./KEYBOARD_NAVIGATION.md) for route focus, skip links, modal traps, and test requirements.
 
 ---
 

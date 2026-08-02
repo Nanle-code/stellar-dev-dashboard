@@ -392,24 +392,25 @@ export default function Builder() {
       <div style={{ display: 'flex', gap: '12px' }}>
         <button
           onClick={handleSimulate}
-          disabled={isSimulating || operations.length === 0}
+          disabled={isSimulating || operations.length === 0 || offline}
+          title={offline ? 'Simulation requires a network connection' : ''}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '12px 18px',
-            background: 'var(--cyan-glow)',
-            border: '1px solid var(--cyan)',
+            background: (isSimulating || operations.length === 0 || offline) ? 'var(--bg-elevated)' : 'var(--cyan-glow)',
+            border: `1px solid ${offline ? 'var(--amber)' : 'var(--cyan)'}`,
             borderRadius: 'var(--radius)',
-            color: 'var(--cyan)',
+            color: offline ? 'var(--amber)' : 'var(--cyan)',
             fontSize: '13px',
             fontWeight: 600,
-            cursor: operations.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: operations.length === 0 ? 0.5 : 1
+            cursor: (operations.length === 0 || isSimulating || offline) ? 'not-allowed' : 'pointer',
+            opacity: operations.length === 0 ? 0.5 : 1,
           }}
         >
           <Play size={14} />
-          {isSimulating ? 'Simulating...' : 'Simulate'}
+          {isSimulating ? 'Simulating...' : offline ? 'Simulate (offline)' : 'Simulate'}
         </button>
 
         <button
@@ -427,11 +428,11 @@ export default function Builder() {
             fontSize: '13px',
             fontWeight: 600,
             cursor: operations.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: operations.length === 0 ? 0.5 : 1
+            opacity: operations.length === 0 ? 0.5 : 1,
           }}
         >
           <Copy size={14} />
-          Export XDR
+          Export XDR{offline ? ' (local)' : ''}
         </button>
       </div>
 

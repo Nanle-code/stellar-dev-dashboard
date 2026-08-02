@@ -1,0 +1,286 @@
+/**
+ * expertise.css — Adaptive UI Based on User Expertise Level
+ *
+ * Styles for the progressive disclosure system, expertise badge,
+ * expertise progress panel, and adaptive component rendering.
+ *
+ * Features:
+ *  - Locked state overlay for features not yet accessible
+ *  - Guided/coached tooltip appearance for novice users
+ *  - Simplified vs detailed view styles
+ *  - Expertise badge animations
+ *  - Growth indicator styling
+ *  - Smooth transitions between expertise levels
+ */
+
+/* ─── Expertise Badge ─────────────────────────────────────────────────────── */
+
+.expertise-badge-trigger {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.expertise-badge-trigger:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.expertise-badge-trigger:hover {
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+}
+
+.expertise-badge-trigger:active {
+  transform: translateY(0);
+}
+
+@keyframes expertise-badge-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(0, 229, 255, 0);
+  }
+}
+
+.expertise-badge-trigger.new-level {
+  animation: expertise-badge-pulse 1.5s ease-in-out 3;
+}
+
+/* ─── Expertise Badge Dropdown ─────────────────────────────────────────────── */
+
+.expertise-badge-dropdown {
+  animation: expertise-dropdown-appear 0.15s ease-out;
+  transform-origin: top right;
+}
+
+@keyframes expertise-dropdown-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.expertise-badge-dropdown button[role="menuitemradio"]:hover {
+  background: var(--bg-hover);
+}
+
+.expertise-badge-dropdown button[role="menuitemradio"][aria-checked="true"] {
+  cursor: default;
+}
+
+/* ─── Progressive Disclosure ──────────────────────────────────────────────── */
+
+.progressive-disclosure-locked {
+  animation: expertise-locked-appear 0.3s ease-out;
+}
+
+@keyframes expertise-locked-appear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progressive-disclosure-content {
+  animation: expertise-content-appear 0.25s ease-out;
+}
+
+@keyframes expertise-content-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Guidance banner */
+.progressive-disclosure-content > [role="alert"],
+.progressive-disclosure-content > .guidance-banner {
+  animation: expertise-guidance-slide 0.2s ease-out;
+}
+
+@keyframes expertise-guidance-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 50px;
+  }
+}
+
+/* ─── Expertise Progress Panel ─────────────────────────────────────────────── */
+
+.expertise-progress-panel {
+  scroll-behavior: smooth;
+}
+
+.expertise-progress-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.expertise-progress-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.expertise-progress-panel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* Progress bar animation */
+.expertise-progress-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.expertise-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  animation: expertise-progress-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes expertise-progress-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ─── Level-Specific Theme Adjustments ─────────────────────────────────────── */
+
+/* Novice: add extra padding and spacing for readability */
+[data-expertise="novice"] .widget-container {
+  margin-bottom: 16px;
+}
+
+[data-expertise="novice"] .dashboard-grid {
+  gap: 20px;
+}
+
+[data-expertise="novice"] button,
+[data-expertise="novice"] [role="button"] {
+  min-height: var(--touch-target, 44px);
+}
+
+/* Novice: tooltip styles */
+[data-expertise="novice"] [data-tooltip] {
+  position: relative;
+}
+
+[data-expertise="novice"] [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+[data-expertise="novice"] [data-tooltip]:hover::after {
+  opacity: 1;
+}
+
+/* Intermediate: standard tooltips */
+[data-expertise="intermediate"] [data-tooltip]::after {
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+/* ─── Responsive Expertise Components ──────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .expertise-badge-dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: expertise-dropdown-mobile 0.2s ease-out;
+  }
+
+  @keyframes expertise-dropdown-mobile {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ─── Reduced Motion ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .expertise-badge-dropdown,
+  .progressive-disclosure-locked,
+  .progressive-disclosure-content,
+  .expertise-progress-bar::after {
+    animation: none !important;
+  }
+
+  .expertise-badge-trigger:hover {
+    transform: none;
+  }
+}
+
+/* ─── Guided Tour Integration ──────────────────────────────────────────────── */
+
+.expertise-guided-highlight {
+  position: relative;
+  z-index: 1000;
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+  animation: expertise-highlight-pulse 2s ease-in-out infinite;
+}
+
+@keyframes expertise-highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(0, 229, 255, 0.1);
+  }
+}
+

@@ -1,16 +1,36 @@
 /**
- * Cache Warming & Predictive Prefetching
+ * Cache Warming & Predictive Prefetching — Load Distribution Optimization
+ * ========================================================================
+ * Anticipates data needs and pre-populates caches to smooth load spikes.
+ * Instead of reacting to cache misses (which cause synchronous network
+ * requests and spike endpoint load), this module proactively fetches and
+ * caches data before it's requested, distributing load evenly over time.
  *
- * Handles three warming scenarios:
- *   1. App-load warming  — hydrate L1 from IDB on first render
- *   2. Predictive prefetch — queue likely-needed keys based on user context
- *   3. Background refresh — stale-while-revalidate for high-priority keys
+ * Three warming scenarios driven by load predictions:
+ *   1. APP-LOAD WARMING  — Hydrate L1 from IndexedDB on first render.
+ *      Ensures returning users see their data instantly without network
+ *      requests, reducing initial load on API endpoints.
+ *
+ *   2. PREDICTIVE PREFETCH — Queue likely-needed keys based on user context
+ *      AND predicted load patterns from capacityPrediction.ts.
+ *      During predicted low-congestion windows, we aggressively prefetch.
+ *      During predicted high-congestion, we only refresh critical keys.
+ *
+ *   3. BACKGROUND REFRESH — Stale-while-revalidate for high-priority keys.
+ *      Keeps frequently accessed data fresh without blocking the UI thread.
+ *      Uses the access tracker (frequency + recency) to prioritize refreshes.
  *
  * Architecture:
  *  - WarmingScheduler  : orchestrates all warming tasks, rate-limits to avoid
- *                        blocking the main thread on startup
- *  - PrefetchQueue     : priority min-heap for pending prefetch work
- *  - AccessTracker     : records key access frequency to drive prediction
+ *                        blocking the main thread on startup. Integrates with
+ *                        load prediction to throttle prefetch during congestion.
+ *  - PrefetchQueue     : priority min-heap for pending prefetch work.
+ *                        Sorted by access frequency × predicted need.
+ *  - AccessTracker     : records key access frequency to drive prediction.
+ *                        Feeds data to capacityPrediction.ts for tuning.
+ *
+ * @see cacheManager.ts — parent module that delegates warming to this scheduler
+ * @see capacityPrediction.ts — provides load windows for optimal prefetch timing
  */
 
 import { TTL } from './cache.js';

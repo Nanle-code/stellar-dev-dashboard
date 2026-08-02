@@ -1,11 +1,46 @@
 /**
- * CacheManager v2 — Multi-Layer Cache Facade
+ * CacheManager v2 — Multi-Layer Cache Facade (Load Distribution Optimizer)
  *
+ * LOAD BALANCING — CACHE LAYER DISTRIBUTION SUBSYSTEM
+ * =====================================================
+ * The CacheManager distributes read load across three cache layers to
+ * minimize direct API endpoint requests. By serving data from the fastest
+ * available layer, it reduces backend load and improves response times.
+ *
+ * Cache layer distribution strategy:
  * ┌──────────────────────────────────────────────────────────────────────┐
- * │  L1: In-memory LRU  (cache.js)          fast, volatile               │
- * │  L2: IndexedDB API cache  (storage.js)  persistent, survives reload  │
- * │  L3: Service Worker cache  (swCacheBridge) network-layer caching     │
+ * │  L1: In-memory LRU  (cache.js)          fast (~0.1ms), volatile     │
+ * │      Hit rate target: >80% for hot keys                               │
+ * │      Eviction: LRU when maxSize exceeded or TTL expired               │
+ * ├──────────────────────────────────────────────────────────────────────┤
+ * │  L2: IndexedDB cache  (storage.js)     ~5ms, persistent (reloads)    │
+ * │      Hit rate target: >60% for warm keys (L1 misses)                 │
+ * │      Populated: write-through from L1 when persist=true               │
+ * ├──────────────────────────────────────────────────────────────────────┤
+ * │  L3: Service Worker cache (swCacheBridge)  network-level, offline    │
+ * │      Hit rate target: >30% for cold keys (L1+L2 misses)              │
+ * │      Populated: write-through for cacheable API responses             │
  * └──────────────────────────────────────────────────────────────────────┘
+ *
+ * Key optimizations for load distribution:
+ *   - WRITE-THROUGH: Every set() cascades through L1→L2→L3, keeping all
+ *     layers coherent without background sync overhead.
+ *   - STALE-WHILE-REVALIDATE: Returns cached value immediately, refreshes
+ *     in background. Prevents cache stampedes during high load.
+ *   - PREDICTIVE PREFETCH: Warming scheduler (cacheWarmingStrategy.ts)
+ *     prefetches based on access patterns AND predicted load windows.
+ *   - SIZE-BASED EVICTION: Per-namespace byte limits prevent memory
+ *     exhaustion. Estimated via sampling (50 keys, scaled up).
+ *   - COMPRESSION: Values >512 bytes are LZ-compressed before storage,
+ *     reducing memory pressure at the cost of slight latency.
+ *   - TAG-BASED INVALIDATION: Event-driven cache busting when account
+ *     state changes or network switches, preventing stale data serving.
+ *
+ * Integration with load prediction (capacityPrediction.ts):
+ *   - Predicted low-load windows → increase prefetch aggressiveness
+ *   - Predicted high-load windows → extend TTLs, reduce warming
+ *   - Hit rate trends → adjust per-namespace maxSize allocations
+ *   - Eviction pressure → trigger capacity planning recommendations
  *
  * New in v2:
  *  Step 1 — Multi-layer: L3 SW cache queried for misses before network

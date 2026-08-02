@@ -1,3 +1,5 @@
+closes #550
+
 # Stellar Dev Dashboard
 
 A real-time developer dashboard for the Stellar network with advanced features including AI-enhanced transaction fee prediction.
@@ -72,16 +74,7 @@ const { transaction, prediction } = await integration.predictFeeForTransaction({
 
 ### Configuration
 
-```json
-{
-  "feePrediction": {
-    "enabled": true,
-    "updateIntervalMs": 15000,
-    "cacheTTLHours": 24,
-    "accuracyThreshold": 0.95
-  }
-}
-```
+
 
 ## ML Training Pipeline
 

@@ -28,6 +28,9 @@ import type {
   PatternAnalysisResult,
   ScoreResult,
 } from '../../lib/transactionPatternAnalysis'
+import AnomalyExplanationPanel from './AnomalyExplanationPanel'
+import { buildAnomalyExplanations } from '../../lib/anomalyExplanation'
+import type { AnomalyExplanationSet } from '../../lib/anomalyExplanation'
 
 // ---------------------------------------------------------------------------
 // Helpers / sub-components
@@ -401,6 +404,22 @@ export default function TransactionPatternAnalysis() {
       connectedAddress || ''
     )
   }, [transactions, operations, connectedAddress])
+
+  // --- AI Anomaly Explanations ---
+  const [showExplanations, setShowExplanations] = useState(true)
+
+  const explanationSet: AnomalyExplanationSet | null = useMemo(() => {
+    if (!result || (!result.patterns.length && result.anomalyScore.score < 30)) return null
+    return buildAnomalyExplanations(
+      result.patterns,
+      result.anomalyScore,
+      {
+        transactions: transactions as Parameters<typeof analyzeTransactionPatterns>[0],
+        operations: operations as Parameters<typeof analyzeTransactionPatterns>[1],
+        accountAddress: connectedAddress || undefined,
+      }
+    )
+  }, [result, transactions, operations, connectedAddress])
 
   // --- ML scoring and training trigger ---
   const runScoringAndTraining = React.useCallback(async (currentFeedback = feedback) => {
@@ -853,6 +872,29 @@ export default function TransactionPatternAnalysis() {
               </div>
             )}
           </Section>
+
+          {/* AI Anomaly Explanations */}
+          {showExplanations && explanationSet && explanationSet.count > 0 && (
+            <AnomalyExplanationPanel
+              explanationSet={explanationSet}
+              onClose={() => setShowExplanations(false)}
+              showOverall
+            />
+          )}
+          {!showExplanations && explanationSet && explanationSet.count > 0 && (
+            <div style={{ textAlign: 'right' }}>
+              <button
+                onClick={() => setShowExplanations(true)}
+                style={{
+                  fontSize: '11px', color: 'var(--accent)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  textDecoration: 'underline', padding: '0',
+                }}
+              >
+                Show AI explanations ({explanationSet.count})
+              </button>
+            </div>
+          )}
 
           {/* Cluster + Op Mix split */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>

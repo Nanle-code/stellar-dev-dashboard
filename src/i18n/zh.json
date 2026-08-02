@@ -284,5 +284,52 @@
             "placeholder": "在此输入你的Stellar代码...",
             "run": "运行代码"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "切换到",
+        "stats": {
+            "title": "AI翻译统计",
+            "languages": "语言",
+            "tmEntries": "翻译记忆条目",
+            "communityContributions": "社区纠正",
+            "accuracy": "目标精度",
+            "apiStatus": "机器翻译API",
+            "apiConnected": "已连接",
+            "apiNotConfigured": "未配置"
+        },
+        "demo": {
+            "title": "体验AI翻译",
+            "subtitle": "实时测试任意文本翻译，包括Stellar专业术语。",
+            "placeholder": "输入要翻译的文本...",
+            "targetLanguage": "目标语言",
+            "translateBtn": "翻译"
+        },
+        "api": {
+            "title": "翻译API",
+            "description": "连接兼容LibreTranslate的端点以获得更高精度。Stellar术语始终受到保护。",
+            "endpointLabel": "API端点URL",
+            "keyLabel": "API密钥",
+            "keyOptional": "可选",
+            "saveBtn": "配置",
+            "saved": "配置已保存"
+        },
+        "correction": {
+            "title": "提交纠正",
+            "description": "发现翻译错误？提交纠正，将立即通过翻译记忆应用。",
+            "sourceText": "原始英文文本",
+            "originalTranslation": "错误翻译",
+            "originalPlaceholder": "粘贴错误翻译（可选）",
+            "correctedTranslation": "您的纠正",
+            "correctedPlaceholder": "输入正确翻译",
+            "targetLanguage": "需纠正的语言",
+            "submitBtn": "提交纠正",
+            "submitted": "纠正已保存，谢谢！",
+            "errorEmpty": "请填写源文本和纠正内容。"
+        },
+        "terms": {
+            "title": "受保护的Stellar术语",
+            "description": "这些技术术语不会被机器翻译——始终保持原样以确保准确性。",
+            "more": "个受保护术语"
+        }
     }
 }

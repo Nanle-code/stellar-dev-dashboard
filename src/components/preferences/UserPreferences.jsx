@@ -187,10 +187,54 @@ export default function UserPreferences({ onClose }) {
               />
             </PreferenceRow>
 
+            <PreferenceRow label="Contract Assistant">
+              <Toggle
+                checked={preferences.advanced?.enableContractAssistant ?? true}
+                onChange={(v) => handleChange('advanced', {
+                  ...preferences.advanced,
+                  enableContractAssistant: v,
+                })}
+              />
+            </PreferenceRow>
+
             <PreferenceRow label="Auto Refresh">
               <Toggle
                 checked={preferences.autoRefresh}
                 onChange={(v) => handleChange('autoRefresh', v)}
+              />
+            </PreferenceRow>
+
+            <PreferenceRow label="Auto-block high-risk counterparties">
+              <Toggle
+                checked={preferences.transactionConfirmation.autoBlockHighRisk}
+                onChange={(v) => handleChange('transactionConfirmation', {
+                  ...preferences.transactionConfirmation,
+                  autoBlockHighRisk: v,
+                })}
+              />
+            </PreferenceRow>
+
+            <PreferenceRow label="High-risk threshold">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={preferences.transactionConfirmation.highRiskThreshold}
+                onChange={(e) => handleChange('transactionConfirmation', {
+                  ...preferences.transactionConfirmation,
+                  highRiskThreshold: Number(e.target.value),
+                })}
+                style={{
+                  width: '90px',
+                  padding: '6px 10px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-bright)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                }}
               />
             </PreferenceRow>
 

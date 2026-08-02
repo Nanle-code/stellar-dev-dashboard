@@ -31,11 +31,18 @@ import UserPreferences from '../components/preferences/UserPreferences';
 import NetworkIndicator from '../components/layout/NetworkIndicator';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import KeyboardNavigation from '../components/accessibility/KeyboardNavigation';
+import SkipLink from '../components/accessibility/SkipLink';
+import FocusManager from '../components/accessibility/FocusManager';
 import ThemeToggle from '../components/layout/ThemeToggle';
 import OfflineBanner from '../components/layout/OfflineBanner';
 import PWAInstallBanner from '../components/PWAInstallBanner';
+import SWUpdatePrompt from '../components/SWUpdatePrompt';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import DevToolbar from '../components/dashboard/DevToolbar';
+import DebugAssistantButton from '../components/debug/DebugAssistantButton';
+import DebugAssistantPanel from '../components/debug/DebugAssistantPanel';
+import ConversationPanel from '../components/conversation/ConversationPanel';
+import { useRouteFocus } from '../hooks/useRouteFocus';
 
 interface SearchResult {
   type?: string;
@@ -55,6 +62,7 @@ const lazyNamedTab = (loader: () => Promise<Record<string, unknown>>, exportName
 
 const Overview = lazyTab(() => import('../components/dashboard/Overview'));
 const TransactionAnalytics = lazy(() => import('../components/dashboard/TransactionAnalyticsDashboard'));
+const RefactoringAdvisor = lazyTab(() => import('../components/dashboard/RefactoringAdvisor'));
 
 const TABS: Record<string, TabComponent> = {
   overview: Overview,
@@ -72,6 +80,7 @@ const TABS: Record<string, TabComponent> = {
   contractInteraction: lazyTab(() => import('../components/dashboard/ContractInteraction')),
   contractABI: lazyTab(() => import('../components/dashboard/ContractABI')),
   dex: lazyTab(() => import('../components/dashboard/DEXExplorer')),
+  liquidityPrediction: lazyTab(() => import('../components/dashboard/LiquidityPredictionDashboard')),
   pathExplorer: lazyTab(() => import('../components/dashboard/PathExplorer')),
   explorers: lazyTab(() => import('../components/dashboard/ExplorerEmbed')),
   realtime: lazyTab(() => import('../components/dashboard/RealTimeLedger')),
@@ -98,8 +107,9 @@ const TABS: Record<string, TabComponent> = {
   devToolbar: lazyTab(() => import('../components/dashboard/DevToolbar')),
   compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
   security: lazyTab(() => import('../components/dashboard/SecurityDashboard')),
+  dependencyManagement: lazyTab(() => import('../components/dashboard/DependencyManagement')),
   txAnalytics: TransactionAnalytics,
-  contractRecommendations: lazyTab(() => import('../components/dashboard/ContractRecommendations')),
+  anomalyViz: lazyTab(() => import('../components/dashboard/AnomalyVisualization')),
 };
 
 function TabLoadingFallback() {
@@ -227,9 +237,17 @@ export default function DashboardLayout() {
     setActiveTab,
     preferencesOpen,
     setPreferencesOpen,
+    debugAssistantOpen,
+    debugAssistantIssueCount,
+    toggleDebugAssistant,
   } = useStore();
   const { isMobile, isTablet } = useResponsive();
+  const { level, isNovice, setLevel, updateSignals } = useExpertise();
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
+  const [conversationOpen, setConversationOpen] = useState<boolean>(false);
+  const preferencesTriggerRef = React.useRef<HTMLButtonElement>(null);
+
+  useRouteFocus(activeTab);
 
   useEffect(() => {
     // v2: full multi-layer cache initialization (warm, prune, SW bridge)
@@ -242,6 +260,18 @@ export default function DashboardLayout() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-expertise', level);
+  }, [level]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      updateSignals((current) => ({ sessionDurationMinutes: current.sessionDurationMinutes + 1 }));
+    }, 60000);
+
+    return () => window.clearInterval(timer);
+  }, [updateSignals]);
 
   useEffect(() => {
     initializeErrorReporting({
@@ -263,15 +293,21 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isMobileMenuOpen) {
-        setMobileMenuOpen(false);
-        addBreadcrumb('Mobile menu closed via escape key', 'user_action');
+      if (e.key === 'Escape') {
+        if (isMobileMenuOpen) {
+          setMobileMenuOpen(false);
+          addBreadcrumb('Mobile menu closed via escape key', 'user_action');
+        }
+        if (preferencesOpen) {
+          setPreferencesOpen(false);
+          preferencesTriggerRef.current?.focus();
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isMobileMenuOpen, setMobileMenuOpen]);
+  }, [isMobileMenuOpen, setMobileMenuOpen, preferencesOpen, setPreferencesOpen]);
 
   useEffect(() => {
     if (isMobileMenuOpen) {
@@ -359,8 +395,10 @@ export default function DashboardLayout() {
 
   return (
     <ErrorBoundary onRetry={handleRetry} maxRetries={3}>
+      <SkipLink />
       <OfflineBanner />
       <PWAInstallBanner />
+      <SWUpdatePrompt />
       <div
         style={{
           display: 'flex',
@@ -371,7 +409,13 @@ export default function DashboardLayout() {
       >
         {isMobile && <MobileHeader />}
         {isMobile ? <MobileSidebar /> : <Sidebar />}
-        <main style={getMainStyles()} ref={isMobile ? swipeAreaRef : null}>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          aria-label="Dashboard content"
+          style={getMainStyles()}
+          ref={isMobile ? swipeAreaRef : null}
+        >
           <KeyboardNavigation />
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ flex: 1 }}>
@@ -381,8 +425,23 @@ export default function DashboardLayout() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <NetworkIndicator />
             </div>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <ExpertiseBadge
+                onLevelChange={() => {
+                  trackFeatureInteraction('expertise-badge');
+                }}
+              />
+            </div>
             <button
-              onClick={() => setPreferencesOpen(true)}
+              ref={preferencesTriggerRef}
+              type="button"
+              onClick={() => {
+                setPreferencesOpen(true);
+                trackFeatureInteraction('preferences');
+              }}
+              aria-label="Open user preferences"
+              aria-haspopup="dialog"
+              aria-expanded={preferencesOpen}
               title="User Preferences"
               style={{
                 width: '36px',
@@ -418,6 +477,9 @@ export default function DashboardLayout() {
         </main>
         <TourLauncher />
         <DevToolbar />
+        <PredictiveFeatureSuggestions
+          onNavigate={(tab) => navigate(`/${tab}`)}
+        />
         <NotificationBell
           onClick={() => setNotificationsOpen(true)}
           bottomOffset={isMobile ? 'calc(60px + 16px)' : '20px'}
@@ -426,9 +488,67 @@ export default function DashboardLayout() {
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
         />
+        <DebugAssistantButton
+          onClick={() => toggleDebugAssistant()}
+          isOpen={debugAssistantOpen}
+          issueCount={debugAssistantIssueCount}
+        />
+        {debugAssistantOpen && (
+          <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />
+        )}
+
+        {/* Conversational Navigation Button */}
+        <button
+          type="button"
+          onClick={() => setConversationOpen(!conversationOpen)}
+          aria-label={conversationOpen ? 'Close navigation assistant' : 'Open navigation assistant'}
+          style={{
+            position: 'fixed',
+            right: '20px',
+            bottom: isMobile ? 'calc(60px + 78px)' : '78px',
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            border: `2px solid ${conversationOpen ? 'var(--cyan)' : 'var(--border)'}`,
+            background: conversationOpen ? 'var(--cyan-glow)' : 'var(--bg-card)',
+            color: conversationOpen ? 'var(--cyan)' : 'var(--text-primary)',
+            cursor: 'pointer',
+            boxShadow: conversationOpen
+              ? '0 0 20px var(--cyan-glow)'
+              : '0 6px 18px rgba(0, 0, 0, 0.25)',
+            zIndex: 1061,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            transition: 'all 180ms ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!conversationOpen) {
+              e.currentTarget.style.borderColor = 'var(--cyan-dim)';
+              e.currentTarget.style.boxShadow = '0 0 12px var(--cyan-glow)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!conversationOpen) {
+              e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.25)';
+            }
+          }}
+        >
+          <span aria-hidden="true">{conversationOpen ? '✕' : '💬'}</span>
+        </button>
+
+        <ConversationPanel
+          isOpen={conversationOpen}
+          onClose={() => setConversationOpen(false)}
+        />
+
         {isMobile && <MobileNavigation />}
+        <TipButton />
         {preferencesOpen && (
           <div
+            role="presentation"
             style={{
               position: 'fixed',
               inset: 0,
@@ -441,10 +561,26 @@ export default function DashboardLayout() {
               padding: '16px',
             }}
             onClick={(e) => {
-              if (e.target === e.currentTarget) setPreferencesOpen(false);
+              if (e.target === e.currentTarget) {
+                setPreferencesOpen(false);
+                preferencesTriggerRef.current?.focus();
+              }
             }}
           >
-            <UserPreferences onClose={() => setPreferencesOpen(false)} />
+            <FocusManager
+              trapFocus
+              restoreFocusOnUnmount
+              returnFocusElement={preferencesTriggerRef.current}
+            >
+              <div role="dialog" aria-modal="true" aria-label="User preferences">
+                <UserPreferences
+                  onClose={() => {
+                    setPreferencesOpen(false);
+                    preferencesTriggerRef.current?.focus();
+                  }}
+                />
+              </div>
+            </FocusManager>
           </div>
         )}
       </div>

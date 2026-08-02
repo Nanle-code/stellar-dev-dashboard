@@ -21,11 +21,16 @@ We enforce a strict CSP through both Nginx and React-level meta tags.
 - **Restrictions**: `'unsafe-inline'` is prohibited in production.
 - **Allowed Sources**: 
   - Scripts/Styles: `'self'`
-  - API Connections: `https://*.stellar.org`, `https://api.coingecko.com`
+  - API Connections/Wallets: `https://*.stellar.org`, `wss://*.stellar.org`, `https://*.sorobanrpc.com`, `https://api.coingecko.com`, `wss://*.walletconnect.com`, `https://*.walletconnect.com`, `https://*.walletconnect.org`, `https://albedo.link`, `https://*.albedo.link`
+  - Inline Scripts: Allowed via strict SHA-256 hash validation for the theme initialization script.
+
+### Adding New Wallet or API Endpoints
+To add a new endpoint or wallet integration, update the `Content-Security-Policy` header in `nginx.conf` and the corresponding meta tag in `index.html`. Add the domains to `connect-src` (for APIs/WebSocket) or `frame-src` (for iframes).
 
 ### 2. Automated Guardrails
 - **Dependabot**: Monitors `npm` and `github-actions` ecosystems daily for updates.
 - **CI Security Audit**: Every push and pull request triggers an `npm audit --audit-level=high` check. Failure to meet this threshold blocks the deployment pipeline.
+- **Intelligent Dependency Management (#602)**: In-app analysis engine (`src/lib/dependencyManagement.ts`) correlates vulnerability databases / npm audit data, produces risk-scored update recommendations, detects version conflicts, and exposes a dashboard tab (`Dependencies`) plus the Security Dashboard dependency panel.
 
 ## Reporting a Vulnerability
 If you discover a security vulnerability within this project, please send an e-mail to security@stellar-dev-dashboard.org. All security vulnerabilities will be promptly addressed.

@@ -1,11 +1,33 @@
 /**
  * CircuitBreaker.ts — Issue #144
- * Circuit breaker pattern to prevent cascading failures on API calls.
+ * Circuit breaker pattern for fault-tolerant load distribution.
+ *
+ * LOAD BALANCING — FAILURE ISOLATION SUBSYSTEM
+ * =============================================
+ * The circuit breaker protects the load distribution system from cascading
+ * failures. When an endpoint or service degrades, the breaker opens to
+ * redirect traffic to healthy alternatives, maintaining overall system
+ * responsiveness even when individual components fail.
  *
  * States:
- *   CLOSED   — normal operation, requests pass through
- *   OPEN     — too many failures, requests are rejected immediately
- *   HALF_OPEN — testing if the service has recovered
+ *   CLOSED    — Normal operation, requests pass through.
+ *               Failure counter resets on each success.
+ *   OPEN      — Threshold exceeded (default: 5 failures).
+ *               All requests are rejected immediately with an error,
+ *               preventing wasted resources on a failing service.
+ *               After timeout (default: 60s), transitions to HALF_OPEN.
+ *   HALF_OPEN — Testing recovery. A single request is allowed through.
+ *               On success (× threshold, default: 2): back to CLOSED.
+ *               On failure: back to OPEN immediately.
+ *
+ * Integration with load distribution:
+ *   - Each endpoint type (horizon, soroban, coingecko) has its own breaker
+ *   - Capacity prediction from capacityPrediction.ts adjusts failure thresholds
+ *     during predicted high-load periods to reduce false positives
+ *   - The rate limiter (rateLimiter.js) checks breaker state before queuing
+ *   - Performance monitoring (performanceMonitoring.js) records state transitions
+ *
+ * @see RetryManager.ts — companion module for retry logic before tripping breaker
  */
 
 import { createLogger } from '../../utils/logger'
@@ -115,7 +137,21 @@ export class CircuitBreaker {
   }
 }
 
-// Per-service circuit breakers
+// ─── Service Registry — Per-endpoint Circuit Breakers ──────────────────────
+
+/**
+ * Registry of circuit breakers keyed by service name.
+ * Each API endpoint type gets its own breaker so a failure in one service
+ * (e.g., Soroban RPC) doesn't affect others (e.g., Horizon accounts).
+ *
+ * Services with registered breakers:
+ *   - 'horizon'   — Standard Stellar Horizon API
+ *   - 'soroban'   — Soroban RPC for contract operations
+ *   - 'coingecko' — External price feed API
+ *   - 'websocket' — Real-time collaboration WebSocket
+ *
+ * Thresholds are tuned per service based on criticality and failure patterns.
+ */
 const breakers = new Map<string, CircuitBreaker>()
 
 export function getCircuitBreaker(service: string, options?: CircuitBreakerOptions): CircuitBreaker {

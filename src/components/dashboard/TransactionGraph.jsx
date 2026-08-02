@@ -3,7 +3,7 @@ import { useStore } from '../../lib/store'
 import { shortAddress, fetchOperations } from '../../lib/stellar'
 import { useAddressLabels } from '../../hooks/useAddressLabels'
 import { Search, X, ZoomIn, ZoomOut, Maximize2, Network } from 'lucide-react'
-import { analyzeRelationships } from '../../lib/relationshipEngine'
+import { analyzeRelationships } from '../../lib/accountRelationshipEngine'
 import RelationshipPanel from './RelationshipPanel'
 
 const COLOR_CENTRAL = '#06b6d4'

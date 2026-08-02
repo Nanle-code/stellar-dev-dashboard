@@ -6,6 +6,7 @@ import {
   addRecentAccount,
   getTransactionTemplates,
 } from "../../utils/accessibility";
+import FocusManager from "./FocusManager";
 import "../../styles/accessibility.css";
 
 /**
@@ -15,7 +16,16 @@ function CommandPalette({ isOpen, onClose }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
+  const triggerRef = useRef(document.activeElement);
   const { setConnectedAddress, setActiveTab, setSelectedTemplateId } = useStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      triggerRef.current = document.activeElement;
+    } else if (triggerRef.current instanceof HTMLElement) {
+      triggerRef.current.focus();
+    }
+  }, [isOpen]);
 
   const commands = [
     // Navigation
@@ -107,6 +117,7 @@ function CommandPalette({ isOpen, onClose }) {
 
   return (
     <div
+      role="presentation"
       style={{
         position: "fixed",
         top: 0,
@@ -123,44 +134,57 @@ function CommandPalette({ isOpen, onClose }) {
       }}
       onClick={onClose}
     >
-      <div
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border-bright)",
-          borderRadius: "var(--radius-lg)",
-          width: "90%",
-          maxWidth: "600px",
-          maxHeight: "70vh",
-          overflow: "hidden",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <FocusManager trapFocus restoreFocusOnUnmount returnFocusElement={triggerRef.current}>
         <div
-          style={{ padding: "16px", borderBottom: "1px solid var(--border)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-bright)",
+            borderRadius: "var(--radius-lg)",
+            width: "90%",
+            maxWidth: "600px",
+            maxHeight: "70vh",
+            overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '16px' }}>🔍</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Search commands, pages, accounts..."
-              style={{
-                width: "100%",
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-md)",
-                padding: "12px 16px 12px 40px",
-                fontSize: "14px",
-                color: "var(--text-primary)",
-                outline: "none",
-              }}
-            />
+          <div
+            style={{ padding: "16px", borderBottom: "1px solid var(--border)" }}
+          >
+            <label htmlFor="command-palette-input" className="sr-only">
+              Search commands
+            </label>
+            <div style={{ position: 'relative' }}>
+              <span aria-hidden="true" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '16px' }}>🔍</span>
+              <input
+                id="command-palette-input"
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search commands, pages, accounts..."
+                aria-activedescendant={
+                  filteredCommands[selectedIndex]
+                    ? `command-option-${filteredCommands[selectedIndex].id}`
+                    : undefined
+                }
+                style={{
+                  width: "100%",
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "12px 16px 12px 40px",
+                  fontSize: "14px",
+                  color: "var(--text-primary)",
+                  outline: "none",
+                }}
+              />
+            </div>
           </div>
-        </div>
 
         <div style={{ maxHeight: "calc(70vh - 130px)", overflowY: "auto" }}>
           {Object.entries(groupedCommands).map(([category, cmds]) => (
@@ -186,6 +210,10 @@ function CommandPalette({ isOpen, onClose }) {
                 return (
                   <div
                     key={cmd.id}
+                    id={`command-option-${cmd.id}`}
+                    role="option"
+                    aria-selected={isSelected}
+                    tabIndex={-1}
                     onClick={() => {
                       cmd.action();
                       onClose();
@@ -211,7 +239,7 @@ function CommandPalette({ isOpen, onClose }) {
           ))}
 
           {filteredCommands.length === 0 && (
-            <div style={{ padding: "48px 32px", textAlign: "center", color: "var(--text-muted)", fontSize: "14px" }}>
+            <div role="status" style={{ padding: "48px 32px", textAlign: "center", color: "var(--text-muted)", fontSize: "14px" }}>
               No matching commands found
             </div>
           )}
@@ -232,7 +260,8 @@ function CommandPalette({ isOpen, onClose }) {
           <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>↵</kbd> Select</span>
           <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>Esc</kbd> Close</span>
         </div>
-      </div>
+        </div>
+      </FocusManager>
     </div>
   );
 }
@@ -241,6 +270,27 @@ function CommandPalette({ isOpen, onClose }) {
  * Keyboard Shortcuts Help Modal
  */
 function ShortcutsHelp({ isOpen, onClose }) {
+  const triggerRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      triggerRef.current = document.activeElement;
+    } else if (triggerRef.current instanceof HTMLElement) {
+      triggerRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || (e.key !== 'Shift' && e.key !== 'Control' && e.key !== 'Meta' && e.key !== 'Alt')) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const shortcuts = [
@@ -260,6 +310,7 @@ function ShortcutsHelp({ isOpen, onClose }) {
 
   return (
     <div
+      role="presentation"
       style={{
         position: "fixed",
         top: 0,
@@ -275,49 +326,55 @@ function ShortcutsHelp({ isOpen, onClose }) {
       }}
       onClick={onClose}
     >
-      <div
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border-bright)",
-          borderRadius: "var(--radius-lg)",
-          width: "90%",
-          maxWidth: "500px",
-          maxHeight: "85vh",
-          overflow: "hidden",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <FocusManager trapFocus restoreFocusOnUnmount returnFocusElement={triggerRef.current}>
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcuts-help-title"
           style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            background: 'var(--bg-elevated)'
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-bright)",
+            borderRadius: "var(--radius-lg)",
+            width: "90%",
+            maxWidth: "500px",
+            maxHeight: "85vh",
+            overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
+            display: 'flex',
+            flexDirection: 'column'
           }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <h2 style={{ fontSize: "18px", fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span>⌨️</span> Keyboard Shortcuts
-          </h2>
-          <button
-            onClick={onClose}
+          <div
             style={{
-              background: "none",
-              border: "none",
-              color: "var(--text-muted)",
-              cursor: "pointer",
-              fontSize: "24px",
-              padding: 0,
-              lineHeight: 1
+              padding: "20px 24px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background: 'var(--bg-elevated)'
             }}
           >
-            ×
-          </button>
-        </div>
+            <h2 id="shortcuts-help-title" style={{ fontSize: "18px", fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span aria-hidden="true">⌨️</span> Keyboard Shortcuts
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close keyboard shortcuts"
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+                fontSize: "24px",
+                padding: 0,
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+          </div>
 
         <div style={{ padding: "16px 24px", overflowY: 'auto' }}>
           {shortcuts.map((shortcut, idx) => (
@@ -356,9 +413,10 @@ function ShortcutsHelp({ isOpen, onClose }) {
         </div>
         
         <div style={{ padding: '16px 24px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-          Press any key to close this overlay.
+          Press Escape or any other key to close this overlay.
         </div>
-      </div>
+        </div>
+      </FocusManager>
     </div>
   );
 }

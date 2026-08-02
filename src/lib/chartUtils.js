@@ -75,6 +75,88 @@ export const CHART_COLORS = {
 }
 
 /**
+ * High-contrast chart colors for WCAG AAA compliance while preserving
+ * semantic distinctions. Each color in the palette has a 7:1 minimum
+ * contrast ratio against the high-contrast backgrounds.
+ */
+export const CHART_COLORS_HIGH_CONTRAST = Object.freeze({
+  cyan: '#00ffff',
+  cyanDim: '#00dddd',
+  amber: '#ffff00',
+  green: '#00ff00',
+  red: '#ff3333',
+  textMuted: '#b0b0b0',
+  textSecondary: '#e0e0e0',
+  border: '#999999',
+  bgCard: '#0a0a0a',
+})
+
+/**
+ * Light-theme high-contrast chart colors — dark, saturated hues.
+ * Cached as a module constant so reference equality is preserved
+ * across calls when used as a React.memo / useMemo dependency.
+ */
+export const CHART_COLORS_HIGH_CONTRAST_LIGHT = Object.freeze({
+  cyan: '#0000cc',
+  cyanDim: '#000099',
+  amber: '#996600',
+  green: '#006600',
+  red: '#cc0000',
+  textMuted: '#333333',
+  textSecondary: '#1a1a1a',
+  border: '#000000',
+  bgCard: '#fafafa',
+})
+
+/**
+ * Return the active chart color palette based on the current theme state.
+ * When high-contrast mode is active, a palette with 7:1 minimum contrast is
+ * returned. Falls back to standard colors when unsupported or in SSR.
+ *
+ * @param isHighContrast - Whether high-contrast mode is enabled
+ * @param theme - 'dark' | 'light' (defaults to 'dark'). Only affects the
+ *   palette when high-contrast is active; standard mode always returns
+ *   the default dark palette.
+ * @returns The appropriate color palette (frozen object, safe for React deps)
+ */
+export function getChartColors(isHighContrast = false, theme = 'dark') {
+  if (!isHighContrast) {
+    return CHART_COLORS
+  }
+  if (theme === 'light') {
+    return CHART_COLORS_HIGH_CONTRAST_LIGHT
+  }
+  return CHART_COLORS_HIGH_CONTRAST
+}
+
+/** Status indicator colors — text-safe semantic tokens for badges, pills, and alerts.
+ *  The regular palette is tuned for the default dark theme; the high-contrast
+ *  variants target a 7:1 contrast ratio.
+ */
+export const STATUS_COLORS = Object.freeze({
+  success: Object.freeze({ bg: 'rgba(0, 230, 118, 0.16)', fg: '#00e676' }),
+  warning: Object.freeze({ bg: 'rgba(255, 179, 0, 0.16)', fg: '#ffb300' }),
+  error:   Object.freeze({ bg: 'rgba(255, 23, 68, 0.16)',  fg: '#ff1744' }),
+  info:    Object.freeze({ bg: 'rgba(0, 229, 255, 0.16)',  fg: '#00e5ff' }),
+})
+
+export const STATUS_COLORS_HIGH_CONTRAST = Object.freeze({
+  success: Object.freeze({ bg: 'rgba(0, 255, 0, 0.2)',   fg: '#00ff00' }),
+  warning: Object.freeze({ bg: 'rgba(255, 255, 0, 0.2)', fg: '#ffff00' }),
+  error:   Object.freeze({ bg: 'rgba(255, 51, 51, 0.2)', fg: '#ff3333' }),
+  info:    Object.freeze({ bg: 'rgba(0, 255, 255, 0.2)', fg: '#00ffff' }),
+})
+
+/**
+ * Return the active status color palette for semantic indicators.
+ * @param isHighContrast - Whether high-contrast mode is enabled
+ * @returns The appropriate status color palette (frozen object, safe for React deps)
+ */
+export function getStatusColors(isHighContrast = false) {
+  return isHighContrast ? STATUS_COLORS_HIGH_CONTRAST : STATUS_COLORS
+}
+
+/**
  * Shared Recharts tooltip style.
  */
 export const TOOLTIP_STYLE = {

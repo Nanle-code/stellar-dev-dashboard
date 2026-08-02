@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -57,6 +57,29 @@ jobs:
           retention-days: 1
 
   # ─────────────────────────────────────────────
+  # Detect documentation drift (broken paths,
+  # scripts, commands, and links)
+  # ─────────────────────────────────────────────
+  validate-docs-drift:
+    name: Validate Docs Drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Validate documentation drift
+        run: npm run docs:validate-drift
+
+  # ─────────────────────────────────────────────
   # Validate example scripts run without errors
   # ─────────────────────────────────────────────
   validate-examples:
@@ -64,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -83,7 +106,7 @@ jobs:
           done
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -103,7 +126,7 @@ jobs:
     needs: [generate-api-docs]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download generated docs
         uses: actions/download-artifact@v8
@@ -129,7 +152,7 @@ jobs:
           NODE_ENV: production
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs-site/build/
 

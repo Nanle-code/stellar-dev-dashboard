@@ -313,8 +313,381 @@ export function findTopCounterparties(
 }
 
 // ---------------------------------------------------------------------------
+// DBSCAN Clustering
+// ---------------------------------------------------------------------------
+
+interface DBSCANPoint {
+  index: number
+  clusterId: number
+  visited: boolean
+}
+
+export function dbscan(
+  features: number[][],
+  eps: number,
+  minPoints: number
+): { labels: number[]; clusters: Record<number, number[]> } {
+  const n = features.length
+  const points: DBSCANPoint[] = []
+  for (let i = 0; i < n; i++) {
+    points.push({ index: i, clusterId: -1, visited: false })
+  }
+
+  let clusterId = 0
+
+  const euclideanDistance = (a: number[], b: number[]): number => {
+    let sum = 0
+    for (let i = 0; i < a.length; i++) {
+      sum += Math.pow(a[i] - b[i], 2)
+    }
+    return Math.sqrt(sum)
+  }
+
+  const getNeighbors = (idx: number): number[] => {
+    const neighbors: number[] = []
+    for (let i = 0; i < n; i++) {
+      if (i !== idx && euclideanDistance(features[idx], features[i]) <= eps) {
+        neighbors.push(i)
+      }
+    }
+    return neighbors
+  }
+
+  for (let i = 0; i < n; i++) {
+    if (points[i].visited) continue
+
+    points[i].visited = true
+    const neighbors = getNeighbors(i)
+
+    if (neighbors.length < minPoints) {
+      points[i].clusterId = -1 // Noise
+    } else {
+      points[i].clusterId = clusterId
+      const queue = [...neighbors]
+
+      while (queue.length > 0) {
+        const j = queue.shift()!
+        if (!points[j].visited) {
+          points[j].visited = true
+          const jNeighbors = getNeighbors(j)
+          if (jNeighbors.length >= minPoints) {
+            queue.push(...jNeighbors)
+          }
+        }
+        if (points[j].clusterId === -1) {
+          points[j].clusterId = clusterId
+        }
+      }
+
+      clusterId++
+    }
+  }
+
+  const clusters: Record<number, number[]> = {}
+  for (let i = 0; i < n; i++) {
+    const cid = points[i].clusterId
+    if (!clusters[cid]) clusters[cid] = []
+    clusters[cid].push(i)
+  }
+
+  return { labels: points.map(p => p.clusterId), clusters }
+}
+
+// ---------------------------------------------------------------------------
+// Hierarchical Clustering (Agglomerative)
+// ---------------------------------------------------------------------------
+
+interface HCluster {
+  id: number
+  members: number[]
+  centroid: number[]
+}
+
+export function hierarchicalClustering(
+  features: number[][],
+  numClusters: number
+): { labels: number[]; clusters: Record<number, number[]> } {
+  const n = features.length
+  if (n <= numClusters) {
+    const labels = features.map((_, i) => i)
+    const clusters: Record<number, number[]> = {}
+    labels.forEach((l, i) => {
+      if (!clusters[l]) clusters[l] = []
+      clusters[l].push(i)
+    })
+    return { labels, clusters }
+  }
+
+  const clusters: HCluster[] = []
+  for (let i = 0; i < n; i++) {
+    clusters.push({
+      id: i,
+      members: [i],
+      centroid: [...features[i]]
+    })
+  }
+
+  const euclideanDistance = (a: number[], b: number[]): number => {
+    let sum = 0
+    for (let i = 0; i < a.length; i++) {
+      sum += Math.pow(a[i] - b[i], 2)
+    }
+    return Math.sqrt(sum)
+  }
+
+  const computeCentroid = (members: number[]): number[] => {
+    const dim = features[0].length
+    const centroid = new Array(dim).fill(0)
+    for (const idx of members) {
+      for (let d = 0; d < dim; d++) {
+        centroid[d] += features[idx][d]
+      }
+    }
+    for (let d = 0; d < dim; d++) {
+      centroid[d] /= members.length
+    }
+    return centroid
+  }
+
+  while (clusters.length > numClusters) {
+    let minDist = Infinity
+    let mergeA = -1
+    let mergeB = -1
+
+    for (let i = 0; i < clusters.length; i++) {
+      for (let j = i + 1; j < clusters.length; j++) {
+        const dist = euclideanDistance(clusters[i].centroid, clusters[j].centroid)
+        if (dist < minDist) {
+          minDist = dist
+          mergeA = i
+          mergeB = j
+        }
+      }
+    }
+
+    const merged: HCluster = {
+      id: clusters[mergeA].id,
+      members: [...clusters[mergeA].members, ...clusters[mergeB].members],
+      centroid: computeCentroid([...clusters[mergeA].members, ...clusters[mergeB].members])
+    }
+
+    clusters.splice(mergeB, 1)
+    clusters.splice(mergeA, 1)
+    clusters.push(merged)
+  }
+
+  const labels: number[] = new Array(n).fill(-1)
+  const resultClusters: Record<number, number[]> = {}
+  for (let cidx = 0; cidx < clusters.length; cidx++) {
+    const cluster = clusters[cidx]
+    resultClusters[cidx] = cluster.members
+    for (const idx of cluster.members) {
+      labels[idx] = cidx
+    }
+  }
+
+  return { labels, clusters: resultClusters }
+}
+
+// ---------------------------------------------------------------------------
 // Transaction clusters
 // ---------------------------------------------------------------------------
+
+export interface SmartTransactionCluster {
+  id: number | string
+  label: string
+  transactionIds: string[]
+  transactions: StellarTransaction[]
+  avgFee: number
+  successRate: number
+  avgAmount: number
+  mainCounterparty: string | null
+  timePattern: string | null
+}
+
+export function extractClusterFeatures(
+  transactions: StellarTransaction[],
+  operations: StellarOperation[]
+): { transactionIds: string[]; features: number[][] } {
+  const sortedTxs = [...transactions].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )
+  const txOpsMap: Record<string, StellarOperation[]> = {}
+  for (const op of operations) {
+    if (op.transaction_hash) {
+      if (!txOpsMap[op.transaction_hash]) {
+        txOpsMap[op.transaction_hash] = []
+      }
+      txOpsMap[op.transaction_hash].push(op)
+    }
+  }
+  const transactionIds: string[] = []
+  const features: number[][] = []
+
+  for (const tx of sortedTxs) {
+    transactionIds.push(tx.id)
+    const ops = txOpsMap[tx.hash] || []
+
+    // Feature 1: Total amount (log transformed)
+    let totalAmt = 0
+    for (const op of ops) {
+      if (op.amount) totalAmt += Number(op.amount) || 0
+    }
+    const logAmt = Math.log1p(totalAmt)
+
+    // Feature 2: Time (hour of day)
+    const hour = new Date(tx.created_at).getUTCHours()
+
+    // Feature 3: Number of operations
+    const opCount = toNum(tx.operation_count)
+
+    // Feature 4: Fee (log transformed)
+    const fee = toNum(tx.fee_charged)
+    const logFee = Math.log1p(fee)
+
+    // Feature 5: Has memo? (0/1)
+    const hasMemo = tx.memo && tx.memo.trim() ? 1 : 0
+
+    // Feature 6: Is successful? (0/1)
+    const isSuccessful = tx.successful ? 1 : 0
+
+    // Feature 7: Number of unique counterparties
+    const counterparties = new Set<string>()
+    for (const op of ops) {
+      if (op.from) counterparties.add(op.from)
+      if (op.to) counterparties.add(op.to)
+    }
+    const cpCount = counterparties.size
+
+    features.push([logAmt, hour / 24, opCount / 10, logFee / 10, hasMemo, isSuccessful, cpCount / 5])
+  }
+
+  return { transactionIds, features }
+}
+
+export function generateClusterLabel(clusterTransactions: StellarTransaction[], clusterOperations: StellarOperation[]): string {
+  const successful = clusterTransactions.filter(tx => tx.successful).length
+  const successRate = clusterTransactions.length ? (successful / clusterTransactions.length) * 100 : 0
+  const hasMemo = clusterTransactions.some(tx => tx.memo && tx.memo.trim())
+  const multiOp = clusterTransactions.some(tx => toNum(tx.operation_count) > 1)
+  const failed = successRate < 50
+
+  // Count most common operation type
+  const opTypeCount: Record<string, number> = {}
+  for (const op of clusterOperations) {
+    const type = op.type || 'unknown'
+    opTypeCount[type] = (opTypeCount[type] || 0) + 1
+  }
+  const topOpType = Object.entries(opTypeCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'transactions'
+
+  // Count most common counterparty
+  const cpCount: Record<string, number> = {}
+  for (const op of clusterOperations) {
+    if (op.to) cpCount[op.to] = (cpCount[op.to] || 0) + 1
+    if (op.from) cpCount[op.from] = (cpCount[op.from] || 0) + 1
+  }
+
+  let label = ''
+  if (failed) label = 'Failed Transactions'
+  else if (hasMemo && multiOp) label = `Memo-tagged Multi-op ${topOpType.replace(/_/g, ' ')}`
+  else if (hasMemo) label = `Memo-tagged ${topOpType.replace(/_/g, ' ')}`
+  else if (multiOp) label = `Multi-op ${topOpType.replace(/_/g, ' ')}`
+  else label = `${topOpType.replace(/_/g, ' ')} Transactions`
+
+  return label
+}
+
+export function clusterTransactionsSmart(
+  transactions: StellarTransaction[],
+  operations: StellarOperation[],
+  algorithm: 'dbscan' | 'hierarchical' = 'dbscan',
+  params?: { eps?: number; minPoints?: number; numClusters?: number }
+): SmartTransactionCluster[] {
+  if (transactions.length === 0) return []
+
+  const txOpsMap: Record<string, StellarOperation[]> = {}
+  for (const op of operations) {
+    if (op.transaction_hash) {
+      if (!txOpsMap[op.transaction_hash]) {
+        txOpsMap[op.transaction_hash] = []
+      }
+      txOpsMap[op.transaction_hash].push(op)
+    }
+  }
+
+  const { transactionIds, features } = extractClusterFeatures(transactions, operations)
+  let labels: number[]
+  let clusters: Record<number, number[]>
+
+  if (algorithm === 'dbscan') {
+    const eps = params?.eps || 0.5
+    const minPoints = params?.minPoints || Math.max(2, Math.floor(transactions.length / 10))
+    const result = dbscan(features, eps, minPoints)
+    labels = result.labels
+    clusters = result.clusters
+  } else {
+    const numClusters = params?.numClusters || Math.min(5, Math.max(2, Math.floor(transactions.length / 5)))
+    const result = hierarchicalClustering(features, numClusters)
+    labels = result.labels
+    clusters = result.clusters
+  }
+
+  const idToTx: Record<string, StellarTransaction> = {}
+  for (const tx of transactions) idToTx[tx.id] = tx
+
+  const smartClusters: SmartTransactionCluster[] = []
+
+  for (const [cidStr, idxs] of Object.entries(clusters)) {
+    const cid = Number(cidStr)
+    const clusterTxIds = idxs.map(i => transactionIds[i])
+    const clusterTxs = clusterTxIds.map(id => idToTx[id])
+    const clusterOps: StellarOperation[] = []
+    for (const tx of clusterTxs) {
+      if (txOpsMap[tx.hash]) clusterOps.push(...txOpsMap[tx.hash])
+    }
+
+    const fees = clusterTxs.map(tx => toNum(tx.fee_charged)).filter(f => f > 0)
+    const avgFee = fees.length ? fees.reduce((a, b) => a + b, 0) / fees.length : 0
+    const successful = clusterTxs.filter(tx => tx.successful).length
+    const successRate = clusterTxs.length ? (successful / clusterTxs.length) * 100 : 0
+
+    let totalAmt = 0
+    for (const op of clusterOps) {
+      if (op.amount) totalAmt += Number(op.amount) || 0
+    }
+    const avgAmount = clusterOps.length ? totalAmt / clusterOps.length : 0
+
+    const cpCount: Record<string, number> = {}
+    for (const op of clusterOps) {
+      if (op.to) cpCount[op.to] = (cpCount[op.to] || 0) + 1
+      if (op.from) cpCount[op.from] = (cpCount[op.from] || 0) + 1
+    }
+    const mainCounterparty = Object.entries(cpCount).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+
+    // Analyze time pattern
+    const hours = clusterTxs.map(tx => new Date(tx.created_at).getUTCHours())
+    let timePattern: string | null = null
+    if (hours.every(h => h >= 9 && h <= 17)) timePattern = 'Business Hours'
+    else if (hours.every(h => h >= 0 && h <= 6)) timePattern = 'Night Time'
+    else if (hours.every(h => h >= 18 && h <= 23)) timePattern = 'Evening'
+
+    const label = cid === -1 ? 'Other Transactions' : generateClusterLabel(clusterTxs, clusterOps)
+
+    smartClusters.push({
+      id: cid,
+      label,
+      transactionIds: clusterTxIds,
+      transactions: clusterTxs,
+      avgFee: Math.round(avgFee),
+      successRate: Math.round(successRate),
+      avgAmount,
+      mainCounterparty,
+      timePattern
+    })
+  }
+
+  return smartClusters.sort((a, b) => b.transactions.length - a.transactions.length)
+}
 
 export function clusterTransactions(transactions: StellarTransaction[]): TransactionCluster[] {
   const clusters: Record<string, StellarTransaction[]> = {

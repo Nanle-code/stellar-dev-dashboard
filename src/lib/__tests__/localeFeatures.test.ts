@@ -54,6 +54,24 @@ describe("locale features", () => {
     expect(formatLocaleCurrency(1234.56, "ja-JP")).toMatch(/[¥￥]/);
   });
 
+  it("preserves exact ledger values up to 7 decimal places", () => {
+    expect(formatLocaleNumber("123.456789", "en-US")).toBe("123.456789");
+    expect(formatLocaleCurrency("123.4567891", "en-US", "USD")).toContain("123.4567891");
+  });
+
+  it("handles invalid inputs gracefully", () => {
+    expect(formatLocaleNumber(null, "en-US")).toBe("0");
+    expect(formatLocaleNumber(undefined, "en-US")).toBe("0");
+    expect(formatLocaleNumber("", "en-US")).toBe("0");
+    expect(formatLocaleNumber("invalid", "en-US")).toBe("invalid");
+    expect(formatLocaleNumber(NaN, "en-US")).toBe("NaN");
+    
+    expect(formatLocaleCurrency(null, "en-US")).toBe("0");
+    expect(formatLocaleCurrency(undefined, "en-US")).toBe("0");
+    expect(formatLocaleCurrency("", "en-US")).toBe("0");
+    expect(formatLocaleCurrency("invalid", "en-US", "USD")).toBe("USD invalid");
+  });
+
   it("exposes cultural adaptations and regional content", () => {
     expect(getCulturalAdaptations("ar-SA").textDirection).toBe("rtl");
     expect(getRegionalContent("pt-BR").marketLabel).toContain("Brasil");

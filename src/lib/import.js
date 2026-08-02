@@ -1,11 +1,14 @@
 /**
- * Data import functionality (#114).
+ * Data import functionality (#114, #626).
  *
  * Reads backup JSON files produced by the export utilities and
  * validates them before handing them to the store for restoration.
+ * Integrated with the Recovery Planner (#626) for priority-based restoration.
  */
 
-const SUPPORTED_VERSIONS = [1];
+import { getRecoveryPlanner } from './recoveryPlanner';
+
+const SUPPORTED_VERSIONS = [1, 2];
 
 /**
  * Parse and validate a backup JSON string.
@@ -59,6 +62,30 @@ export function validateBackupPayload(data) {
   if (!data.account || typeof data.account !== "object")
     errors.push("Missing or invalid account section.");
   return errors;
+}
+
+/**
+ * Apply backup data to store with recovery priority awareness (#626).
+ * Invokes the Recovery Planner to track restoration if available.
+ */
+export async function applyBackupWithRecovery(data, store, trackRecovery = true) {
+  if (trackRecovery) {
+    try {
+      const planner = await getRecoveryPlanner();
+      const plan = planner.getActivePlan();
+      if (plan) {
+        const event = planner.startRecovery(plan.id);
+        applyBackupToStore(data, store);
+        const entityCount = Object.keys(data).length;
+        planner.completeRecovery(event.id, entityCount, JSON.stringify(data).length, []);
+        await planner.save();
+        return;
+      }
+    } catch {
+      // Fall through to standard restore
+    }
+  }
+  applyBackupToStore(data, store);
 }
 
 /**

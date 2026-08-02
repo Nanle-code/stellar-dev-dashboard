@@ -1,10 +1,15 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const { scoreTransaction, loadModels } = require('./scoringEngine');
-const { FederatedLearningIntegration } = require('./federated/integration');
+import express from 'express'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { analyzeContractUpgrade } from './contract_upgrade_analysis/contractUpgradeAnalysis.js'
+import { scoreTransaction } from './scoringEngine.js'
+import { FederatedLearningIntegration } from './federated/integration.js'
 
-const app = express();
-app.use(bodyParser.json());
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+const app = express()
+app.use(express.json())
 
 // Initialize federated learning integration
 const federatedIntegration = new FederatedLearningIntegration({
@@ -43,63 +48,129 @@ app.post('/score-federated', async (req, res) => {
 // simple feedback endpoint: accept {tx, label}
 app.post('/feedback', (req, res) => {
   try {
-    const { tx, label } = req.body;
-    // store feedback for later retraining
-    const fbDir = require('path').resolve(__dirname, 'data');
-    require('fs').mkdirSync(fbDir, { recursive: true });
-    const fbPath = require('path').join(fbDir, 'feedback.json');
-    const arr = require('fs').existsSync(fbPath) ? JSON.parse(require('fs').readFileSync(fbPath)) : [];
-    arr.push({ tx, label, timestamp: Date.now() });
-    require('fs').writeFileSync(fbPath, JSON.stringify(arr, null, 2));
-    res.json({ ok: true });
+    const { tx, label } = req.body
+    const fbDir = path.resolve(__dirname, 'data')
+    fs.mkdirSync(fbDir, { recursive: true })
+    const fbPath = path.join(fbDir, 'feedback.json')
+    const arr = fs.existsSync(fbPath) ? JSON.parse(fs.readFileSync(fbPath)) : []
+    arr.push({ tx, label, timestamp: Date.now() })
+    fs.writeFileSync(fbPath, JSON.stringify(arr, null, 2))
+    res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message })
   }
-});
+})
+
+app.post('/analyze-upgrade', async (req, res) => {
+  try {
+    const analysis = analyzeContractUpgrade(req.body)
+    res.json(analysis)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
 
 // Federated learning feedback endpoint
-app.post('/feedback-federated', async (req, res) => {
-  try {
-    const { tx, label, privacyBudget } = req.body;
-    const result = await federatedIntegration.collectFeedback(tx, label, privacyBudget);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
 
 // Participate in federated learning round
-app.post('/federated-train', async (req, res) => {
-  try {
-    const { transactions } = req.body;
-    const result = await federatedIntegration.participateInFederatedRound(transactions);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
 
 // Get federated learning status
-app.get('/federated-status', (req, res) => {
-  try {
-    const status = federatedIntegration.getFederatedStatus();
-    res.json(status);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
 
 // Sync with federated server
-app.post('/federated-sync', async (req, res) => {
-  try {
-    const result = await federatedIntegration.syncWithServer();
-    res.json({ success: result });
+app.post('/federated-sync', ...);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-const port = process.env.PORT || 4001;
-app.listen(port, () => {
-  console.log('ML scoring server running on port', port);
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Liquidity Prediction API Endpoints
+app.get('/api/liquidity/predict', ...);
+
+// Federated learning feedback endpoint
+app.post('/feedback-federated', ...);
+
+app.post('/api/liquidity/slippage', ...);
+
+// Participate in federated learning round
+app.post('/federated-train', ...);
+
+app.get('/api/liquidity/metrics', ...);
+
+// Get federated learning status
+app.get('/federated-status', ...);
+
+app.post('/api/liquidity/train', ...);
+
+// Sync with federated server
+app.post('/federated-sync', ...);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const port = process.env.PORT || 4001
+app.listen(port, () => {
+  console.info('ML scoring server running on port', port)
+})

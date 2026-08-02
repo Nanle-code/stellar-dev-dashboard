@@ -70,6 +70,76 @@ console.log('Queue depths:', stats.queueDepths);
 console.log('Requests in last minute:', stats.requestsLastMinute);
 ```
 
+## Server-side API rate limiting
+
+The API server (`api/server.js`) applies its own rate limiter middleware (`api/middleware/rateLimiter.js`) to every incoming request.  This protects the backend from excessive load and ensures fair resource distribution across clients.
+
+### How it works
+
+```
+Incoming request → Extract client IP → Validate → Check sliding-window count
+                                              ↓
+                              Under limit → 200 + X-RateLimit-* headers
+                              Over limit  → 429 + Retry-After header
+```
+
+### Response headers
+
+All responses include rate-limit metadata:
+
+| Header                  | Meaning                                     |
+|-------------------------|---------------------------------------------|
+| `X-RateLimit-Limit`     | Max requests allowed in the current window  |
+| `X-RateLimit-Remaining` | Requests remaining in the current window    |
+| `X-RateLimit-Reset`     | Epoch ms when the window fully resets       |
+| `Retry-After`           | Seconds until the next request is allowed *(429 only)* |
+
+### Shared store (production)
+
+By default the rate limiter uses an **in-memory store** — fast, but limits are not shared across API instances.  For multi-instance or load-balanced deployments, configure a **Redis** store so every process enforces the same ceiling.
+
+**Environment variables**
+
+| Variable           | Default         | Description                                   |
+|--------------------|-----------------|-----------------------------------------------|
+| `REDIS_URL`        | –               | Redis connection string (e.g. `redis://localhost:6379`) |
+| `RATE_LIMIT_STORE` | `memory`        | `"redis"` to force Redis, `"memory"` to force in-memory |
+| `RATE_LIMIT_MAX`   | `100`           | Max requests per window                       |
+| `RATE_LIMIT_WINDOW`| `60000`         | Sliding window duration in milliseconds       |
+
+**Using Docker Compose**
+
+A Redis service is included in the `docker-compose.yml` under the `production` profile:
+
+```bash
+# Start app + Redis
+docker compose --profile production up -d
+```
+
+**Manual setup**
+
+```bash
+# Install the optional Redis dependency
+npm install ioredis
+
+# Start the API with Redis backing
+export REDIS_URL=redis://your-redis-host:6379
+node api/server.js
+```
+
+:::info Graceful fallback
+If Redis is configured but unreachable at startup, the server automatically falls back to the in-memory store and logs a warning.  During operation, transient Redis failures cause the middleware to **allow** the request (fail-open) so the API remains available.
+:::
+
+### Client IP resolution
+
+The middleware reads the client address from:
+1. `X-Forwarded-For` header (left-most entry) — trusted proxy required
+2. `req.ip` — populated by Express when `trust proxy` is enabled
+3. `req.socket.remoteAddress` — fallback
+
+Requests with a missing or malformed client address receive **HTTP 400**.
+
 ## Server-side Horizon rate limits
 
 If you exceed Horizon's limits despite the client-side throttle, you'll receive HTTP `429`. The dashboard's error handler automatically retries these with exponential backoff. You can check Horizon's published limits at [developers.stellar.org](https://developers.stellar.org/api/horizon).

@@ -78,6 +78,101 @@
   --text-accent: var(--cyan);
 }
 
+/* ── High Contrast: Dark theme ──────────────────────────────────────────── */
+[data-theme="dark"][data-high-contrast="true"] {
+  --bg-base: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #111111;
+  --bg-card: #0a0a0a;
+  --bg-hover: #1a1a1a;
+
+  --border: #666666;
+  --border-bright: #999999;
+
+  --cyan: #00ffff;
+  --cyan-dim: #00cccc;
+  --cyan-glow: rgba(0, 255, 255, 0.18);
+  --cyan-glow-sm: rgba(0, 255, 255, 0.1);
+
+  --amber: #ffff00;
+  --amber-glow: rgba(255, 255, 0, 0.15);
+
+  --green: #00ff00;
+  --green-glow: rgba(0, 255, 0, 0.15);
+
+  --red: #ff3333;
+  --red-glow: rgba(255, 51, 51, 0.15);
+
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-muted: #b0b0b0;
+  --text-accent: var(--cyan);
+}
+
+/* ── High Contrast: Light theme ─────────────────────────────────────────── */
+[data-theme="light"][data-high-contrast="true"] {
+  --bg-base: #ffffff;
+  --bg-surface: #f5f5f5;
+  --bg-elevated: #eeeeee;
+  --bg-card: #fafafa;
+  --bg-hover: #e0e0e0;
+
+  --border: #333333;
+  --border-bright: #000000;
+
+  --cyan: #0000cc;
+  --cyan-dim: #000099;
+  --cyan-glow: rgba(0, 0, 204, 0.15);
+  --cyan-glow-sm: rgba(0, 0, 204, 0.08);
+
+  --amber: #996600;
+  --amber-glow: rgba(153, 102, 0, 0.15);
+
+  --green: #006600;
+  --green-glow: rgba(0, 102, 0, 0.12);
+
+  --red: #cc0000;
+  --red-glow: rgba(204, 0, 0, 0.12);
+
+  --text-primary: #000000;
+  --text-secondary: #1a1a1a;
+  --text-muted: #333333;
+  --text-accent: var(--cyan);
+}
+
+/* ── High Contrast: Fallback (no theme attribute) ──────────────────────────
+   Applies when data-high-contrast is set without a matching data-theme.
+   Uses dark HC palette as the safest default. */
+[data-high-contrast="true"]:not([data-theme]) {
+  --bg-base: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #111111;
+  --bg-card: #0a0a0a;
+  --bg-hover: #1a1a1a;
+
+  --border: #666666;
+  --border-bright: #999999;
+
+  --cyan: #00ffff;
+  --cyan-dim: #00cccc;
+  --cyan-glow: rgba(0, 255, 255, 0.18);
+  --cyan-glow-sm: rgba(0, 255, 255, 0.1);
+
+  --amber: #ffff00;
+  --amber-glow: rgba(255, 255, 0, 0.15);
+
+  --green: #00ff00;
+  --green-glow: rgba(0, 255, 0, 0.15);
+
+  --red: #ff3333;
+  --red-glow: rgba(255, 51, 51, 0.15);
+
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-muted: #b0b0b0;
+  --text-accent: var(--cyan);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -985,8 +1080,100 @@ table {
     --border: ButtonBorder;
     --text-primary: CanvasText;
     --bg-card: Canvas;
+    --bg-base: Canvas;
+    --bg-surface: Canvas;
+    --bg-elevated: Canvas;
+    --amber: ButtonText;
+    --green: ButtonText;
+    --red: ButtonText;
+    --text-secondary: CanvasText;
+    --text-muted: GrayText;
+    --border-bright: ButtonBorder;
+  }
+
+  body::before {
+    opacity: 0 !important;
   }
 }
+/* ── Conversational Navigation Panel (#555) ─────────────────────────────── */
+
+@keyframes chatSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes voicePulse {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--red-glow);
+  }
+  50% {
+    box-shadow: 0 0 24px var(--red-glow), 0 0 48px var(--red-glow);
+  }
+}
+
+@keyframes voiceSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Conversation panel scrollbar */
+.conversation-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.conversation-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.conversation-panel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* Mobile responsive conversation panel */
+@media (max-width: 768px) {
+  .conversation-panel {
+    position: fixed !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 70vh !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    animation: chatSlideUp 0.3s ease !important;
+  }
+
+  @keyframes chatSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
 /* Smooth CSS transitions between light and dark themes */
 body, main, div, button, span, p, h1, h2, h3, section, header, aside {
   transition: background-color var(--transition, 0.25s ease), 

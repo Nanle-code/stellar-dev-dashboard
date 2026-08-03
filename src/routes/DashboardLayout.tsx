@@ -19,6 +19,7 @@ import { initCache, handleNetworkSwitch } from '../lib/cacheInit';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useStore } from '../lib/store';
 import { useResponsive } from '../hooks/useResponsive';
+import { useExpertise } from '../context/ExpertiseContext';
 import { initializeErrorReporting, addBreadcrumb } from '../lib/errorReporting';
 import {
   installSecurityEventListeners,
@@ -29,12 +30,15 @@ import { TourLauncher } from '../components/tutorial';
 import GlobalSearch from '../components/search/GlobalSearch';
 import UserPreferences from '../components/preferences/UserPreferences';
 import NetworkIndicator from '../components/layout/NetworkIndicator';
+import ExpertiseBadge from '../components/expertise/ExpertiseBadge';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import KeyboardNavigation from '../components/accessibility/KeyboardNavigation';
 import SkipLink from '../components/accessibility/SkipLink';
 import FocusManager from '../components/accessibility/FocusManager';
 import ThemeToggle from '../components/layout/ThemeToggle';
 import OfflineBanner from '../components/layout/OfflineBanner';
+import PredictiveFeatureSuggestions from '../components/dashboard/PredictiveFeatureSuggestions';
+import TipButton from '../components/ai/TipButton';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import SWUpdatePrompt from '../components/SWUpdatePrompt';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';

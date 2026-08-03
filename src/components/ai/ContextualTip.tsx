@@ -13,6 +13,7 @@ export default function ContextualTip({ context, onClose }: ContextualTipProps) 
   const [tips, setTips] = useState<TipEntry[]>([]);
   const [expandedTip, setExpandedTip] = useState<string | null>(null);
   const [frequency, setFrequency] = useState(getTipFrequency());
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     const model = loadLearnerModel();

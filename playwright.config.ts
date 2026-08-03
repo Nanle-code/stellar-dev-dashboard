@@ -78,8 +78,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: process.env.PLAYWRIGHT_BASE_URL ? 'npm run preview' : 'npm run dev',
-    url: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173',
+    command: process.env.PLAYWRIGHT_BASE_URL
+      ? 'node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173'
+      : 'node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173',
+    url: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { I18nProvider } from './components/I18nProvider';
 import './i18n/index.js';
@@ -10,38 +10,12 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { DeveloperTools } from './components/DeveloperTools';
 import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import { TipProvider } from './components/ai/TipProvider';
-
-const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
-
-function AppLoadingFallback() {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '24px',
-        background: 'var(--bg-base)',
-        color: 'var(--text-primary)',
-      }}
-    >
-      <div style={{ maxWidth: '580px', textAlign: 'center' }}>
-        <p style={{ fontSize: '18px', marginBottom: '12px' }}>Loading application...</p>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          Fetching the dashboard bundle so the app can render faster.
-        </p>
-      </div>
-    </div>
-  );
-}
+import DashboardLayout from './routes/DashboardLayout';
 
 export default function App() {
-  const [showOnboarding, setShowOnboarding] = React.useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const hasCompleted = localStorage.getItem('hasCompletedOnboarding');
     if (!hasCompleted) {
       setShowOnboarding(true);
@@ -54,12 +28,10 @@ export default function App() {
         <ExpertiseProvider>
           <ErrorBoundary maxRetries={2}>
             {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
-            <Suspense fallback={<AppLoadingFallback />}>
-              <Routes>
-                <Route path="/connect" element={<DashboardLayout />} />
-                <Route path="/*" element={<DashboardLayout />} />
-              </Routes>
-            </Suspense>
+            <Routes>
+              <Route path="/connect" element={<DashboardLayout />} />
+              <Route path="/*" element={<DashboardLayout />} />
+            </Routes>
             <DeveloperTools />
           </ErrorBoundary>
         </ExpertiseProvider>

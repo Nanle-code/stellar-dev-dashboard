@@ -1,0 +1,10 @@
+[
+  {"size": 50000, "timestamp": 1700000000000, "changeType": "update", "frequency": 50, "volatility": 0.1, "importance": 0.9, "optimalStrategy": "incremental"},
+  {"size": 1000000, "timestamp": 1700000100000, "changeType": "create", "frequency": 5, "volatility": 0.01, "importance": 0.3, "optimalStrategy": "full"},
+  {"size": 200000, "timestamp": 1700000200000, "changeType": "update", "frequency": 100, "volatility": 0.4, "importance": 0.7, "optimalStrategy": "differential"},
+  {"size": 10000, "timestamp": 1700000300000, "changeType": "update", "frequency": 200, "volatility": 0.6, "importance": 0.8, "optimalStrategy": "incremental"},
+  {"size": 800000, "timestamp": 1700000400000, "changeType": "create", "frequency": 2, "volatility": 0.05, "importance": 0.2, "optimalStrategy": "full"},
+  {"size": 150000, "timestamp": 1700000500000, "changeType": "update", "frequency": 30, "volatility": 0.3, "importance": 0.6, "optimalStrategy": "differential"},
+  {"size": 75000, "timestamp": 1700000600000, "changeType": "delete", "frequency": 80, "volatility": 0.5, "importance": 0.4, "optimalStrategy": "incremental"},
+  {"size": 500000, "timestamp": 1700000700000, "changeType": "create", "frequency": 10, "volatility": 0.15, "importance": 0.5, "optimalStrategy": "full"}
+]

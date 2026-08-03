@@ -6,6 +6,8 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { fetchAccount, fetchTransactions, NETWORKS } from "./stellar";
 import { THRESHOLDS } from "./thresholds";
+import { getReputationScore, reportMaliciousAddress, isAddressWhitelisted } from "./reputationSystem";
+import { analyzePhishing, detectDomainImpersonation } from "./phishingDetector";
 
 /**
  * Risk levels
@@ -52,10 +54,10 @@ const SCAM_PATTERNS = {
 
 /**
  * Verify transaction and calculate risk score
- * @param {object} transaction - Transaction object or XDR
+ * @param {object|string} transaction - Transaction object or XDR
  * @param {string} network - Network (mainnet/testnet)
  * @param {string} sourceAccount - Source account public key
- * @returns {Promise<object>} Verification result
+ * @returns {Promise<any>} Verification result
  */
 export async function verifyTransaction(
   transaction,
@@ -91,8 +93,9 @@ export async function verifyTransaction(
     info.push(...structureCheck.info);
 
     // 2. Check operations
+    const memoText = memo && memo.value ? memo.value.toString() : "";
     for (const op of operations) {
-      const opCheck = await checkOperation(op, network, source);
+      const opCheck = await checkOperation(op, network, source, memoText);
       riskScore += opCheck.riskScore;
       warnings.push(...opCheck.warnings);
       errors.push(...opCheck.errors);
@@ -117,7 +120,26 @@ export async function verifyTransaction(
     info.push(...patternCheck.info);
 
     // 5. Calculate final risk level
-    riskLevel = calculateRiskLevel(riskScore);
+    let allDestinationsWhitelisted = true;
+    let destinationsCount = 0;
+    for (const op of operations) {
+      if ((op.type === "payment" || op.type === "createAccount") && op.destination) {
+        destinationsCount++;
+        if (!isAddressWhitelisted(op.destination)) {
+          allDestinationsWhitelisted = false;
+        }
+      }
+    }
+    if (destinationsCount > 0 && allDestinationsWhitelisted) {
+      const memoIndex = warnings.findIndex(w => w.includes("SUSPICIOUS: Memo"));
+      if (memoIndex > -1) {
+        warnings.splice(memoIndex, 1);
+        riskScore -= 25;
+      }
+      riskLevel = calculateRiskLevel(riskScore);
+    } else {
+      riskLevel = calculateRiskLevel(riskScore);
+    }
 
     // 6. Get recommendations
     const recommendations = generateRecommendations(
@@ -206,7 +228,7 @@ function checkTransactionStructure(tx) {
 /**
  * Check individual operation
  */
-async function checkOperation(operation, network, sourceAccount) {
+async function checkOperation(operation, network, sourceAccount, memoText = "") {
   const warnings = [];
   const errors = [];
   const info = [];
@@ -221,10 +243,23 @@ async function checkOperation(operation, network, sourceAccount) {
         operation,
         network,
         sourceAccount,
+        memoText,
       );
       riskScore += paymentCheck.riskScore;
       warnings.push(...paymentCheck.warnings);
       info.push(...paymentCheck.info);
+      break;
+
+    case "createAccount":
+      const createAccountCheck = await checkCreateAccountOperation(
+        operation,
+        network,
+        sourceAccount,
+        memoText,
+      );
+      riskScore += createAccountCheck.riskScore;
+      warnings.push(...createAccountCheck.warnings);
+      info.push(...createAccountCheck.info);
       break;
 
     case "changeTrust":
@@ -276,39 +311,121 @@ async function checkOperation(operation, network, sourceAccount) {
 }
 
 /**
+ * Assess risk based on destination address, reputation, domain, and ML phishing model.
+ */
+async function assessAddressRisk({
+  destination,
+  amount,
+  assetCode,
+  assetIssuer,
+  isNative,
+  network,
+  memoText
+}) {
+  const warnings = [];
+  const info = [];
+  let riskScore = 0;
+
+  // 1. Determine if recipient account is new
+  let recipientIsNew = false;
+  try {
+    await fetchAccount(destination, network);
+    info.push(`Destination account exists: ${destination.slice(0, 8)}...`);
+  } catch (error) {
+    recipientIsNew = true;
+    warnings.push("Destination account does not exist - will be created");
+    riskScore += 5;
+  }
+
+  // If whitelisted, skip all other suspicious/phishing checks
+  if (isAddressWhitelisted(destination)) {
+    info.push(`Recipient is whitelisted (reputation 1.0). Skipping security warnings.`);
+    return { riskScore, warnings, info };
+  }
+
+  // 2. Determine if associated domain in memo is typosquatted / suspicious
+  let isDomainSuspicious = false;
+  if (memoText) {
+    const domainMatch = memoText.match(/(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]/i);
+    if (domainMatch) {
+      const isSuspicious = detectDomainImpersonation(domainMatch[0]);
+      if (isSuspicious) {
+        isDomainSuspicious = true;
+        warnings.push(`⚠️ Domain Impersonation: Memo contains a suspicious domain: "${domainMatch[0]}"`);
+        riskScore += 30;
+      }
+    }
+  }
+
+  // 3. Check address reputation
+  const reputation = getReputationScore(destination, { recipientIsNew, isDomainSuspicious });
+  info.push(`Recipient reputation score: ${reputation}`);
+  
+  if (reputation === 0.0) {
+    warnings.push("⚠️ SCAM ALERT: Destination is a reported malicious address");
+    riskScore += 50;
+  } else if (reputation < 0.3) {
+    warnings.push(`⚠️ Suspicious Address: Recipient has very low reputation (${reputation})`);
+    riskScore += 30;
+  } else if (reputation < 0.6) {
+    warnings.push(`⚠️ Warning: Recipient has below average reputation (${reputation})`);
+    riskScore += 15;
+  }
+
+  // 4. Run ML phishing model prediction
+  const op = {
+    type: 'payment',
+    amount,
+    asset: isNative ? null : { isNative: () => false, code: assetCode, issuer: assetIssuer }
+  };
+  const mlResult = analyzePhishing(op, memoText, reputation, recipientIsNew);
+  
+  if (mlResult.isPhishing) {
+    const confidence = (mlResult.probability * 100).toFixed(0);
+    warnings.push(`⚠️ Phishing Alert: Model predicts phishing attempt (${confidence}% confidence)`);
+    riskScore += 40;
+  }
+
+  return { riskScore, warnings, info };
+}
+
+/**
  * Check payment operation
  */
-async function checkPaymentOperation(operation, network, sourceAccount) {
+async function checkPaymentOperation(operation, network, sourceAccount, memoText = "") {
   const warnings = [];
   const info = [];
   let riskScore = 0;
 
   const { destination, amount, asset } = operation;
+  const isNative = !asset || asset.isNative();
+  const assetCode = isNative ? 'XLM' : asset.code;
+  const assetIssuer = isNative ? '' : asset.issuer;
 
-  // Check destination
-  if (SCAM_PATTERNS.knownScamAddresses.has(destination)) {
-    warnings.push("⚠️ SCAM ALERT: Destination is a known scam address");
-    riskScore += 50;
-  }
+  // Run the common address risk assessment (checks new accounts, reputation, domain, and runs ML)
+  const addressRisk = await assessAddressRisk({
+    destination,
+    amount,
+    assetCode,
+    assetIssuer,
+    isNative,
+    network,
+    memoText
+  });
 
-  // Check if destination exists
-  try {
-    await fetchAccount(destination, network);
-    info.push("Destination account exists");
-  } catch (error) {
-    warnings.push("Destination account does not exist - will be created");
-    riskScore += 5;
-  }
+  riskScore += addressRisk.riskScore;
+  warnings.push(...addressRisk.warnings);
+  info.push(...addressRisk.info);
 
-  // Check amount
+  // Check amount bounds (existing verification code)
   const amountNum = parseFloat(amount);
   if (amountNum > 10000) {
     warnings.push(`Large payment amount: ${amount}`);
     riskScore += 10;
   }
 
-  // Check asset
-  if (asset && asset.code && asset.issuer) {
+  // Check asset-specific risk
+  if (!isNative) {
     const assetCheck = checkAsset(asset);
     riskScore += assetCheck.riskScore;
     warnings.push(...assetCheck.warnings);
@@ -316,6 +433,34 @@ async function checkPaymentOperation(operation, network, sourceAccount) {
   } else {
     info.push("Asset: XLM (native)");
   }
+
+  return { riskScore, warnings, info };
+}
+
+/**
+ * Check createAccount operation
+ */
+async function checkCreateAccountOperation(operation, network, sourceAccount, memoText = "") {
+  const warnings = [];
+  const info = [];
+  let riskScore = 0;
+
+  const { destination, startingBalance } = operation;
+
+  // Run the common address risk assessment
+  const addressRisk = await assessAddressRisk({
+    destination,
+    amount: startingBalance,
+    assetCode: 'XLM',
+    assetIssuer: '',
+    isNative: true,
+    network,
+    memoText
+  });
+
+  riskScore += addressRisk.riskScore;
+  warnings.push(...addressRisk.warnings);
+  info.push(...addressRisk.info);
 
   return { riskScore, warnings, info };
 }
@@ -540,7 +685,7 @@ function generateRecommendations(riskLevel, warnings, errors) {
  * Quick scam check for address
  */
 export function isKnownScamAddress(address) {
-  return SCAM_PATTERNS.knownScamAddresses.has(address);
+  return SCAM_PATTERNS.knownScamAddresses.has(address) || getReputationScore(address) === 0.0;
 }
 
 /**
@@ -548,6 +693,7 @@ export function isKnownScamAddress(address) {
  */
 export function reportScamAddress(address, reason = "") {
   SCAM_PATTERNS.knownScamAddresses.add(address);
+  reportMaliciousAddress(address, reason);
 
   // In production, this should report to a backend service
   console.warn("Scam address reported:", address, reason);

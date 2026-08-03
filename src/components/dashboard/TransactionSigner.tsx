@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { useStore } from '../../lib/store'
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter'
@@ -9,6 +9,8 @@ import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences'
 import type { UserPreferences } from '../../lib/userPreferences'
 import Card from './Card'
 import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation'
+import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay'
+import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics'
 
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore()
@@ -19,7 +21,11 @@ export default function TransactionSigner() {
   const [copied, setCopied] = useState(false)
   const [ledgerPrompt, setLedgerPrompt] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
+  const [showBiometricOverlay, setShowBiometricOverlay] = useState(false)
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
+
+  // ─── Behavioral Biometrics ─────────────────────────────────────────────────
+  const bio = useBehavioralBiometrics(walletPublicKey)
 
   useEffect(() => {
     async function fetchPreferences() {
@@ -29,6 +35,14 @@ export default function TransactionSigner() {
     fetchPreferences()
   }, [])
 
+  // Start collecting behavior as soon as user interacts with the XDR textarea
+  const handleXdrChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setXdr(e.target.value)
+    if (bio.enabled && !bio.authStatus.match(/collecting|evaluating/)) {
+      bio.startCollection()
+    }
+  }, [bio])
+
   const networkPassphrase: string = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
 
   const handleSign = async () => {
@@ -37,11 +51,46 @@ export default function TransactionSigner() {
       return
     }
 
+    // Run biometric check if enabled
+    if (bio.enabled && bio.isEstablished) {
+      const result = await bio.evaluateAndRecord()
+      if (result) {
+        setShowBiometricOverlay(true)
+        // For strict mode anomalies, stop here — overlay handles cancel
+        if (result.isAnomaly && bio.strictMode) return
+        // For non-anomaly or warn mode, overlay will call onDismiss/onProceedAnyway
+        if (!result.isAnomaly) {
+          // Auto-dismiss quickly for a passed check — show briefly then proceed
+          setTimeout(() => {
+            setShowBiometricOverlay(false)
+            _proceedToSign()
+          }, 1200)
+          return
+        }
+        // Anomaly in warn mode: wait for user action via overlay
+        return
+      }
+    } else if (bio.enabled && !bio.isEstablished) {
+      // Learning mode: still evaluate (returns learning result) and show briefly
+      const result = await bio.evaluateAndRecord()
+      if (result) {
+        setShowBiometricOverlay(true)
+        setTimeout(() => {
+          setShowBiometricOverlay(false)
+          _proceedToSign()
+        }, 1500)
+        return
+      }
+    }
+
+    await _proceedToSign()
+  }
+
+  const _proceedToSign = async () => {
     if (preferences.transactionConfirmation.enabled) {
       setShowConfirmation(true)
       return
     }
-
     await doSign()
   }
 
@@ -68,6 +117,10 @@ export default function TransactionSigner() {
       }
 
       setSignedXdr(result)
+      // Record this successful sign to the behavioral profile
+      if (bio.enabled) {
+        bio.recordSuccessfulSign().catch(() => {})
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -82,6 +135,23 @@ export default function TransactionSigner() {
 
   const handleCancelConfirmation = () => {
     setShowConfirmation(false)
+    bio.abort()
+  }
+
+  // Biometric overlay handlers
+  const handleBiometricProceed = async () => {
+    setShowBiometricOverlay(false)
+    await _proceedToSign()
+  }
+
+  const handleBiometricCancel = () => {
+    setShowBiometricOverlay(false)
+    bio.abort()
+  }
+
+  const handleBiometricDismiss = async () => {
+    setShowBiometricOverlay(false)
+    await _proceedToSign()
   }
 
   const _signWithLedger = async () => {
@@ -118,6 +188,10 @@ export default function TransactionSigner() {
         { network, walletType: 'ledger' },
       )
       setSignedXdr(signed as string)
+      // Record this successful sign to the behavioral profile
+      if (bio.enabled) {
+        bio.recordSuccessfulSign().catch(() => {})
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -164,6 +238,7 @@ export default function TransactionSigner() {
   }
 
   return (
+    <>
     <Card title="Transaction Signer" subtitle={`Signing with ${walletType}`}>
       <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div style={{
@@ -205,7 +280,7 @@ export default function TransactionSigner() {
           </label>
           <textarea
             value={xdr}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setXdr(e.target.value)}
+            onChange={handleXdrChange}
             placeholder="Paste the unsigned transaction XDR envelope here…"
             rows={5}
             style={{
@@ -309,7 +384,39 @@ export default function TransactionSigner() {
             </div>
           </div>
         )}
+
+        {/* Biometric status badge (shown in learning mode) */}
+        {bio.enabled && !bio.isEstablished && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '8px 12px',
+            background: 'rgba(6,182,212,0.06)',
+            border: '1px solid var(--cyan-dim, rgba(6,182,212,0.2))',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '11px',
+            color: 'var(--cyan, #06b6d4)',
+          }}>
+            <span>📖</span>
+            <span>
+              Behavioral profile learning — {bio.samplesNeeded} more transaction{bio.samplesNeeded === 1 ? '' : 's'} to establish your identity
+            </span>
+          </div>
+        )}
       </div>
     </Card>
+
+    {/* Biometric overlay — rendered as a portal-like fixed overlay */}
+    {showBiometricOverlay && (
+      <BiometricAuthOverlay
+        status={bio.authStatus}
+        profile={bio.profile}
+        lastResult={bio.lastAnomalyResult}
+        onProceedAnyway={handleBiometricProceed}
+        onCancel={handleBiometricCancel}
+        onDismiss={handleBiometricDismiss}
+        strictMode={bio.strictMode}
+      />
+    )}
+    </>
   )
 }

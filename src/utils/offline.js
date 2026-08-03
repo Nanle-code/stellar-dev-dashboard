@@ -91,11 +91,107 @@ export async function registerServiceWorker() {
         logger.warn('Background sync registration failed:', err);
       }
     }
+
+    // Initialise the controlled SW update prompt
+    initSWUpdatePrompt(registration);
   } catch (error) {
     logger.error('Service Worker registration failed:', {}, error);
   }
 
   initOfflineDetection();
+}
+
+// ─── Controlled SW Update Prompt ──────────────────────────────────────────────
+
+let _swRegistration = null;
+let _swUpdateCallbacks = [];
+let _swUpdateAvailable = false;
+
+/**
+ * Initialise the controlled service-worker update prompt.
+ *
+ * Listens for updatefound / statechange on the registration so that the
+ * application can ask the user before activating a new SW version, preventing
+ * stale-chunk crashes and unexpected reloads.
+ *
+ * Must be called after a successful navigator.serviceWorker.register() call.
+ *
+ * @param {ServiceWorkerRegistration} registration
+ */
+export function initSWUpdatePrompt(registration) {
+  if (!registration) return;
+  _swRegistration = registration;
+
+  // If a waiting worker already exists (e.g. after a page reload while a
+  // newer SW was waiting), surface it immediately.
+  if (registration.waiting) {
+    notifySWUpdateAvailable();
+  }
+
+  // Listen for new SW installations
+  registration.addEventListener('updatefound', () => {
+    const newWorker = registration.installing;
+    if (!newWorker) return;
+
+    newWorker.addEventListener('statechange', () => {
+      if (newWorker.state === 'installed' && registration.active) {
+        // A new SW has installed and is now waiting for activation.
+        // This means an update is available (not the initial install).
+        notifySWUpdateAvailable();
+      }
+    });
+  });
+
+  // Reload the page once the new SW takes control, so all assets come from
+  // the new version. Use a guard to avoid loops if the reload triggers a
+  // controllerchange on the new page.
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+}
+
+/**
+ * Subscribe to SW update availability changes.
+ *
+ * @param {(available: boolean) => void} callback
+ * @returns {() => void} unsubscribe function
+ */
+export function subscribeToSWUpdates(callback) {
+  _swUpdateCallbacks.push(callback);
+  // Immediately notify with the current state
+  try { callback(_swUpdateAvailable); } catch { /* ignore */ }
+  return () => {
+    _swUpdateCallbacks = _swUpdateCallbacks.filter((cb) => cb !== callback);
+  };
+}
+
+/**
+ * Activate the waiting service worker and reload the page with the new version.
+ * Does nothing if no update is available.
+ */
+export async function applySWUpdate() {
+  if (!_swRegistration || !_swRegistration.waiting) return;
+
+  _swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+}
+
+/**
+ * Returns whether a new SW version is currently waiting to be activated.
+ *
+ * @returns {boolean}
+ */
+export function isSWUpdateAvailable() {
+  return _swUpdateAvailable;
+}
+
+function notifySWUpdateAvailable() {
+  _swUpdateAvailable = true;
+  _swUpdateCallbacks.forEach((cb) => {
+    try { cb(true); } catch { /* ignore */ }
+  });
 }
 
 /**

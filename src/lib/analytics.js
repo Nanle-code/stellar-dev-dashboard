@@ -58,7 +58,7 @@ export function buildActivityTimeseries(transactions = [], days = 14) {
 
   for (let i = 0; i < days; i += 1) {
     const stamp = new Date(start + i * DAY_MS).toISOString().slice(0, 10);
-    map.set(stamp, { date: stamp, transactions: 0, fees: 0 });
+    map.set(stamp, { date: stamp, transactions: 0, failedTxs: 0, fees: 0, successRate: 0, averageFee: 0 });
   }
 
   transactions.forEach((tx) => {
@@ -66,10 +66,17 @@ export function buildActivityTimeseries(transactions = [], days = 14) {
     const bucket = map.get(stamp);
     if (!bucket) return;
     bucket.transactions += 1;
+    if (!tx.successful) bucket.failedTxs += 1;
     bucket.fees += toNumber(tx.fee_charged);
   });
 
-  return Array.from(map.values());
+  const values = Array.from(map.values()).map(bucket => {
+    bucket.successRate = bucket.transactions > 0 ? (bucket.transactions - bucket.failedTxs) / bucket.transactions : 1;
+    bucket.averageFee = bucket.transactions > 0 ? bucket.fees / bucket.transactions : 0;
+    return bucket;
+  });
+
+  return values;
 }
 
 export function summarizeNetwork(networkStats, recentLedgers = []) {

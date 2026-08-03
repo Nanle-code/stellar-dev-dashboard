@@ -86,3 +86,40 @@ export async function getFreighterNetwork() {
     return null
   }
 }
+
+/**
+ * Listen for account changes from Freighter.
+ * Not all versions of Freighter natively broadcast this, but we handle it if fired.
+ */
+export function onFreighterAccountChange(callback) {
+  if (typeof window !== 'undefined') {
+    const handler = (e) => callback(e.detail);
+    window.addEventListener('freighterAccountChange', handler);
+    return () => window.removeEventListener('freighterAccountChange', handler);
+  }
+  return () => {};
+}
+
+/**
+ * Listen for network changes from Freighter.
+ */
+export function onFreighterNetworkChange(callback) {
+  if (typeof window !== 'undefined') {
+    const handler = (e) => callback(e.detail);
+    window.addEventListener('freighterNetworkChange', handler);
+    return () => window.removeEventListener('freighterNetworkChange', handler);
+  }
+  return () => {};
+}
+
+/**
+ * Listen for Freighter lock events.
+ */
+export function onFreighterLock(callback) {
+  if (typeof window !== 'undefined') {
+    const handler = () => callback();
+    window.addEventListener('freighterLock', handler);
+    return () => window.removeEventListener('freighterLock', handler);
+  }
+  return () => {};
+}

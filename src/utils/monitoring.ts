@@ -24,6 +24,7 @@ import {
 } from '../lib/errorReporting';
 import { initPerformanceMonitoring } from '../lib/performance';
 import { createLogger } from './logger';
+import { loadPreferences } from './preferences';
 
 const logger = createLogger('Monitoring');
 
@@ -58,6 +59,12 @@ let _initialised = false;
 // ─── Sentry init ──────────────────────────────────────────────────────────────
 
 function initialiseSentry(cfg: MonitoringConfig): void {
+  const prefs = loadPreferences();
+  if (prefs.diagnosticsConsent !== true) {
+    logger.info('Sentry initialization skipped: user has not granted diagnostics consent.');
+    return;
+  }
+
   if (!cfg.sentryDsn) {
     logger.warn('Sentry DSN not set – error tracking disabled.', { env: cfg.environment });
     return;
@@ -255,6 +262,14 @@ export function initMonitoring(userConfig: Partial<MonitoringConfig> = {}): void
   logger.info('Monitoring stack initialised', { env: cfg.environment });
 }
 
+export function revokeSentryConsent(): void {
+  logger.info('User revoked diagnostics consent, closing Sentry client.');
+  const client = Sentry.getClient();
+  if (client) {
+    client.close(2000); // 2 second flush then close
+  }
+}
+
 // ─── Sentry user context helpers ─────────────────────────────────────────────
 
 /**
@@ -315,10 +330,86 @@ export function captureError(
  */
 export const SentryErrorBoundary = Sentry.ErrorBoundary;
 
+// ─── Health snapshot helpers (used by useMonitoring hook) ───────────────────────
+
+export interface HealthSnapshot {
+  cpu?: number;
+  memory?: number;
+  latency?: number;
+  uptime?: number;
+  errors?: unknown[];
+  [key: string]: unknown;
+}
+
+/**
+ * Collect a synchronous snapshot of basic health metrics.
+ */
+export function collectHealthSnapshot(): HealthSnapshot {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const mem = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
+  return {
+    cpu: undefined,
+    memory: mem ? mem.usedJSHeapSize / (mem.totalJSHeapSize || 1) : undefined,
+    latency: 0,
+    uptime: performance.now(),
+    errors: [],
+  };
+}
+
+/**
+ * Collect an async snapshot of system health (network, performance entries).
+ */
+export async function collectSystemHealthSnapshot(): Promise<HealthSnapshot> {
+  const base = collectHealthSnapshot();
+  const entries = performance.getEntriesByType('navigation');
+  const nav = entries[0] as PerformanceNavigationTiming | undefined;
+  return {
+    ...base,
+    latency: nav?.domComplete ?? 0,
+    networkHealth: [],
+    latencyHistory: [],
+  };
+}
+
+/**
+ * Compute a 0–100 health score from a snapshot.
+ */
+export function computeHealthScore(snapshot: HealthSnapshot): number {
+  let score = 100;
+  if (snapshot.memory != null && snapshot.memory > 0.8) score -= 20;
+  if (snapshot.latency != null && snapshot.latency > 3000) score -= 20;
+  if (snapshot.errors && snapshot.errors.length > 5) score -= 15;
+  return Math.max(0, Math.min(100, score));
+}
+
+type ErrorWatcher = (error: unknown) => void;
+const errorWatchers = new Set<ErrorWatcher>();
+
+/**
+ * Subscribe to error events. Returns an unsubscribe function.
+ */
+export function watchErrors(callback: ErrorWatcher): () => void {
+  errorWatchers.add(callback);
+  const handler = (event: ErrorEvent) => {
+    errorWatchers.forEach(w => w(event.error ?? new Error(event.message)));
+  };
+  const rejectionHandler = (event: PromiseRejectionEvent) => {
+    errorWatchers.forEach(w => w(event.reason ?? new Error('Unhandled rejection')));
+  };
+  window.addEventListener('error', handler);
+  window.addEventListener('unhandledrejection', rejectionHandler);
+  return () => {
+    errorWatchers.delete(callback);
+    window.removeEventListener('error', handler);
+    window.removeEventListener('unhandledrejection', rejectionHandler);
+  };
+}
+
 export default {
   initMonitoring,
   setMonitoringUser,
   withSpan,
   captureError,
   SentryErrorBoundary,
+  revokeSentryConsent,
 };

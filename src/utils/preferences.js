@@ -5,6 +5,7 @@ export const DEFAULT_PREFERENCES = {
   showAdvancedPanels: true,
   autoRefreshDashboard: true,
   defaultSearchScope: "all",
+  diagnosticsConsent: false,
 };
 
 export function loadPreferences() {

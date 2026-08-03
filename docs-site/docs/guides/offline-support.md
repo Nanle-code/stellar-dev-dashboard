@@ -88,6 +88,45 @@ if ('serviceWorker' in navigator) {
 }
 ```
 
+### Controlled update prompt
+
+When a new version of the dashboard is deployed, the service worker installs in the background without forcing an immediate reload. Instead, it notifies the application that an update is available, and the user sees a prompt asking them to activate the new version. This prevents stale-chunk crashes and unexpected reloads.
+
+**How it works:**
+
+1. The new SW installs and enters a **waiting** state.
+2. The application detects the waiting worker and sets `updateAvailable = true`.
+3. A UI banner (SWUpdatePrompt) invites the user to update.
+4. When the user clicks **Update**, the app sends a `SKIP_WAITING` message to the waiting worker.
+5. The SW activates, takes control of all clients, and the page reloads with the new version.
+
+**Developer API:**
+
+```ts
+import {
+  subscribeToSWUpdates,
+  applySWUpdate,
+  isSWUpdateAvailable,
+} from '@/utils/offline';
+
+// Subscribe to update availability
+const unsub = subscribeToSWUpdates((available) => {
+  if (available) showUpdateBanner();
+});
+
+// Check if an update is waiting
+if (isSWUpdateAvailable()) {
+  // Show update UI
+}
+
+// Activate the update
+await applySWUpdate(); // sends SKIP_WAITING, triggers reload
+```
+
+**Compatibility:** Requires `'serviceWorker' in navigator`. Functions are no-ops in unsupported environments.
+
+**Security:** The `SKIP_WAITING` message is only posted to the same-origin service worker registered by the application. No user data is transmitted during the update flow.
+
 ## Cache invalidation
 
 ```ts

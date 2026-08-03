@@ -1,0 +1,92 @@
+[
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 1, "filesModified": 2, "filesDeleted": 0, "linesAdded": 45, "linesDeleted": 10, "srcFilesChanged": 2, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 1, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 85 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 180 },
+    "history": { "totalBuilds": 150, "failedBuilds": 8, "recentFailures": 0, "avgBuildDuration": 120, "lastBuildDuration": 115, "durationVariance": 10, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 2, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 5, "filesModified": 15, "filesDeleted": 2, "linesAdded": 850, "linesDeleted": 320, "srcFilesChanged": 12, "configFilesChanged": 3, "depFilesChanged": 2, "testFilesChanged": 1, "hasTypeChanges": true, "hasBreakingChanges": false, "hasNewDeps": true, "hasDepUpgrades": true, "hasDepDowngrades": false, "commitCount": 8, "authorExperience": 12 },
+    "deps": { "totalDeps": 45, "newDeps": 2, "upgradedDeps": 3, "downgradedDeps": 0, "removedDeps": 1, "majorUpgrades": 1, "minorUpgrades": 2, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 46, "avgDepAge": 120 },
+    "history": { "totalBuilds": 150, "failedBuilds": 15, "recentFailures": 2, "avgBuildDuration": 130, "lastBuildDuration": 145, "durationVariance": 25, "consecutiveFailures": 1, "lastBuildFailed": true, "hasLintErrors": true, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 45, "depCountChange": 2 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 0, "filesModified": 1, "filesDeleted": 0, "linesAdded": 5, "linesDeleted": 5, "srcFilesChanged": 1, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 1, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 200 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 200 },
+    "history": { "totalBuilds": 150, "failedBuilds": 5, "recentFailures": 0, "avgBuildDuration": 110, "lastBuildDuration": 108, "durationVariance": 8, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 0, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 0, "filesModified": 8, "filesDeleted": 0, "linesAdded": 200, "linesDeleted": 50, "srcFilesChanged": 5, "configFilesChanged": 2, "depFilesChanged": 1, "testFilesChanged": 0, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 2, "authorExperience": 45 },
+    "deps": { "totalDeps": 43, "newDeps": 0, "upgradedDeps": 1, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 1, "patchUpgrades": 0, "hasPeerDepChanges": true, "hasEnginesChange": false, "depCount": 43, "avgDepAge": 160 },
+    "history": { "totalBuilds": 150, "failedBuilds": 12, "recentFailures": 3, "avgBuildDuration": 140, "lastBuildDuration": 200, "durationVariance": 60, "consecutiveFailures": 2, "lastBuildFailed": true, "hasLintErrors": false, "hasTypeErrors": true, "hasTestFailures": true, "bundleSizeChange": 15, "depCountChange": 1 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 0, "filesModified": 25, "filesDeleted": 3, "linesAdded": 1500, "linesDeleted": 600, "srcFilesChanged": 20, "configFilesChanged": 4, "depFilesChanged": 1, "testFilesChanged": 2, "hasTypeChanges": true, "hasBreakingChanges": true, "hasNewDeps": true, "hasDepUpgrades": true, "hasDepDowngrades": false, "commitCount": 15, "authorExperience": 8 },
+    "deps": { "totalDeps": 48, "newDeps": 5, "upgradedDeps": 8, "downgradedDeps": 1, "removedDeps": 2, "majorUpgrades": 3, "minorUpgrades": 4, "patchUpgrades": 1, "hasPeerDepChanges": true, "hasEnginesChange": true, "depCount": 50, "avgDepAge": 60 },
+    "history": { "totalBuilds": 150, "failedBuilds": 45, "recentFailures": 5, "avgBuildDuration": 200, "lastBuildDuration": 350, "durationVariance": 100, "consecutiveFailures": 3, "lastBuildFailed": true, "hasLintErrors": true, "hasTypeErrors": true, "hasTestFailures": true, "bundleSizeChange": 120, "depCountChange": 6 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 2, "filesModified": 4, "filesDeleted": 0, "linesAdded": 120, "linesDeleted": 30, "srcFilesChanged": 3, "configFilesChanged": 1, "depFilesChanged": 0, "testFilesChanged": 2, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": true, "hasDepDowngrades": false, "commitCount": 3, "authorExperience": 120 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 2, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 1, "patchUpgrades": 1, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 190 },
+    "history": { "totalBuilds": 150, "failedBuilds": 6, "recentFailures": 0, "avgBuildDuration": 115, "lastBuildDuration": 110, "durationVariance": 12, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 5, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 3, "filesModified": 6, "filesDeleted": 1, "linesAdded": 450, "linesDeleted": 100, "srcFilesChanged": 8, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 0, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 5, "authorExperience": 30 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 170 },
+    "history": { "totalBuilds": 150, "failedBuilds": 10, "recentFailures": 2, "avgBuildDuration": 125, "lastBuildDuration": 180, "durationVariance": 40, "consecutiveFailures": 1, "lastBuildFailed": true, "hasLintErrors": true, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 8, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 0, "filesModified": 3, "filesDeleted": 0, "linesAdded": 80, "linesDeleted": 20, "srcFilesChanged": 2, "configFilesChanged": 0, "depFilesChanged": 1, "testFilesChanged": 1, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 150 },
+    "deps": { "totalDeps": 43, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 43, "avgDepAge": 185 },
+    "history": { "totalBuilds": 150, "failedBuilds": 7, "recentFailures": 0, "avgBuildDuration": 118, "lastBuildDuration": 112, "durationVariance": 9, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 3, "depCountChange": 1 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 10, "filesModified": 20, "filesDeleted": 5, "linesAdded": 3000, "linesDeleted": 800, "srcFilesChanged": 25, "configFilesChanged": 5, "depFilesChanged": 3, "testFilesChanged": 0, "hasTypeChanges": true, "hasBreakingChanges": true, "hasNewDeps": true, "hasDepUpgrades": true, "hasDepDowngrades": true, "commitCount": 25, "authorExperience": 3 },
+    "deps": { "totalDeps": 55, "newDeps": 8, "upgradedDeps": 12, "downgradedDeps": 2, "removedDeps": 3, "majorUpgrades": 4, "minorUpgrades": 6, "patchUpgrades": 2, "hasPeerDepChanges": true, "hasEnginesChange": true, "depCount": 58, "avgDepAge": 30 },
+    "history": { "totalBuilds": 150, "failedBuilds": 60, "recentFailures": 8, "avgBuildDuration": 250, "lastBuildDuration": 400, "durationVariance": 150, "consecutiveFailures": 5, "lastBuildFailed": true, "hasLintErrors": true, "hasTypeErrors": true, "hasTestFailures": true, "bundleSizeChange": 200, "depCountChange": 10 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 1, "filesModified": 1, "filesDeleted": 1, "linesAdded": 30, "linesDeleted": 30, "srcFilesChanged": 1, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 1, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 90 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 190 },
+    "history": { "totalBuilds": 150, "failedBuilds": 6, "recentFailures": 0, "avgBuildDuration": 112, "lastBuildDuration": 110, "durationVariance": 7, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 1, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 0, "filesModified": 0, "filesDeleted": 0, "linesAdded": 0, "linesDeleted": 0, "srcFilesChanged": 0, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 0, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 100 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 200 },
+    "history": { "totalBuilds": 150, "failedBuilds": 5, "recentFailures": 0, "avgBuildDuration": 110, "lastBuildDuration": 108, "durationVariance": 5, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 0, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 0, "filesModified": 5, "filesDeleted": 0, "linesAdded": 150, "linesDeleted": 40, "srcFilesChanged": 4, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 3, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 2, "authorExperience": 75 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 195 },
+    "history": { "totalBuilds": 150, "failedBuilds": 5, "recentFailures": 0, "avgBuildDuration": 110, "lastBuildDuration": 112, "durationVariance": 8, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 0, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 0, "filesModified": 12, "filesDeleted": 0, "linesAdded": 600, "linesDeleted": 200, "srcFilesChanged": 10, "configFilesChanged": 1, "depFilesChanged": 0, "testFilesChanged": 0, "hasTypeChanges": true, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 6, "authorExperience": 20 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 175 },
+    "history": { "totalBuilds": 150, "failedBuilds": 18, "recentFailures": 4, "avgBuildDuration": 135, "lastBuildDuration": 190, "durationVariance": 45, "consecutiveFailures": 2, "lastBuildFailed": true, "hasLintErrors": false, "hasTypeErrors": true, "hasTestFailures": true, "bundleSizeChange": 25, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": false,
+    "change": { "filesAdded": 0, "filesModified": 2, "filesDeleted": 0, "linesAdded": 60, "linesDeleted": 15, "srcFilesChanged": 1, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 1, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": false, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 110 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 0, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 0, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 200 },
+    "history": { "totalBuilds": 150, "failedBuilds": 5, "recentFailures": 0, "avgBuildDuration": 110, "lastBuildDuration": 109, "durationVariance": 6, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": false, "bundleSizeChange": 0, "depCountChange": 0 }
+  },
+  {
+    "buildFailed": true,
+    "change": { "filesAdded": 0, "filesModified": 1, "filesDeleted": 0, "linesAdded": 10, "linesDeleted": 5, "srcFilesChanged": 1, "configFilesChanged": 0, "depFilesChanged": 0, "testFilesChanged": 0, "hasTypeChanges": false, "hasBreakingChanges": false, "hasNewDeps": false, "hasDepUpgrades": true, "hasDepDowngrades": false, "commitCount": 1, "authorExperience": 60 },
+    "deps": { "totalDeps": 42, "newDeps": 0, "upgradedDeps": 1, "downgradedDeps": 0, "removedDeps": 0, "majorUpgrades": 1, "minorUpgrades": 0, "patchUpgrades": 0, "hasPeerDepChanges": false, "hasEnginesChange": false, "depCount": 42, "avgDepAge": 170 },
+    "history": { "totalBuilds": 150, "failedBuilds": 6, "recentFailures": 1, "avgBuildDuration": 115, "lastBuildDuration": 130, "durationVariance": 20, "consecutiveFailures": 0, "lastBuildFailed": false, "hasLintErrors": false, "hasTypeErrors": false, "hasTestFailures": true, "bundleSizeChange": 2, "depCountChange": 0 }
+  }
+]

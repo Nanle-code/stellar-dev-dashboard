@@ -254,7 +254,7 @@ export async function submitMultisigTransaction(txXdr, network = 'testnet') {
   );
 }
 
-// ─── Session Management (IndexedDB) ──────────────────────────────────────────
+// ─── Session Management ────────────────────────────────────────────────────
 
 /**
  * Load all multisig sessions from IndexedDB via storage.js

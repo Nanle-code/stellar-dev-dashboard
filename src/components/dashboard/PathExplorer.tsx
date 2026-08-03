@@ -1,6 +1,9 @@
-import React, { useState, useCallback, type FormEvent, type ReactNode } from 'react';
+import React, { useState, useCallback, useEffect, type FormEvent } from 'react';
 import { shortAddress } from '../../lib/stellar';
 import { fetchPathPayments, type PathPaymentPath } from '../../lib/payments';
+import { useRouteOptimization } from '../../hooks/useRouteOptimization';
+import AIRouteRecommendations from './AIRouteRecommendations';
+import RouteComparison from './RouteComparison';
 
 interface ExplorePathsCardProps {
   destination: string
@@ -24,7 +27,6 @@ interface PathStepProps {
   sub?: string
 }
 
-const currentYear = new Date().getFullYear();
 const DEFAULT_ASSET = 'native';
 
 const PathStep = ({ label, value, sub }: PathStepProps) => (
@@ -162,7 +164,7 @@ const ExplorePathsCard = ({ destination, amount, sourceAsset, paths, isLoading, 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
         <div style={{ fontSize: '32px', marginBottom: '12px', opacity: 0.4 }}>{''}</div>
-        <div style={{ fontSize: '14px' }}>Enter a destination and amount, then click "Find Paths"</div>
+        <div style={{ fontSize: '14px' }}>Enter a destination and amount, then click &quot;Find Paths&quot;</div>
         <div style={{ fontSize: '12px', marginTop: '6px', color: 'var(--text-muted)' }}>
           Pathfinding finds the cheapest route across the Stellar network.
         </div>
@@ -229,6 +231,18 @@ export default function PathExplorer() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastSearched, setLastSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(true);
+  const [showComparison, setShowComparison] = useState(true);
+
+  const {
+    rankedRoutes,
+    slippagePredictions,
+    routeExplanations,
+    selectedRoute,
+    isLoading: isOptimizing,
+    optimizeRoutes,
+    selectRoute,
+  } = useRouteOptimization();
 
   const handleSubmit = useCallback(async (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -267,6 +281,17 @@ export default function PathExplorer() {
     }
   }, [destination, amount, sourceAsset]);
 
+  useEffect(() => {
+    if (paths.length > 0 && !isLoading) {
+      optimizeRoutes(paths, {
+        sourceAsset,
+        destAsset: 'XLM',
+        amount: parseFloat(amount || '0'),
+        liquidity: 0.5,
+      });
+    }
+  }, [paths, isLoading, optimizeRoutes, sourceAsset, amount]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '4px' }}>
       <div>
@@ -274,7 +299,7 @@ export default function PathExplorer() {
           Path Explorer
         </div>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-          Discover optimal payment paths across the Stellar network to minimize costs and maximize delivery.
+          Discover optimal payment paths across the Stellar network with AI-powered route optimization.
         </p>
       </div>
 
@@ -364,25 +389,61 @@ export default function PathExplorer() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            style={{
-              padding: '10px 20px',
-              background: isLoading ? 'var(--bg-elevated)' : 'var(--cyan)',
-              color: isLoading ? 'var(--text-muted)' : 'white',
-              border: `1px solid ${isLoading ? 'var(--border)' : 'var(--cyan)'}`,
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              transition: 'var(--transition)',
-              fontFamily: 'var(--font-display)',
-              alignSelf: 'flex-start',
-            }}
-          >
-            {isLoading ? 'Searching...' : '🔍 Find Paths'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              type="submit"
+              disabled={isLoading}
+              style={{
+                padding: '10px 20px',
+                background: isLoading ? 'var(--bg-elevated)' : 'var(--cyan)',
+                color: isLoading ? 'var(--text-muted)' : 'white',
+                border: `1px solid ${isLoading ? 'var(--border)' : 'var(--cyan)'}`,
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                transition: 'var(--transition)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              {isLoading ? 'Searching...' : '🔍 Find Paths'}
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showAIRecommendations}
+                  onChange={(e) => setShowAIRecommendations(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                AI Recommendations
+              </label>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showComparison}
+                  onChange={(e) => setShowComparison(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                Compare Routes
+              </label>
+            </div>
+          </div>
         </form>
 
         {error && (
@@ -403,6 +464,26 @@ export default function PathExplorer() {
           </div>
         )}
       </div>
+
+      {showAIRecommendations && rankedRoutes.length > 0 && (
+        <AIRouteRecommendations
+          rankedRoutes={rankedRoutes}
+          slippagePredictions={slippagePredictions}
+          routeExplanations={routeExplanations}
+          onSelectRoute={selectRoute}
+          selectedRoute={selectedRoute}
+          isLoading={isOptimizing}
+          showExplanations={true}
+        />
+      )}
+
+      {showComparison && rankedRoutes.length >= 2 && (
+        <RouteComparison
+          routes={rankedRoutes}
+          onSelectRoute={selectRoute}
+          selectedRoute={selectedRoute}
+        />
+      )}
 
       <ExplorePathsCard
         destination={destination}

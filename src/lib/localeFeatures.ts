@@ -350,23 +350,59 @@ export function formatLocaleDateTime(value: Date | string | number, localeCode?:
   }).format(date);
 }
 
-export function formatLocaleNumber(value: number, localeCode?: string | null, options: Intl.NumberFormatOptions = {}) {
-  const profile = getLocaleProfile(localeCode);
-  return new Intl.NumberFormat(profile.code, {
-    numberingSystem: profile.numberSystem,
-    maximumFractionDigits: 2,
-    ...options,
-  }).format(value);
+function getDecimals(val: any): number {
+  if (val === null || val === undefined || val === "") return 0;
+  const str = String(val);
+  if (str.includes('e') || str.includes('E')) return 7;
+  const parts = str.split('.');
+  return parts.length > 1 ? parts[1].length : 0;
 }
 
-export function formatLocaleCurrency(value: number, localeCode?: string | null, currency?: string) {
-  const profile = getLocaleProfile(localeCode);
-  return new Intl.NumberFormat(profile.code, {
-    style: "currency",
-    currency: currency || profile.currency,
-    currencyDisplay: "narrowSymbol",
-    numberingSystem: profile.numberSystem,
-  }).format(value);
+export function formatLocaleNumber(value: number | string | bigint | null | undefined, localeCode?: string | null, options: Intl.NumberFormatOptions = {}) {
+  if (value === null || value === undefined || value === "") return "0";
+  const numValue = Number(value);
+  if (Number.isNaN(numValue)) return String(value);
+
+  const decimals = getDecimals(value);
+  const maxFractionDigits = options.maximumFractionDigits ?? Math.min(Math.max(decimals, 2), 7);
+  const minFractionDigits = options.minimumFractionDigits ?? Math.min(decimals, 2);
+
+  try {
+    const profile = getLocaleProfile(localeCode);
+    return new Intl.NumberFormat(profile.code, {
+      numberingSystem: profile.numberSystem,
+      maximumFractionDigits: maxFractionDigits,
+      minimumFractionDigits: minFractionDigits,
+      ...options,
+    }).format(typeof value === 'bigint' ? value : numValue);
+  } catch (error) {
+    return String(value);
+  }
+}
+
+export function formatLocaleCurrency(value: number | string | bigint | null | undefined, localeCode?: string | null, currency?: string) {
+  if (value === null || value === undefined || value === "") return "0";
+  const numValue = Number(value);
+  if (Number.isNaN(numValue)) return String(value);
+
+  const decimals = getDecimals(value);
+  const maxFractionDigits = Math.min(Math.max(decimals, 2), 7);
+  const minFractionDigits = Math.min(decimals, 2);
+
+  try {
+    const profile = getLocaleProfile(localeCode);
+    return new Intl.NumberFormat(profile.code, {
+      style: "currency",
+      currency: currency || profile.currency,
+      currencyDisplay: "narrowSymbol",
+      numberingSystem: profile.numberSystem,
+      maximumFractionDigits: maxFractionDigits,
+      minimumFractionDigits: minFractionDigits,
+    }).format(typeof value === 'bigint' ? value : numValue);
+  } catch (error) {
+    const cur = currency || getLocaleProfile(localeCode).currency;
+    return `${cur} ${String(value)}`;
+  }
 }
 
 export function getCulturalAdaptations(localeCode?: string | null) {

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../../lib/store'
 import { buildTransaction, simulateTransaction, exportTransactionXDR } from '../../lib/stellar'
+import { predictTransactionFailure } from '../../lib/transactionFailurePrediction'
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
 import { StatCard } from './Card'
 import { Plus, Trash2, Play, Copy, AlertCircle, CheckCircle } from 'lucide-react'
@@ -33,6 +34,16 @@ export default function Builder() {
     timeBounds,
     network,
   }
+  const prediction = useMemo(() => predictTransactionFailure({
+    sourceAccount,
+    balance: Math.max(100000, parseInt(baseFee || '100', 10) * 1000 + operations.length * 180000),
+    sequenceNumber: Math.max(1, 40 + operations.length * 2),
+    fee: parseInt(baseFee || '100', 10),
+    operationTypes: operations.map((op) => op.type),
+    networkCongestion: network === 'mainnet' ? 0.7 : 0.35,
+    historicalFailureRate: network === 'mainnet' ? 0.07 : 0.05,
+    hasMemo: Boolean(memo),
+  }), [baseFee, memo, network, operations, sourceAccount])
 
   // Reset transaction when network changes
   useEffect(() => {
@@ -323,28 +334,83 @@ export default function Builder() {
         </div>
       </div>
 
+      {/* AI Failure Prediction */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>
+              AI Failure Prediction
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Real-time risk scoring based on fees, congestion, operation complexity, and historical failure signals.
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+            {prediction.riskLevel === 'high' ? <AlertCircle size={16} color="var(--red)" /> : <CheckCircle size={16} color="var(--green)" />}
+            <span style={{ fontSize: '12px', fontWeight: 600, color: prediction.riskLevel === 'high' ? 'var(--red)' : prediction.riskLevel === 'medium' ? 'var(--amber)' : 'var(--green)' }}>
+              {prediction.riskLevel.toUpperCase()} RISK
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '16px' }}>
+          <div style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-surface)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>Success Probability</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--cyan)' }}>{(prediction.successProbability * 100).toFixed(1)}%</div>
+          </div>
+          <div style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-surface)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>Confidence Interval</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              {prediction.confidenceInterval.lower.toFixed(2)} - {prediction.confidenceInterval.upper.toFixed(2)}
+            </div>
+          </div>
+          <div style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-surface)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>Model Accuracy</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{(prediction.modelAccuracy * 100).toFixed(0)}%</div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '14px', padding: '12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.6 }}>
+          {prediction.warning}
+        </div>
+
+        {prediction.remediationActions.length > 0 && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Suggested remediation</div>
+            <div style={{ display: 'grid', gap: '6px' }}>
+              {prediction.remediationActions.map((action) => (
+                <div key={action} style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  {action}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Actions */}
       <div style={{ display: 'flex', gap: '12px' }}>
         <button
           onClick={handleSimulate}
-          disabled={isSimulating || operations.length === 0}
+          disabled={isSimulating || operations.length === 0 || offline}
+          title={offline ? 'Simulation requires a network connection' : ''}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '12px 18px',
-            background: 'var(--cyan-glow)',
-            border: '1px solid var(--cyan)',
+            background: (isSimulating || operations.length === 0 || offline) ? 'var(--bg-elevated)' : 'var(--cyan-glow)',
+            border: `1px solid ${offline ? 'var(--amber)' : 'var(--cyan)'}`,
             borderRadius: 'var(--radius)',
-            color: 'var(--cyan)',
+            color: offline ? 'var(--amber)' : 'var(--cyan)',
             fontSize: '13px',
             fontWeight: 600,
-            cursor: operations.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: operations.length === 0 ? 0.5 : 1
+            cursor: (operations.length === 0 || isSimulating || offline) ? 'not-allowed' : 'pointer',
+            opacity: operations.length === 0 ? 0.5 : 1,
           }}
         >
           <Play size={14} />
-          {isSimulating ? 'Simulating...' : 'Simulate'}
+          {isSimulating ? 'Simulating...' : offline ? 'Simulate (offline)' : 'Simulate'}
         </button>
 
         <button
@@ -362,11 +428,11 @@ export default function Builder() {
             fontSize: '13px',
             fontWeight: 600,
             cursor: operations.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: operations.length === 0 ? 0.5 : 1
+            opacity: operations.length === 0 ? 0.5 : 1,
           }}
         >
           <Copy size={14} />
-          Export XDR
+          Export XDR{offline ? ' (local)' : ''}
         </button>
       </div>
 

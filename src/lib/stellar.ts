@@ -13,6 +13,8 @@ const stellarCache = new Cache({
   defaultTTL: TTL.ACCOUNT,
 });
 
+export { stellarCache };
+
 const simulationCache = new Cache({
   namespace: 'simulation',
   maxSize: 200,
@@ -167,10 +169,10 @@ const CUSTOM_NETWORK_HEADERS_KEY = 'stellar-custom-network-headers';
 
 function endpointShape(url: string): string {
   try {
-    const parsed = new URL(url)
-    return parsed.pathname || '/'
+    const parsed = new URL(url);
+    return parsed.pathname || '/';
   } catch {
-    return 'unknown'
+    return 'unknown';
   }
 }
 
@@ -350,7 +352,7 @@ export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.
   );
 }
 
-export const ee = getServer
+export const ee = getServer;
 
 export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {
   const config = NETWORKS[network];
@@ -580,24 +582,27 @@ export async function fetchAccountOffers(
 export async function fetchTransactionDetails(
   hash: string,
   network: NetworkName = 'testnet'
-): Promise<{ transaction: StellarSdk.Horizon.ServerApi.TransactionRecord, operations: StellarSdk.Horizon.ServerApi.OperationRecord[] }> {
-  const cacheKey = `transaction-details:${hash}:${network}`
-  const cached = stellarCache.get(cacheKey)
-  if (cached) return cached
+): Promise<{
+  transaction: StellarSdk.Horizon.ServerApi.TransactionRecord;
+  operations: StellarSdk.Horizon.ServerApi.OperationRecord[];
+}> {
+  const cacheKey = `transaction-details:${hash}:${network}`;
+  const cached = stellarCache.get(cacheKey);
+  if (cached) return cached;
 
-  const server = getServer(network)
+  const server = getServer(network);
   const [transaction, opsResponse] = await Promise.all([
     server.transactions().transaction(hash).call(),
-    server.operations().forTransaction(hash).call()
-  ])
+    server.operations().forTransaction(hash).call(),
+  ]);
 
   const result = {
     transaction,
-    operations: opsResponse.records || []
-  }
-  
-  stellarCache.set(cacheKey, result, TTL.TRANSACTIONS, ['transactions', hash])
-  return result
+    operations: opsResponse.records || [],
+  };
+
+  stellarCache.set(cacheKey, result, TTL.TRANSACTIONS, ['transactions', hash]);
+  return result;
 }
 
 // ─── Operation labels ───────────────────────────────────────────────────────────
@@ -890,6 +895,12 @@ export async function fetchAssetPrice(
 // ─── Faucet ───────────────────────────────────────────────────────────────────
 
 export async function fundTestnetAccount(publicKey: string): Promise<unknown> {
+  // Guard: faucet requires network writes and cannot be queued — block offline.
+  const { isWriteSafe } = await import('./offlineReadOnly');
+  if (!isWriteSafe('faucet funding')) {
+    const { OfflineWriteError } = await import('./offlineReadOnly');
+    throw new OfflineWriteError('faucet funding');
+  }
   const res = await fetch(`${NETWORKS.testnet.faucetUrl}?addr=${publicKey}`);
   if (!res.ok) throw new Error('Faucet request failed');
   return res.json();
@@ -923,14 +934,14 @@ export async function fetchContractData(
   const server = getSorobanServer(network);
 
   let scValKey;
-  if (typeof key === "string") {
+  if (typeof key === 'string') {
     try {
       // Try to parse from JSON first
       const parsed = JSON.parse(key);
       scValKey = StellarSdk.nativeToScVal(parsed);
     } catch {
       // If JSON fails, treat as string
-      scValKey = StellarSdk.nativeToScVal(key, { type: "string" });
+      scValKey = StellarSdk.nativeToScVal(key, { type: 'string' });
     }
   } else {
     scValKey = key;
@@ -941,7 +952,7 @@ export async function fetchContractData(
     return {
       key: StellarSdk.scValToNative(result.key),
       value: StellarSdk.scValToNative(result.val),
-      xdr: result.xdr
+      xdr: result.xdr,
     };
   } catch (e) {
     throw new Error(`Failed to fetch contract data: ${(e as Error).message}`);
@@ -1152,6 +1163,13 @@ export async function invokeContract(params: InvokeContractParams): Promise<Cont
     throw new Error('Secret key is required to submit a transaction');
   }
 
+  // Guard: contract invocation submits to the network — block offline unless queued.
+  const { isWriteSafe } = await import('./offlineReadOnly');
+  if (!isWriteSafe('contract invocation')) {
+    const { OfflineWriteError } = await import('./offlineReadOnly');
+    throw new OfflineWriteError('contract invocation');
+  }
+
   let keypair: StellarSdk.Keypair;
   try {
     keypair = StellarSdk.Keypair.fromSecret(secretKey.trim());
@@ -1195,9 +1213,12 @@ export function isValidEd25519PublicKey(key: string): boolean {
  * Check if address is a valid muxed account (M...)
  */
 export function isValidMuxedAccount(key: string): boolean {
-  if (!key || typeof key !== 'string') return false
+  if (!key || typeof key !== 'string') return false;
+  const trimmed = key.trim();
+  if (!trimmed.startsWith('M')) return false;
   try {
-    return StellarSdk.StrKey.isValidEd25519PublicKey(key) || key.startsWith('M');
+    StellarSdk.MuxedAccount.fromAddress(trimmed, '0');
+    return true;
   } catch {
     return false;
   }
@@ -1207,7 +1228,13 @@ export function isValidMuxedAccount(key: string): boolean {
  * Check if address is a federated address (name*domain or name@domain)
  */
 export function isFederatedAddress(input: string): boolean {
-  return typeof input === 'string' && /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input);
+  if (typeof input !== 'string' || !input.trim()) return false;
+  const trimmed = input.trim();
+  // name*domain.tld (Stellar federation) OR name@domain.tld (email-style)
+  return (
+    /^[a-zA-Z0-9._-]+\*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed) ||
+    /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)
+  );
 }
 
 /**
@@ -2703,8 +2730,8 @@ export default {
 
 // ── Compatibility aliases ──────────────────────────────────────────────────
 /** @deprecated Use {@link fetchAccount} directly. */
-export type AccountDetails = StellarSdk.Horizon.AccountResponse
+export type AccountDetails = StellarSdk.Horizon.AccountResponse;
 /** @deprecated Use {@link fetchAccount} directly. */
-export const fetchAccountDetails = fetchAccount
+export const fetchAccountDetails = fetchAccount;
 /** @deprecated Use {@link isValidEd25519PublicKey} directly. */
-export const isPublicKey = isValidEd25519PublicKey
+export const isPublicKey = isValidEd25519PublicKey;

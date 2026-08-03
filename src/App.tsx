@@ -5,9 +5,11 @@ import './i18n/index.js';
 import './styles/responsive.css';
 import './styles/mobile-performance.css';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { ExpertiseProvider } from './context/ExpertiseContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { DeveloperTools } from './components/DeveloperTools';
 import OnboardingFlow from './components/onboarding/OnboardingFlow';
+import { TipProvider } from './components/ai/TipProvider';
 
 const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
 
@@ -49,16 +51,18 @@ export default function App() {
   return (
     <I18nProvider>
       <AccessibilityProvider>
-        <ErrorBoundary maxRetries={2}>
-          {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
-          <Suspense fallback={<AppLoadingFallback />}>
-            <Routes>
-              <Route path="/connect" element={<DashboardLayout />} />
-              <Route path="/*" element={<DashboardLayout />} />
-            </Routes>
-          </Suspense>
-          <DeveloperTools />
-        </ErrorBoundary>
+        <ExpertiseProvider>
+          <ErrorBoundary maxRetries={2}>
+            {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
+            <Suspense fallback={<AppLoadingFallback />}>
+              <Routes>
+                <Route path="/connect" element={<DashboardLayout />} />
+                <Route path="/*" element={<DashboardLayout />} />
+              </Routes>
+            </Suspense>
+            <DeveloperTools />
+          </ErrorBoundary>
+        </ExpertiseProvider>
       </AccessibilityProvider>
     </I18nProvider>
   );

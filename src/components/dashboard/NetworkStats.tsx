@@ -6,6 +6,7 @@ import Card, { StatCard } from './Card'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area
 } from 'recharts'
+import AccessibleChart from '../charts/AccessibleChart'
 import {
   Activity, Cpu, Shield, Coins, Zap, Clock, Globe, Terminal, Info,
   TrendingUp, Database, CheckCircle2, AlertTriangle, XCircle, Play
@@ -360,79 +361,92 @@ export default function Network() {
             {ledgersLoading ? (
               <div style={{ padding: '48px', display: 'flex', justifyContent: 'center' }}><div className="spinner" /></div>
             ) : chartData.length > 0 ? (
-              <div style={{ padding: '18px', height: '280px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="colorInterval" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--cyan)" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="var(--cyan)" stopOpacity={0.02}/>
-                      </linearGradient>
-                      <linearGradient id="colorOps" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--amber)" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="var(--amber)" stopOpacity={0.01}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
-                    <XAxis
-                      dataKey="sequence"
-                      tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
-                      tickFormatter={(value) => value.toLocaleString()}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                      label={{ value: 'Segundos', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: '10px', fill: 'var(--text-muted)', fontFamily: 'var(--font-display)' } }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                      label={{ value: 'Operaciones', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fontSize: '10px', fill: 'var(--text-muted)', fontFamily: 'var(--font-display)' } }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-bright)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        fontFamily: 'var(--font-mono)',
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
-                      }}
-                      formatter={(value, name) => {
-                        if (name === 'interval') return [`${value.toFixed(2)}s`, 'Tiempo de Cierre']
-                        return [value, 'Operaciones']
-                      }}
-                      labelFormatter={(label) => `Ledger #${label.toLocaleString()}`}
-                    />
-                    <ReferenceLine
-                      yAxisId="left"
-                      y={averageCloseTime}
-                      stroke="var(--cyan-dim)"
-                      strokeDasharray="4 4"
-                      label={{ value: `Avg: ${averageCloseTime.toFixed(2)}s`, position: 'topRight', fontSize: 10, fill: 'var(--cyan)' }}
-                    />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="interval"
-                      stroke="var(--cyan)"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorInterval)"
-                    />
-                    <Area
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="operations"
-                      stroke="var(--amber)"
-                      strokeWidth={1.5}
-                      fillOpacity={1}
-                      fill="url(#colorOps)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div style={{ padding: '18px' }}>
+                <AccessibleChart
+                  title="Consensus Close Time and Operations"
+                  data={chartData}
+                  series={[
+                    { key: 'interval', label: 'Close time', unit: 's' },
+                    { key: 'operations', label: 'Operations' },
+                  ]}
+                  categoryKey="formattedSequence"
+                  categoryLabel="Ledger"
+                  height={280}
+                  emptyMessage="No telemetry chart data available. Waiting for consensus signals..."
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                      <defs>
+                        <linearGradient id="colorInterval" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--cyan)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--cyan)" stopOpacity={0.02}/>
+                        </linearGradient>
+                        <linearGradient id="colorOps" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--amber)" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="var(--amber)" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
+                      <XAxis
+                        dataKey="sequence"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+                        tickFormatter={(value) => value.toLocaleString()}
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        label={{ value: 'Segundos', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: '10px', fill: 'var(--text-muted)', fontFamily: 'var(--font-display)' } }}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        label={{ value: 'Operaciones', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fontSize: '10px', fill: 'var(--text-muted)', fontFamily: 'var(--font-display)' } }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--bg-surface)',
+                          border: '1px solid var(--border-bright)',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: '12px',
+                          color: 'var(--text-primary)',
+                          fontFamily: 'var(--font-mono)',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+                        }}
+                        formatter={(value, name) => {
+                          if (name === 'interval') return [`${value.toFixed(2)}s`, 'Tiempo de Cierre']
+                          return [value, 'Operaciones']
+                        }}
+                        labelFormatter={(label) => `Ledger #${label.toLocaleString()}`}
+                      />
+                      <ReferenceLine
+                        yAxisId="left"
+                        y={averageCloseTime}
+                        stroke="var(--cyan-dim)"
+                        strokeDasharray="4 4"
+                        label={{ value: `Avg: ${averageCloseTime.toFixed(2)}s`, position: 'topRight', fontSize: 10, fill: 'var(--cyan)' }}
+                      />
+                      <Area
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="interval"
+                        stroke="var(--cyan)"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorInterval)"
+                      />
+                      <Area
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="operations"
+                        stroke="var(--amber)"
+                        strokeWidth={1.5}
+                        fillOpacity={1}
+                        fill="url(#colorOps)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </AccessibleChart>
               </div>
             ) : (
               <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>

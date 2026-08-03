@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { transactionSigningAuditLog } from '../lib/transactionSigningAuditLog'
+import { transactionSigningAuditLog } from '../../../src/lib/transactionSigningAuditLog'
 
 describe('TransactionSigningAuditLog', () => {
   beforeEach(() => {

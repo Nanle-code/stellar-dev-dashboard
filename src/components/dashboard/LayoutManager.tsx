@@ -14,6 +14,7 @@ import {
   createEmptyLayout,
   type DashboardLayout 
 } from '../../lib/dashboardLayouts';
+import { generateOptimizedLayout } from '../../lib/layoutOptimizer';
 import { useResponsive } from '../../hooks/useResponsive';
 import { addBreadcrumb } from '../../lib/errorReporting';
 import { 
@@ -150,6 +151,37 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
     addBreadcrumb('Preset layout applied', 'user_action', { presetId: preset.id });
   };
 
+  const buildOptimizationOptions = () => {
+    const screenColumns = isMobile ? 1 : 3
+    return {
+      columns: screenColumns,
+      dataContext: {
+        hasRecentTransactions: currentWidgets.some((widget) => widget.type === 'transactions'),
+        hasPortfolioAssets: currentWidgets.some((widget) => widget.type === 'assets' || widget.type === 'portfolio'),
+        hasNetworkAlerts: currentWidgets.some((widget) => widget.type === 'networkStats' || widget.type === 'ledgerStats'),
+        hasAccountEvents: currentWidgets.some((widget) => widget.type === 'accountStats'),
+        hasBalanceChange: currentWidgets.some((widget) => widget.type === 'balance'),
+      },
+      userImportance: currentWidgets.reduce((map, widget) => {
+        if (typeof widget.importance === 'number') {
+          map[widget.type] = widget.importance
+        }
+        return map
+      }, {} as Record<string, number>),
+    }
+  }
+
+  const handleOptimizeLayout = () => {
+    if (!currentWidgets || currentWidgets.length === 0) return;
+
+    const optimized = generateOptimizedLayout(currentWidgets, buildOptimizationOptions())
+    onLayoutChange?.(optimized)
+    addBreadcrumb('Dashboard layout optimized', 'user_action', {
+      widgetCount: optimized.length,
+      source: 'ai_optimizer',
+    })
+  }
+
   const handleShareLayout = (layout: DashboardLayout) => {
     const exported = exportLayout(layout);
     const shareToken = btoa(exported);
@@ -243,6 +275,26 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
             marginBottom: '24px',
             flexWrap: 'wrap',
           }}>
+            <button
+              onClick={handleOptimizeLayout}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                background: 'var(--green)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <LayoutTemplate size={14} />
+              {!isMobile && 'Optimize Layout'}
+            </button>
+
             <button
               onClick={() => setShowCreateModal(true)}
               style={{

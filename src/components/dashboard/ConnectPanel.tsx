@@ -262,7 +262,11 @@ export default function ConnectPanel() {
 
       <div style={{ width: '100%', maxWidth: isMobile ? '100%' : '540px' }}>
         <div style={inputContainerStyles}>
+          <label htmlFor="connect-address-input" className="sr-only">
+            Stellar account address
+          </label>
           <input
+            id="connect-address-input"
             value={input}
             onChange={(e) => {
               setInput(e.target.value)
@@ -270,10 +274,16 @@ export default function ConnectPanel() {
             }}
             onKeyDown={handleKeyDown}
             placeholder="G... public key, M... muxed, or name*domain"
+            aria-label="Stellar account address"
+            aria-invalid={error ? 'true' : 'false'}
+            aria-describedby={error ? 'connect-error' : undefined}
+            autoComplete="off"
             style={inputStyles}
           />
           <button
+            type="button"
             onClick={() => void handleConnect()}
+            aria-label="Connect to Stellar account"
             style={buttonStyles}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'var(--cyan-dim)'
@@ -287,6 +297,9 @@ export default function ConnectPanel() {
         </div>
         {error && (
           <div
+            id="connect-error"
+            role="alert"
+            aria-live="polite"
             style={{
               marginTop: '8px',
               fontSize: '12px',

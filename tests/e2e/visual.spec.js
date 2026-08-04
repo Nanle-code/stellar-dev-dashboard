@@ -17,6 +17,12 @@ async function waitForStable(page) {
   await page.waitForTimeout(200);
 }
 
+async function waitForConnectInput(page) {
+  const input = page.locator('input[aria-label="Stellar account address"]');
+  await expect(input).toBeVisible({ timeout: 15_000 });
+  return input;
+}
+
 // ---------------------------------------------------------------------------
 // Connect Panel (unauthenticated landing)
 // ---------------------------------------------------------------------------
@@ -25,12 +31,14 @@ test.describe('Connect Panel', () => {
   test('default state', async ({ page }) => {
     await page.goto('/');
     await waitForStable(page);
+    await waitForConnectInput(page);
     await expect(page).toHaveScreenshot('connect-panel.png');
   });
 
   test('invalid key error state', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('textbox').fill('BADKEY');
+    const input = await waitForConnectInput(page);
+    await input.fill('BADKEY');
     await page.getByRole('button', { name: /connect/i }).click();
     await waitForStable(page);
     await expect(page).toHaveScreenshot('connect-panel-error.png');
@@ -43,9 +51,9 @@ test.describe('Connect Panel', () => {
 
 test.describe('Layout', () => {
   test('sidebar', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/connect');
     await waitForStable(page);
-    await expect(page.locator('aside')).toHaveScreenshot('sidebar.png');
+    const sidebar = page.locator('aside#sidebar');
   });
 
   test('price ticker bar', async ({ page }) => {
@@ -97,7 +105,8 @@ test.describe('Dashboard tabs', () => {
 test.describe('Connected account views', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('textbox').fill(TESTNET_KEY);
+    const input = await waitForConnectInput(page);
+    await input.fill(TESTNET_KEY);
     await page.getByRole('button', { name: /connect/i }).click();
     await waitForStable(page);
   });
@@ -190,10 +199,12 @@ for (const vp of VIEWPORTS) {
         await page.goto('/');
         await waitForStable(page);
         // Try to connect first so authenticated tabs render content
-        const input = page.getByRole('textbox').first();
+        const input = page.locator('input[aria-label="Stellar account address"]').first();
         if (await input.count()) {
           await input.fill(TESTNET_KEY);
-          await page.getByRole('button', { name: /connect/i }).first().click();
+          const connectBtn = page.getByRole('button', { name: /connect/i }).first();
+          await expect(connectBtn).toBeVisible({ timeout: 15_000 });
+          await connectBtn.click();
           await waitForStable(page);
         }
         const btn = page

@@ -65,17 +65,11 @@ export default defineConfig({
           }
 
           if (id.includes('@stellar/stellar-sdk')) return 'stellar-sdk'
-          if (id.includes('recharts')) return 'charts-vendor'
+          // Keep Recharts in the shared vendor bundle to avoid runtime cross-chunk React aliasing issues.
+          if (id.includes('recharts')) return 'vendor'
           if (id.includes('lucide-react')) return 'icons-vendor'
           if (id.includes('i18next')) return 'i18n'
-          if (id.includes('react-router-dom') || id.includes('react-router')) return 'react-vendor'
-          if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor'
-          if (id.includes('use-sync-external-store')) return 'react-vendor'
-          if (id.includes('@remix-run/router')) return 'react-vendor'
-          if (id.includes('/history/')) return 'react-vendor'
-          if (id.includes('/scheduler/')) return 'react-vendor'
           if (id.includes('date-fns')) return 'date-vendor'
-          if (id.includes('zustand')) return 'react-vendor'
 
           return 'vendor'
         },

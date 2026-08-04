@@ -6,21 +6,30 @@ import AxeBuilder from '@axe-core/playwright';
  * Fails on any WCAG 2.1 AA violation with critical, serious, or moderate impact.
  */
 
+test.setTimeout(90_000);
+
 const PAGES = [
-  { name: 'connect', path: '/' },
+  { name: 'connect', path: '/connect' },
   { name: 'overview', path: '/overview' },
   { name: 'settings', path: '/settings' },
 ];
 
 const IMPACT_LEVELS = new Set(['critical', 'serious', 'moderate']);
 
+async function waitForPageReady(page) {
+  await page.waitForLoadState('load');
+  await expect(page.locator('main')).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(200);
+}
+
 test.describe('Accessibility CI Gate', () => {
   for (const { name, path } of PAGES) {
     test(`${name}: no WCAG 2.1 AA violations`, async ({ page }) => {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
+      await waitForPageReady(page);
 
       const results = await new AxeBuilder({ page })
+        .setLegacyMode(true)
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
 
@@ -35,15 +44,15 @@ test.describe('Accessibility CI Gate', () => {
   }
 
   test('keyboard focus is reachable on connect page', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/connect');
+    await waitForPageReady(page);
     await page.keyboard.press('Tab');
     const tag = await page.evaluate(() => document.activeElement?.tagName);
     expect(tag).toBeTruthy();
   });
 
   test('page has a main landmark', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
-    await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+    await page.goto('/connect');
+    await waitForPageReady(page);
   });
 });

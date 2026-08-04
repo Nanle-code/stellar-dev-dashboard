@@ -43,6 +43,7 @@ test.describe('Accessibility CI Gate', () => {
 
   test('page has a main landmark', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('main')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
   });
 });

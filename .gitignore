@@ -1,12 +1,43 @@
 node_modules
-.kiro
 node_modules/
+.kiro
 
+# Build artifacts - generated during CI/release, not tracked in version control
+dist/
+build/
+.next/
+out/
+
+# Issue/PR templates
 issue.md
 pr.md
+
+# Test and coverage artifacts
 coverage/
 .lighthouseci/
 .stryker-tmp/
 reports/
+
+# Storybook
 storybook-static/
-node_modules
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

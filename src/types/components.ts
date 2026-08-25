@@ -14,6 +14,7 @@ export interface CardProps {
   glow?: boolean
   style?: CSSProperties
   className?: string
+  'aria-label'?: string
 }
 
 export interface StatCardProps {

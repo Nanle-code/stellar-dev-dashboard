@@ -9,10 +9,12 @@ export default function Card({
   glow,
   style = {},
   className = '',
+  'aria-label': ariaLabel,
 }: CardProps) {
   return (
     <div
       className={className}
+      aria-label={ariaLabel}
       style={{
         background: 'var(--bg-card)',
         border: `1px solid ${glow ? 'var(--cyan-dim)' : 'var(--border)'}`,

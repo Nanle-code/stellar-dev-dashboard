@@ -1515,8 +1515,45 @@ export interface BuildTransactionParams {
 
 export async function buildTransaction(
   params: BuildTransactionParams
-): Promise<StellarSdk.Transaction> {
+): Promise<StellarSdk.Transaction | StellarSdk.FeeBumpTransaction> {
   const { sourceAccount, operations, memo, baseFee, timeBounds, network } = params;
+
+  // ── Fee-bump shortcut ──────────────────────────────────────────────────────
+  // A fee-bump must be the only operation and is built entirely from its own
+  // params — it doesn't need a source account or sequence number load.
+  if (operations.length === 1 && operations[0].type === 'feeBump') {
+    const op = operations[0] as any;
+    const { feeSource, baseFee: fbFee, innerTransaction } = op;
+
+    if (!feeSource || !isValidPublicKey(feeSource)) {
+      throw new Error('Fee-bump: feeSource must be a valid Stellar public key.');
+    }
+    const fee = parseInt(fbFee, 10);
+    if (!Number.isFinite(fee) || fee <= 0) {
+      throw new Error('Fee-bump: baseFee must be a positive integer (stroops).');
+    }
+    if (!innerTransaction || typeof innerTransaction !== 'string' || innerTransaction.trim() === '') {
+      throw new Error('Fee-bump: innerTransaction XDR is required.');
+    }
+
+    try {
+      const innerTx = new StellarSdk.Transaction(innerTransaction.trim(), NETWORKS[network].passphrase);
+      return StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
+        feeSource,
+        fee.toString(),
+        innerTx,
+        NETWORKS[network].passphrase,
+      );
+    } catch (err) {
+      throw new Error(`Fee-bump: failed to wrap inner transaction — ${(err as Error).message}`);
+    }
+  }
+
+  if (operations.some((op) => op.type === 'feeBump')) {
+    throw new Error('A fee-bump operation must be the only operation in the transaction.');
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   const server = getServer(network);
   const account = await server.loadAccount(sourceAccount);
 
@@ -1592,10 +1629,17 @@ export async function simulateTransaction(params: BuildTransactionParams): Promi
     return cached;
   }
 
-  const validation = validateSimulationParams(params);
+  const feeBumpOnly = params.operations.length === 1 && params.operations[0].type === 'feeBump';
+
+  // validateSimulationParams requires a sourceAccount — skip that check for fee-bump
+  // since the fee source lives inside the operation params, not at the top level.
+  const validation = feeBumpOnly
+    ? { errors: [] as string[], warnings: [] as string[] }
+    : validateSimulationParams(params);
+
   const errors = [...validation.errors];
   const warnings = [...validation.warnings];
-  let transaction: StellarSdk.Transaction | null = null;
+  let transaction: StellarSdk.Transaction | StellarSdk.FeeBumpTransaction | null = null;
   let sorobanMetrics = undefined;
 
   if (errors.length === 0) {
@@ -1616,11 +1660,20 @@ export async function simulateTransaction(params: BuildTransactionParams): Promi
 
   if (transaction) {
     const fee = parseInt(transaction.fee.toString(), 10);
-    const operationCount = transaction.operations.length;
+
+    // For fee-bump transactions, operation count = inner ops + 1 (the bump itself).
+    // For plain transactions, it's the direct operation count.
+    let operationCount: number;
+    if (transaction instanceof StellarSdk.FeeBumpTransaction) {
+      operationCount = transaction.innerTransaction.operations.length + 1;
+    } else {
+      operationCount = (transaction as StellarSdk.Transaction).operations.length;
+    }
+
     const feeOptions = getSimulationFeeOptions(params.baseFee, operationCount);
 
     const hasSorobanOps = params.operations.some((op) => op.type === 'invokeHostFunction');
-    if (hasSorobanOps) {
+    if (hasSorobanOps && transaction instanceof StellarSdk.Transaction) {
       try {
         const sorobanServer = getSorobanServer(params.network);
         const simulation = await sorobanServer.simulateTransaction(transaction);

@@ -11,10 +11,13 @@ import Card from './Card'
 import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation'
 import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay'
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics'
+import { inspectEnvelope } from '../../utils/feeBumpInspector'
+import type { EnvelopeInfo } from '../../utils/feeBumpInspector'
 
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore()
   const [xdr, setXdr] = useState('')
+  const [envelopeInfo, setEnvelopeInfo] = useState<EnvelopeInfo | null>(null)
   const [signedXdr, setSignedXdr] = useState<string | null>(null)
   const [signing, setSigning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,11 +40,23 @@ export default function TransactionSigner() {
 
   // Start collecting behavior as soon as user interacts with the XDR textarea
   const handleXdrChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setXdr(e.target.value)
+    const value = e.target.value
+    setXdr(value)
+    setSignedXdr(null)
+    setError(null)
+
+    // Parse envelope on every keystroke so we can show inner-tx details immediately.
+    if (value.trim()) {
+      const result = inspectEnvelope(value.trim(), network)
+      setEnvelopeInfo(result.ok ? result.envelope : null)
+    } else {
+      setEnvelopeInfo(null)
+    }
+
     if (bio.enabled && !bio.authStatus.match(/collecting|evaluating/)) {
       bio.startCollection()
     }
-  }, [bio])
+  }, [bio, network])
 
   const networkPassphrase: string = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
 
@@ -299,6 +314,8 @@ export default function TransactionSigner() {
           />
         </div>
 
+        {envelopeInfo && <EnvelopeDetails info={envelopeInfo} />}
+
         <button
           onClick={handleSign}
           disabled={signing || !xdr.trim()}
@@ -418,5 +435,141 @@ export default function TransactionSigner() {
       />
     )}
     </>
+  )
+}
+
+// ─── Envelope inspector panel ─────────────────────────────────────────────────
+
+function mono(text: string) {
+  return (
+    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', wordBreak: 'break-all' }}>
+      {text}
+    </span>
+  )
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '11px' }}>
+      <span style={{ color: 'var(--text-muted)', minWidth: '120px', flexShrink: 0 }}>{label}</span>
+      <span style={{ color: 'var(--text-primary)' }}>{children}</span>
+    </div>
+  )
+}
+
+function EnvelopeDetails({ info }: { info: EnvelopeInfo }) {
+  if (info.type === 'fee_bump') {
+    const inner = info.innerTransaction
+    return (
+      <div style={{
+        border: '1px solid var(--cyan-dim)',
+        borderRadius: 'var(--radius-md)',
+        overflow: 'hidden',
+        fontSize: '12px',
+      }}>
+        {/* Fee-bump header */}
+        <div style={{
+          padding: '8px 12px',
+          background: 'var(--cyan-glow)',
+          borderBottom: '1px solid var(--cyan-dim)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          <span style={{ fontSize: '14px' }}>⇧</span>
+          <span style={{ fontWeight: 600, color: 'var(--cyan)', fontSize: '12px' }}>
+            Fee-Bump Transaction
+          </span>
+        </div>
+
+        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <Row label="Outer hash">{mono(`${info.hash.slice(0, 16)}…${info.hash.slice(-8)}`)}</Row>
+          <Row label="Fee source">{mono(info.feeSource)}</Row>
+          <Row label="Outer fee">{mono(`${info.fee} stroops`)}</Row>
+        </div>
+
+        {/* Inner transaction */}
+        <div style={{
+          margin: '0 12px 12px',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            padding: '6px 10px',
+            background: 'var(--bg-elevated)',
+            borderBottom: '1px solid var(--border)',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+          }}>
+            Inner Transaction
+          </div>
+          <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <Row label="Hash">{mono(`${inner.hash.slice(0, 16)}…${inner.hash.slice(-8)}`)}</Row>
+            <Row label="Source">{mono(inner.source)}</Row>
+            <Row label="Fee">{mono(`${inner.fee} stroops`)}</Row>
+            <Row label="Sequence">{mono(inner.sequenceNumber)}</Row>
+            <Row label="Signatures">{mono(String(inner.signatures))}</Row>
+            <Row label="Operations">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {inner.operations.map((op, i) => (
+                  <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+                    {i + 1}. {op.type}
+                    {op.source ? (
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {' '}({op.source.slice(0, 6)}…)
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </Row>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Plain transaction
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)',
+      overflow: 'hidden',
+      fontSize: '12px',
+    }}>
+      <div style={{
+        padding: '8px 12px',
+        background: 'var(--bg-elevated)',
+        borderBottom: '1px solid var(--border)',
+        fontWeight: 600,
+        color: 'var(--text-secondary)',
+        fontSize: '12px',
+      }}>
+        Transaction Envelope
+      </div>
+      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <Row label="Hash">{mono(`${info.hash.slice(0, 16)}…${info.hash.slice(-8)}`)}</Row>
+        <Row label="Source">{mono(info.source)}</Row>
+        <Row label="Fee">{mono(`${info.fee} stroops`)}</Row>
+        <Row label="Sequence">{mono(info.sequenceNumber)}</Row>
+        <Row label="Signatures">{mono(String(info.signatures))}</Row>
+        <Row label="Operations">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {info.operations.map((op, i) => (
+              <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+                {i + 1}. {op.type}
+                {op.source ? (
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {' '}({op.source.slice(0, 6)}…)
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </Row>
+      </div>
+    </div>
   )
 }

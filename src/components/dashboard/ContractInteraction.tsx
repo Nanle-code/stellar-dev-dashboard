@@ -186,6 +186,7 @@ export default function ContractInteraction() {
   const [error, setError] = useState('');
   const [simulationResult, setSimulationResult] = useState(null);
   const [invokeResult, setInvokeResult] = useState(null);
+  const [invokeStatus, setInvokeStatus] = useState(null);
 
   const { preferences, update } = usePreferences();
   const advancedPreferences = preferences?.advanced || {};
@@ -529,6 +530,7 @@ export default function ContractInteraction() {
   async function handleInvoke() {
     setError('');
     setInvokeResult(null);
+    setInvokeStatus('PENDING');
     setInvokeLoading(true);
 
     try {
@@ -539,10 +541,19 @@ export default function ContractInteraction() {
         sourceAccount: form.sourceAccount || connectedAddress,
         secretKey: form.secretKey,
         network,
+        onStatus: (status) => setInvokeStatus(status),
       });
       setInvokeResult(result);
-      await recordInteraction('invoke', 'success', result, null);
+      const resultStatus = String(result.status || '').toLowerCase();
+      const interactionStatus = ['success', 'failed', 'timeout', 'expired'].includes(resultStatus)
+        ? resultStatus
+        : 'error';
+      await recordInteraction('invoke', interactionStatus, result, result.error || null);
+      if (interactionStatus !== 'success') {
+        setError(result.error || `Invocation ${interactionStatus}`);
+      }
     } catch (err) {
+      setInvokeStatus(null);
       setError(err.message || 'Invocation failed');
       await recordInteraction('invoke', 'error', null, err.message || 'Invocation failed');
     } finally {
@@ -907,7 +918,7 @@ export default function ContractInteraction() {
             disabled={simulateLoading || invokeLoading || anomalies.some(a => a.severity === 'error')}
           />
           <ActionButton
-            label={invokeLoading ? "Invoking..." : "Invoke"}
+            label={invokeLoading ? `${invokeStatus || "PENDING"}...` : "Invoke"}
             onClick={handleInvoke}
             disabled={isMainnet || invokeLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
             tone="secondary"
@@ -944,6 +955,11 @@ export default function ContractInteraction() {
         </div>
       )}
 
+          {invokeStatus && (
+            <div style={{ fontSize: "12px", color: invokeStatus === "SUCCESS" ? "var(--green)" : "var(--text-secondary)" }}>
+              Transaction status: {invokeStatus}
+            </div>
+          )}
           {invokeResult && <ResultBlock label="Invocation Result" data={invokeResult} />}
         </>
       )}

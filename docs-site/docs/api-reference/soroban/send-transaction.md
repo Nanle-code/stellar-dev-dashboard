@@ -51,6 +51,17 @@ if (status.status === 'SUCCESS') {
 }
 ```
 
+The dashboard's contract invoker performs this status tracking automatically. It
+polls `getTransaction` with a bounded attempt count and reports one of these
+terminal states: `SUCCESS`, `FAILED`, `TIMEOUT`, or `EXPIRED`. `TIMEOUT` means
+the RPC could not provide a final status within the polling window; `EXPIRED`
+means every poll returned `NOT_FOUND`. A transaction hash is still retained in
+the result and history so it can be checked independently.
+
+The invoker requires a configured Soroban RPC endpoint and a server that
+implements `getTransaction`. Submission is disabled for mainnet in the UI, and
+secret keys should only be used with a trusted local or testnet environment.
+
 ```python
 import time
 from stellar_sdk import SorobanServer, Keypair

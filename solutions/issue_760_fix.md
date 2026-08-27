@@ -1,0 +1,1 @@
+Solution proposal for [2026 Wallet] Add wallet session revocation and account-change listeners

@@ -102,6 +102,31 @@ style objects scattered across component files.
 
 ---
 
+## Claimable Balance lifecycle workspace (#768)
+
+The *Claimable* tab is now a full lifecycle workspace (list / inspect / create /
+claim) with predicate explanations. See `docs/CLAIMABLE_BALANCES.md` for the full
+guide (compatibility, security, migration).
+
+**What changed (read before upgrading):**
+
+- New `src/lib/stellar.ts` helpers: `fetchClaimableBalanceById(balanceId, network)`
+  (inspect a single balance), `explainClaimPredicate(predicate, now?)` (structured
+  `PredicateExplanation`), and `buildClaimPredicate(spec)` (declarative
+  `PredicateSpec` → Stellar predicate). Exports `PredicateSpec` /
+  `PredicateExplanation` added.
+- `fetchClaimableBalanceById` validates `balanceId` (throws `TypeError` when
+  empty) and the network (throws `Error` for unsupported networks) before
+  issuing a request; HTTP `404` → "not found", other non-OK → `Horizon error`.
+- Create/claim are **simulations only** (dry-runs returning the XDR); submitting
+  requires signing the XDR with the appropriate secret key outside the dashboard,
+  so no secret key ever enters the UI.
+- No breaking changes: `fetchClaimableBalances` and `formatClaimPredicate` keep
+  their signatures; the tab still mounts the same default-exported
+  `ClaimableBalances` component.
+
+---
+
 ## Adding a Breaking Change (for maintainers)
 
 1. Add to `docs/api/CHANGELOG.md` under `## Breaking Changes` for the next version.

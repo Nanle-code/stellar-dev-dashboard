@@ -54,6 +54,7 @@
     "@axe-core/react": "^4.11.3",
     "@sentry/browser": "8.54.0",
     "@sentry/react": "8.54.0",
+    "@dsnp/parquetjs": "^1.9.3",
     "@stellar/stellar-sdk": "^12.3.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-node": "4.22.0",
@@ -86,7 +87,6 @@
   },
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",
-    "@ledgerhq/hw-transport-webusb": "^6.29.4"
     "@ledgerhq/hw-transport-webusb": "^6.29.4",
     "@stellar/ledger": "^1.0.0",
     "ioredis": "^5.4.0"

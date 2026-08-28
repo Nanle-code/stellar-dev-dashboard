@@ -1,4 +1,4 @@
-import React, { useRef, type ReactNode } from "react";
+import React, { useRef, useState, type ReactNode } from "react";
 import { useDataExport } from "../../hooks/useDataExport";
 import { useStore } from "../../lib/store";
 
@@ -62,6 +62,7 @@ function StatusMessage({ error, success }: StatusMessageProps) {
 
 export default function DataExport() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [analyticsFormat, setAnalyticsFormat] = useState<"csv" | "json" | "parquet">("csv");
   const { transactions, account } = useStore();
   const {
     isExporting,
@@ -124,20 +125,33 @@ export default function DataExport() {
               ⬇ Export Dashboard Backup (JSON)
             </ActionButton>
             <ActionButton
-              onClick={() => exportTransactions(txList)}
+              onClick={() => exportTransactions(txList, analyticsFormat)}
               disabled={isExporting || txList.length === 0}
               variant="secondary"
             >
-              ⬇ Export Transactions (CSV)
+              ⬇ Export Transactions ({analyticsFormat.toUpperCase()})
             </ActionButton>
             <ActionButton
-              onClick={() => exportBalances(balances)}
+              onClick={() => exportBalances(balances, analyticsFormat)}
               disabled={isExporting || balances.length === 0}
               variant="secondary"
             >
-              ⬇ Export Balances (CSV)
+              ⬇ Export Balances ({analyticsFormat.toUpperCase()})
             </ActionButton>
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+            Analytics format
+            <select
+              value={analyticsFormat}
+              onChange={(event) => setAnalyticsFormat(event.target.value as typeof analyticsFormat)}
+              aria-label="Analytics export format"
+              style={{ padding: "7px 10px", borderRadius: "var(--radius-md)", background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-bright)" }}
+            >
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+              <option value="parquet">Parquet</option>
+            </select>
+          </label>
           {exportError && (
             <StatusMessage error={exportError} />
           )}

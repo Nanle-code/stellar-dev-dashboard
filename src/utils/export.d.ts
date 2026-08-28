@@ -9,6 +9,13 @@ export function exportCsv(
   columns?: string[]
 ): void;
 export function exportJson(data: unknown, filename: string): void;
+export type AnalyticsExportFormat = 'csv' | 'json' | 'parquet';
+export function exportAnalytics(
+  rows: Record<string, unknown>[],
+  format: AnalyticsExportFormat,
+  filename: string,
+  columns?: string[]
+): void | Promise<void>;
 export function exportPdf(text: string, filename: string): void;
 export function buildBackupPayload(state: Record<string, unknown>): Record<string, unknown>;
 export function flattenTransaction(tx: Record<string, unknown>): Record<string, unknown>;

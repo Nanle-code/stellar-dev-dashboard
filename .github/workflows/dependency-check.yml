@@ -24,24 +24,29 @@ env:
 
 jobs:
   npm-audit:
-    name: NPM Security Audit
+    name: PNPM Security Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - name: Run npm audit (high severity)
-        run: npm audit --audit-level=high
+      - name: Run pnpm audit (high severity)
+        run: pnpm audit --prod --audit-level=high
 
       - name: Generate full audit report
         if: always()
-        run: npm audit --json > audit-report.json || true
+        run: pnpm audit --json > audit-report.json || true
 
       - name: Upload audit report
         if: always()
@@ -57,16 +62,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Check outdated packages
         run: |
           echo "## Outdated Dependencies" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          npm outdated || true >> "$GITHUB_STEP_SUMMARY"
+          pnpm outdated || true >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"

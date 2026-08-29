@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "A real-time developer dashboard for the Stellar network with advanced AI-enhanced transaction fee prediction",
   "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=18.0.0 <21.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "scripts": {
     "ml:train": "node src/ml/train.js",
     "ml:train:liquidity": "node src/ml/trainLiquidity.cjs",
@@ -20,8 +25,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "plugin:create": "node scripts/create-plugin.mjs",
-    "format": "prettier --write package.json package-lock.json eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
-    "format:check": "prettier --check package.json package-lock.json eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
+    "format": "prettier --write package.json pnpm-lock.yaml eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
+    "format:check": "prettier --check package.json pnpm-lock.yaml eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
     "type-check": "tsc --noEmit",
     "test": "vitest run --config vitest.config.js",
     "test:watch": "vitest --config vitest.config.js",
@@ -47,7 +52,7 @@
     "build-storybook": "storybook build",
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
-    "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
+    "check:package-manager": "node scripts/validate-package-manager.mjs",
     "api:start": "node api/server.js"
   },
   "dependencies": {

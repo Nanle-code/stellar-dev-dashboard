@@ -47,7 +47,6 @@
     "build-storybook": "storybook build",
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
-    "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "api:start": "node api/server.js"
   },
   "dependencies": {
@@ -57,7 +56,6 @@
     "@stellar/stellar-sdk": "^12.3.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-node": "4.22.0",
-    "@tensorflow/tfjs-node": "^4.22.0",
     "d3-array": "^3.2.4",
     "d3-force-3d": "^3.0.6",
     "d3-scale": "^4.0.2",

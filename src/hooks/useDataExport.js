@@ -9,7 +9,7 @@ import { useStore } from "../lib/store";
 import {
   buildBackupPayload,
   exportJson,
-  exportCsv,
+  exportAnalytics,
   flattenTransaction,
   flattenBalance,
 } from "../utils/export";
@@ -52,12 +52,12 @@ export function useDataExport() {
     }
   }, [store]);
 
-  const exportTransactions = useCallback((transactions) => {
+  const exportTransactions = useCallback(async (transactions, format = "csv") => {
     setIsExporting(true);
     setExportError(null);
     try {
       const rows = (transactions || []).map(flattenTransaction);
-      exportCsv(rows, "stellar-transactions");
+      await exportAnalytics(rows, format, "stellar-transactions");
     } catch (err) {
       setExportError(err.message);
     } finally {
@@ -65,12 +65,12 @@ export function useDataExport() {
     }
   }, []);
 
-  const exportBalances = useCallback((balances) => {
+  const exportBalances = useCallback(async (balances, format = "csv") => {
     setIsExporting(true);
     setExportError(null);
     try {
       const rows = (balances || []).map(flattenBalance);
-      exportCsv(rows, "stellar-balances");
+      await exportAnalytics(rows, format, "stellar-balances");
     } catch (err) {
       setExportError(err.message);
     } finally {

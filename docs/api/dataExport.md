@@ -1,6 +1,6 @@
 # Data Export & Import
 
-Dashboard backup, CSV/JSON export, and restore functionality.
+Dashboard backup, CSV/JSON/Parquet analytics export, and restore functionality.
 
 The feature is accessible from two places:
 
@@ -18,10 +18,11 @@ The feature is accessible from two places:
 3. Choose an export action:
    - **Export Dashboard Backup (JSON)** — downloads a `stellar-<key>-backup.json` file containing
      theme, network, and account preferences. Use this to restore your dashboard state later.
-   - **Export Transactions (CSV)** — downloads all currently loaded transactions as
-     `stellar-transactions.csv`. Requires at least one transaction to be loaded.
-   - **Export Balances (CSV)** — downloads the account's asset balances as
-     `stellar-balances.csv`. Requires at least one balance entry.
+   - Choose **CSV**, **JSON**, or **Parquet** as the analytics format.
+   - **Export Transactions** — downloads all currently loaded transactions as
+     `stellar-transactions.<format>`. Requires at least one transaction to be loaded.
+   - **Export Balances** — downloads the account's asset balances as
+     `stellar-balances.<format>`. Requires at least one balance entry.
 
 ### Importing
 
@@ -41,9 +42,9 @@ The feature is accessible from two places:
 
 ```
 src/
-├── components/dashboard/DataExport.jsx   # UI panel (export buttons + import file input)
+├── components/dashboard/DataExport.tsx   # UI panel (export buttons + import file input)
 ├── hooks/useDataExport.js                # React hook — wires UI to export/import logic
-├── utils/export.js                       # Pure functions: download trigger, CSV/JSON builders
+├── utils/export.js                       # Download trigger and CSV/JSON/Parquet builders
 └── lib/import.js                         # Pure functions: parse, validate, apply backup
 ```
 
@@ -77,6 +78,17 @@ User selects file
 #### `exportJson(data, filename)`
 
 Serialise `data` to pretty-printed JSON and trigger a browser download as `filename.json`.
+
+#### `exportAnalytics(rows, format, filename, columns?)`
+
+Export flat object rows as `csv`, `json`, or `parquet`. Parquet files are generated in the
+browser with `@dsnp/parquetjs` and use an all-string optional schema so Horizon values such as
+large ledger IDs and decimal balances are not rounded during export. Invalid row input and
+unsupported formats throw an error for the hook to display.
+
+Parquet requires a modern browser with `Blob`, `URL.createObjectURL`, and stream support. CSV
+and JSON remain available in environments that do not support Parquet. Exported analytics files
+contain the currently loaded data only; no credentials, secret keys, or access tokens are added.
 
 #### `exportCsv(rows, filename, columns?)`
 

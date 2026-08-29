@@ -57,6 +57,75 @@ export function exportJson(data, filename) {
   downloadFile(JSON.stringify(data, null, 2), `${filename}.json`);
 }
 
+const ANALYTICS_FORMATS = {
+  csv: { extension: "csv", mimeType: "text/csv" },
+  json: { extension: "json", mimeType: "application/json" },
+  parquet: { extension: "parquet", mimeType: "application/vnd.apache.parquet" },
+};
+
+function validateAnalyticsRows(rows) {
+  if (!Array.isArray(rows)) {
+    throw new TypeError("Analytics export data must be an array of rows.");
+  }
+  if (rows.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
+    throw new TypeError("Analytics export rows must be plain objects.");
+  }
+}
+
+function normalizeParquetRows(rows, columns) {
+  return rows.map((row) => Object.fromEntries(
+    columns.map((column) => {
+      const value = row[column];
+      return [column, value == null ? null : typeof value === "object" ? JSON.stringify(value) : String(value)];
+    }),
+  ));
+}
+
+async function encodeParquet(rows, columns) {
+  if (typeof window === "undefined" || typeof Blob === "undefined") {
+    throw new Error("Parquet export is only available in a browser environment.");
+  }
+
+  const { default: parquet } = await import("@dsnp/parquetjs/dist/browser/parquetjs.esm");
+  const chunks = [];
+  const transformer = new parquet.ParquetTransformer(
+    new parquet.ParquetSchema(Object.fromEntries(columns.map((column) => [column, { type: "UTF8", optional: true }]))),
+    { useDataPageV2: false },
+  );
+  transformer.on("data", (chunk) => chunks.push(chunk));
+  await new Promise((resolve, reject) => {
+    transformer.on("end", resolve);
+    transformer.on("error", reject);
+    normalizeParquetRows(rows, columns).forEach((row) => transformer.write(row));
+    transformer.end();
+  });
+  return new Blob(chunks, { type: ANALYTICS_FORMATS.parquet.mimeType });
+}
+
+/**
+ * Export flat analytics rows to CSV, JSON, or Parquet.
+ * @param {Object[]} rows
+ * @param {"csv"|"json"|"parquet"} format
+ * @param {string} filename
+ * @param {string[]} [columns]
+ * @returns {void|Promise<void>}
+ */
+export function exportAnalytics(rows, format, filename, columns) {
+  validateAnalyticsRows(rows);
+  const config = ANALYTICS_FORMATS[format];
+  if (!config) {
+    throw new RangeError(`Unsupported analytics export format: ${format}.`);
+  }
+  const selectedColumns = columns || Object.keys(rows[0] || {});
+  if (selectedColumns.length === 0) {
+    throw new Error("Analytics export requires at least one column.");
+  }
+
+  if (format === "csv") return exportCsv(rows, filename, selectedColumns);
+  if (format === "json") return downloadFile(JSON.stringify(rows, null, 2), `${filename}.${config.extension}`, config.mimeType);
+  return encodeParquet(rows, selectedColumns).then((blob) => downloadFile(blob, `${filename}.${config.extension}`, config.mimeType));
+}
+
 function escapePdfString(text) {
   return String(text)
     .replace(/\\/g, '\\\\')

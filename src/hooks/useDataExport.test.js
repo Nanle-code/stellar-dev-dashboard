@@ -132,6 +132,30 @@ describe('useDataExport', () => {
     expect(click).toHaveBeenCalledTimes(1);
   });
 
+  it('exportTransactions supports JSON analytics dumps', async () => {
+    const { result } = renderHook(() => useDataExport());
+
+    await act(async () => {
+      await result.current.exportTransactions([{ id: '1', hash: 'abc' }], 'json');
+    });
+
+    const blob = createObjectURL.mock.calls[0][0];
+    expect(blob.type).toBe('application/json');
+    expect(await blob.text()).toContain('"hash": "abc"');
+    expect(result.current.exportError).toBeNull();
+  });
+
+  it('surfaces unsupported analytics formats as an export error', async () => {
+    const { result } = renderHook(() => useDataExport());
+
+    await act(async () => {
+      await result.current.exportTransactions([{ id: '1' }], 'xml');
+    });
+
+    expect(result.current.exportError).toMatch(/unsupported analytics export format/i);
+    expect(click).not.toHaveBeenCalled();
+  });
+
   it('importBackup: valid backup restores state and sets importSuccess', async () => {
     const { result } = renderHook(() => useDataExport());
     const backup = JSON.stringify({

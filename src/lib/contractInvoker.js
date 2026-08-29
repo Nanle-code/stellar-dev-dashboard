@@ -448,6 +448,91 @@ export async function parseContractWasm(contractId, network = "testnet") {
   }
 }
 
+function convertComplexScVal(value, typeHint) {
+  if (value === null || value === undefined) {
+    return StellarSdk.nativeToScVal(null, { type: "void" });
+  }
+
+  const normalizedType = String(typeHint || "").toLowerCase();
+
+  if (
+    normalizedType === "vec" ||
+    (Array.isArray(value) && normalizedType.startsWith("vec"))
+  ) {
+    return StellarSdk.nativeToScVal(
+      value.map((item) =>
+        typeof item === "object" && item !== null && !Array.isArray(item)
+          ? StellarSdk.nativeToScVal(item)
+          : item,
+      ),
+      { type: "vec" },
+    );
+  }
+
+  if (normalizedType === "option") {
+    if (value === null || value === undefined || value === "") {
+      return StellarSdk.nativeToScVal(null, { type: "void" });
+    }
+    return StellarSdk.nativeToScVal(value);
+  }
+
+  if (normalizedType === "result") {
+    if (value && typeof value === "object" && ("ok" in value || "err" in value)) {
+      if ("ok" in value) {
+        return StellarSdk.nativeToScVal(
+          { tag: "ok", val: StellarSdk.nativeToScVal(value.ok) },
+          { type: "result" },
+        );
+      }
+      return StellarSdk.nativeToScVal(
+        { tag: "error", val: StellarSdk.nativeToScVal(value.err) },
+        { type: "result" },
+      );
+    }
+    return StellarSdk.nativeToScVal({ tag: "ok", val: StellarSdk.nativeToScVal(value) }, { type: "result" });
+  }
+
+  if (normalizedType === "map" || (typeof value === "object" && !Array.isArray(value) && normalizedType.startsWith("map"))) {
+    if (typeof value === "object" && !Array.isArray(value)) {
+      const entries = Object.entries(value).map(([k, v]) => [
+        StellarSdk.nativeToScVal(k, { type: "string" }),
+        StellarSdk.nativeToScVal(v),
+      ]);
+      return StellarSdk.nativeToScVal(entries, { type: "map" });
+    }
+    if (Array.isArray(value)) {
+      return StellarSdk.nativeToScVal(value, { type: "map" });
+    }
+  }
+
+  if (normalizedType === "tuple") {
+    if (Array.isArray(value)) {
+      return StellarSdk.nativeToScVal(value, { type: "tuple" });
+    }
+    if (typeof value === "object" && value !== null) {
+      return StellarSdk.nativeToScVal(Object.values(value), { type: "tuple" });
+    }
+  }
+
+  if (normalizedType === "bytes" || normalizedType === "bytesn") {
+    if (typeof value === "string" && value.startsWith("0x")) {
+      const hex = value.slice(2);
+      const bytes = new Uint8Array(hex.match(/.{1,2}/g).map((byte) => parseInt(byte, 16)));
+      return StellarSdk.nativeToScVal(bytes, { type: "bytes" });
+    }
+    if (Array.isArray(value)) {
+      return StellarSdk.nativeToScVal(new Uint8Array(value), { type: "bytes" });
+    }
+    return StellarSdk.nativeToScVal(value, { type: "bytes" });
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return StellarSdk.nativeToScVal(value);
+  }
+
+  return StellarSdk.nativeToScVal(value);
+}
+
 export async function invokeContractFunction({
   contractId,
   functionName,
@@ -478,17 +563,54 @@ export async function invokeContractFunction({
   const contract = new StellarSdk.Contract(contractId);
 
   const scArgs = args.map((arg) => {
-    switch (arg.type) {
+    const normalizedType = String(arg.type || "").toLowerCase();
+
+    switch (normalizedType) {
       case "string":
         return StellarSdk.nativeToScVal(arg.value, { type: "string" });
       case "int":
+      case "i128":
         return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i128" });
       case "address":
         return StellarSdk.Address.fromString(arg.value).toScVal();
       case "bool":
-        return StellarSdk.nativeToScVal(arg.value === "true", { type: "bool" });
+        return StellarSdk.nativeToScVal(
+          typeof arg.value === "boolean" ? arg.value : arg.value === "true",
+          { type: "bool" },
+        );
+      case "u32":
+        return StellarSdk.nativeToScVal(Number(arg.value), { type: "u32" });
+      case "i32":
+        return StellarSdk.nativeToScVal(Number(arg.value), { type: "i32" });
+      case "u64":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "u64" });
+      case "i64":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i64" });
+      case "u128":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "u128" });
+      case "u256":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "u256" });
+      case "i256":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i256" });
+      case "symbol":
+        return StellarSdk.nativeToScVal(String(arg.value), { type: "symbol" });
+      case "timepoint":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "timepoint" });
+      case "duration":
+        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "duration" });
+      case "bytes":
+      case "bytesn":
+      case "vec":
+      case "option":
+      case "result":
+      case "map":
+      case "tuple":
+        return convertComplexScVal(arg.value, normalizedType);
       default:
-        throw new Error(`Unsupported argument type: ${arg.type}`);
+        if (typeof arg.value === "object" && arg.value !== null) {
+          return convertComplexScVal(arg.value, normalizedType);
+        }
+        return StellarSdk.nativeToScVal(arg.value, { type: "string" });
     }
   });
 

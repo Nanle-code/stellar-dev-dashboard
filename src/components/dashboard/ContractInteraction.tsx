@@ -9,15 +9,9 @@ import { useContractRecommendations } from "../../hooks/useContractRecommendatio
 import { useGasPrediction } from "../../hooks/useGasPrediction";
 import { usePreferences } from "../../hooks/usePreferences";
 import { getContractInteractions } from "../../lib/storage";
-import { Sparkles, AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
+import { Sparkles, AlertTriangle, AlertCircle, HelpCircle, Plus, Trash2 } from "lucide-react";
 import GasCostEstimator from "./GasCostEstimator";
-
-const ARGUMENT_TYPES = [
-  { value: 'string', label: 'String' },
-  { value: 'int', label: 'Int' },
-  { value: 'address', label: 'Address' },
-  { value: 'bool', label: 'Bool' },
-];
+import { buildExampleValue } from "./ContractABI";
 
 function Panel({ title, subtitle, children }) {
   return (
@@ -167,6 +161,237 @@ function ResultBlock({ label, data }) {
   );
 }
 
+function getSchemaType(schema) {
+  if (!schema) return "string";
+  if (schema.$ref) return "object";
+  if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf) || Array.isArray(schema.allOf)) {
+    return "object";
+  }
+  if (schema.enum) return "enum";
+  if (schema.type === "array") return "array";
+  if (schema.type === "object") return "object";
+  if (schema.type === "boolean") return "boolean";
+  if (schema.type === "integer" || schema.type === "number") return "integer";
+  if (schema.type === "string") {
+    if (schema.format === "stellar-address" || (schema.description && schema.description.toLowerCase().includes("address"))) {
+      return "stellar-address";
+    }
+    return "string";
+  }
+  return "string";
+}
+
+function SchemaDrivenInput({ schema, value, onChange, hasError = false, paramName }) {
+  const schemaType = getSchemaType(schema);
+
+  if (schemaType === "enum" && Array.isArray(schema.enum)) {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={textInputStyle(hasError)}
+      >
+        <option value="">Select value...</option>
+        {schema.enum.map((val) => (
+          <option key={String(val)} value={String(val)}>
+            {String(val)}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (schemaType === "boolean") {
+    return (
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onChange(e.target.checked)}
+          style={{ width: "16px", height: "16px", cursor: "pointer" }}
+        />
+        <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+          {Boolean(value) ? "true" : "false"}
+        </span>
+      </label>
+    );
+  }
+
+  if (schemaType === "integer") {
+    return (
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0"
+        style={textInputStyle(hasError)}
+      />
+    );
+  }
+
+  if (schemaType === "stellar-address") {
+    return (
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="G... Stellar address"
+        style={textInputStyle(hasError || (value && !/^G[A-Z2-7]{55}$/.test(value)))}
+      />
+    );
+  }
+
+  if (schemaType === "array") {
+    const items = Array.isArray(value) ? value : [];
+    const itemSchema = schema.items || { type: "string" };
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {items.map((item, idx) => (
+          <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <SchemaDrivenInput
+                schema={itemSchema}
+                value={item}
+                onChange={(newVal) => {
+                  const newItems = [...items];
+                  newItems[idx] = newVal;
+                  onChange(newItems);
+                }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                const newItems = items.filter((_, i) => i !== idx);
+                onChange(newItems);
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--red)",
+                cursor: "pointer",
+                padding: "4px",
+              }}
+              title="Remove item"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => {
+            const exampleItem = buildExampleValue(itemSchema, {});
+            onChange([...items, exampleItem]);
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--cyan)",
+            fontSize: "11px",
+            padding: "6px 10px",
+            cursor: "pointer",
+            alignSelf: "flex-start",
+          }}
+        >
+          <Plus size={12} /> Add item
+        </button>
+      </div>
+    );
+  }
+
+  if (schemaType === "object" && schema && schema.properties) {
+    const objValue = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          padding: "12px",
+          background: "var(--bg-card)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {Object.entries(schema.properties).map(([propName, propSchema]) => (
+          <div key={propName}>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px" }}>
+              {propName}
+            </div>
+            <SchemaDrivenInput
+              schema={propSchema}
+              value={objValue[propName]}
+              onChange={(newVal) => {
+                onChange({ ...objValue, [propName]: newVal });
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={paramName ? `Enter ${paramName}` : "Argument value"}
+      style={textInputStyle(hasError)}
+    />
+  );
+}
+
+function getSchemaValidationMessage(schema, value) {
+  if (!schema || value === "" || value === null || value === undefined) return null;
+
+  const schemaType = getSchemaType(schema);
+
+  if (schemaType === "integer") {
+    if (value === "" || value === "-") return null;
+    if (!/^-?\d+$/.test(String(value))) {
+      return "This argument expects an integer value.";
+    }
+    if (schema.minimum !== undefined && Number(value) < schema.minimum) {
+      return `Value must be at least ${schema.minimum}.`;
+    }
+    if (schema.maximum !== undefined && Number(value) > schema.maximum) {
+      return `Value must be at most ${schema.maximum}.`;
+    }
+  }
+
+  if (schemaType === "stellar-address") {
+    if (!/^G[A-Z2-7]{55}$/.test(String(value))) {
+      return "This argument expects a valid Stellar account address starting with G.";
+    }
+  }
+
+  if (schemaType === "string") {
+    if (schema.minLength && String(value).length < schema.minLength) {
+      return `Value must be at least ${schema.minLength} characters.`;
+    }
+    if (schema.maxLength && String(value).length > schema.maxLength) {
+      return `Value must be at most ${schema.maxLength} characters.`;
+    }
+    if (schema.pattern) {
+      const regex = new RegExp(schema.pattern);
+      if (!regex.test(String(value))) {
+        return "Value does not match the required pattern.";
+      }
+    }
+  }
+
+  if (schemaType === "enum") {
+    if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+      return "Value must be one of the allowed options.";
+    }
+  }
+
+  return null;
+}
+
 export default function ContractInteraction() {
   const { connectedAddress, network } = useStore();
 
@@ -244,21 +469,33 @@ export default function ContractInteraction() {
   }, [matchingHistory]);
 
   const argumentIssues = useMemo(() => {
-    return form.args.map((arg) => {
-      const value = arg.value.trim();
-      if (!value) return null;
-      if (arg.type === 'int' && !/^-?\d+$/.test(value)) {
+    return form.args.map((arg, idx) => {
+      const value = arg.value;
+      const schema = parameterDefinitions[idx]?.schema;
+
+      if (value === "" || value === null || value === undefined) return null;
+
+      if (schema) {
+        const schemaIssue = getSchemaValidationMessage(schema, value);
+        if (schemaIssue) return schemaIssue;
+      }
+
+      const valueStr = String(value).trim();
+      if (!valueStr) return null;
+
+      const lowerType = String(arg.type).toLowerCase();
+      if (lowerType === 'int' && !/^-?\d+$/.test(valueStr)) {
         return 'This argument expects an integer value. Use only digits and optional leading - for negatives.';
       }
-      if (arg.type === 'bool' && !/^(true|false)$/i.test(value)) {
+      if (lowerType === 'bool' && !/^(true|false)$/i.test(valueStr)) {
         return 'This argument expects a boolean value of true or false.';
       }
-      if (arg.type === 'address' && !/^G[A-Z2-7]{55}$/.test(value)) {
+      if (lowerType === 'address' && !/^G[A-Z2-7]{55}$/.test(valueStr)) {
         return 'This argument expects a valid Stellar account address starting with G.';
       }
       return null;
     });
-  }, [form.args]);
+  }, [form.args, parameterDefinitions]);
 
   const assistantMessages = useMemo(() => {
     if (!assistantEnabled) return [];
@@ -312,19 +549,31 @@ export default function ContractInteraction() {
       });
     }
 
-    if (form.args.some((arg) => arg.type === 'bool' && !arg.value.trim())) {
-      messages.push({ tone: 'info', text: 'Use true or false for bool arguments.' });
+    if (form.args.some((arg, idx) => {
+      const schema = parameterDefinitions[idx]?.schema;
+      const schemaType = schema ? getSchemaType(schema) : null;
+      return schemaType === "boolean" && arg.value === "";
+    })) {
+      messages.push({ tone: 'info', text: 'Use the checkbox to set boolean arguments.' });
     }
-    if (form.args.some((arg) => arg.type === 'address' && !arg.value.trim())) {
+    if (form.args.some((arg, idx) => {
+      const schema = parameterDefinitions[idx]?.schema;
+      const schemaType = schema ? getSchemaType(schema) : null;
+      return schemaType === "stellar-address" && !arg.value;
+    })) {
       messages.push({
         tone: 'info',
         text: 'Use a valid Stellar account address starting with G for address arguments.',
       });
     }
-    if (form.args.some((arg) => arg.type === 'int' && !arg.value.trim())) {
+    if (form.args.some((arg, idx) => {
+      const schema = parameterDefinitions[idx]?.schema;
+      const schemaType = schema ? getSchemaType(schema) : null;
+      return schemaType === "integer" && !arg.value;
+    })) {
       messages.push({
         tone: 'info',
-        text: 'Type numeric values for int arguments, for example 1 or 42.',
+        text: 'Type numeric values for integer arguments, for example 1 or 42.',
       });
     }
 
@@ -419,18 +668,35 @@ export default function ContractInteraction() {
         const nextArgs = parameterDefinitions.map(param => {
           const lowerType = String(param.type).toLowerCase();
           let type = "string";
-          if (lowerType.includes("bool")) type = "bool";
-          else if (['int', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'u256', 'i256'].some(t => lowerType.includes(t))) type = "int";
-          else if (lowerType.includes("address")) type = "address";
+          if (param.schema) {
+            const schemaType = getSchemaType(param.schema);
+            if (schemaType === "boolean") type = "bool";
+            else if (schemaType === "integer") type = "int";
+            else if (schemaType === "stellar-address") type = "address";
+            else if (schemaType === "enum") type = "enum";
+            else if (schemaType === "array") type = "array";
+            else if (schemaType === "object") type = "object";
+            else type = "string";
+          } else {
+            if (lowerType.includes("bool")) type = "bool";
+            else if (['int', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'u256', 'i256'].some(t => lowerType.includes(t))) type = "int";
+            else if (lowerType.includes("address")) type = "address";
+          }
 
-          // Pre-fill suggestion if exists and has high confidence
-          const sug = suggestions && suggestions[param.name];
-          const sugVal = sug && sug.confidence > 0 ? sug.value : "";
+          let prefillValue = "";
+          if (param.schema) {
+            const example = buildExampleValue(param.schema, {});
+            prefillValue = typeof example === "object" ? example : String(example);
+          } else {
+            const sug = suggestions && suggestions[param.name];
+            prefillValue = sug && sug.confidence > 0 ? sug.value : "";
+          }
 
           return {
             name: param.name,
             type,
-            value: sugVal
+            value: prefillValue,
+            schema: param.schema
           };
         });
         return { ...current, args: nextArgs };
@@ -752,10 +1018,17 @@ export default function ContractInteraction() {
           {form.args.map((arg, index) => {
             const paramName = parameterDefinitions[index]?.name;
             const paramType = parameterDefinitions[index]?.type;
+            const paramSchema = parameterDefinitions[index]?.schema;
             const hasSpecName = !!paramName;
-            
+
             const fieldAnomalies = anomalies.filter(a => a.parameterName === (paramName || `arg${index}`));
             const fieldSuggestion = suggestions[paramName];
+
+            const schemaType = paramSchema ? getSchemaType(paramSchema) : null;
+            const hasSchemaControl = !!paramSchema && schemaType !== "string";
+
+            const issueMessage = argumentIssues[index];
+            const hasError = fieldAnomalies.some(a => a.severity === 'error') || !!issueMessage;
 
             return (
               <div
@@ -767,7 +1040,7 @@ export default function ContractInteraction() {
                   padding: "10px",
                   background: "var(--bg-elevated)",
                   borderRadius: "var(--radius-md)",
-                  border: fieldAnomalies.some(a => a.severity === 'error') ? "1px solid var(--red-dim)" : "1px solid var(--border)",
+                  border: hasError ? "1px solid var(--red-dim)" : "1px solid var(--border)",
                 }}
               >
                 {hasSpecName && (
@@ -795,44 +1068,71 @@ export default function ContractInteraction() {
                     )}
                   </div>
                 )}
-                
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "140px 1fr auto",
-                    gap: "10px",
-                    alignItems: "center",
-                  }}
-                >
-                  <select
-                    value={arg.type}
-                    onChange={(e) => updateArgument(index, "type", e.target.value)}
-                    style={textInputStyle()}
-                    disabled={hasSpecName}
-                  >
-                    {ARGUMENT_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
 
-                  <input
+                {hasSchemaControl ? (
+                  <SchemaDrivenInput
+                    schema={paramSchema}
                     value={arg.value}
-                    onChange={(e) => updateArgument(index, "value", e.target.value)}
-                    placeholder={
-                      arg.type === "bool" ? "true or false" : hasSpecName ? `Enter ${paramName}` : "Argument value"
-                    }
-                    style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                    onChange={(newVal) => updateArgument(index, "value", newVal)}
+                    hasError={hasError}
+                    paramName={paramName}
                   />
+                ) : (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "140px 1fr auto",
+                      gap: "10px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <select
+                      value={arg.type}
+                      onChange={(e) => updateArgument(index, "type", e.target.value)}
+                      style={textInputStyle()}
+                      disabled={hasSpecName}
+                    >
+                      <option value="string">String</option>
+                      <option value="int">Int</option>
+                      <option value="address">Address</option>
+                      <option value="bool">Bool</option>
+                    </select>
 
-                  <ActionButton
-                    label="Remove"
-                    onClick={() => removeArgument(index)}
-                    disabled={form.args.length === 1 || hasSpecName}
-                    tone="secondary"
-                  />
-                </div>
+                    <input
+                      value={arg.value}
+                      onChange={(e) => updateArgument(index, "value", e.target.value)}
+                      placeholder={
+                        arg.type === "bool" ? "true or false" : hasSpecName ? `Enter ${paramName}` : "Argument value"
+                      }
+                      style={textInputStyle(hasError)}
+                    />
+
+                    <ActionButton
+                      label="Remove"
+                      onClick={() => removeArgument(index)}
+                      disabled={form.args.length === 1 || hasSpecName}
+                      tone="secondary"
+                    />
+                  </div>
+                )}
+
+                {!hasSchemaControl && (
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <ActionButton
+                      label="Remove"
+                      onClick={() => removeArgument(index)}
+                      disabled={form.args.length === 1 || hasSpecName}
+                      tone="secondary"
+                    />
+                  </div>
+                )}
+
+                {issueMessage && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--red)", marginLeft: "4px" }}>
+                    <AlertCircle size={12} />
+                    <span>{issueMessage}</span>
+                  </div>
+                )}
 
                 {fieldSuggestion && fieldSuggestion.confidence > 0 && (
                   <div style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "10px", color: "var(--text-muted)", marginLeft: "4px" }}>

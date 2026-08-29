@@ -92,6 +92,7 @@ const sidebars = {
         'guides/error-handling',
         'guides/rate-limiting',
         'guides/offline-support',
+        'guides/architecture-decision-records',
         'guides/advanced-tutorials',
         'guides/troubleshooting',
       ],

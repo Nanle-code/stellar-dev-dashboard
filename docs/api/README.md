@@ -42,7 +42,7 @@ The API docs now include generated reference material and runnable examples.
 - [docs/api/RATE_LIMITING.md](RATE_LIMITING.md) — client-side rate limiting, priority queues, and throttle configurations.
 - [docs/api/CHANGELOG.md](CHANGELOG.md) — API documentation changelog.
 - [docs/api/VERSION_HISTORY.md](generated/VERSION_HISTORY.md) — version history and release metadata.
-- [docs/api/examples/](examples/) — runnable example scripts for JavaScript and Python.
+- [docs/api/examples/js/send-payment.mjs](examples/js/send-payment.mjs) and [docs/api/examples/python/send_payment.py](examples/python/send_payment.py) — runnable example scripts for JavaScript and Python (see `examples/js/` and `examples/python/`).
 
 Regenerate the API docs with:
 
@@ -397,10 +397,10 @@ Common pitfalls:
 ---
 
 **Where this lives in the repo**
-- Implementation connectors: [src/lib/stellar.ts](src/lib/stellar.ts#L1) (Horizon + network config)
-- Soroban helpers: [src/lib/contractInvoker.js](src/lib/contractInvoker.js#L1)
-- Price feed: [src/lib/priceFeed.js](src/lib/priceFeed.js#L1)
-- Streaming: [src/lib/streaming.js](src/lib/streaming.js#L1)
+- Implementation connectors: [src/lib/stellar.ts](../../src/lib/stellar.ts) (Horizon + network config)
+- Soroban helpers: [src/lib/contractInvoker.js](../../src/lib/contractInvoker.js)
+- Price feed: [src/lib/priceFeed.js](../../src/lib/priceFeed.js)
+- Streaming: [src/lib/streaming.js](../../src/lib/streaming.js)
 
 Replace the line numbers above with actual references if needed.
 
@@ -424,9 +424,9 @@ This directory documents the public JavaScript modules exposed by the dashboard.
 | [stellar.js](./stellar.md) | Horizon & Soroban RPC wrappers with caching and rate limiting |
 | [storage.js](./storage.md) | Persistent IndexedDB storage with localStorage fallback |
 | [encryption.js](./encryption.md) | AES-GCM encryption for sensitive local data |
-| [tutorialSystem.js](./tutorial.md) | Guided tours and contextual help system |
-| [multisig.js](./multisig.md) | Multi-signature transaction coordination |
-| [priceFeed.js](./priceFeed.md) | XLM and asset price feeds |
+| [tutorialSystem.js](../../TUTORIAL_SYSTEM_GUIDE.md) | Guided tours and contextual help system |
+| [multisig.js](../../src/lib/multisig/index.ts) | Multi-signature transaction coordination |
+| [priceFeed.js](../../src/lib/priceFeed.js) | XLM and asset price feeds |
 | [transactionBuilder.js](./transactionBuilder.md) | Multi-operation transaction builder and simulator |
 | [transactionTemplates.js](./transactionTemplates.md) | Pre-built transaction templates |
 | [import.js / export.js](./dataExport.md) | Dashboard backup, export, and import utilities |

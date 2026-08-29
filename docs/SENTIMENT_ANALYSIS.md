@@ -458,7 +458,7 @@ describe('Sentiment Analyzer', () => {
 
 ## API Reference
 
-See [SENTIMENT_API.md](./SENTIMENT_API.md) for detailed API documentation.
+See [sentimentAnalyzer.ts](../src/lib/sentimentAnalyzer.ts) for detailed API documentation.
 
 ## Troubleshooting
 
@@ -487,7 +487,7 @@ A: Ensure you have data from at least 2 different sources.
 
 ## References
 
-- [Sentiment Analysis Types](src/types/sentiment.ts)
-- [NLP Analyzer Implementation](src/lib/sentimentAnalyzer.ts)
-- [Data Pipeline](src/lib/sentimentPipeline.ts)
-- [Dashboard Component](src/components/sentiment/SentimentDashboard.tsx)
+- [Sentiment Analysis Types](../src/types/sentiment.ts)
+- [NLP Analyzer Implementation](../src/lib/sentimentAnalyzer.ts)
+- [Data Pipeline](../src/lib/sentimentPipeline.ts)
+- [Dashboard Component](../src/components/sentiment/SentimentDashboard.tsx)

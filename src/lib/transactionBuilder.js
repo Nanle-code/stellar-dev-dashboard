@@ -234,6 +234,8 @@ export async function buildTransaction({
   memoType = "text",
   baseFee = 100,
   timeout = 180,
+  timeBounds,
+  preconditions,
   network = "testnet",
 }) {
   if (!operations || operations.length === 0) {
@@ -267,7 +269,43 @@ export async function buildTransaction({
   const txBuilder = new StellarSdk.TransactionBuilder(account, {
     fee: baseFee.toString(),
     networkPassphrase: NETWORKS[network].passphrase,
-  }).setTimeout(timeout);
+  });
+
+  if (timeBounds?.minTime || timeBounds?.maxTime) {
+    const maxTime = timeBounds.maxTime ? parseInt(String(timeBounds.maxTime), 10) : 0;
+    const minTime = timeBounds.minTime ? parseInt(String(timeBounds.minTime), 10) : 0;
+    if (maxTime > 0 || minTime > 0) {
+      txBuilder.setTimebounds(minTime, maxTime);
+    } else {
+      txBuilder.setTimeout(timeout);
+    }
+  } else {
+    txBuilder.setTimeout(timeout);
+  }
+
+  if (preconditions) {
+    if (preconditions.ledgerBounds) {
+      const minLedger = parseInt(String(preconditions.ledgerBounds.minLedger || 0), 10);
+      const maxLedger = parseInt(String(preconditions.ledgerBounds.maxLedger || 0), 10);
+      txBuilder.setLedgerbounds(minLedger, maxLedger);
+    }
+
+    if (preconditions.minSequence !== undefined && preconditions.minSequence !== '') {
+      txBuilder.setMinAccountSequence(parseInt(String(preconditions.minSequence), 10));
+    }
+
+    if (preconditions.minSequenceAge !== undefined && preconditions.minSequenceAge !== '') {
+      txBuilder.setMinAccountSequenceAge(parseInt(String(preconditions.minSequenceAge), 10));
+    }
+
+    if (preconditions.minSequenceLedgerGap !== undefined && preconditions.minSequenceLedgerGap !== '') {
+      txBuilder.setMinAccountSequenceLedgerGap(parseInt(String(preconditions.minSequenceLedgerGap), 10));
+    }
+
+    if (preconditions.extraSigners && preconditions.extraSigners.length > 0) {
+      txBuilder.setExtraSigners(preconditions.extraSigners);
+    }
+  }
 
   // Add operations
   operations.forEach((op) => {

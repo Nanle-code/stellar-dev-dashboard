@@ -31,16 +31,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
 
       - name: Build production bundle
-        run: npm run build
+        run: pnpm run build
 
       - name: Restore visual baselines
         uses: actions/cache@v6
@@ -81,13 +86,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npm run build-storybook
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build-storybook
 
       - name: Run Chromatic
         uses: chromaui/action@latest
@@ -107,15 +117,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Run Stryker mutation tests
-        run: npx stryker run
+        run: pnpm exec stryker run
 
       - name: Upload mutation report
         if: always()
@@ -134,15 +149,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Run tests with coverage
-        run: npm run test:coverage || true
+        run: pnpm run test:coverage || true
 
       - name: Enforce coverage thresholds
         run: |
@@ -187,16 +207,21 @@ jobs:
         with:
           fetch-depth: 0  # Fetch full history for regression correlation
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npm run build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
 
       - name: Run Lighthouse CI
-        run: npx lhci autorun
+        run: pnpm exec lhci autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
 
@@ -234,19 +259,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
 
       - name: Build app
-        run: npm run build
+        run: pnpm run build
 
       - name: Run accessibility gate
-        run: npm run test:a11y
+        run: pnpm run test:a11y
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
 

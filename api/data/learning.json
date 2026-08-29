@@ -1,1 +1,10 @@
-{"applied":[]}
+{
+  "applied": [
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-08-29T07:19:14.025Z"
+    }
+  ]
+}

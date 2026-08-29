@@ -86,7 +86,6 @@
   },
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",
-    "@ledgerhq/hw-transport-webusb": "^6.29.4"
     "@ledgerhq/hw-transport-webusb": "^6.29.4",
     "@stellar/ledger": "^1.0.0",
     "ioredis": "^5.4.0"

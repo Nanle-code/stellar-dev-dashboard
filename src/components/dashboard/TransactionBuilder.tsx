@@ -11,6 +11,7 @@ import { fetchContractData, resolveFederatedAddress } from "../../lib/stellar";
 import { useTransactionHistory } from "../../lib/txHistory";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
 import { useExpertise } from "../../context/ExpertiseContext";
+import { stroopsToXLM } from "../../utils/stroopConversion.js";
 
 function FederatedAddressInput({ value, onChange, placeholder, style, network, hasError }) {
   const [inputValue, setInputValue] = useState(value);
@@ -1640,7 +1641,7 @@ export default function TransactionBuilder() {
                   {simulation.fee.toLocaleString()}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-                  stroops ({(simulation.fee / 10000000).toFixed(7)} XLM)
+                  stroops ({stroopsToXLM(simulation.fee)} XLM)
                 </div>
               </div>
 

@@ -241,9 +241,11 @@ export async function fetchXLMPrice(): Promise<{ usd: number }> {
   return result
 }
 
+import { stroopsToXLM } from '../utils/stroopConversion'
+
 export function calculateAccountReserves(accountData: any, networkStats: any, offerCount = 0) {
   const baseReserveStroops = Number(networkStats?.latestLedger?.base_reserve) || 10000000
-  const baseReserve = baseReserveStroops / 10000000
+  const baseReserve = Number(stroopsToXLM(baseReserveStroops))
 
   const assetCount = accountData.balances?.filter((b: any) => b.asset_type !== 'native').length || 0
   const signerCount =

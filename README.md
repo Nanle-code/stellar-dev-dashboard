@@ -108,6 +108,21 @@ npm run test:integration
 npm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
 ```
 
+## Decimal-Safe Stroop Conversion
+
+All XLM and asset amount conversions now use the decimal-safe stroop utilities in `src/utils/stroopConversion.ts`. These functions use native `bigint` arithmetic to eliminate floating-point rounding errors.
+
+### Available Functions
+
+- `stroopsToXLM(stroops: bigint | number): string` - converts stroops to XLM string with 7 decimal places
+- `xlmToStroops(xlm: string | number): bigint` - converts XLM string/number to stroops bigint
+- `formatStroops(stroops: bigint | number): string` - formats stroops as "X.X XLM (Y stroops)"
+- `parseStroops(stroopsStr: string): bigint` - parses strings like "1.5 XLM" or "15000000" into stroops bigint
+
+### Migration Notes
+
+Replace all inline stroop conversions like `amount / 10000000` or `amount * 10000000` with the appropriate utility function. This ensures consistent rounding behavior across the application.
+
 ## Development
 
 ### Adding New Prediction Models

@@ -31,6 +31,7 @@
  */
 
 import { NetworkOptimizer } from './networkOptimizer.ts';
+import { stroopsToXLM } from '../utils/stroopConversion.js';
 
 // Instantiate the global network optimizer
 export const networkOptimizer = new NetworkOptimizer();
@@ -149,7 +150,7 @@ export function predictFees(feeStats, congestionRatio = 0.1) {
   const stdStroops = Math.max(lowStroops + 10, Math.round(median * multiplier));
   const highStroops = Math.max(stdStroops + 50, Math.round(p90 * multiplier));
 
-  const toXLM = (stroops) => (stroops / 10000000).toFixed(7);
+  const toXLM = (stroops) => stroopsToXLM(stroops);
 
   return {
     low: {

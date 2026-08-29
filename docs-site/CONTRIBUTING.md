@@ -66,6 +66,10 @@ npm run gen-api-docs
 
 This regenerates the interactive endpoint pages from the spec.
 
+## Decimal-safe stroop conversion
+
+Use the utilities in `src/utils/stroopConversion.ts` for all XLM and asset amount conversions. Do not use inline division or multiplication by 10000000, as floating-point arithmetic can introduce rounding errors.
+
 ## Style guide
 
 - Use `:::tip`, `:::caution`, and `:::danger` admonitions sparingly for important callouts

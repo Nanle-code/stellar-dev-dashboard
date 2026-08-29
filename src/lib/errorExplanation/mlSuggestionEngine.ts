@@ -5,6 +5,7 @@
 
 import * as tf from '@tensorflow/tfjs';
 import { getErrorExplanation, ErrorExplanation } from './errorDatabase';
+import { stroopsToXLM } from '../../utils/stroopConversion.js';
 
 export interface ErrorContext {
   errorCode: string;
@@ -275,7 +276,7 @@ class MLSuggestionEngine {
     // Add context-specific suggestions
     if (context.accountState) {
       if (explanation.code === 'tx_insufficient_balance' || explanation.code === 'insufficient balance') {
-        const balanceXLM = context.accountState.balance / 10000000; // Convert stroops to XLM
+        const balanceXLM = stroopsToXLM(context.accountState.balance);
         enhanced.unshift(`Your current balance is ${balanceXLM.toFixed(2)} XLM. You need at least 2 XLM minimum reserve.`);
       }
       

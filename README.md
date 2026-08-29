@@ -130,3 +130,15 @@ Add new endpoints by:
 1. Creating new routes in `api/routes/transactions.js`
 2. Implementing handlers in `src/lib/feePredictionIntegration.ts`
 3. Updating TypeScript definitions in TypeScript types
+
+## API Authentication Boundaries
+
+The server-side API uses a narrow trust boundary for user-specific and operational data:
+
+- `Authorization: Bearer <token>` is required on all protected endpoints.
+- Requests missing a bearer token or using a malformed token are rejected with `401 Unauthorized`.
+- Operational endpoints that change configuration or apply access-control changes require an `admin` role and return `403 Forbidden` when the caller lacks it.
+- Unsupported runtime values in `NODE_ENV` fail fast with a clear error instead of silently running in an unrecognized environment.
+- Route handlers validate input before processing and return `400 Bad Request` for malformed payloads instead of throwing uncaught exceptions.
+
+This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.

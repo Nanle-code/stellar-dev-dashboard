@@ -60,10 +60,8 @@ router.post('/gas/predict', async (req, res) => {
 
     const argCount = args ? args.length : 0;
     const argTypes = args ? args.map(a => a.type) : [];
-    const argLengths = args ? args.map(a => String(a.value || '').length) : [];
     const hasAddress = argTypes.includes('address');
     const hasInt = argTypes.includes('int');
-    const totalLen = argLengths.reduce((s, l) => s + l, 0);
     const congestion = congestionRatio || 0.5;
     const storageCount = storageEntryCount || 0;
     const complexity = functionComplexity || Math.min(10, argCount + 1);

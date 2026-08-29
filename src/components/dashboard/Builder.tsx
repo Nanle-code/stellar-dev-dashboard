@@ -138,6 +138,7 @@ export default function Builder() {
         memo,
         baseFee: parseInt(baseFee),
         timeBounds,
+        preconditions: transactionParams.preconditions,
         network
       })
       
@@ -147,6 +148,25 @@ export default function Builder() {
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  const formatInstructions = (instr) => {
+    if (instr < 1000) return `${instr}`
+    if (instr < 1000000) return `${(instr / 1000).toFixed(2)}K`
+    return `${(instr / 1000000).toFixed(2)}M`
+  }
+
+  const formatBytes = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+  }
+
+  const formatStroops = (stroops) => {
+    const s = parseInt(String(stroops), 10)
+    if (Number.isNaN(s)) return '—'
+    const xlm = s / 10000000
+    return `${xlm.toFixed(7)} XLM (${s.toLocaleString()} stroops)`
   }
 
   return (
@@ -481,7 +501,7 @@ export default function Builder() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
               <StatCard 
                 label="Estimated Fee" 
-                value={`${simulation.fee} stroops`} 
+                value={`${simulation.fee.toLocaleString()} stroops`} 
                 accent="var(--cyan)" 
               />
               <StatCard 
@@ -490,13 +510,55 @@ export default function Builder() {
                 accent="var(--green)" 
               />
               {simulation.resourceUsage && (
-                <StatCard 
-                  label="CPU Instructions" 
-                  value={simulation.resourceUsage.cpuInstructions?.toLocaleString()} 
-                  accent="var(--amber)" 
-                />
+                <>
+                  <StatCard 
+                    label="CPU Instructions" 
+                    value={formatInstructions(simulation.resourceUsage.cpuInstructions)} 
+                    accent="var(--amber)" 
+                  />
+                  <StatCard 
+                    label="Memory Usage" 
+                    value={formatBytes(simulation.resourceUsage.memoryBytes)} 
+                    accent="var(--purple)" 
+                  />
+                  <StatCard 
+                    label="Ledger Reads (RO/RW)" 
+                    value={`${simulation.resourceUsage.ledgerReadOnly} / ${simulation.resourceUsage.ledgerReadWrite}`} 
+                    accent="var(--blue)" 
+                  />
+                </>
               )}
             </div>
+
+            {simulation.sorobanMetrics && (
+              <div style={{ marginTop: '16px', padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                  Soroban Resource Estimates
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Minimum Resource Fee</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--green)' }}>
+                      {formatStroops(simulation.sorobanMetrics.resourceFee)}
+                    </div>
+                  </div>
+                  {simulation.sorobanMetrics.refundableFee && (
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Estimated Refundable Fee</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--cyan)' }}>
+                        {formatStroops(simulation.sorobanMetrics.refundableFee)}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Ledger Footprint</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {simulation.sorobanMetrics.footprint.readOnly.length} RO / {simulation.sorobanMetrics.footprint.readWrite.length} RW keys
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {simulation.warnings && simulation.warnings.length > 0 && (
               <div style={{ marginTop: '16px' }}>

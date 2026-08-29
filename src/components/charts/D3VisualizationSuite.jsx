@@ -19,6 +19,7 @@ import { Download, FileJson, Focus, GitBranch, Layers, Route, Share2 } from 'luc
 import { useResponsive } from '../../hooks/useResponsive'
 import { useStore } from '../../lib/store'
 import Card from '../dashboard/Card'
+import { stroopsToXLM } from '../../utils/stroopConversion.js'
 
 const COLORS = {
   cyan: '#00e5ff',
@@ -170,7 +171,7 @@ function useVisualizationData(metric, density) {
     slicedOps.forEach((operation, index) => {
       const [source, target] = operationEndpoints(operation, centralAddress)
       const amount = operationAmount(operation)
-      const fee = toNumber(operation?.fee_charged, 0) / 10000000
+      const fee = stroopsToXLM(toNumber(operation?.fee_charged, 0))
       const type = operation?.type || 'operation'
       const asset = operationAsset(operation)
       const time = operationTime(operation, index)
@@ -211,7 +212,7 @@ function useVisualizationData(metric, density) {
     sourceTransactions.forEach((transaction, index) => {
       const time = operationTime(transaction, index)
       const dayKey = timeFormat('%Y-%m-%d')(time)
-      const fee = toNumber(transaction?.fee_charged, 0) / 10000000
+      const fee = stroopsToXLM(toNumber(transaction?.fee_charged, 0))
       const point = timelineMap.get(dayKey) || { date: new Date(dayKey), count: 0, volume: 0, fee: 0, failures: 0 }
       point.count += 1
       point.fee += fee

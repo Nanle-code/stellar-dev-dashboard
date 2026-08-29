@@ -6,6 +6,7 @@ import DeploymentTracker from './DeploymentTracker';
 import { ContractDeployer } from '../../lib/deployment/ContractDeployer';
 import { CostEstimator } from '../../lib/deployment/CostEstimator';
 import { getContractUrl, getTransactionUrl } from '../../lib/externalExplorers';
+import { stroopsToXLM } from '../../utils/stroopConversion.js';
 
 const STEPS = [
   { id: 1, label: 'Upload WASM', icon: '📦', description: 'Select the contract artifact' },
@@ -291,11 +292,11 @@ export default function ContractDeployerView() {
             <div style={costPanelStyle}>
               <div style={{ fontSize: '12px', fontWeight: 700 }}>Estimated Cost Breakdown</div>
               <div style={costGridStyle}>
-                <div>Base Fee: {(cost.baseStorageFee / 10000000).toFixed(7)} XLM</div>
-                <div>Per KB: {(cost.perKbFee / 10000000).toFixed(7)} XLM</div>
-                <div>Per Arg: {(cost.perArgFee / 10000000).toFixed(7)} XLM</div>
+                <div>Base Fee: {stroopsToXLM(cost.baseStorageFee)} XLM</div>
+                <div>Per KB: {stroopsToXLM(cost.perKbFee)} XLM</div>
+                <div>Per Arg: {stroopsToXLM(cost.perArgFee)} XLM</div>
                 <div style={{ fontWeight: 700, color: 'var(--cyan)' }}>
-                  Total: {(cost.estimatedFeeStroops / 10000000).toFixed(7)} XLM
+                  Total: {stroopsToXLM(cost.estimatedFeeStroops)} XLM
                 </div>
               </div>
             </div>
@@ -335,7 +336,7 @@ export default function ContractDeployerView() {
               <div>• WASM Size: {wasmFile ? `${wasmFile.sizeMb.toFixed(2)} MB` : '0 MB'}</div>
               <div>• Constructor Params: {normalizedArgs.length}</div>
               <div>• Network: {network}</div>
-              {cost && <div>• Estimated Fee: {(cost.estimatedFeeStroops / 10000000).toFixed(7)} XLM</div>}
+              {cost && <div>• Estimated Fee: {stroopsToXLM(cost.estimatedFeeStroops)} XLM</div>}
             </div>
           </div>
 

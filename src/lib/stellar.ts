@@ -1,4 +1,5 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { stroopsToXLM } from '../utils/stroopConversion.js';
 import { Cache, TTL } from './cache.js';
 import { rateLimiter } from './rateLimiter.js';
 import auditTrail from './auditTrail.js';
@@ -738,7 +739,7 @@ export function calculateAccountReserves(
   // Get base reserve from ledger (in stroops, convert to XLM)
   // Default to 1 XLM if not available (current Stellar default)
   const baseReserveStroops = Number(networkStats?.latestLedger?.base_reserve) || 10000000;
-  const baseReserve = baseReserveStroops / 10000000; // Convert stroops to XLM
+  const baseReserve = Number(stroopsToXLM(baseReserveStroops));
 
   // Count non-native assets (trustlines)
   const assetCount = accountData.balances?.filter((b) => b.asset_type !== 'native').length || 0;

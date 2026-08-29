@@ -1,14 +1,15 @@
+import { stroopsToXLM } from './stroopConversion'
+
 export function shortAddress(addr: string | null | undefined, chars = 6): string {
   if (!addr) return ''
   return `${addr.slice(0, chars)}\u2026${addr.slice(-chars)}`
 }
 
 export function formatXLM(amount: string | number): string {
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount
-  return num.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 7,
-  })
+  if (typeof amount === 'number') {
+    return stroopsToXLM(BigInt(Math.trunc(amount)))
+  }
+  return stroopsToXLM(BigInt(amount))
 }
 
 export function formatDate(dateStr: string): string {

@@ -35,7 +35,8 @@ export function usePersistedState(key, defaultValue) {
         valueRef.current = stored
       }
       if (!cancelled) setLoaded(true)
-    }).catch(() => {
+    }).catch((err) => {
+      console.warn(`Failed to hydrate persisted state for "${key}":`, err)
       if (!cancelled) setLoaded(true)
     })
     return () => { cancelled = true }

@@ -3,7 +3,8 @@ import type { ReactNode } from 'react'
 import { useStore } from '../../lib/store'
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter'
 import { signXdrWithLedger, isLedgerSupported, getActiveLedgerSession } from '../../lib/wallet/ledger'
-import { NETWORKS } from '../../lib/stellar'
+import { NETWORKS, fetchAccount } from '../../lib/stellar'
+import * as StellarSdk from '@stellar/stellar-sdk'
 import { measureAsync } from '../../lib/performanceMonitoring'
 import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences'
 import type { UserPreferences } from '../../lib/userPreferences'
@@ -27,6 +28,8 @@ export default function TransactionSigner() {
   // ─── Behavioral Biometrics ─────────────────────────────────────────────────
   const bio = useBehavioralBiometrics(walletPublicKey)
 
+  const [accountInfo, setAccountInfo] = useState<any>(null)
+
   useEffect(() => {
     async function fetchPreferences() {
       const prefs = await loadPreferences()
@@ -34,6 +37,33 @@ export default function TransactionSigner() {
     }
     fetchPreferences()
   }, [])
+
+  const networkPassphrase: string = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
+
+  useEffect(() => {
+    async function loadAccountInfo() {
+      if (!xdr.trim()) {
+        setAccountInfo(null);
+        return;
+      }
+      try {
+        const tx = StellarSdk.TransactionBuilder.fromXDR(xdr.trim(), networkPassphrase) as any;
+        const sourceAccount = tx.source || tx.sourceAccount?.accountId?.();
+        if (sourceAccount) {
+          const account = await fetchAccount(sourceAccount, network);
+          setAccountInfo({
+            sourceAccount,
+            thresholds: account.thresholds,
+            signers: account.signers
+          });
+        }
+      } catch (e) {
+        setAccountInfo(null);
+      }
+    }
+    const t = setTimeout(loadAccountInfo, 500);
+    return () => clearTimeout(t);
+  }, [xdr, network, networkPassphrase])
 
   // Start collecting behavior as soon as user interacts with the XDR textarea
   const handleXdrChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -43,8 +73,7 @@ export default function TransactionSigner() {
     }
   }, [bio])
 
-  const networkPassphrase: string = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
-
+  // networkPassphrase moved up
   const handleSign = async () => {
     if (!xdr.trim()) {
       setError('Please enter a transaction XDR to sign')
@@ -298,6 +327,40 @@ export default function TransactionSigner() {
             }}
           />
         </div>
+
+        {accountInfo && (
+          <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Signer Requirements
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ background: 'var(--bg-base)', padding: '8px', borderRadius: '4px', textAlign: 'center' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>LOW</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{accountInfo.thresholds?.low_threshold}</div>
+              </div>
+              <div style={{ background: 'var(--bg-base)', padding: '8px', borderRadius: '4px', textAlign: 'center' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>MED</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{accountInfo.thresholds?.med_threshold}</div>
+              </div>
+              <div style={{ background: 'var(--bg-base)', padding: '8px', borderRadius: '4px', textAlign: 'center' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>HIGH</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{accountInfo.thresholds?.high_threshold}</div>
+              </div>
+            </div>
+            
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              Current Signers
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '150px', overflowY: 'auto' }}>
+              {accountInfo.signers?.map((s: any) => (
+                <div key={s.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontFamily: 'var(--font-mono)', padding: '4px 8px', background: 'var(--bg-base)', borderRadius: '4px' }}>
+                  <span>{s.key.slice(0, 8)}...{s.key.slice(-8)}</span>
+                  <span style={{ color: 'var(--cyan)' }}>Weight: {s.weight}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleSign}

@@ -14,7 +14,7 @@
     "ml:backup:train": "node src/ml/backup/train.js",
     "ml:backup:server": "node src/ml/backup/server.js",
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-bundle-budgets.mjs",
     "build:analyze": "ANALYZE=1 vite build",
     "preview": "vite preview",
     "lint": "eslint .",

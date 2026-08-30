@@ -12,6 +12,7 @@ import {
 import CopyableValue from './CopyableValue';
 import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates';
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
+import AssetTrustStatus from '../assets/AssetTrustStatus';
 import type { AccountOffer, ReservesInfo, InfoRowProps } from './types';
 
 function formatAsset(assetType: string, assetCode?: string): string {
@@ -455,6 +456,16 @@ export default function Account() {
                       {shortAddress((asset as Horizon.BalanceLineAsset).asset_issuer)}
                     </CopyableValue>
                   )}
+                  <div style={{ marginTop: '6px' }}>
+                    <AssetTrustStatus
+                      issuer={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      trustline={{
+                        is_authorized: (asset as Horizon.BalanceLineAsset).is_authorized,
+                        is_authorized_to_maintain_liabilities: (asset as Horizon.BalanceLineAsset)
+                          .is_authorized_to_maintain_liabilities,
+                      }}
+                    />
+                  </div>
                 </div>
                 <div
                   style={{

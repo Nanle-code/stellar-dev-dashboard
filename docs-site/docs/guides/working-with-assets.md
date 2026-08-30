@@ -100,6 +100,29 @@ const recommendations = await getTrustlineRecommendations('GABC...', 'testnet');
 | `auth_immutable` | Flags can never be changed again |
 | `auth_clawback_enabled` | Issuer can claw back tokens from any holder |
 
+## Validate issuers and trustline state
+
+The dashboard validates every non-native issuer as a checksummed Stellar ed25519 (`G...`)
+public key before requesting issuer metadata. A missing issuer and a malformed issuer are
+shown as separate blocking states; neither should be used to create a trustline. If public-key
+validation is unavailable or throws, validation fails closed and the issuer is treated as invalid.
+
+Authorization and clawback indicators have distinct meanings:
+
+| Dashboard state | Meaning |
+|---|---|
+| `VALID ISSUER` | The issuer is structurally valid; this does **not** imply the issuer is trusted or domain-verified |
+| `AUTHORIZATION REQUIRED` | A trustline must be approved by the issuer before it can receive the asset |
+| `AUTHORIZED` | Horizon reports that the trustline can transact normally |
+| `MAINTAIN LIABILITIES ONLY` | Existing offers/liabilities can remain, but the trustline cannot receive new funds |
+| `UNAUTHORIZED` | Horizon reports that the issuer has not authorized the trustline |
+| `CLAWBACK ENABLED` | The issuer can reclaim tokens from holder trustlines |
+
+Treat these indicators as transaction-safety context, not an endorsement. Verify the asset code,
+issuer, home domain, and expected network independently before creating a trustline. Older Horizon
+responses may omit trustline authorization fields; in that case the dashboard only reports the
+asset-level authorization requirement that is available.
+
 ```js
 const tx = new TransactionBuilder(issuerAccount, { fee: '100', networkPassphrase: Networks.TESTNET })
   .addOperation(Operation.setOptions({

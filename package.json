@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "description": "A real-time developer dashboard for the Stellar network with advanced AI-enhanced transaction fee prediction",
   "type": "module",
+  "engines": {
+    "node": ">=22 <27"
+  },
   "scripts": {
+    "check:node": "node scripts/node-version-policy.mjs",
+    "test:node-support": "node --test tests/node-version-policy.test.mjs",
     "ml:train": "node src/ml/train.js",
     "ml:train:liquidity": "node src/ml/trainLiquidity.cjs",
     "ml:train:phishing": "node src/ml/train_phishing.cjs",

@@ -1,6 +1,9 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { getServer, NETWORKS, isValidPublicKey } from "./stellar";
 import { measureAsync, recordCustomMetric } from "./performanceMonitoring";
+import { validateMemo } from "./validation";
+
+export const MEMO_TYPES = ["none", "text", "id", "hash", "return"];
 
 export const OPERATION_TYPES = [
   { value: "payment", label: "Payment" },
@@ -277,6 +280,15 @@ export async function buildTransaction({
 
   // Add memo
   if (memo) {
+    if (!MEMO_TYPES.includes(memoType)) {
+      throw new Error(`Unsupported memo type: ${memoType}`);
+    }
+
+    const memoCheck = validateMemo(memo, memoType);
+    if (!memoCheck.valid) {
+      throw new Error(memoCheck.errors[0]);
+    }
+
     switch (memoType) {
       case "text":
         txBuilder.addMemo(StellarSdk.Memo.text(memo));

@@ -3,6 +3,7 @@ import { Cache, TTL } from './cache.js';
 import { rateLimiter } from './rateLimiter.js';
 import auditTrail from './auditTrail.js';
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker';
+import { validateMemo } from './validation';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -58,8 +59,11 @@ function validateSimulationParams(params: BuildTransactionParams) {
     }
   }
 
-  if (typeof params.memo === 'string' && params.memo.length > 28) {
-    warnings.push('Memo text may exceed the 28-character limit accepted by the Stellar network.');
+  if (params.memo) {
+    const memoCheck = validateMemo(params.memo, 'text');
+    if (!memoCheck.valid) {
+      errors.push(memoCheck.errors[0]);
+    }
   }
 
   params.operations?.forEach((op, index) => {
@@ -1254,6 +1258,63 @@ export function parseMuxedAccount(
   }
 }
 
+// ─── Memo requirement check (SEP-29) ───────────────────────────────────────────
+
+export interface MemoRequirementResult {
+  /** True only when the destination account has published a SEP-29 memo requirement. */
+  required: boolean;
+  /** True when the lookup completed (successfully or with a definitive "not found"). */
+  checked: boolean;
+  /** Present when the requirement could not be determined (network error, unsupported input). */
+  error?: string;
+}
+
+/**
+ * Check whether a destination requires a memo per SEP-29, by looking for a
+ * `config.memo_required` data entry (base64-encoded "1") on the account.
+ * Exchanges and custodians commonly set this flag on shared deposit addresses.
+ *
+ * Muxed accounts (M...) already encode their own memo ID and never require one.
+ * Federated (name*domain) and contract (C...) destinations are not currently
+ * checked here — federation records surface their own memo via resolveAddress().
+ */
+export async function checkDestinationMemoRequirement(
+  destination: string,
+  network: NetworkName = 'testnet'
+): Promise<MemoRequirementResult> {
+  if (typeof destination !== 'string' || !destination.trim()) {
+    return { required: false, checked: false, error: 'No destination provided.' };
+  }
+  const trimmed = destination.trim();
+
+  if (isValidMuxedAccount(trimmed)) {
+    return { required: false, checked: true };
+  }
+
+  if (!isValidEd25519PublicKey(trimmed)) {
+    return { required: false, checked: false, error: 'Destination is not a directly checkable account address.' };
+  }
+
+  try {
+    const server = getServer(network);
+    const account = await server.loadAccount(trimmed);
+    const raw = (account as unknown as { data_attr?: Record<string, string> }).data_attr?.['config.memo_required'];
+    if (!raw) return { required: false, checked: true };
+    const decoded = typeof atob === 'function' ? atob(raw) : Buffer.from(raw, 'base64').toString('utf8');
+    return { required: decoded === '1', checked: true };
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      // Unfunded accounts cannot carry the SEP-29 data entry.
+      return { required: false, checked: true };
+    }
+    return {
+      required: false,
+      checked: false,
+      error: error?.message || 'Failed to check destination memo requirement.',
+    };
+  }
+}
+
 /**
  * Resolve a federated address to a Stellar account via Horizon federation endpoint
  */
@@ -1559,6 +1620,10 @@ export async function buildTransaction(
   });
 
   if (memo) {
+    const memoCheck = validateMemo(memo, 'text');
+    if (!memoCheck.valid) {
+      throw new Error(memoCheck.errors[0]);
+    }
     txBuilder.addMemo(StellarSdk.Memo.text(memo));
   }
 
@@ -1597,6 +1662,23 @@ export async function simulateTransaction(params: BuildTransactionParams): Promi
   const warnings = [...validation.warnings];
   let transaction: StellarSdk.Transaction | null = null;
   let sorobanMetrics = undefined;
+
+  if (!params.memo) {
+    const paymentDestinations = (params.operations || [])
+      .filter((op): op is PaymentOperation => op.type === 'payment' && Boolean((op as PaymentOperation).destination))
+      .map((op) => op.destination);
+
+    for (const destination of paymentDestinations) {
+      const memoCheck = await checkDestinationMemoRequirement(destination, params.network);
+      if (memoCheck.checked && memoCheck.required) {
+        warnings.push(
+          `Destination ${shortAddress(destination)} requires a memo (SEP-29). Add one before submitting or the network will reject this transaction.`
+        );
+      }
+      // Unsupported environments (federated/contract addresses, network errors)
+      // are surfaced via memoCheck.error but are non-fatal — we skip the warning.
+    }
+  }
 
   if (errors.length === 0) {
     try {
@@ -2700,6 +2782,7 @@ export default {
   isValidMuxedAccount,
   isFederatedAddress,
   parseMuxedAccount,
+  checkDestinationMemoRequirement,
   resolveFederatedAddress,
   resolveAddress,
   isValidContractId,

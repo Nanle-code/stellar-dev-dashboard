@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { fetchIssuerInfo, fetchAssetMarketData, formatXLM, shortAddress } from '../../lib/stellar';
+import { getAssetTrustlineStatus } from '../../lib/assetTrustlineValidation';
 import CopyableValue from '../dashboard/CopyableValue';
+import AssetTrustStatus from './AssetTrustStatus';
 
 export default function AssetCard({ asset, network, onClick }) {
   const [issuerInfo, setIssuerInfo] = useState(null);
@@ -11,12 +13,20 @@ export default function AssetCard({ asset, network, onClick }) {
   const [expanded, setExpanded] = useState(false);
   const { isMobile } = useResponsive();
   const { handleError } = useErrorHandler('AssetCard');
+  const trustStatus = getAssetTrustlineStatus({ issuer: asset.issuer, flags: asset.flags });
 
   useEffect(() => {
     loadAssetDetails();
   }, [asset.issuer, network]);
 
   const loadAssetDetails = async () => {
+    if (trustStatus.issuer.state !== 'valid') {
+      setIssuerInfo(null);
+      setMarketData(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       
@@ -36,6 +46,12 @@ export default function AssetCard({ asset, network, onClick }) {
   };
 
   const getVerificationBadge = () => {
+    if (trustStatus.issuer.state === 'missing') {
+      return { icon: '⛔', text: 'Missing issuer', color: 'var(--red)' };
+    }
+    if (trustStatus.issuer.state === 'invalid') {
+      return { icon: '⛔', text: 'Invalid issuer', color: 'var(--red)' };
+    }
     if (asset.is_verified || issuerInfo?.verification_level === 'domain') {
       return {
         icon: '✅',
@@ -186,9 +202,13 @@ export default function AssetCard({ asset, network, onClick }) {
             color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)'
           }}>
-            <CopyableValue value={asset.issuer} title="Copy issuer address">
-              {shortAddress(asset.issuer, 4)}
-            </CopyableValue>
+            {asset.issuer ? (
+              <CopyableValue value={asset.issuer} title="Copy issuer address">
+                {shortAddress(asset.issuer, 4)}
+              </CopyableValue>
+            ) : (
+              <span style={{ color: 'var(--red)' }}>Issuer missing</span>
+            )}
             {(asset.domain || issuerInfo?.domain) && (
               <span style={{ marginLeft: '8px', color: 'var(--cyan)' }}>
                 🌐 {asset.domain || issuerInfo?.domain}
@@ -251,26 +271,14 @@ export default function AssetCard({ asset, network, onClick }) {
       </div>
 
       {/* Asset Flags */}
-      {asset.flags && (
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '6px',
-          marginBottom: '12px'
-        }}>
-          {asset.flags.auth_required && (
-            <span style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: 'var(--amber-glow)',
-              color: 'var(--amber)',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--amber)'
-            }}>
-              AUTH_REQUIRED
-            </span>
-          )}
-          {asset.flags.auth_revocable && (
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '6px',
+        marginBottom: '12px'
+      }}>
+        <AssetTrustStatus issuer={asset.issuer} flags={asset.flags} />
+          {asset.flags?.auth_revocable && (
             <span style={{
               fontSize: '10px',
               padding: '2px 6px',
@@ -282,20 +290,7 @@ export default function AssetCard({ asset, network, onClick }) {
               AUTH_REVOCABLE
             </span>
           )}
-          {asset.flags.auth_clawback_enabled && (
-            <span style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: 'var(--red-glow)',
-              color: 'var(--red)',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--red)'
-            }}>
-              CLAWBACK_ENABLED
-            </span>
-          )}
-        </div>
-      )}
+      </div>
 
       {/* Description */}
       {(asset.description || issuerInfo?.description) && (
@@ -361,7 +356,7 @@ export default function AssetCard({ asset, network, onClick }) {
                 wordBreak: 'break-all',
                 marginTop: '2px'
               }}>
-                {asset.issuer}
+                {asset.issuer || 'Missing issuer'}
               </div>
             </div>
             

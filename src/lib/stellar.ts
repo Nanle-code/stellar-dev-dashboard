@@ -59,11 +59,52 @@ function validateSimulationParams(params: BuildTransactionParams) {
     }
   }
 
-  if (params.memo) {
-    const memoCheck = validateMemo(params.memo, 'text');
-    if (!memoCheck.valid) {
-      errors.push(memoCheck.errors[0]);
+  if (params.preconditions) {
+    if (params.preconditions.ledgerBounds) {
+      const minLedger = Number(params.preconditions.ledgerBounds.minLedger);
+      const maxLedger = Number(params.preconditions.ledgerBounds.maxLedger);
+      if (!Number.isNaN(minLedger) && minLedger < 0) {
+        errors.push('Ledger bounds minLedger cannot be negative.');
+      }
+      if (!Number.isNaN(maxLedger) && maxLedger < 0) {
+        errors.push('Ledger bounds maxLedger cannot be negative.');
+      }
+      if (!Number.isNaN(minLedger) && !Number.isNaN(maxLedger) && maxLedger > 0 && minLedger > maxLedger) {
+        errors.push('Ledger bounds minLedger cannot be greater than maxLedger.');
+      }
     }
+
+    if (params.preconditions.minSequence !== undefined && params.preconditions.minSequence !== '') {
+      const minSeq = Number(params.preconditions.minSequence);
+      if (Number.isNaN(minSeq) || minSeq < 0) {
+        errors.push('Min sequence cannot be negative.');
+      }
+    }
+
+    if (params.preconditions.minSequenceAge !== undefined && params.preconditions.minSequenceAge !== '') {
+      const age = Number(params.preconditions.minSequenceAge);
+      if (Number.isNaN(age) || age < 0) {
+        errors.push('Min sequence age cannot be negative.');
+      }
+    }
+
+    if (params.preconditions.minSequenceLedgerGap !== undefined && params.preconditions.minSequenceLedgerGap !== '') {
+      const gap = Number(params.preconditions.minSequenceLedgerGap);
+      if (Number.isNaN(gap) || gap < 0) {
+        errors.push('Min sequence ledger gap cannot be negative.');
+      }
+    }
+
+    if (params.preconditions.extraSigners) {
+      const invalid = params.preconditions.extraSigners.filter((s) => !isValidPublicKey(s));
+      if (invalid.length > 0) {
+        errors.push(`Invalid extra signer public key(s): ${invalid.join(', ')}`);
+      }
+    }
+  }
+
+  if (typeof params.memo === 'string' && params.memo.length > 28) {
+    warnings.push('Memo text may exceed the 28-character limit accepted by the Stellar network.');
   }
 
   params.operations?.forEach((op, index) => {
@@ -1914,19 +1955,31 @@ export interface TimeBounds {
   maxTime?: string | number;
 }
 
+export interface TransactionPreconditions {
+  ledgerBounds?: {
+    minLedger?: number | string;
+    maxLedger?: number | string;
+  };
+  minSequence?: number | string;
+  minSequenceAge?: number | string;
+  minSequenceLedgerGap?: number | string;
+  extraSigners?: string[];
+}
+
 export interface BuildTransactionParams {
   sourceAccount: string;
   operations: BuilderOperation[];
   memo?: string;
   baseFee: number;
   timeBounds: TimeBounds;
+  preconditions?: TransactionPreconditions;
   network: NetworkName;
 }
 
 export async function buildTransaction(
   params: BuildTransactionParams
 ): Promise<StellarSdk.Transaction> {
-  const { sourceAccount, operations, memo, baseFee, timeBounds, network } = params;
+  const { sourceAccount, operations, memo, baseFee, timeBounds, preconditions, network } = params;
   const server = getServer(network);
   const account = await server.loadAccount(sourceAccount);
 
@@ -1939,6 +1992,30 @@ export async function buildTransaction(
     txBuilder.setTimeout(
       timeBounds.maxTime ? parseInt(String(timeBounds.maxTime)) - Math.floor(Date.now() / 1000) : 0
     );
+  }
+
+  if (preconditions) {
+    if (preconditions.ledgerBounds) {
+      const minLedger = parseInt(String(preconditions.ledgerBounds.minLedger || 0), 10);
+      const maxLedger = parseInt(String(preconditions.ledgerBounds.maxLedger || 0), 10);
+      txBuilder.setLedgerbounds(minLedger, maxLedger);
+    }
+
+    if (preconditions.minSequence !== undefined && preconditions.minSequence !== '') {
+      txBuilder.setMinAccountSequence(parseInt(String(preconditions.minSequence), 10));
+    }
+
+    if (preconditions.minSequenceAge !== undefined && preconditions.minSequenceAge !== '') {
+      txBuilder.setMinAccountSequenceAge(parseInt(String(preconditions.minSequenceAge), 10));
+    }
+
+    if (preconditions.minSequenceLedgerGap !== undefined && preconditions.minSequenceLedgerGap !== '') {
+      txBuilder.setMinAccountSequenceLedgerGap(parseInt(String(preconditions.minSequenceLedgerGap), 10));
+    }
+
+    if (preconditions.extraSigners && preconditions.extraSigners.length > 0) {
+      txBuilder.setExtraSigners(preconditions.extraSigners);
+    }
   }
 
   operations.forEach((op) => {
@@ -1958,7 +2035,6 @@ export async function buildTransaction(
         })
       );
     } else if (op.type === 'invokeHostFunction') {
-      // Simplified support for invocation for simulation purposes
       txBuilder.addOperation(
         StellarSdk.Operation.invokeHostFunction({
           func: (op as any).func,

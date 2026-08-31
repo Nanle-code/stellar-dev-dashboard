@@ -22,6 +22,13 @@ export default function Builder() {
   const [memo, setMemo] = useState('')
   const [baseFee, setBaseFee] = useState('100')
   const [timeBounds, setTimeBounds] = useState({ minTime: '', maxTime: '' })
+  const [preconditions, setPreconditions] = useState({
+    ledgerBounds: { minLedger: '', maxLedger: '' },
+    minSequence: '',
+    minSequenceAge: '',
+    minSequenceLedgerGap: '',
+    extraSigners: '',
+  })
   const [sourceAccount, setSourceAccount] = useState('')
   const [simulation, setSimulation] = useState(null)
   const [isSimulating, setIsSimulating] = useState(false)
@@ -69,6 +76,16 @@ export default function Builder() {
     memo,
     baseFee: parseInt(baseFee || '100', 10),
     timeBounds,
+    preconditions: {
+      ledgerBounds: preconditions.ledgerBounds.minLedger || preconditions.ledgerBounds.maxLedger ? {
+        minLedger: preconditions.ledgerBounds.minLedger ? parseInt(preconditions.ledgerBounds.minLedger, 10) : undefined,
+        maxLedger: preconditions.ledgerBounds.maxLedger ? parseInt(preconditions.ledgerBounds.maxLedger, 10) : undefined,
+      } : undefined,
+      minSequence: preconditions.minSequence ? parseInt(preconditions.minSequence, 10) : undefined,
+      minSequenceAge: preconditions.minSequenceAge ? parseInt(preconditions.minSequenceAge, 10) : undefined,
+      minSequenceLedgerGap: preconditions.minSequenceLedgerGap ? parseInt(preconditions.minSequenceLedgerGap, 10) : undefined,
+      extraSigners: preconditions.extraSigners ? preconditions.extraSigners.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    },
     network,
   }
   const prediction = useMemo(() => predictTransactionFailure({
@@ -88,6 +105,13 @@ export default function Builder() {
     setMemo('')
     setBaseFee('100')
     setTimeBounds({ minTime: '', maxTime: '' })
+    setPreconditions({
+      ledgerBounds: { minLedger: '', maxLedger: '' },
+      minSequence: '',
+      minSequenceAge: '',
+      minSequenceLedgerGap: '',
+      extraSigners: '',
+    })
     setSourceAccount('')
     setSimulation(null)
     setError('')
@@ -157,6 +181,7 @@ export default function Builder() {
         memo,
         baseFee: parseInt(baseFee),
         timeBounds,
+        preconditions: transactionParams.preconditions,
         network
       })
       setSimulation(result)
@@ -404,6 +429,141 @@ export default function Builder() {
               placeholder="0"
               value={timeBounds.maxTime}
               onChange={(e) => setTimeBounds(prev => ({ ...prev, maxTime: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Preconditions */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', marginBottom: '12px' }}>
+          Preconditions (Optional)
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Ledger
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.ledgerBounds.minLedger}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, ledgerBounds: { ...prev.ledgerBounds, minLedger: e.target.value } }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Max Ledger
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.ledgerBounds.maxLedger}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, ledgerBounds: { ...prev.ledgerBounds, maxLedger: e.target.value } }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Sequence
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.minSequence}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, minSequence: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Sequence Age (seconds)
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.minSequenceAge}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, minSequenceAge: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Sequence Ledger Gap
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.minSequenceLedgerGap}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, minSequenceLedgerGap: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Extra Signers (comma-separated public keys)
+            </label>
+            <input
+              type="text"
+              placeholder="G..., G..."
+              value={preconditions.extraSigners}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, extraSigners: e.target.value }))}
               style={{
                 width: '100%',
                 padding: '10px 12px',

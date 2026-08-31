@@ -64,6 +64,38 @@ const tx = await buildTransaction({
 });
 ```
 
+**Throws:** if `memo` is set, it is validated against `memoType` before the transaction is assembled (see [Memo validation](#memo-validation) below) — invalid input, or a `memoType` outside `'none' | 'text' | 'id' | 'hash' | 'return'`, throws synchronously with a human-readable message instead of building a transaction the network would reject.
+
+## Memo validation
+
+`memo`/`memoType` are validated client-side by [`validateMemo`](../../src/lib/validation.ts) before submission, wired into both `transactionBuilder.js#buildTransaction` and `stellar.ts#buildTransaction`/`simulateTransaction`:
+
+| `memoType` | Accepted `memo` format                                      |
+| ---------- | ------------------------------------------------------------ |
+| `none`     | Ignored — no memo is attached.                                |
+| `text`     | Up to 28 bytes, UTF-8 encoded (not 28 *characters* — multi-byte characters count for more). |
+| `id`       | A non-negative integer string, up to `18446744073709551615` (unsigned 64-bit / `2^64 - 1`). |
+| `hash`     | Exactly 64 hex characters (32 bytes), matching what `StellarSdk.Memo.hash()` accepts. |
+| `return`   | Same format as `hash`.                                        |
+
+An empty memo is always valid regardless of type — the memo is optional unless the destination requires one (see below).
+
+### Destination memo requirements (SEP-29)
+
+Some destinations — most commonly centralized exchange deposit addresses — reject any payment that doesn't carry a memo, and require a specific one (usually `id`) to route funds internally. Per [SEP-29](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md), such accounts publish a `config.memo_required` data entry (base64 for `"1"`).
+
+`checkDestinationMemoRequirement(destination, network)` in [`stellar.ts`](../../src/lib/stellar.ts) looks up that data entry via Horizon and returns:
+
+```ts
+{ required: boolean; checked: boolean; error?: string }
+```
+
+- `checked: false` means the requirement could not be determined — the destination isn't a directly checkable `G...` account (e.g. it's a federated or contract address), or the Horizon lookup failed (offline, rate-limited, unsupported network). Treat this as "unknown," not "not required."
+- Muxed accounts (`M...`) are never flagged, since they already carry their own sub-account id.
+- An unfunded (404) destination is treated as not requiring a memo, since it cannot yet carry the data entry.
+
+Both `TransactionBuilder.tsx` and `Builder.tsx` call this (debounced, against the first payment-style destination) and show a warning banner when a memo is required but none is set; `stellar.ts#simulateTransaction` surfaces the same condition as a `warnings` entry. In every case this is a **warning, not a hard block** — the UI still lets the user submit, since the check is best-effort and the destination is the source of truth.
+
 ## `simulateTransaction(params)`
 
 Async. Builds and validates a transaction without submitting it.

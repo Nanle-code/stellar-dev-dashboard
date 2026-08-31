@@ -349,7 +349,7 @@ console.timeEnd('alert-generation');
   ```
 - [ ] No bundle bloat (sentiment module <150KB)
   ```bash
-  npm run analyze
+  npm run build:analyze
   ```
 - [ ] Features documented
 - [ ] Error logs reviewed
@@ -445,8 +445,8 @@ OVERALL: ✓ READY FOR PRODUCTION
 
 ## References
 
-- [Sentiment Types](src/types/sentiment.ts)
-- [NLP Analyzer](src/lib/sentimentAnalyzer.ts)
-- [Data Pipeline](src/lib/sentimentPipeline.ts)
-- [Sentiment Documentation](docs/SENTIMENT_ANALYSIS.md)
-- [Test Suite](tests/unit/sentimentAnalysis.test.ts)
+- [Sentiment Types](../src/types/sentiment.ts)
+- [NLP Analyzer](../src/lib/sentimentAnalyzer.ts)
+- [Data Pipeline](../src/lib/sentimentPipeline.ts)
+- [Sentiment Documentation](./SENTIMENT_ANALYSIS.md)
+- [Test Suite](../tests/unit/sentimentAnalysis.test.ts)

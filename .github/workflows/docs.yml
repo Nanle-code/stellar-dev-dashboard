@@ -142,7 +142,7 @@ jobs:
           cache-dependency-path: docs-site/package.json
 
       - name: Install Docusaurus dependencies
-        run: npm ci
+        run: npm install
         working-directory: docs-site
 
       - name: Build Docusaurus site

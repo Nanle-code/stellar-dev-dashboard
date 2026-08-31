@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 jobs:
   lint:
@@ -56,11 +56,13 @@ jobs:
         run: npm run type-check
 
   test:
-    name: Unit & Integration Tests
+    name: Unit & Integration Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: ['18', '20']
+        # Test every supported release line: minimum LTS, latest LTS, and Current.
+        node-version: ['22', '24', '26']
     steps:
       - uses: actions/checkout@v7
 
@@ -71,11 +73,17 @@ jobs:
 
       - run: npm ci
 
+      - name: Verify supported runtime
+        run: npm run check:node
+
+      - name: Test Node support policy boundaries
+        run: npm run test:node-support
+
       - name: Run unit tests with coverage
         run: npm run test:coverage
 
       - name: Upload coverage report
-        if: matrix.node-version == '20'
+        if: matrix.node-version == '24'
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage/lcov.info

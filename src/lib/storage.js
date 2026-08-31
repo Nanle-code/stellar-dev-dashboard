@@ -6,12 +6,20 @@
  *   - getCachedApiResponse / setCachedApiResponse  (TTL-aware API cache in IDB)
  *   - getOfflineQueue / enqueueOfflineOp / dequeueOfflineOp  (offline write queue)
  *   - storageStats  (size estimates)
+ *   - evictSafeCacheEntries  (frees space by dropping expendable API cache rows)
+ *
+ * Quota handling: writes that fail with a storage quota error (see storageQuota.js)
+ * trigger one round of eviction of "safe" (re-fetchable) API cache entries, then
+ * retry once. If the write still fails, it falls back the same way a non-quota
+ * failure would, and `notifyQuotaExceeded` fires so the UI can inform the user.
  */
+
+import { isQuotaExceededError, selectEvictionCandidates, notifyQuotaExceeded } from './storageQuota.js';
 
 // ─── DB config ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'stellar-dev-dashboard';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 const STORES = {
   APP_STATE:  'app-state',    // Zustand persistence
@@ -19,6 +27,16 @@ const STORES = {
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
   CONTRACT_HISTORY: 'contract-history', // Contract interactions
   BIOMETRIC_PROFILES: 'biometric-profiles', // Behavioral biometrics profiles
+  META: '__meta__', // Schema metadata and migration tracking
+};
+
+const CURRENT_SCHEMA_VERSION = 5;
+
+const MIGRATIONS = {
+  4: async (db) => {
+    const meta = db.transaction(STORES.META, 'readwrite').objectStore(STORES.META);
+    meta.put({ key: 'schemaVersion', value: 5 });
+  },
 };
 
 // ─── DB open ──────────────────────────────────────────────────────────────────
@@ -33,6 +51,7 @@ function openDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      const oldVersion = event.oldVersion;
 
       if (!db.objectStoreNames.contains(STORES.APP_STATE)) {
         db.createObjectStore(STORES.APP_STATE);
@@ -60,6 +79,14 @@ function openDB() {
         store.createIndex('lastUpdated', 'lastUpdated', { unique: false });
         store.createIndex('sampleCount', 'sampleCount', { unique: false });
       }
+
+      if (!db.objectStoreNames.contains(STORES.META)) {
+        db.createObjectStore(STORES.META, { keyPath: 'key' });
+      }
+
+      if (oldVersion < CURRENT_SCHEMA_VERSION && MIGRATIONS[oldVersion]) {
+        MIGRATIONS[oldVersion](db);
+      }
     };
 
     request.onsuccess = () => {
@@ -77,6 +104,25 @@ function openDB() {
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('IndexedDB blocked'));
   });
+}
+
+// ─── Schema version helpers ────────────────────────────────────────────────────
+
+export async function getSchemaVersion() {
+  try {
+    const record = await tx(STORES.META, 'readonly', (s) => s.get('schemaVersion'));
+    return record?.value ?? CURRENT_SCHEMA_VERSION;
+  } catch {
+    return CURRENT_SCHEMA_VERSION;
+  }
+}
+
+export async function setSchemaVersion(version) {
+  try {
+    await tx(STORES.META, 'readwrite', (s) => s.put({ key: 'schemaVersion', value: version }));
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Generic transaction helper ───────────────────────────────────────────────
@@ -97,6 +143,66 @@ async function tx(storeName, mode, fn) {
   });
 }
 
+// ─── Quota-aware write recovery ────────────────────────────────────────────────
+
+/**
+ * Free up space by evicting expendable API cache entries: expired rows first,
+ * then the oldest still-alive rows. Safe to call any time — the API cache is
+ * re-fetchable, so evicted entries just become cache misses.
+ *
+ * @param {number} [maxEntries] Upper bound on how many entries to remove
+ * @returns {Promise<number>} Number of entries actually evicted
+ */
+export async function evictSafeCacheEntries(maxEntries = 50) {
+  try {
+    const db    = await openDB();
+    const trans = db.transaction(STORES.API_CACHE, 'readwrite');
+    const store = trans.objectStore(STORES.API_CACHE);
+
+    const all = await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror   = () => reject(req.error);
+    });
+
+    const toEvict = selectEvictionCandidates(all, maxEntries);
+    for (const entry of toEvict) store.delete(entry.key);
+
+    return toEvict.length;
+  } catch {
+    // Unsupported environment, or the eviction transaction itself failed —
+    // report zero freed so callers know recovery didn't happen.
+    return 0;
+  }
+}
+
+/**
+ * Run a readwrite IndexedDB transaction, and if it fails with a quota error,
+ * evict safe cache entries and retry once. Notifies subscribers either way so
+ * the UI can explain what happened. Non-quota errors are rethrown immediately.
+ *
+ * @param {string} storeName
+ * @param {(store: IDBObjectStore) => IDBRequest|void} fn
+ * @param {{ store: string, key?: string }} context
+ */
+async function writeWithQuotaRecovery(storeName, fn, context) {
+  try {
+    return await tx(storeName, 'readwrite', fn);
+  } catch (err) {
+    if (!isQuotaExceededError(err)) throw err;
+
+    const evictedCount = await evictSafeCacheEntries();
+    try {
+      const result = await tx(storeName, 'readwrite', fn);
+      notifyQuotaExceeded({ ...context, recovered: true, evictedCount });
+      return result;
+    } catch (retryErr) {
+      notifyQuotaExceeded({ ...context, recovered: false, evictedCount });
+      throw retryErr;
+    }
+  }
+}
+
 // ─── App-state store (Zustand persistence) ───────────────────────────────────
 
 export async function getStoredValue(key) {
@@ -113,9 +219,15 @@ export async function getStoredValue(key) {
 
 export async function setStoredValue(key, value) {
   try {
-    await tx(STORES.APP_STATE, 'readwrite', (s) => s.put(value, key));
+    await writeWithQuotaRecovery(STORES.APP_STATE, (s) => s.put(value, key), { store: STORES.APP_STATE, key });
   } catch {
-    try { localStorage.setItem(`idb:${key}`, JSON.stringify(value)); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(`idb:${key}`, JSON.stringify(value));
+    } catch (lsErr) {
+      if (isQuotaExceededError(lsErr)) {
+        notifyQuotaExceeded({ store: STORES.APP_STATE, key, recovered: false, evictedCount: 0, fallback: 'localStorage' });
+      }
+    }
   }
 }
 
@@ -163,8 +275,8 @@ export async function getCachedApiResponse(key) {
 export async function setCachedApiResponse(key, value, ttl, tag = '') {
   try {
     const record = { key, value, expiresAt: Date.now() + ttl, tag, cachedAt: Date.now() };
-    await tx(STORES.API_CACHE, 'readwrite', (s) => s.put(record));
-  } catch { /* ignore */ }
+    await writeWithQuotaRecovery(STORES.API_CACHE, (s) => s.put(record), { store: STORES.API_CACHE, key });
+  } catch { /* ignore — the API cache is expendable; a dropped write is just a future cache miss */ }
 }
 
 /**

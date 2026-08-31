@@ -15,9 +15,10 @@ const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
 
 function AppLoadingFallback() {
   return (
-    <div
-      role="status"
-      aria-live="polite"
+    <main
+      id="main-content"
+      role="main"
+      aria-label="Dashboard content"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -34,7 +35,7 @@ function AppLoadingFallback() {
           Fetching the dashboard bundle so the app can render faster.
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 

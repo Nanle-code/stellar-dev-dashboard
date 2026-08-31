@@ -91,6 +91,7 @@ const sidebars = {
         'guides/developer-toolkit',
         'guides/error-handling',
         'guides/rate-limiting',
+        'guides/horizon-pagination',
         'guides/offline-support',
         'guides/advanced-tutorials',
         'guides/wallet-connection-troubleshooting',

@@ -13,6 +13,7 @@ import {
   calculateImpermanentLoss,
   buildILCurve,
 } from "../../lib/defiAnalytics";
+import { estimateLiquidityPosition, isLiquidityPoolNetworkSupported } from "../../lib/liquidityPosition";
 import type { LiquidityPool, LiquidityPosition } from "./types";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine,
@@ -224,7 +225,12 @@ function TabButton({ active, onClick, icon, label }: { active: boolean; onClick:
 
 // ─── Deposit Tab ──────────────────────────────────────────────────────────────
 
-function DepositWithdrawPanel({ pool, connectedAddress }: { pool: LiquidityPool | null; connectedAddress: string }) {
+function DepositWithdrawPanel({ pool, position, connectedAddress, network }: {
+  pool: LiquidityPool | null;
+  position?: LiquidityPosition;
+  connectedAddress: string;
+  network: string;
+}) {
   const [mode, setMode] = useState<"deposit" | "withdraw">("deposit");
   const [deposit, setDeposit] = useState<DepositForm>({
     maxAmountA: "",
@@ -240,6 +246,16 @@ function DepositWithdrawPanel({ pool, connectedAddress }: { pool: LiquidityPool 
     minAmountB: "0",
   });
   const [copied, setCopied] = useState(false);
+  const withdrawalEstimate = pool && position
+    ? estimateLiquidityPosition({
+        network,
+        positionShares: position.shares ?? position.balance ?? "0",
+        totalShares: pool.totalShares,
+        reserveA: pool.reserveA,
+        reserveB: pool.reserveB,
+        withdrawalShares: withdraw.shares,
+      })
+    : null;
 
   function buildDepositXDR(): string {
     if (!pool) return "";
@@ -254,7 +270,7 @@ function DepositWithdrawPanel({ pool, connectedAddress }: { pool: LiquidityPool 
   }
 
   function buildWithdrawXDR(): string {
-    if (!pool) return "";
+    if (!pool || !withdrawalEstimate?.ok) return "";
     return [
       `Operation: LiquidityPoolWithdraw`,
       `Pool ID: ${pool.id}`,
@@ -376,17 +392,59 @@ function DepositWithdrawPanel({ pool, connectedAddress }: { pool: LiquidityPool 
               placeholder="0"
             />
           </div>
+          {!position && (
+            <div style={{ color: "var(--amber)", fontSize: "12px", marginBottom: "12px" }}>
+              No LP share balance is available for this pool.
+            </div>
+          )}
+          {withdrawalEstimate && !withdrawalEstimate.ok && (
+            <div role="alert" style={{ color: "var(--red)", fontSize: "12px", marginBottom: "12px" }}>
+              {withdrawalEstimate.message}
+            </div>
+          )}
+          {withdrawalEstimate?.ok && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "12px" }}>
+              <Stat label={`Est. ${pool.assetCodeA} received`} value={formatNumber(withdrawalEstimate.value.withdrawalA)} />
+              <Stat label={`Est. ${pool.assetCodeB} received`} value={formatNumber(withdrawalEstimate.value.withdrawalB)} />
+              <Stat label="Pool reserve impact" value={`${formatNumber(withdrawalEstimate.value.poolReserveImpactPercent, 5)}%`} />
+              <Stat label="Remaining LP shares" value={formatNumber(withdrawalEstimate.value.remainingShares)} />
+              <Stat label={`Remaining ${pool.assetCodeA}`} value={formatNumber(withdrawalEstimate.value.remainingUnderlyingA)} />
+              <Stat label={`Remaining ${pool.assetCodeB}`} value={formatNumber(withdrawalEstimate.value.remainingUnderlyingB)} />
+            </div>
+          )}
           <div style={{ background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)", padding: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-secondary)", marginBottom: "12px", whiteSpace: "pre-wrap" }}>
             {buildWithdrawXDR()}
           </div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "10px" }}>
             Copy the parameters above and use the Transaction Builder to submit your withdrawal.
           </div>
-          <button onClick={handleCopy} style={buttonStyle(false)}>
+          <button onClick={handleCopy} disabled={!withdrawalEstimate?.ok} style={buttonStyle(!withdrawalEstimate?.ok)}>
             {copied ? "Copied!" : "Copy Params"}
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function PositionSummary({ pool, position, network }: { pool: LiquidityPool; position: LiquidityPosition; network: string }) {
+  const estimate = estimateLiquidityPosition({
+    network,
+    positionShares: position.shares ?? position.balance ?? "0",
+    totalShares: pool.totalShares,
+    reserveA: pool.reserveA,
+    reserveB: pool.reserveB,
+    withdrawalShares: 0,
+  });
+  if (!estimate.ok) {
+    return <div role="alert" style={{ color: "var(--amber)", fontSize: "12px" }}>{estimate.message}</div>;
+  }
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
+      <Stat label="LP Shares" value={formatNumber(position.shares ?? position.balance ?? "0", 7)} />
+      <Stat label="Pool Ownership" value={`${formatNumber(estimate.value.ownershipPercent, 5)}%`} />
+      <Stat label={`Est. ${pool.assetCodeA} owned`} value={formatNumber(estimate.value.underlyingA)} />
+      <Stat label={`Est. ${pool.assetCodeB} owned`} value={formatNumber(estimate.value.underlyingB)} />
     </div>
   );
 }
@@ -610,6 +668,7 @@ export default function LiquidityPools() {
   const [accountLoading, setAccountLoading] = useState(false);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [error, setError] = useState("");
+  const [accountError, setAccountError] = useState("");
 
   const selectedPool = useMemo<LiquidityPool | null>(
     () => pools.find((pool) => pool.id === selectedPoolId) || pools[0] || null,
@@ -619,6 +678,13 @@ export default function LiquidityPools() {
   async function loadPools(nextA = assetA, nextB = assetB) {
     setLoading(true);
     setError("");
+    if (!isLiquidityPoolNetworkSupported(network)) {
+      setError(`Liquidity pools are not supported on the ${network} environment.`);
+      setPools([]);
+      setSelectedPoolId(null);
+      setLoading(false);
+      return;
+    }
     try {
       const records: LiquidityPool[] = await fetchLiquidityPoolsByAssetPair(nextA.trim(), nextB.trim(), network, 20);
       setPools(records);
@@ -633,9 +699,16 @@ export default function LiquidityPools() {
   }
 
   async function loadAccountPools(poolId?: string | null) {
+    setAccountError("");
     if (!connectedAddress) {
       setPositions([]);
       setHistory([]);
+      return;
+    }
+    if (!isLiquidityPoolNetworkSupported(network)) {
+      setPositions([]);
+      setHistory([]);
+      setAccountError(`Account liquidity positions are unavailable on the ${network} environment.`);
       return;
     }
     setAccountLoading(true);
@@ -646,9 +719,10 @@ export default function LiquidityPools() {
       ]);
       setPositions(nextPositions);
       setHistory(nextHistory);
-    } catch {
+    } catch (err: unknown) {
       setPositions([]);
       setHistory([]);
+      setAccountError(err instanceof Error ? err.message : "Failed to load account liquidity positions.");
     } finally {
       setAccountLoading(false);
     }
@@ -807,18 +881,14 @@ export default function LiquidityPools() {
 
                 <div style={{ borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
                   <PanelHeader title="Your Position" detail={accountLoading ? "Refreshing" : connectedAddress ? "Connected" : "No wallet"} compact />
+                  {accountError && <div role="alert" style={{ color: "var(--red)", fontSize: "12px", marginBottom: "8px" }}>{accountError}</div>}
                   {!connectedAddress && <EmptyState text="Connect an account to show LP shares and history." />}
-                  {connectedAddress && positions.filter((p: LiquidityPosition) => p.poolId === selectedPool.id).length === 0 && (
+                  {connectedAddress && !accountError && positions.filter((p: LiquidityPosition) => p.poolId === selectedPool.id).length === 0 && (
                     <EmptyState text="No LP shares for this pool on the connected account." />
                   )}
                   {positions
                     .filter((p: LiquidityPosition) => p.poolId === selectedPool.id)
-                    .map((p: LiquidityPosition) => (
-                      <div key={p.poolId} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                        <Stat label="LP Shares" value={formatNumber(p.shares || p.balance || "0", 7)} />
-                        <Stat label="Pool Ownership" value={`${formatNumber(p.sharePercent, 5)}%`} />
-                      </div>
-                    ))}
+                    .map((p: LiquidityPosition) => <PositionSummary key={p.poolId} pool={selectedPool} position={p} network={network} />)}
                 </div>
               </div>
             )}
@@ -865,7 +935,12 @@ export default function LiquidityPools() {
       )}
 
       {activeTab === "manage" && (
-        <DepositWithdrawPanel pool={selectedPool} connectedAddress={connectedAddress || ""} />
+        <DepositWithdrawPanel
+          pool={selectedPool}
+          position={positions.find((position) => position.poolId === selectedPool?.id)}
+          connectedAddress={connectedAddress || ""}
+          network={network}
+        />
       )}
 
       {activeTab === "calculator" && (

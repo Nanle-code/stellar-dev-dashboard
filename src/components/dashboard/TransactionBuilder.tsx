@@ -7,10 +7,148 @@ import {
   getCachedUserTransactionTemplates,
   upsertUserTransactionTemplate,
 } from "../../lib/transactionTemplateVault.ts";
-import { fetchContractData } from "../../lib/stellar";
+import { fetchContractData, checkDestinationMemoRequirement } from "../../lib/stellar";
+import { validateMemo } from "../../lib/validation";
+import { fetchContractData, resolveFederatedAddress } from "../../lib/stellar";
 import { useTransactionHistory } from "../../lib/txHistory";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
 import { useExpertise } from "../../context/ExpertiseContext";
+
+function FederatedAddressInput({ value, onChange, placeholder, style, network, hasError }) {
+  const [inputValue, setInputValue] = useState(value);
+  const [resolvedData, setResolvedData] = useState(null);
+  const [isResolving, setIsResolving] = useState(false);
+  const [error, setError] = useState(null);
+  const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (value !== inputValue && !confirmed) {
+      setInputValue(value || "");
+      setConfirmed(false);
+      setResolvedData(null);
+      setError(null);
+    }
+  }, [value]);
+
+  async function handleResolve(e) {
+    e.preventDefault();
+    if (!inputValue.includes('*')) return;
+    setIsResolving(true);
+    setError(null);
+    try {
+      const result = await resolveFederatedAddress(inputValue, network);
+      if (result && (result.account_id || result.accountId)) {
+        setResolvedData(result);
+      } else {
+        setError("Could not resolve address");
+      }
+    } catch (e) {
+      setError(e.message || "Resolution failed");
+    } finally {
+      setIsResolving(false);
+    }
+  }
+
+  function handleConfirm(e) {
+    e.preventDefault();
+    if (resolvedData) {
+      setConfirmed(true);
+      const address = resolvedData.account_id || resolvedData.accountId;
+      onChange(address);
+      setInputValue(address);
+      setResolvedData(null);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <input 
+          value={inputValue}
+          onChange={(e) => {
+             setInputValue(e.target.value);
+             setConfirmed(false);
+             setResolvedData(null);
+             setError(null);
+             onChange(e.target.value);
+          }}
+          placeholder={placeholder}
+          style={{ ...style, flex: 1, ...(hasError ? { borderColor: 'var(--red)' } : {}) }}
+        />
+        {inputValue.includes('*') && !confirmed && !resolvedData && (
+          <button onClick={handleResolve} disabled={isResolving} style={{ padding: '0 12px', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '12px', cursor: 'pointer' }}>
+            {isResolving ? '...' : 'Resolve'}
+          </button>
+        )}
+      </div>
+      {error && <div style={{ color: 'var(--red)', fontSize: '11px' }}>{error}</div>}
+      {resolvedData && !confirmed && (
+        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--cyan)', padding: '8px', borderRadius: '4px', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Resolved: </span>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{resolvedData.account_id || resolvedData.accountId}</span>
+          </div>
+          <button onClick={handleConfirm} style={{ background: 'var(--cyan)', color: 'var(--bg-base)', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+            Confirm
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimeboundsPreset({ timeout, setTimeout }) {
+  const absoluteTime = useMemo(() => {
+    const s = parseInt(timeout);
+    if (isNaN(s)) return null;
+    return new Date(Date.now() + s * 1000);
+  }, [timeout]);
+
+  const isExpired = absoluteTime ? absoluteTime.getTime() <= Date.now() : false;
+  const isTooShort = absoluteTime ? absoluteTime.getTime() <= Date.now() + 60000 : false; // < 1 min warning
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {[
+          { label: '5m', val: '300' },
+          { label: '15m', val: '900' },
+          { label: '1h', val: '3600' },
+          { label: '1d', val: '86400' },
+        ].map((preset) => (
+          <button
+            key={preset.label}
+            onClick={() => setTimeout(preset.val)}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              borderRadius: '4px',
+              border: timeout === preset.val ? '1px solid var(--cyan)' : '1px solid var(--border)',
+              background: timeout === preset.val ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
+              color: timeout === preset.val ? 'var(--cyan)' : 'var(--text-secondary)',
+              cursor: 'pointer'
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+      {absoluteTime && (
+        <div style={{ 
+          fontSize: '11px', 
+          color: isExpired || isTooShort ? 'var(--red)' : 'var(--text-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
+        }}>
+          {isExpired || isTooShort ? <AlertCircle size={12} /> : null}
+          Expires at {absoluteTime.toLocaleTimeString()} {isExpired ? '(Expired)' : isTooShort ? '(Too short!)' : ''}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function Panel({ title, subtitle, children }) {
   return (
@@ -144,7 +282,7 @@ export default function TransactionBuilder() {
   const [memo, setMemo] = useState("");
   const [memoType, setMemoType] = useState("text");
   const [baseFee, setBaseFee] = useState("100");
-  const [timeout, setTimeout] = useState("180");
+  const [timeout, setTimeout] = useState("300");
   const [operations, setOperations] = useState([
     {
       id: Date.now(),
@@ -164,6 +302,7 @@ export default function TransactionBuilder() {
   const [inspectContractError, setInspectContractError] = useState("");
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
   const [draftsList, setDraftsList] = useState([]);
+  const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null, destination: null });
 
   function addOperation() {
     setOperations([
@@ -286,8 +425,56 @@ export default function TransactionBuilder() {
     return errors;
   }, [operations]);
 
+  const memoValidation = useMemo(() => validateMemo(memo, memoType), [memo, memoType]);
+
+  // First payment-style destination in the operation list, used for the
+  // SEP-29 "memo required" destination check below.
+  const primaryDestination = useMemo(() => {
+    const op = operations.find(
+      (o) => ["payment", "pathPaymentStrictSend", "pathPaymentStrictReceive", "accountMerge"].includes(o.type) && o.params?.destination,
+    );
+    return op?.params?.destination || "";
+  }, [operations]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!primaryDestination || !primaryDestination.trim()) {
+      setMemoRequirement({ checking: false, required: false, error: null, destination: null });
+      return;
+    }
+
+    setMemoRequirement((current) => ({ ...current, checking: true }));
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await checkDestinationMemoRequirement(primaryDestination.trim(), network);
+        if (cancelled) return;
+        setMemoRequirement({
+          checking: false,
+          required: Boolean(result.checked && result.required),
+          error: result.checked ? null : result.error || "Unable to verify this destination's memo requirement.",
+          destination: primaryDestination.trim(),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setMemoRequirement({
+          checking: false,
+          required: false,
+          error: error?.message || "Unable to verify this destination's memo requirement.",
+          destination: primaryDestination.trim(),
+        });
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [primaryDestination, network]);
+
+  const memoRequiredWarning = memoRequirement.required && !memo;
+
   const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
-  const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && (sourceAccount || feeBumpOnly);
+  const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && memoValidation.valid && (sourceAccount || feeBumpOnly);
   
   // Transaction history (undo/redo) + drafts
   const getSnapshot = () => ({
@@ -304,7 +491,7 @@ export default function TransactionBuilder() {
     setMemo(snap.memo || "");
     setMemoType(snap.memoType || "text");
     setBaseFee(snap.baseFee || "100");
-    setTimeout(snap.timeout || "180");
+    setTimeout(snap.timeout || "300");
     setOperations((snap.operations || []).map((op) => ({ ...op, id: op.id || Date.now() + Math.random() })));
   }
 
@@ -401,13 +588,15 @@ export default function TransactionBuilder() {
         return (
           <>
             <LabeledField label="Destination">
-              <input
+              <FederatedAddressInput
                 value={op.params.destination || ""}
-                onChange={(e) =>
-                  updateOperation(op.id, "destination", e.target.value)
+                onChange={(val) =>
+                  updateOperation(op.id, "destination", val)
                 }
-                placeholder="G... destination address"
+                placeholder="G... destination address (or name*domain)"
                 style={textInputStyle(hasErrors)}
+                network={network}
+                hasError={hasErrors}
               />
             </LabeledField>
             <LabeledField label="Amount">
@@ -427,13 +616,15 @@ export default function TransactionBuilder() {
         return (
           <>
             <LabeledField label="Destination">
-              <input
+              <FederatedAddressInput
                 value={op.params.destination || ""}
-                onChange={(e) =>
-                  updateOperation(op.id, "destination", e.target.value)
+                onChange={(val) =>
+                  updateOperation(op.id, "destination", val)
                 }
-                placeholder="G... new account address"
+                placeholder="G... new account address (or name*domain)"
                 style={textInputStyle(hasErrors)}
+                network={network}
+                hasError={hasErrors}
               />
             </LabeledField>
             <LabeledField label="Starting Balance">
@@ -463,13 +654,15 @@ export default function TransactionBuilder() {
               />
             </LabeledField>
             <LabeledField label="Asset Issuer">
-              <input
+              <FederatedAddressInput
                 value={op.params.assetIssuer || ""}
-                onChange={(e) =>
-                  updateOperation(op.id, "assetIssuer", e.target.value)
+                onChange={(val) =>
+                  updateOperation(op.id, "assetIssuer", val)
                 }
-                placeholder="G... issuer address"
+                placeholder="G... issuer address (or name*domain)"
                 style={textInputStyle(hasErrors)}
+                network={network}
+                hasError={hasErrors}
               />
             </LabeledField>
             <LabeledField label="Limit (optional)">
@@ -488,13 +681,15 @@ export default function TransactionBuilder() {
       case "accountMerge":
         return (
           <LabeledField label="Destination">
-            <input
+            <FederatedAddressInput
               value={op.params.destination || ""}
-              onChange={(e) =>
-                updateOperation(op.id, "destination", e.target.value)
+              onChange={(val) =>
+                updateOperation(op.id, "destination", val)
               }
-              placeholder="G... merge destination"
+              placeholder="G... merge destination (or name*domain)"
               style={textInputStyle(hasErrors)}
+              network={network}
+              hasError={hasErrors}
             />
           </LabeledField>
         );
@@ -983,11 +1178,13 @@ export default function TransactionBuilder() {
       <Panel title="Transaction Settings" subtitle="Configure source account and transaction parameters">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "14px" }}>
           <LabeledField label="Source Account">
-            <input
+            <FederatedAddressInput
               value={sourceAccount}
-              onChange={(e) => setSourceAccount(e.target.value)}
-              placeholder={connectedAddress || "G... source account"}
+              onChange={(val) => setSourceAccount(val)}
+              placeholder={connectedAddress || "G... source account (or name*domain)"}
               style={textInputStyle(!sourceAccount && !feeBumpOnly)}
+              network={network}
+              hasError={!sourceAccount && !feeBumpOnly}
             />
             {feeBumpOnly && (
               <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }}>
@@ -1011,9 +1208,10 @@ export default function TransactionBuilder() {
               type="number"
               value={timeout}
               onChange={(e) => setTimeout(e.target.value)}
-              placeholder="180"
+              placeholder="300"
               style={textInputStyle()}
             />
+            <TimeboundsPreset timeout={timeout} setTimeout={setTimeout} />
           </LabeledField>
 
           <LabeledField label="Memo Type">
@@ -1033,11 +1231,46 @@ export default function TransactionBuilder() {
             <input
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="Optional memo"
-              style={textInputStyle()}
+              placeholder={
+                memoType === "id"
+                  ? "Optional memo (unsigned integer)"
+                  : memoType === "hash" || memoType === "return"
+                  ? "Optional memo (64 hex characters)"
+                  : "Optional memo"
+              }
+              style={textInputStyle(!memoValidation.valid)}
             />
+            {!memoValidation.valid && (
+              <div style={{ fontSize: "11px", color: "var(--red)", marginTop: "4px" }}>
+                {memoValidation.errors[0]}
+              </div>
+            )}
           </LabeledField>
         </div>
+
+        {memoRequiredWarning && (
+          <div style={{
+            marginTop: "14px",
+            padding: "10px 14px",
+            background: "var(--amber-glow)",
+            border: "1px solid var(--amber)",
+            borderRadius: "var(--radius-md)",
+            fontSize: "12px",
+            color: "var(--amber)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}>
+            <AlertCircle size={14} />
+            This destination requires a memo (SEP-29). Transactions without one will be rejected by the network — add a memo above before submitting.
+          </div>
+        )}
+
+        {memoRequirement.error && !memoRequirement.checking && (
+          <div style={{ marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>
+            Memo requirement for this destination could not be verified ({memoRequirement.error}). Double-check with the recipient if unsure.
+          </div>
+        )}
       </Panel>
 
       {/* Visual Flow Diagram */}

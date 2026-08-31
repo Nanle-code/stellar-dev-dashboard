@@ -30,21 +30,21 @@ const LEVEL_CONFIG: Record<ExpertiseLevel, LevelConfig> = {
   novice: {
     label: 'Novice',
     icon: '🌱',
-    color: '#22c55e',
+    color: '#15803d',
     bgColor: 'rgba(34, 197, 94, 0.12)',
     borderColor: 'rgba(34, 197, 94, 0.3)',
   },
   intermediate: {
     label: 'Intermediate',
     icon: '⚡',
-    color: '#f59e0b',
+    color: '#b45309',
     bgColor: 'rgba(245, 158, 11, 0.12)',
     borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   expert: {
     label: 'Expert',
     icon: '👑',
-    color: '#8b5cf6',
+    color: '#6d28d9',
     bgColor: 'rgba(139, 92, 246, 0.12)',
     borderColor: 'rgba(139, 92, 246, 0.3)',
   },
@@ -128,11 +128,13 @@ export default function ExpertiseBadge({
       {/* Badge button */}
       <button
         ref={badgeRef}
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="expertise-badge-trigger"
         aria-label={`Expertise level: ${config.label}. Click to change.`}
         aria-expanded={isOpen}
-        aria-haspopup="true"
+        aria-haspopup="menu"
+        aria-controls="expertise-badge-menu"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -167,26 +169,29 @@ export default function ExpertiseBadge({
       </button>
 
       {/* Dropdown */}
-      {isOpen && (
-        <div
-          ref={dropdownRef}
-          className="expertise-badge-dropdown"
-          role="menu"
-          style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            marginTop: '4px',
-            minWidth: '240px',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
-            zIndex: 1200,
-            overflow: 'hidden',
-          }}
-        >
-          {/* Current level info */}
+      <div
+        id="expertise-badge-menu"
+        ref={dropdownRef}
+        className="expertise-badge-dropdown"
+        role="menu"
+        hidden={!isOpen}
+        style={{
+          display: isOpen ? 'block' : 'none',
+          position: 'absolute',
+          top: '100%',
+          right: 0,
+          marginTop: '4px',
+          minWidth: '240px',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+          zIndex: 1200,
+          overflow: 'hidden',
+          animation: 'var(--fade-in, fadeIn 0.15s ease)',
+        }}
+      >
+        {/* Current level info */}
           <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
               <span style={{ fontSize: '24px' }}>{config.icon}</span>
@@ -347,7 +352,6 @@ export default function ExpertiseBadge({
             AI-powered expertise detection v1.0
           </div>
         </div>
-      )}
     </>
   );
 }

@@ -94,6 +94,7 @@ const sidebars = {
         'guides/horizon-pagination',
         'guides/offline-support',
         'guides/advanced-tutorials',
+        'guides/wallet-connection-troubleshooting',
         'guides/troubleshooting',
       ],
     },

@@ -74,8 +74,6 @@ const { transaction, prediction } = await integration.predictFeeForTransaction({
 
 ### Configuration
 
-
-
 ## ML Training Pipeline
 
 The ML training pipeline is configured as follows:
@@ -89,6 +87,7 @@ npm run ml:server
 ```
 
 The training uses historical transaction data to train:
+
 1. Isolation Forest for anomaly detection
 2. TensorFlow.js classifier for pattern recognition
 3. Fee-specific prediction models
@@ -108,11 +107,41 @@ npm run test:integration
 npm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
 ```
 
+## Ledger Hardware Wallet Support
+
+The dashboard supports Ledger signing in Chromium-based browsers through WebUSB/WebHID. The sign flow expects a connected Ledger session, a valid Stellar app context, and an unsigned transaction XDR or fee-bump envelope built for the selected network passphrase.
+
+### Compatibility
+
+- Supported: Chrome, Edge, and other Chromium browsers with WebUSB/WebHID enabled
+- Required: Ledger device unlocked and "Stellar" app open
+- Not supported: Firefox and Safari for native Ledger connection
+
+### Security notes
+
+- The app validates that the XDR is parseable and the network passphrase is set before attempting a device interaction.
+- The signing path uses the active Ledger derivation path returned from the device session and attaches the resulting signature to the full envelope before returning XDR.
+- Reject/recovery errors are surfaced in a user-friendly way instead of leaking raw Ledger transport details.
+
 ## Development
+
+### Node.js support
+
+This project supports Node.js **22 through 26**. Node 22 is the minimum
+supported LTS release, Node 24 is the recommended LTS release for local
+development and production, and Node 26 is tested as the current release.
+Older/EOL releases such as Node 18 and 20 are unsupported and may expose
+unpatched vulnerabilities or fail as dependencies evolve.
+
+Use `npm run check:node` to validate the active runtime. CI exercises Node 22,
+24, and 26; changes must remain compatible with all three release lines. When
+Node changes its active release schedule, update `package.json` engines, the CI
+matrix, and `scripts/node-version-policy.mjs` together.
 
 ### Adding New Prediction Models
 
 Create a new model by:
+
 1. Implementing `FeeModel` interface in `src/lib/feePredictor.ts`
 2. Adding it to the `FeePredictor` class
 3. Registering it in the model registry
@@ -127,6 +156,19 @@ Create a new model by:
 ### API Extensions
 
 Add new endpoints by:
+
 1. Creating new routes in `api/routes/transactions.js`
 2. Implementing handlers in `src/lib/feePredictionIntegration.ts`
 3. Updating TypeScript definitions in TypeScript types
+
+## API Authentication Boundaries
+
+The server-side API uses a narrow trust boundary for user-specific and operational data:
+
+- `Authorization: Bearer <token>` is required on all protected endpoints.
+- Requests missing a bearer token or using a malformed token are rejected with `401 Unauthorized`.
+- Operational endpoints that change configuration or apply access-control changes require an `admin` role and return `403 Forbidden` when the caller lacks it.
+- Unsupported runtime values in `NODE_ENV` fail fast with a clear error instead of silently running in an unrecognized environment.
+- Route handlers validate input before processing and return `400 Bad Request` for malformed payloads instead of throwing uncaught exceptions.
+
+This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.

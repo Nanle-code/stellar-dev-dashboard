@@ -1,4 +1,6 @@
 import express from 'express';
+import { requireRole } from '../middleware/auth.js';
+
 export const router = express.Router();
 
 let thresholdsStore = [];
@@ -123,11 +125,11 @@ router.get('/gas/metrics', async (req, res) => {
   }
 });
 
-router.get('/gas/thresholds', async (req, res) => {
+router.get('/gas/thresholds', requireRole('admin', 'api_user'), async (req, res) => {
   res.json(thresholdsStore);
 });
 
-router.post('/gas/thresholds', async (req, res) => {
+router.post('/gas/thresholds', requireRole('admin'), async (req, res) => {
   try {
     const { thresholds } = req.body;
     if (!Array.isArray(thresholds)) {

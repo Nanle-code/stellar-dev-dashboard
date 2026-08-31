@@ -7,24 +7,68 @@ let thresholdsStore = [];
 
 const SIMULATED_HISTORY = [];
 
+// Stellar network environments this API can produce predictions for.
+const SUPPORTED_NETWORKS = ['pubnet', 'testnet', 'futurenet'];
+// A Stellar transaction may contain at most 100 operations.
+const MAX_OPERATIONS_COUNT = 100;
+
 router.post('/gas/predict', async (req, res) => {
   try {
-    const { contractId, functionName, args, congestionRatio, storageEntryCount, functionComplexity, isWrite } = req.body;
+    const {
+      contractId,
+      functionName,
+      args,
+      congestionRatio,
+      storageEntryCount,
+      functionComplexity,
+      isWrite,
+      operationsCount,
+      network,
+    } = req.body;
 
     if (!contractId || !functionName) {
-      return res.status(400).json({ error: 'contractId and functionName are required' });
+      return res.status(400).json({
+        error: 'ValidationError',
+        message: 'contractId and functionName are required',
+      });
+    }
+
+    if (operationsCount !== undefined) {
+      if (typeof operationsCount !== 'number' || !Number.isFinite(operationsCount) || operationsCount < 0) {
+        return res.status(400).json({
+          error: 'ValidationError',
+          message: 'operationsCount must be a non-negative number',
+          field: 'operationsCount',
+        });
+      }
+      if (operationsCount > MAX_OPERATIONS_COUNT) {
+        return res.status(400).json({
+          error: 'ValidationError',
+          message: `operationsCount must not exceed ${MAX_OPERATIONS_COUNT}`,
+          field: 'operationsCount',
+        });
+      }
+    }
+
+    const resolvedNetwork = network ?? 'testnet';
+    if (!SUPPORTED_NETWORKS.includes(resolvedNetwork)) {
+      return res.status(422).json({
+        error: 'UnsupportedNetworkError',
+        message: `network must be one of: ${SUPPORTED_NETWORKS.join(', ')}`,
+        field: 'network',
+        allowed: SUPPORTED_NETWORKS,
+      });
     }
 
     const argCount = args ? args.length : 0;
     const argTypes = args ? args.map(a => a.type) : [];
-    const argLengths = args ? args.map(a => String(a.value || '').length) : [];
     const hasAddress = argTypes.includes('address');
     const hasInt = argTypes.includes('int');
-    const totalLen = argLengths.reduce((s, l) => s + l, 0);
     const congestion = congestionRatio || 0.5;
     const storageCount = storageEntryCount || 0;
     const complexity = functionComplexity || Math.min(10, argCount + 1);
     const isWriteOp = isWrite || functionName.startsWith('set') || functionName.startsWith('write') || functionName.startsWith('update');
+    const opsCount = operationsCount ?? 1;
 
     const baseFee = 100;
     const argComplexity = argCount * 10 + (hasAddress ? 20 : 0) + (hasInt ? 15 : 0);
@@ -32,10 +76,10 @@ router.post('/gas/predict', async (req, res) => {
     const congestionCost = congestion * 50;
     const functionOverhead = complexity * 8;
     const writePenalty = isWriteOp ? 30 : 0;
+    const operationsCost = opsCount * 2;
 
-    const predictedFee = Math.max(baseFee,
-      baseFee + argComplexity + storageCost + congestionCost + functionOverhead + writePenalty
-    );
+    const inclusionFee = argComplexity + storageCost + congestionCost + functionOverhead + writePenalty + operationsCost;
+    const predictedFee = Math.max(baseFee, baseFee + inclusionFee);
     const predictedInstructions = Math.round(predictedFee * 3);
     const predictedTotalFee = predictedFee + Math.round(predictedInstructions * 0.001);
 
@@ -53,6 +97,10 @@ router.post('/gas/predict', async (req, res) => {
     }
 
     const prediction = {
+      network: resolvedNetwork,
+      operationsCount: opsCount,
+      baseFee,
+      inclusionFee,
       predictedMinResourceFee: predictedFee,
       predictedInstructionCount: predictedInstructions,
       predictedTotalFee,
@@ -68,6 +116,7 @@ router.post('/gas/predict', async (req, res) => {
         networkCongestion: congestionCost,
         functionOverhead,
         writePenalty,
+        operationsCost,
       },
       warning,
     };
@@ -75,7 +124,10 @@ router.post('/gas/predict', async (req, res) => {
     res.json(prediction);
   } catch (err) {
     console.error('[GasPrediction API] predict error:', err);
-    res.status(500).json({ error: 'Failed to generate gas prediction' });
+    res.status(503).json({
+      error: 'ServiceUnavailableError',
+      message: 'Gas prediction engine is temporarily unavailable',
+    });
   }
 });
 

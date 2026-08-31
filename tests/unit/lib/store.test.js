@@ -99,6 +99,25 @@ describe('useStore', () => {
     expect(walletPublicKey).toBeNull();
   });
 
+  it('revokeWalletSession clears wallet and account state with reason', () => {
+    useStore.setState({
+      walletConnected: true,
+      walletType: 'freighter',
+      walletPublicKey: 'GPUB',
+      connectedAddress: 'GPUB',
+      accountData: { id: 'GPUB' },
+      accountError: 'stale',
+    }, false);
+
+    useStore.getState().revokeWalletSession('wallet_locked');
+    const state = useStore.getState();
+    expect(state.walletConnected).toBe(false);
+    expect(state.connectedAddress).toBeNull();
+    expect(state.accountData).toBeNull();
+    expect(state.accountError).toBeNull();
+    expect(state.walletSessionRevokedReason).toBe('wallet_locked');
+  });
+
   // ─── Notifications ─────────────────────────────────────────────────────────
 
   it('addNotification appends to list', () => {

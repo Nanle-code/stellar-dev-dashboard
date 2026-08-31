@@ -1,6 +1,9 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { getServer, NETWORKS, isValidPublicKey } from "./stellar";
 import { measureAsync, recordCustomMetric } from "./performanceMonitoring";
+import { validateMemo } from "./validation";
+
+export const MEMO_TYPES = ["none", "text", "id", "hash", "return"];
 
 export const OPERATION_TYPES = [
   { value: "payment", label: "Payment" },
@@ -315,6 +318,15 @@ export async function buildTransaction({
 
   // Add memo
   if (memo) {
+    if (!MEMO_TYPES.includes(memoType)) {
+      throw new Error(`Unsupported memo type: ${memoType}`);
+    }
+
+    const memoCheck = validateMemo(memo, memoType);
+    if (!memoCheck.valid) {
+      throw new Error(memoCheck.errors[0]);
+    }
+
     switch (memoType) {
       case "text":
         txBuilder.addMemo(StellarSdk.Memo.text(memo));
@@ -361,6 +373,14 @@ export async function simulateTransaction(params) {
             errors.push(
               `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
             );
+          }
+        } else if (op.type === "pathPaymentStrictSend") {
+          if (!op.params.destMin || parseFloat(op.params.destMin) <= 0) {
+            errors.push(`Operation ${index + 1}: destMin (minimum receive) must be a positive number to enforce slippage protection`);
+          }
+        } else if (op.type === "pathPaymentStrictReceive") {
+          if (!op.params.sendMax || parseFloat(op.params.sendMax) <= 0) {
+            errors.push(`Operation ${index + 1}: sendMax (maximum send) must be a positive number to enforce slippage protection`);
           }
         }
       });

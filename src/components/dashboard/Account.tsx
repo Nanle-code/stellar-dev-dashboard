@@ -9,9 +9,11 @@ import {
   fetchAccountOffers,
   calculateAccountReserves,
 } from '../../lib/stellar';
+import { accountRequests, AccountLanes, isCancellation } from '../../lib/requestCancellation';
 import CopyableValue from './CopyableValue';
 import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates';
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
+import AssetTrustStatus from '../assets/AssetTrustStatus';
 import type { AccountOffer, ReservesInfo, InfoRowProps } from './types';
 
 function formatAsset(assetType: string, assetCode?: string): string {
@@ -78,6 +80,24 @@ function InfoRow({ label, value, mono = true, accent, copyValue, secondaryValue 
   );
 }
 
+function DataSourceBadge({ dataSource, offline }: { dataSource?: string; offline?: boolean }) {
+  if (!offline && (!dataSource || dataSource === 'live')) return null;
+  return (
+    <span
+      style={{
+        padding: '2px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        background: dataSource === 'cache-stale' ? 'var(--amber-glow)' : 'var(--bg-elevated)',
+        color: dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--text-muted)',
+        border: `1px solid ${dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--border)'}`,
+      }}
+    >
+      {offline ? 'Offline' : dataSource}
+    </span>
+  );
+}
+
 export default function Account() {
   const { accountData, connectedAddress, network, networkStats } = useStore();
   const [offers, setOffers] = useState<AccountOffer[]>([]);
@@ -93,6 +113,9 @@ export default function Account() {
 
   useEffect(() => {
     if (!connectedAddress) {
+      // No account selected: cancel anything still loading for the previous one.
+      accountRequests.abort(AccountLanes.Offers);
+      accountRequests.abort(AccountLanes.CreationDate);
       setOffers([]);
       setOffersLoading(false);
       setOffersError(null);
@@ -101,39 +124,43 @@ export default function Account() {
       return;
     }
 
-    let isActive = true;
+    // Starting these lanes cancels the reads for the previously selected account
+    // or network, so their slower responses can no longer land here (Issue #745).
+    const creationLease = accountRequests.begin(AccountLanes.CreationDate);
+    const offersLease = accountRequests.begin(AccountLanes.Offers);
 
     setOffersLoading(true);
     setOffersError(null);
     setCreatedAtLoading(true);
     setCreatedAt(null);
 
-    fetchAccountCreationDate(connectedAddress, network)
-      .then((date: Date) => {
-        if (!isActive) return;
-        setCreatedAt(date);
+    fetchAccountCreationDate(connectedAddress, network, { signal: creationLease.signal })
+      .then((date) => {
+        creationLease.commit(() => setCreatedAt(date ? new Date(date) : null));
+      })
+      .catch((err) => {
+        if (isCancellation(err)) return;
+        creationLease.commit(() => setCreatedAt(null));
       })
       .finally(() => {
-        if (!isActive) return;
-        setCreatedAtLoading(false);
+        creationLease.commit(() => setCreatedAtLoading(false));
       });
 
-    fetchAccountOffers(connectedAddress, network)
-      .then((res: AccountOffer[]) => {
-        if (!isActive) return;
-        setOffers(res);
+    fetchAccountOffers(connectedAddress, network, { signal: offersLease.signal })
+      .then((res) => {
+        offersLease.commit(() => setOffers(res as AccountOffer[]));
       })
       .catch((err: Error) => {
-        if (!isActive) return;
-        setOffersError(err.message);
+        if (isCancellation(err)) return;
+        offersLease.commit(() => setOffersError(err.message));
       })
       .finally(() => {
-        if (!isActive) return;
-        setOffersLoading(false);
+        offersLease.commit(() => setOffersLoading(false));
       });
 
     return () => {
-      isActive = false;
+      creationLease.abort();
+      offersLease.abort();
     };
   }, [connectedAddress, network]);
 
@@ -162,6 +189,9 @@ export default function Account() {
     refreshKey: accountData,
   });
   const xlmEstimate = xlm ? getEstimate(xlm) : null;
+  const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+  const dataSource = 'live';
+  const accountCachedAt: number | null = null;
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -455,6 +485,16 @@ export default function Account() {
                       {shortAddress((asset as Horizon.BalanceLineAsset).asset_issuer)}
                     </CopyableValue>
                   )}
+                  <div style={{ marginTop: '6px' }}>
+                    <AssetTrustStatus
+                      issuer={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      trustline={{
+                        is_authorized: (asset as Horizon.BalanceLineAsset).is_authorized,
+                        is_authorized_to_maintain_liabilities: (asset as Horizon.BalanceLineAsset)
+                          .is_authorized_to_maintain_liabilities,
+                      }}
+                    />
+                  </div>
                 </div>
                 <div
                   style={{

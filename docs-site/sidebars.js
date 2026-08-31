@@ -93,6 +93,7 @@ const sidebars = {
         'guides/rate-limiting',
         'guides/offline-support',
         'guides/advanced-tutorials',
+        'guides/wallet-connection-troubleshooting',
         'guides/troubleshooting',
       ],
     },

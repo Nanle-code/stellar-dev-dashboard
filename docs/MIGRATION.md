@@ -102,28 +102,24 @@ style objects scattered across component files.
 
 ---
 
-## Claimable Balance lifecycle workspace (#768)
+## Cross-tab state sync is now deterministic (#751)
 
-The *Claimable* tab is now a full lifecycle workspace (list / inspect / create /
-claim) with predicate explanations. See `docs/CLAIMABLE_BALANCES.md` for the full
-guide (compatibility, security, migration).
+`src/utils/stateSync.js` persists settings and connected-account state with a
+versioned compare-and-swap envelope. See `docs/CROSS_TAB_STATE_SYNC.md` for the
+full guide (compatibility, security, migration).
 
 **What changed (read before upgrading):**
 
-- New `src/lib/stellar.ts` helpers: `fetchClaimableBalanceById(balanceId, network)`
-  (inspect a single balance), `explainClaimPredicate(predicate, now?)` (structured
-  `PredicateExplanation`), and `buildClaimPredicate(spec)` (declarative
-  `PredicateSpec` → Stellar predicate). Exports `PredicateSpec` /
-  `PredicateExplanation` added.
-- `fetchClaimableBalanceById` validates `balanceId` (throws `TypeError` when
-  empty) and the network (throws `Error` for unsupported networks) before
-  issuing a request; HTTP `404` → "not found", other non-OK → `Horizon error`.
-- Create/claim are **simulations only** (dry-runs returning the XDR); submitting
-  requires signing the XDR with the appropriate secret key outside the dashboard,
-  so no secret key ever enters the UI.
-- No breaking changes: `fetchClaimableBalances` and `formatClaimPredicate` keep
-  their signatures; the tab still mounts the same default-exported
-  `ClaimableBalances` component.
+- `syncState(key, value)` now stores an envelope `{ __v, __t, __w, value }`
+  instead of the raw JSON value. Read it back with `loadSyncedState(key)` or
+  `onStateChange`'s `value` argument. Pre-#751 raw values are still read
+  correctly (normalised to version 0).
+- `syncState` now returns `Promise<number>` (the assigned version) and **may
+  reject** (invalid input, unavailable storage, quota, exhausted retries). Call
+  sites must tolerate rejection.
+- `onStateChange` callback is now `(key, value, meta)` — `meta` carries
+  `{ version, writerId, timestamp }`.
+- New exports: `resolveStateConflict`, `getTabId`, `loadSyncedState`.
 
 ---
 

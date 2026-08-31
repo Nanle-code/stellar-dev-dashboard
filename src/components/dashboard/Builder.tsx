@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../../lib/store'
-import { buildTransaction, simulateTransaction, exportTransactionXDR } from '../../lib/stellar'
+import { buildTransaction, simulateTransaction, exportTransactionXDR, checkDestinationMemoRequirement } from '../../lib/stellar'
+import { validateMemo } from '../../lib/validation'
 import { predictTransactionFailure } from '../../lib/transactionFailurePrediction'
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
 import { StatCard } from './Card'
@@ -26,6 +27,42 @@ export default function Builder() {
   const [isSimulating, setIsSimulating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null })
+  const memoValidation = useMemo(() => validateMemo(memo, 'text'), [memo])
+  const primaryDestination = useMemo(
+    () => operations.find((op) => (op.type === 'payment' || op.type === 'accountMerge') && op.destination)?.destination || '',
+    [operations],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    if (!primaryDestination.trim()) {
+      setMemoRequirement({ checking: false, required: false, error: null })
+      return
+    }
+    setMemoRequirement((current) => ({ ...current, checking: true }))
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await checkDestinationMemoRequirement(primaryDestination.trim(), network)
+        if (cancelled) return
+        setMemoRequirement({
+          checking: false,
+          required: Boolean(result.checked && result.required),
+          error: result.checked ? null : result.error || "Unable to verify this destination's memo requirement.",
+        })
+      } catch (err) {
+        if (cancelled) return
+        setMemoRequirement({ checking: false, required: false, error: err.message || 'Unable to verify memo requirement.' })
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [primaryDestination, network])
+
+  const memoRequiredWarning = memoRequirement.required && !memo
+
   const transactionParams = {
     sourceAccount,
     operations,
@@ -104,6 +141,11 @@ export default function Builder() {
       return
     }
 
+    if (!memoValidation.valid) {
+      setError(memoValidation.errors[0])
+      return
+    }
+
     setIsSimulating(true)
     setError('')
     setSimulation(null)
@@ -128,6 +170,11 @@ export default function Builder() {
   const handleExportXDR = async () => {
     if (!sourceAccount) {
       setError('Source account is required')
+      return
+    }
+
+    if (!memoValidation.valid) {
+      setError(memoValidation.errors[0])
       return
     }
 
@@ -250,13 +297,31 @@ export default function Builder() {
             style={{
               width: '100%',
               padding: '10px 12px',
-              border: '1px solid var(--border)',
+              border: `1px solid ${memoValidation.valid ? 'var(--border)' : 'var(--red)'}`,
               borderRadius: 'var(--radius)',
               background: 'var(--bg-surface)',
               color: 'var(--text-primary)',
               fontSize: '12px'
             }}
           />
+          {!memoValidation.valid && (
+            <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '6px' }}>
+              {memoValidation.errors[0]}
+            </div>
+          )}
+          {memoRequiredWarning && (
+            <div style={{
+              marginTop: '8px',
+              padding: '8px 10px',
+              background: 'var(--amber-glow)',
+              border: '1px solid var(--amber)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              color: 'var(--amber)',
+            }}>
+              This destination requires a memo (SEP-29). Add one or the network will reject this transaction.
+            </div>
+          )}
         </div>
 
         {/* Base Fee */}
@@ -392,7 +457,7 @@ export default function Builder() {
       <div style={{ display: 'flex', gap: '12px' }}>
         <button
           onClick={handleSimulate}
-          disabled={isSimulating || operations.length === 0 || offline}
+          disabled={isSimulating || operations.length === 0 || offline || !memoValidation.valid}
           title={offline ? 'Simulation requires a network connection' : ''}
           style={{
             display: 'flex',
@@ -415,7 +480,7 @@ export default function Builder() {
 
         <button
           onClick={handleExportXDR}
-          disabled={operations.length === 0}
+          disabled={operations.length === 0 || !memoValidation.valid}
           style={{
             display: 'flex',
             alignItems: 'center',

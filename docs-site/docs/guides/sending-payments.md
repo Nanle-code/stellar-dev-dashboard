@@ -112,6 +112,34 @@ const builder = new TransactionBuilder(account, { fee: '100', networkPassphrase:
   .setTimeout(180);
 ```
 
+Each memo type has its own format limit — enforce these client-side before submission so a malformed memo never reaches the network:
+
+| Memo type | Format limit |
+| --- | --- |
+| `Memo.text` | Up to 28 bytes, UTF-8 encoded (not 28 characters — accented and multi-byte characters count for more per character). |
+| `Memo.id` | An unsigned 64-bit integer (`0` to `18446744073709551615`). |
+| `Memo.hash` / `Memo.return` | Exactly 32 bytes, passed as a 64-character hex string. |
+
+In this dashboard, `validateMemo(memo, memoType)` (`src/lib/validation.ts`) implements these checks and is wired into both transaction builders (`src/lib/transactionBuilder.js` and `src/lib/stellar.ts`) — an invalid memo throws before a transaction is assembled, and both builder UIs (Transaction Builder tabs) surface the error inline next to the memo field.
+
+### Destinations that require a memo
+
+Many exchanges and custodial services share a single Stellar account across all their users and rely on the transaction memo to route deposits to the right customer. If you send a payment to one of these without a memo (or with the wrong one), **the funds can be permanently unrecoverable**.
+
+These destinations advertise the requirement per [SEP-29](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md) with a `config.memo_required` data entry:
+
+```js
+import { checkDestinationMemoRequirement } from '../../src/lib/stellar';
+
+const { required, checked, error } = await checkDestinationMemoRequirement('GDEST...', 'mainnet');
+if (checked && required && !memo) {
+  // warn the user before they submit — do not silently block, since the
+  // check itself is best-effort and can't be run for every address type
+}
+```
+
+`checked` is `false` when the requirement genuinely could not be determined — a federated or contract address, an unfunded account, or a Horizon lookup failure. Treat that as "unknown," not "safe to skip." This check is a client-side convenience; it is not a substitute for confirming deposit requirements directly with the recipient/exchange.
+
 ## Setting a fee
 
 The minimum fee is 100 stroops (0.00001 XLM) per operation. During network congestion, higher fees get prioritized.

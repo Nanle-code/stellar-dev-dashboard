@@ -4,6 +4,7 @@ import { formatXLM, shortAddress } from '../../../lib/stellar';
 import useAssetUsdEstimates, { formatEstimatedUsd } from '../../../hooks/useAssetUsdEstimates';
 import CopyableValue from '../../dashboard/CopyableValue';
 import WidgetBase from './WidgetBase';
+import AssetTrustStatus from '../../assets/AssetTrustStatus';
 
 export interface AssetsWidgetProps {
   onRefresh?: () => void;
@@ -15,6 +16,8 @@ export interface AssetBalance {
   asset_code?: string;
   asset_issuer?: string;
   balance: string;
+  is_authorized?: boolean;
+  is_authorized_to_maintain_liabilities?: boolean;
 }
 
 export default function AssetsWidget({ onRefresh, maxAssets = 5 }: AssetsWidgetProps) {
@@ -129,6 +132,13 @@ export default function AssetsWidget({ onRefresh, maxAssets = 5 }: AssetsWidgetP
                     {shortAddress(asset.asset_issuer, 4)}
                   </CopyableValue>
                 )}
+                <div style={{ marginTop: '6px' }}>
+                  <AssetTrustStatus
+                    issuer={asset.asset_issuer}
+                    trustline={asset}
+                    showValidIssuer={false}
+                  />
+                </div>
               </div>
               
               <div style={{ 

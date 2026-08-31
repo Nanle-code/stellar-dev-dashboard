@@ -124,6 +124,19 @@ npm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
 
 ## Development
 
+### Mobile universal links
+
+The mobile app supports deep links to the account and transaction screens using either a hosted URL or a custom `stellar://` scheme.
+
+Examples:
+
+```text
+https://dashboard.stellar.org/account/GD... 
+stellar://testnet/tx/abc123
+```
+
+Unsupported hosts, malformed values, and missing account/transaction IDs are rejected with a clear error path. The deep-link parser is intentionally strict so the app only navigates to valid Stellar targets.
+
 ### Adding New Prediction Models
 
 Create a new model by:

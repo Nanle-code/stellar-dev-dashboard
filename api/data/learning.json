@@ -1,1 +1,34 @@
-{"applied":[]}
+{
+  "applied": [
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-08-31T08:22:22.675Z"
+    },
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-08-31T08:26:11.848Z"
+    },
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-08-31T08:30:25.386Z"
+    },
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-08-31T08:59:26.491Z"
+    },
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-08-31T09:18:33.413Z"
+    }
+  ]
+}

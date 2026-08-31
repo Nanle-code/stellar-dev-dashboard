@@ -372,3 +372,6 @@ export function aggregateOrderBookDepth(orders, levels = 10) {
   }
   return aggregated;
 }
+
+export { calculatePriceImpactAndSlippage, enforceSlippageProtectionOrThrow } from "./slippageProtection";
+

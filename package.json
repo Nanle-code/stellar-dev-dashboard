@@ -1,3 +1,4 @@
+```json
 {
   "name": "stellar-dev-dashboard",
   "version": "0.1.0",
@@ -43,11 +44,11 @@
     "test:visual:report": "playwright show-report tests/e2e/report",
     "test:a11y": "playwright test --project=a11y",
     "test:mutation": "stryker run",
-    "test:lighthouse": "npm run build && lhci autorun",
+    "test:lighthouse": "pnpm run build && lhci autorun",
     "test:chromatic": "node scripts/run-chromatic.mjs",
     "test:coverage:check": "node scripts/check-coverage.mjs",
     "ci:workflows": "bash scripts/validate-workflows.sh",
-    "ci:testing": "npm run test:coverage && npm run test:coverage:check && npm run ci:workflows",
+    "ci:testing": "pnpm run test:coverage && pnpm run test:coverage:check && pnpm run ci:workflows",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
@@ -80,7 +81,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-force-graph-2d": "^1.29.1",
-    "react-i18next": "^15.0.2",
+    "react-i18next": "^15.0.0",
     "react-router-dom": "^6.30.4",
     "recharts": "^2.12.7",
     "swr": "^2.2.0",
@@ -140,3 +141,4 @@
     "*.{json,md,css,html,yml,yaml}": "prettier --check"
   }
 }
+```

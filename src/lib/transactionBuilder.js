@@ -336,6 +336,14 @@ export async function simulateTransaction(params) {
               `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
             );
           }
+        } else if (op.type === "pathPaymentStrictSend") {
+          if (!op.params.destMin || parseFloat(op.params.destMin) <= 0) {
+            errors.push(`Operation ${index + 1}: destMin (minimum receive) must be a positive number to enforce slippage protection`);
+          }
+        } else if (op.type === "pathPaymentStrictReceive") {
+          if (!op.params.sendMax || parseFloat(op.params.sendMax) <= 0) {
+            errors.push(`Operation ${index + 1}: sendMax (maximum send) must be a positive number to enforce slippage protection`);
+          }
         }
       });
     }

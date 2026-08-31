@@ -413,7 +413,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
               const isDisabled = item.id === 'faucet' && network === 'mainnet'
 
               return (
-                <li key={item.id} role="presentation">
+                <li key={item.id}>
                   <button
                     type="button"
                     onClick={() => !isDisabled && item.id && handleNavClick(item.id)}

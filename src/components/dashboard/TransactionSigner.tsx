@@ -10,6 +10,8 @@ import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences'
 import type { UserPreferences } from '../../lib/userPreferences'
 import Card from './Card'
 import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation'
+import MainnetReviewModal from '../security/MainnetReviewModal'
+import type { MainnetReviewItem } from '../security/MainnetReviewModal'
 import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay'
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics'
 
@@ -23,6 +25,7 @@ export default function TransactionSigner() {
   const [ledgerPrompt, setLedgerPrompt] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [showBiometricOverlay, setShowBiometricOverlay] = useState(false)
+  const [showMainnetReview, setShowMainnetReview] = useState(false)
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
 
   // ─── Behavioral Biometrics ─────────────────────────────────────────────────
@@ -116,11 +119,54 @@ export default function TransactionSigner() {
   }
 
   const _proceedToSign = async () => {
+    // On Mainnet, show the explicit review step before confirmation/signing
+    if (network === 'mainnet' && !showMainnetReview) {
+      setShowMainnetReview(true)
+      return
+    }
     if (preferences.transactionConfirmation.enabled) {
       setShowConfirmation(true)
       return
     }
     await doSign()
+  }
+
+  const _buildMainnetReviewItems = (): MainnetReviewItem[] => {
+    const items: MainnetReviewItem[] = []
+    try {
+      const tx = StellarSdk.TransactionBuilder.fromXDR(xdr.trim(), networkPassphrase) as any
+      const source: string = tx.source || tx.sourceAccount?.accountId?.() || '—'
+      items.push({ label: 'Network', value: 'Mainnet (Public)', highlight: true })
+      items.push({ label: 'Source', value: `${source.slice(0, 8)}…${source.slice(-8)}`, mono: true })
+      const fee = tx.fee ?? '—'
+      items.push({ label: 'Fee', value: `${fee} stroops`, mono: true })
+      const ops: any[] = tx.operations || []
+      items.push({ label: 'Operations', value: String(ops.length) })
+      ops.forEach((op: any, idx: number) => {
+        if (op.type === 'payment' || op.type === 'createAccount') {
+          const dest: string = op.destination || '—'
+          items.push({
+            label: `Destination ${idx + 1}`,
+            value: `${dest.slice(0, 8)}…${dest.slice(-8)}`,
+            mono: true,
+          })
+          const amt = op.amount ?? op.startingBalance ?? '—'
+          const assetLabel =
+            !op.asset || (op.asset && typeof op.asset.isNative === 'function' && op.asset.isNative())
+              ? 'XLM'
+              : op.asset?.code ?? 'unknown'
+          items.push({ label: `Amount ${idx + 1}`, value: `${amt} ${assetLabel}`, highlight: true })
+        } else if (op.type === 'invokeHostFunction') {
+          items.push({ label: `Op ${idx + 1}`, value: 'Smart contract invocation' })
+        } else {
+          items.push({ label: `Op ${idx + 1}`, value: op.type ?? 'unknown' })
+        }
+      })
+    } catch {
+      items.push({ label: 'Network', value: 'Mainnet (Public)', highlight: true })
+      items.push({ label: 'Transaction', value: 'Unable to parse XDR for preview' })
+    }
+    return items
   }
 
   const doSign = async () => {
@@ -164,6 +210,21 @@ export default function TransactionSigner() {
 
   const handleCancelConfirmation = () => {
     setShowConfirmation(false)
+    setShowMainnetReview(false)
+    bio.abort()
+  }
+
+  const handleMainnetReviewConfirm = async () => {
+    setShowMainnetReview(false)
+    if (preferences.transactionConfirmation.enabled) {
+      setShowConfirmation(true)
+      return
+    }
+    await doSign()
+  }
+
+  const handleMainnetReviewCancel = () => {
+    setShowMainnetReview(false)
     bio.abort()
   }
 
@@ -467,6 +528,18 @@ export default function TransactionSigner() {
         )}
       </div>
     </Card>
+
+    {/* Mainnet review modal — must be confirmed before signing proceeds */}
+    {showMainnetReview && (
+      <MainnetReviewModal
+        actionTitle="Sign Transaction"
+        irreversible
+        items={_buildMainnetReviewItems()}
+        warnings={['You are about to sign a transaction on Stellar Mainnet. Real funds will be transferred.']}
+        onConfirm={handleMainnetReviewConfirm}
+        onCancel={handleMainnetReviewCancel}
+      />
+    )}
 
     {/* Biometric overlay — rendered as a portal-like fixed overlay */}
     {showBiometricOverlay && (

@@ -72,6 +72,13 @@ docs/
 
 New utility/lib files that contain pure business logic should be `.ts`. React components remain `.jsx`. Shared type declarations go in the same file or a co-located `.d.ts`.
 
+### Async data loading
+
+Any read that depends on the selected account or network must be cancellable, so a slow
+response cannot overwrite state after the user switches. Use a lease from
+`accountRequests` instead of an ad-hoc `isActive` flag — see the
+[Request Cancellation Guide](./REQUEST_CANCELLATION.md).
+
 ### Naming
 
 | Kind | Convention | Example |

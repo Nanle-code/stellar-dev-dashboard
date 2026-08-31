@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { rateLimiter } from './middleware/rateLimiter.js';
+import { apiVersioningMiddleware } from './middleware/apiVersioning.js';
 import { oauthAuth } from './middleware/auth.js';
 import { router as accountsRouter } from './routes/accounts.js';
 import { router as transactionsRouter } from './routes/transactions.js';
@@ -16,6 +17,7 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 app.use(express.json());
+app.use(apiVersioningMiddleware);
 app.use(rateLimiter);
 
 // Public API routes
@@ -30,6 +32,7 @@ app.use('/api/v1', gasPredictionRouter);
 // Documentation endpoint
 app.get('/api/docs', (req, res) => {
   res.json({
+    apiVersion: '1.0.0',
     version: '1.0',
     description: 'Stellar Dev Dashboard Public API',
     endpoints: {

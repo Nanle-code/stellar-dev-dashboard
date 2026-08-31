@@ -58,6 +58,7 @@ export default [
     },
     rules: {
       ...react.configs.recommended.rules,
+      'react/jsx-no-undef': 'warn',
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
       'react/react-in-jsx-scope': 'off',
@@ -66,6 +67,9 @@ export default [
       'react/no-unknown-property': 'warn',
       'react/no-unescaped-entities': 'warn',
       'no-case-declarations': 'warn',
+      'no-undef': 'warn',
+      'no-empty': 'warn',
+      'no-control-regex': 'warn',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     },

@@ -485,19 +485,72 @@ export async function probeAllNetworks(): Promise<NetworkProbeResult[]> {
   return Promise.all(probes);
 }
 
+// ─── Cancellation ─────────────────────────────────────────────────────────────
+
+/**
+ * Per-request options accepted by the account-scoped Horizon readers.
+ *
+ * `signal` lets a caller abandon a read when the user switches account or network
+ * (Issue #745). Every reader below is backwards compatible: omit the argument and
+ * behaviour is unchanged.
+ */
+export interface HorizonRequestOptions {
+  signal?: AbortSignal;
+}
+
+/** DOM-compatible abort error, usable where `DOMException` is unavailable. */
+function createAbortError(): Error {
+  if (typeof DOMException === 'function') {
+    return new DOMException('The operation was aborted.', 'AbortError');
+  }
+  const error = new Error('The operation was aborted.');
+  error.name = 'AbortError';
+  return error;
+}
+
+/** Rejects immediately when `signal` is already aborted. */
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw createAbortError();
+}
+
+/**
+ * Rejects as soon as `signal` aborts, even when `promise` cannot itself be
+ * cancelled. The Stellar SDK's `CallBuilder`/`loadAccount` do not accept an
+ * `AbortSignal`, so the underlying HTTP request may still complete — but its result
+ * is detached from the caller and can no longer overwrite current state.
+ */
+function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(createAbortError());
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(createAbortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort);
+    });
+  });
+}
+
 // ─── Account ──────────────────────────────────────────────────────────────────
 
 export async function fetchAccount(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<StellarSdk.Horizon.AccountResponse> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `account:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
 
   const breaker = getCircuitBreaker(`horizon:${network}`, { failureThreshold: 5, timeout: 30_000 });
   const server = getServer(network);
-  const account = await breaker.execute(() => server.loadAccount(publicKey));
+  const account = await withAbort(
+    breaker.execute(() => server.loadAccount(publicKey)),
+    options.signal
+  );
   stellarCache.set(cacheKey, account, TTL.ACCOUNT, ['account', publicKey]);
   return account;
 }
@@ -508,12 +561,15 @@ export async function fetchTransactions(
   publicKey: string,
   network: NetworkName = 'testnet',
   limit = 20,
-  cursor: string | null = null
+  cursor: string | null = null,
+  options: HorizonRequestOptions = {}
 ): Promise<{
   records: StellarSdk.Horizon.ServerApi.TransactionRecord[];
   nextCursor: string | null;
   hasMore: boolean;
 }> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `transactions:${publicKey}:${network}:${limit}:${cursor || 'null'}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
@@ -523,7 +579,7 @@ export async function fetchTransactions(
 
   if (cursor) request.cursor(cursor);
 
-  const txs = await request.call();
+  const txs = await withAbort(request.call(), options.signal);
   const records = txs.records || [];
   const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null;
 
@@ -540,12 +596,15 @@ export async function fetchOperations(
   publicKey: string,
   network: NetworkName = 'testnet',
   limit = 20,
-  cursor: string | null = null
+  cursor: string | null = null,
+  options: HorizonRequestOptions = {}
 ): Promise<{
   records: StellarSdk.Horizon.ServerApi.OperationRecord[];
   nextCursor: string | null;
   hasMore: boolean;
 }> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `operations:${publicKey}:${network}:${limit}:${cursor || 'null'}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
@@ -555,7 +614,7 @@ export async function fetchOperations(
 
   if (cursor) request.cursor(cursor);
 
-  const ops = await request.call();
+  const ops = await withAbort(request.call(), options.signal);
   const records = ops.records || [];
   const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null;
 
@@ -570,14 +629,17 @@ export async function fetchOperations(
 
 export async function fetchAccountOffers(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<StellarSdk.Horizon.ServerApi.OfferRecord[]> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `offers:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
 
   const server = getServer(network);
-  const offers = await server.offers().forAccount(publicKey).call();
+  const offers = await withAbort(server.offers().forAccount(publicKey).call(), options.signal);
   const records = offers.records || [];
   stellarCache.set(cacheKey, records, TTL.ACCOUNT, ['offers', publicKey]);
   return records;
@@ -650,8 +712,11 @@ export function getOperationLabel(type: string): string {
 
 export async function fetchAccountCreationDate(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<string | null> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `creation-date:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
@@ -659,7 +724,10 @@ export async function fetchAccountCreationDate(
   const server = getServer(network);
 
   try {
-    const ops = await server.operations().forAccount(publicKey).order('asc').limit(1).call();
+    const ops = await withAbort(
+      server.operations().forAccount(publicKey).order('asc').limit(1).call(),
+      options.signal
+    );
 
     const operation = ops.records[0];
     const date = operation?.type === 'create_account' ? operation.created_at || null : null;
@@ -668,7 +736,10 @@ export async function fetchAccountCreationDate(
       stellarCache.set(cacheKey, date, TTL.ACCOUNT, ['account', publicKey]);
     }
     return date;
-  } catch {
+  } catch (error) {
+    // A creation date is best-effort, but an abort is not a "no date found" —
+    // swallowing it would let a cancelled read resolve and clear current state.
+    if ((error as Error | undefined)?.name === 'AbortError') throw error;
     return null;
   }
 }
@@ -1502,15 +1573,24 @@ export function formatClaimPredicate(predicate: Record<string, unknown>): string
 
 export async function fetchClaimableBalances(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<ClaimableBalanceRecord[]> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `claimable:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
 
   const config = NETWORKS[network];
   const url = `${config.horizonUrl}/claimable_balances?claimant=${encodeURIComponent(publicKey)}&limit=50`;
-  const response = await rateLimitedFetch(url, undefined, 'medium', config.customHeaders);
+  // This path goes through `fetch`, so the signal cancels the request on the wire.
+  const response = await rateLimitedFetch(
+    url,
+    options.signal ? { signal: options.signal } : undefined,
+    'medium',
+    config.customHeaders
+  );
 
   if (!response.ok) throw new Error(`Horizon error ${response.status}`);
 

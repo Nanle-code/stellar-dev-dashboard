@@ -15,6 +15,8 @@ export const server = createServer(app);
 export const wss = new WebSocketServer({ server });
 
 app.use(express.json());
+app.use(apiVersioningMiddleware);
+app.use(idempotencyMiddleware);
 app.use(rateLimiter);
 
 getRuntimeEnvironment();
@@ -28,8 +30,16 @@ app.use('/api/v1', oauthAuth, gasPredictionRouter);
 
 app.get('/api/docs', (req, res) => {
   res.json({
+    apiVersion: '1.0.0',
     version: '1.0',
     description: 'Stellar Dev Dashboard Public API',
+    idempotency: {
+      header: 'Idempotency-Key',
+      methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+      docs: '/api/docs/idempotency',
+      notes:
+        'Optional on mutating proxy calls. Retries with the same key and payload replay the original response.',
+    },
     endpoints: {
       '/api/v1/accounts/:accountId': 'GET - Retrieve account data',
       '/api/v1/transactions': 'GET - Query transactions (query params: accountId, limit)',

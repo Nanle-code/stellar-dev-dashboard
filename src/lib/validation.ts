@@ -75,15 +75,57 @@ export function validateAmount(
 
 // ─── Transaction memo ─────────────────────────────────────────────────────────
 
+export type MemoType = 'none' | 'text' | 'id' | 'hash' | 'return'
+
+const MEMO_ID_MAX = 18446744073709551615n // 2^64 - 1, per XDR uint64
+
 /**
- * Validate a transaction memo (text type, max 28 bytes UTF-8).
+ * Validate a transaction memo for a given Stellar memo type:
+ * - text: at most 28 bytes UTF-8
+ * - id: an unsigned 64-bit integer
+ * - hash / return: exactly 32 bytes, given as 64 hex characters
+ *
+ * The memo itself is optional (an empty value always passes) — callers that
+ * need to enforce a destination's memo requirement (SEP-29) should check that
+ * separately, since "required" is a property of the recipient, not the format.
  */
-export function validateMemo(value: unknown): ValidationResult {
+export function validateMemo(value: unknown, type: MemoType = 'text'): ValidationResult {
+  if (type === 'none') return ok()
   if (value === '' || value === null || value === undefined) return ok() // memo is optional
   if (typeof value !== 'string') return fail('Memo must be a string.')
-  const bytes = new TextEncoder().encode(value)
-  if (bytes.length > 28) return fail('Memo text must be 28 bytes or fewer.')
-  return ok()
+
+  switch (type) {
+    case 'text': {
+      const bytes = new TextEncoder().encode(value)
+      if (bytes.length > 28) return fail('Memo text must be 28 bytes or fewer.')
+      return ok()
+    }
+    case 'id': {
+      const trimmed = value.trim()
+      if (!/^\d+$/.test(trimmed)) return fail('Memo ID must be a non-negative integer.')
+      let n: bigint
+      try {
+        n = BigInt(trimmed)
+      } catch {
+        return fail('Memo ID must be a valid unsigned 64-bit integer.')
+      }
+      if (n > MEMO_ID_MAX) return fail('Memo ID must not exceed 18446744073709551615 (2^64 - 1).')
+      return ok()
+    }
+    case 'hash':
+    case 'return': {
+      const trimmed = value.trim()
+      const label = type === 'hash' ? 'Memo hash' : 'Memo return hash'
+      // Must match what StellarSdk.Memo.hash()/return() accept: a 32-byte
+      // value expressed as exactly 64 hex characters.
+      if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+        return fail(`${label} must be a 32-byte value encoded as 64 hex characters.`)
+      }
+      return ok()
+    }
+    default:
+      return fail(`Unsupported memo type: ${String(type)}.`)
+  }
 }
 
 // ─── Contract ID ──────────────────────────────────────────────────────────────

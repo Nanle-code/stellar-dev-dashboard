@@ -3,6 +3,7 @@ import { Cache, TTL } from './cache.js';
 import { rateLimiter } from './rateLimiter.js';
 import auditTrail from './auditTrail.js';
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker';
+import { validateMemo } from './validation';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -58,8 +59,11 @@ function validateSimulationParams(params: BuildTransactionParams) {
     }
   }
 
-  if (typeof params.memo === 'string' && params.memo.length > 28) {
-    warnings.push('Memo text may exceed the 28-character limit accepted by the Stellar network.');
+  if (params.memo) {
+    const memoCheck = validateMemo(params.memo, 'text');
+    if (!memoCheck.valid) {
+      errors.push(memoCheck.errors[0]);
+    }
   }
 
   params.operations?.forEach((op, index) => {
@@ -1325,6 +1329,63 @@ export function parseMuxedAccount(
   }
 }
 
+// ─── Memo requirement check (SEP-29) ───────────────────────────────────────────
+
+export interface MemoRequirementResult {
+  /** True only when the destination account has published a SEP-29 memo requirement. */
+  required: boolean;
+  /** True when the lookup completed (successfully or with a definitive "not found"). */
+  checked: boolean;
+  /** Present when the requirement could not be determined (network error, unsupported input). */
+  error?: string;
+}
+
+/**
+ * Check whether a destination requires a memo per SEP-29, by looking for a
+ * `config.memo_required` data entry (base64-encoded "1") on the account.
+ * Exchanges and custodians commonly set this flag on shared deposit addresses.
+ *
+ * Muxed accounts (M...) already encode their own memo ID and never require one.
+ * Federated (name*domain) and contract (C...) destinations are not currently
+ * checked here — federation records surface their own memo via resolveAddress().
+ */
+export async function checkDestinationMemoRequirement(
+  destination: string,
+  network: NetworkName = 'testnet'
+): Promise<MemoRequirementResult> {
+  if (typeof destination !== 'string' || !destination.trim()) {
+    return { required: false, checked: false, error: 'No destination provided.' };
+  }
+  const trimmed = destination.trim();
+
+  if (isValidMuxedAccount(trimmed)) {
+    return { required: false, checked: true };
+  }
+
+  if (!isValidEd25519PublicKey(trimmed)) {
+    return { required: false, checked: false, error: 'Destination is not a directly checkable account address.' };
+  }
+
+  try {
+    const server = getServer(network);
+    const account = await server.loadAccount(trimmed);
+    const raw = (account as unknown as { data_attr?: Record<string, string> }).data_attr?.['config.memo_required'];
+    if (!raw) return { required: false, checked: true };
+    const decoded = typeof atob === 'function' ? atob(raw) : Buffer.from(raw, 'base64').toString('utf8');
+    return { required: decoded === '1', checked: true };
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      // Unfunded accounts cannot carry the SEP-29 data entry.
+      return { required: false, checked: true };
+    }
+    return {
+      required: false,
+      checked: false,
+      error: error?.message || 'Failed to check destination memo requirement.',
+    };
+  }
+}
+
 /**
  * Resolve a federated address to a Stellar account via Horizon federation endpoint
  */
@@ -1539,6 +1600,275 @@ export async function fetchClaimableBalances(
   return records;
 }
 
+// ─── Claimable Balance predicate explanation ───────────────────────────────────
+
+/**
+ * Structured, human-readable explanation of a claimable-balance claimant
+ * predicate. Used by the claimable-balance workspace to explain *when* and
+ * *whether* a balance can be claimed.
+ */
+export interface PredicateExplanation {
+  /** Normalized predicate kind. */
+  kind: 'unconditional' | 'abs_before' | 'abs_after' | 'rel_before' | 'and' | 'or' | 'not' | 'unknown';
+  /** Short human-readable summary. */
+  summary: string;
+  /** Whether the predicate currently permits a claim (best-effort, null = unknown). */
+  claimableNow: boolean | null;
+  /** Epoch ms at/after which the balance becomes claimable, if determinable. */
+  claimableAt: number | null;
+  /** Sub-explanations for `and` / `or` / `not` predicates. */
+  children?: PredicateExplanation[];
+}
+
+function toEpochMs(value: unknown): number | null {
+  if (typeof value === 'number') return value * 1000; // Horizon timestamps are seconds
+  if (typeof value === 'string') {
+    const n = Number(value);
+    if (!Number.isNaN(n) && value.trim() !== '') return n * 1000;
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
+}
+
+/** Combine child `claimableNow` results for an AND predicate. */
+function combineAnd(children: PredicateExplanation[]): boolean | null {
+  if (children.length === 0) return null;
+  if (children.some((c) => c.claimableNow === false)) return false;
+  if (children.some((c) => c.claimableNow === null)) return null;
+  return true;
+}
+
+/** Combine child `claimableNow` results for an OR predicate. */
+function combineOr(children: PredicateExplanation[]): boolean | null {
+  if (children.length === 0) return null;
+  if (children.some((c) => c.claimableNow === true)) return true;
+  if (children.some((c) => c.claimableNow === null)) return null;
+  return false;
+}
+
+/**
+ * Explain a claimant predicate deterministically.
+ *
+ * @param predicate - Raw Horizon predicate object (or already a string/object)
+ * @param now - Reference timestamp in ms (defaults to `Date.now()`); injectable
+ *              for tests and deterministic rendering.
+ * @returns {PredicateExplanation}
+ */
+export function explainClaimPredicate(predicate: unknown, now: number = Date.now()): PredicateExplanation {
+  if (!predicate || typeof predicate !== 'object' || Array.isArray(predicate) || Object.keys(predicate).length === 0) {
+    return {
+      kind: 'unconditional',
+      summary: 'Unconditional — claimable by the recipient at any time',
+      claimableNow: true,
+      claimableAt: null,
+    };
+  }
+
+  const p = predicate as Record<string, unknown>;
+
+  if ('unconditional' in p) {
+    return {
+      kind: 'unconditional',
+      summary: 'Unconditional — claimable by the recipient at any time',
+      claimableNow: true,
+      claimableAt: null,
+    };
+  }
+
+  if ('abs_before' in p) {
+    const ms = toEpochMs(p.abs_before);
+    if (ms == null) {
+      return { kind: 'abs_before', summary: `Before ${String(p.abs_before)}`, claimableNow: null, claimableAt: null };
+    }
+    return {
+      kind: 'abs_before',
+      summary: `Claimable before ${new Date(ms).toUTCString()}`,
+      claimableNow: now < ms,
+      claimableAt: null,
+    };
+  }
+
+  if ('abs_after' in p) {
+    const ms = toEpochMs(p.abs_after);
+    if (ms == null) {
+      return { kind: 'abs_after', summary: `After ${String(p.abs_after)}`, claimableNow: null, claimableAt: null };
+    }
+    return {
+      kind: 'abs_after',
+      summary: `Claimable after ${new Date(ms).toUTCString()}`,
+      claimableNow: now >= ms,
+      claimableAt: ms,
+    };
+  }
+
+  if ('rel_before' in p) {
+    const secs = Number(p.rel_before);
+    if (Number.isNaN(secs)) {
+      return { kind: 'rel_before', summary: `Within ${String(p.rel_before)}s of claim`, claimableNow: null, claimableAt: null };
+    }
+    return {
+      kind: 'rel_before',
+      summary: `Claimable within ${secs}s of the balance's creation ledger`,
+      claimableNow: null,
+      claimableAt: null,
+    };
+  }
+
+  if ('and' in p) {
+    const children = Array.isArray(p.and) ? (p.and as unknown[]).map((c) => explainClaimPredicate(c, now)) : [];
+    return {
+      kind: 'and',
+      summary: `All of: ${children.map((c) => c.summary).join(' AND ')}`,
+      claimableNow: combineAnd(children),
+      claimableAt: null,
+      children,
+    };
+  }
+
+  if ('or' in p) {
+    const children = Array.isArray(p.or) ? (p.or as unknown[]).map((c) => explainClaimPredicate(c, now)) : [];
+    return {
+      kind: 'or',
+      summary: `Any of: ${children.map((c) => c.summary).join(' OR ')}`,
+      claimableNow: combineOr(children),
+      claimableAt: null,
+      children,
+    };
+  }
+
+  if ('not' in p) {
+    const child = explainClaimPredicate(p.not, now);
+    return {
+      kind: 'not',
+      summary: `NOT (${child.summary})`,
+      claimableNow: child.claimableNow === null ? null : !child.claimableNow,
+      claimableAt: null,
+      children: [child],
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    summary: JSON.stringify(predicate),
+    claimableNow: null,
+    claimableAt: null,
+  };
+}
+
+// ─── Claimable Balance predicate builder ───────────────────────────────────────
+
+/**
+ * Declarative spec for building a Stellar claimable-balance claimant predicate.
+ * Kept UI-agnostic and pure so it can be unit-tested without the Stellar SDK.
+ */
+export type PredicateSpec =
+  | { type: 'unconditional' }
+  | { type: 'before'; date: string | Date }
+  | { type: 'after'; date: string | Date }
+  | { type: 'relative'; seconds: number }
+  | { type: 'and'; predicates: PredicateSpec[] }
+  | { type: 'or'; predicates: PredicateSpec[] }
+  | { type: 'not'; predicate: PredicateSpec };
+
+function toISODate(value: string | Date): string | null {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return new Date(t).toISOString();
+  }
+  return null;
+}
+
+/**
+ * Build a Stellar claimant predicate object from a declarative {@link PredicateSpec}.
+ *
+ * @param spec - The predicate specification
+ * @returns A plain predicate object consumable by `StellarSdk.Claimant`
+ * @throws {TypeError} If the spec is invalid (bad date, non-positive relative
+ *                      time, too few operands, or unknown type)
+ */
+export function buildClaimPredicate(spec: PredicateSpec): Record<string, unknown> {
+  if (!spec || typeof spec !== 'object') {
+    throw new TypeError('buildClaimPredicate: spec must be an object');
+  }
+  switch (spec.type) {
+    case 'unconditional':
+      return { unconditional: null };
+    case 'before': {
+      const iso = toISODate(spec.date);
+      if (!iso) throw new TypeError('buildClaimPredicate: "before" requires a valid date');
+      return { abs_before: iso };
+    }
+    case 'after': {
+      const iso = toISODate(spec.date);
+      if (!iso) throw new TypeError('buildClaimPredicate: "after" requires a valid date');
+      return { abs_after: iso };
+    }
+    case 'relative': {
+      const secs = Number(spec.seconds);
+      if (!Number.isFinite(secs) || secs <= 0) {
+        throw new TypeError('buildClaimPredicate: "relative" requires a positive number of seconds');
+      }
+      return { rel_before: Math.floor(secs) };
+    }
+    case 'and':
+    case 'or': {
+      const list = spec.predicates;
+      if (!Array.isArray(list) || list.length < 2) {
+        throw new TypeError(`buildClaimPredicate: "${spec.type}" requires at least two predicates`);
+      }
+      return { [spec.type]: list.map(buildClaimPredicate) };
+    }
+    case 'not': {
+      if (!spec.predicate) throw new TypeError('buildClaimPredicate: "not" requires a predicate');
+      return { not: buildClaimPredicate(spec.predicate) };
+    }
+    default:
+      throw new TypeError(`buildClaimPredicate: unknown predicate type "${(spec as { type?: string }).type}"`);
+  }
+}
+
+// ─── Claimable Balance inspection ──────────────────────────────────────────────
+
+/**
+ * Fetch a single claimable balance by its id (Horizon `GET /claimable_balances/:id`).
+ *
+ * Used by the workspace "inspect" view to show full claimant/predicate detail.
+ *
+ * @param balanceId - Horizon claimable-balance id (non-empty string)
+ * @param network - Target network
+ * @returns {Promise<ClaimableBalanceRecord>}
+ * @throws {TypeError} If `balanceId` is not a non-empty string
+ * @throws {Error} If the network is unsupported or Horizon returns an error
+ *                  (404 → "not found")
+ */
+export async function fetchClaimableBalanceById(
+  balanceId: string,
+  network: NetworkName = 'testnet'
+): Promise<ClaimableBalanceRecord> {
+  if (typeof balanceId !== 'string' || balanceId.trim().length === 0) {
+    throw new TypeError('fetchClaimableBalanceById: balanceId must be a non-empty string');
+  }
+  const config = NETWORKS[network];
+  if (!config || !config.horizonUrl) {
+    throw new Error(`fetchClaimableBalanceById: unsupported network "${network}"`);
+  }
+
+  const url = `${config.horizonUrl}/claimable_balances/${encodeURIComponent(balanceId)}`;
+  const response = await rateLimitedFetch(url, undefined, 'medium', config.customHeaders);
+
+  if (response.status === 404) {
+    throw new Error(`Claimable balance ${balanceId} not found`);
+  }
+  if (!response.ok) {
+    throw new Error(`Horizon error ${response.status} while fetching claimable balance`);
+  }
+
+  const data = await response.json();
+  return data as ClaimableBalanceRecord;
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 export function formatXLM(amount: string | number): string {
@@ -1639,6 +1969,10 @@ export async function buildTransaction(
   });
 
   if (memo) {
+    const memoCheck = validateMemo(memo, 'text');
+    if (!memoCheck.valid) {
+      throw new Error(memoCheck.errors[0]);
+    }
     txBuilder.addMemo(StellarSdk.Memo.text(memo));
   }
 
@@ -1677,6 +2011,23 @@ export async function simulateTransaction(params: BuildTransactionParams): Promi
   const warnings = [...validation.warnings];
   let transaction: StellarSdk.Transaction | null = null;
   let sorobanMetrics = undefined;
+
+  if (!params.memo) {
+    const paymentDestinations = (params.operations || [])
+      .filter((op): op is PaymentOperation => op.type === 'payment' && Boolean((op as PaymentOperation).destination))
+      .map((op) => op.destination);
+
+    for (const destination of paymentDestinations) {
+      const memoCheck = await checkDestinationMemoRequirement(destination, params.network);
+      if (memoCheck.checked && memoCheck.required) {
+        warnings.push(
+          `Destination ${shortAddress(destination)} requires a memo (SEP-29). Add one before submitting or the network will reject this transaction.`
+        );
+      }
+      // Unsupported environments (federated/contract addresses, network errors)
+      // are surfaced via memoCheck.error but are non-fatal — we skip the warning.
+    }
+  }
 
   if (errors.length === 0) {
     try {
@@ -1947,6 +2298,24 @@ export interface FetchPaymentPathsParams {
   amount: string;
   mode?: PathPaymentMode;
   network?: NetworkName;
+}
+
+export type PathPaymentErrorCode =
+  | 'INVALID_INPUT'
+  | 'UNSUPPORTED_NETWORK'
+  | 'HORIZON_ERROR'
+  | 'REQUEST_FAILED';
+
+/** A user-safe path quote failure with a stable code for UI handling. */
+export class PathPaymentError extends Error {
+  constructor(
+    public readonly code: PathPaymentErrorCode,
+    message: string,
+    public readonly status?: number
+  ) {
+    super(message);
+    this.name = 'PathPaymentError';
+  }
 }
 
 // ─── Liquidity pools ─────────────────────────────────────────────────────────
@@ -2703,7 +3072,43 @@ export async function fetchPaymentPaths(
   params: FetchPaymentPathsParams
 ): Promise<PaymentPathRecord[]> {
   const { sourceAsset, destAsset, amount, mode = 'strict-send', network = 'testnet' } = params;
-  const horizonUrl = NETWORKS[network].horizonUrl;
+
+  if (mode !== 'strict-send' && mode !== 'strict-receive') {
+    throw new PathPaymentError('INVALID_INPUT', 'Choose either strict-send or strict-receive mode.');
+  }
+
+  if (!/^\d+(\.\d{1,7})?$/.test(amount) || Number(amount) <= 0) {
+    throw new PathPaymentError(
+      'INVALID_INPUT',
+      'Amount must be a positive decimal with no more than 7 decimal places.'
+    );
+  }
+
+  function validateAsset(asset: PathAsset, label: string): void {
+    if (!asset || (asset.type !== 'native' && asset.type !== 'credit')) {
+      throw new PathPaymentError('INVALID_INPUT', `${label} asset type is invalid.`);
+    }
+    if (asset.type === 'credit') {
+      if (!/^[a-zA-Z0-9]{1,12}$/.test(asset.code)) {
+        throw new PathPaymentError('INVALID_INPUT', `${label} asset code must contain 1 to 12 letters or numbers.`);
+      }
+      if (!asset.issuer || !isValidPublicKey(asset.issuer)) {
+        throw new PathPaymentError('INVALID_INPUT', `${label} asset issuer must be a valid Stellar G address.`);
+      }
+    }
+  }
+
+  validateAsset(sourceAsset, 'Source');
+  validateAsset(destAsset, 'Destination');
+
+  const networkConfig = NETWORKS[network];
+  if (!networkConfig?.horizonUrl) {
+    throw new PathPaymentError(
+      'UNSUPPORTED_NETWORK',
+      `Path quotes are not available for the ${network || 'selected'} network.`
+    );
+  }
+  const horizonUrl = networkConfig.horizonUrl.replace(/\/$/, '');
 
   function assetParams(asset: PathAsset, prefix: string): string {
     if (asset.type === 'native') {
@@ -2725,10 +3130,55 @@ export async function fetchPaymentPaths(
     url = `${horizonUrl}/paths/strict-receive?${assetParams(destAsset, 'destination')}&destination_amount=${amount}&source_assets=${encodeURIComponent(assetString(sourceAsset))}`;
   }
 
-  const res = await fetch(url, withNetworkHeaders({}, network));
-  if (!res.ok) throw new Error(`Horizon error: ${res.status}`);
-  const data = (await res.json()) as { _embedded?: { records: PaymentPathRecord[] } };
-  return data._embedded?.records ?? [];
+  let res: Response;
+  try {
+    res = await fetch(url, withNetworkHeaders({}, network));
+  } catch {
+    throw new PathPaymentError(
+      'REQUEST_FAILED',
+      'Could not reach Horizon. Check your connection and try again.'
+    );
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const problem = (await res.json()) as { detail?: string };
+      detail = problem.detail ? ` ${problem.detail}` : '';
+    } catch {
+      // Horizon may return an empty or non-JSON proxy response.
+    }
+    throw new PathPaymentError(
+      'HORIZON_ERROR',
+      `Horizon could not produce a path quote (${res.status}).${detail}`,
+      res.status
+    );
+  }
+
+  let records: PaymentPathRecord[];
+  try {
+    const data = (await res.json()) as { _embedded?: { records?: PaymentPathRecord[] } };
+    records = Array.isArray(data._embedded?.records) ? data._embedded.records : [];
+  } catch {
+    throw new PathPaymentError('HORIZON_ERROR', 'Horizon returned an invalid path quote response.');
+  }
+
+  const amountFor = (record: PaymentPathRecord) => Number(
+    mode === 'strict-send' ? record.destination_amount : record.source_amount
+  );
+  const validRecords = records.filter((record) => Number.isFinite(amountFor(record)) && amountFor(record) > 0);
+  validRecords.sort((a, b) => mode === 'strict-send'
+    ? amountFor(b) - amountFor(a)
+    : amountFor(a) - amountFor(b));
+
+  const bestAmount = validRecords[0] ? amountFor(validRecords[0]) : 0;
+  return validRecords.map((record) => {
+    const quotedAmount = amountFor(record);
+    const slippage = mode === 'strict-send'
+      ? ((bestAmount - quotedAmount) / bestAmount) * 100
+      : ((quotedAmount - bestAmount) / bestAmount) * 100;
+    return { ...record, slippagePct: slippage.toFixed(2) };
+  });
 }
 
 /**
@@ -2780,6 +3230,7 @@ export default {
   isValidMuxedAccount,
   isFederatedAddress,
   parseMuxedAccount,
+  checkDestinationMemoRequirement,
   resolveFederatedAddress,
   resolveAddress,
   isValidContractId,

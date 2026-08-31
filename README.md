@@ -125,6 +125,19 @@ The dashboard supports Ledger signing in Chromium-based browsers through WebUSB/
 
 ## Development
 
+### Node.js support
+
+This project supports Node.js **22 through 26**. Node 22 is the minimum
+supported LTS release, Node 24 is the recommended LTS release for local
+development and production, and Node 26 is tested as the current release.
+Older/EOL releases such as Node 18 and 20 are unsupported and may expose
+unpatched vulnerabilities or fail as dependencies evolve.
+
+Use `npm run check:node` to validate the active runtime. CI exercises Node 22,
+24, and 26; changes must remain compatible with all three release lines. When
+Node changes its active release schedule, update `package.json` engines, the CI
+matrix, and `scripts/node-version-policy.mjs` together.
+
 ### Adding New Prediction Models
 
 Create a new model by:

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { getStoredValue } from './storage'
-import { syncState, onStateChange } from '../utils/stateSync'
+import { syncState, onStateChange, resolveStateConflict, loadSyncedState, getTabId } from '../utils/stateSync'
 import type { NetworkName, NetworkStats } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
 import { generateInsights, type AnalyticsSummary } from './analytics'
@@ -689,6 +689,15 @@ if (typeof window !== 'undefined') {
 }
 
 // ─── Persistence middleware ───────────────────────────────────────────────────
+// Cross-tab state is persisted deterministically (#751): every write is a
+// versioned compare-and-swap, and incoming updates are merged via
+// resolveStateConflict so concurrent edits across tabs never diverge.
+
+// Tracks the version/metadata of the slice we last applied or wrote, so an
+// incoming update can be resolved deterministically against local state.
+let lastAppliedVersion = 0
+let lastAppliedTs = 0
+let lastAppliedWriter = ''
 
 if (typeof window !== 'undefined') {
   getStoredValue(STORE_PERSIST_KEY).then((saved: Record<string, unknown> | null) => {
@@ -707,25 +716,44 @@ if (typeof window !== 'undefined') {
         applyCustomThemeToDOM(restored.themeBuilderDraft as ThemeDefinition)
       }
     }
+    const synced = loadSyncedState(STORE_PERSIST_KEY)
+    if (synced) {
+      lastAppliedVersion = synced.version
+      lastAppliedTs = synced.timestamp
+      lastAppliedWriter = synced.writerId
+    }
   }).catch(() => {})
 
   useStore.subscribe((state) => {
     const slice: Record<string, unknown> = {}
     for (const key of PERSIST_KEYS) slice[key] = state[key]
-    syncState(STORE_PERSIST_KEY, slice).catch(() => {})
+    syncState(STORE_PERSIST_KEY, slice)
+      .then((version) => {
+        lastAppliedVersion = version
+        lastAppliedTs = Date.now()
+        lastAppliedWriter = getTabId()
+      })
+      .catch(() => {})
   })
 
-  onStateChange((key: string, value: unknown) => {
-    if (key === STORE_PERSIST_KEY && value && typeof value === 'object') {
-      const current = useStore.getState()
-      const incoming = value as Record<string, unknown>
-      const patch: Partial<StoreState> = {}
-      for (const k of PERSIST_KEYS) {
-        if (incoming[k] !== undefined && incoming[k] !== current[k]) {
-          (patch as Record<string, unknown>)[k] = incoming[k]
-        }
+  onStateChange((key: string, value: unknown, meta?: { version: number; writerId: string; timestamp: number } | null) => {
+    if (key !== STORE_PERSIST_KEY || !value || typeof value !== 'object') return
+    const current = useStore.getState()
+    const incoming = value as Record<string, unknown>
+    const localMeta = { version: lastAppliedVersion, timestamp: lastAppliedTs, writerId: lastAppliedWriter }
+    const patch: Partial<StoreState> = {}
+    for (const k of PERSIST_KEYS) {
+      if (incoming[k] === undefined) continue
+      const winner = resolveStateConflict(current[k], localMeta, incoming[k], meta ?? undefined)
+      if (winner === incoming[k]) (patch as Record<string, unknown>)[k] = incoming[k]
+    }
+    if (Object.keys(patch).length > 0) {
+      useStore.setState(patch)
+      if (meta) {
+        lastAppliedVersion = meta.version
+        lastAppliedTs = meta.timestamp
+        lastAppliedWriter = meta.writerId || lastAppliedWriter
       }
-      if (Object.keys(patch).length > 0) useStore.setState(patch)
     }
   })
 }

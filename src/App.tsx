@@ -7,6 +7,7 @@ import './styles/mobile-performance.css';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 import { ExpertiseProvider } from './context/ExpertiseContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import ChunkLoadErrorBoundary from './components/ChunkLoadErrorBoundary';
 import { DeveloperTools } from './components/DeveloperTools';
 import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import { TipProvider } from './components/ai/TipProvider';
@@ -55,12 +56,14 @@ export default function App() {
         <ExpertiseProvider>
           <ErrorBoundary maxRetries={2}>
             {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
-            <Suspense fallback={<AppLoadingFallback />}>
-              <Routes>
-                <Route path="/connect" element={<DashboardLayout />} />
-                <Route path="/*" element={<DashboardLayout />} />
-              </Routes>
-            </Suspense>
+            <ChunkLoadErrorBoundary>
+              <Suspense fallback={<AppLoadingFallback />}>
+                <Routes>
+                  <Route path="/connect" element={<DashboardLayout />} />
+                  <Route path="/*" element={<DashboardLayout />} />
+                </Routes>
+              </Suspense>
+            </ChunkLoadErrorBoundary>
             <DeveloperTools />
           </ErrorBoundary>
         </ExpertiseProvider>

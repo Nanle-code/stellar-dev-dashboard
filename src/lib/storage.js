@@ -19,7 +19,7 @@ import { isQuotaExceededError, selectEvictionCandidates, notifyQuotaExceeded } f
 // ─── DB config ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'stellar-dev-dashboard';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 const STORES = {
   APP_STATE:  'app-state',    // Zustand persistence
@@ -27,6 +27,16 @@ const STORES = {
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
   CONTRACT_HISTORY: 'contract-history', // Contract interactions
   BIOMETRIC_PROFILES: 'biometric-profiles', // Behavioral biometrics profiles
+  META: '__meta__', // Schema metadata and migration tracking
+};
+
+const CURRENT_SCHEMA_VERSION = 5;
+
+const MIGRATIONS = {
+  4: async (db) => {
+    const meta = db.transaction(STORES.META, 'readwrite').objectStore(STORES.META);
+    meta.put({ key: 'schemaVersion', value: 5 });
+  },
 };
 
 // ─── DB open ──────────────────────────────────────────────────────────────────
@@ -41,6 +51,7 @@ function openDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      const oldVersion = event.oldVersion;
 
       if (!db.objectStoreNames.contains(STORES.APP_STATE)) {
         db.createObjectStore(STORES.APP_STATE);
@@ -68,6 +79,14 @@ function openDB() {
         store.createIndex('lastUpdated', 'lastUpdated', { unique: false });
         store.createIndex('sampleCount', 'sampleCount', { unique: false });
       }
+
+      if (!db.objectStoreNames.contains(STORES.META)) {
+        db.createObjectStore(STORES.META, { keyPath: 'key' });
+      }
+
+      if (oldVersion < CURRENT_SCHEMA_VERSION && MIGRATIONS[oldVersion]) {
+        MIGRATIONS[oldVersion](db);
+      }
     };
 
     request.onsuccess = () => {
@@ -85,6 +104,25 @@ function openDB() {
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('IndexedDB blocked'));
   });
+}
+
+// ─── Schema version helpers ────────────────────────────────────────────────────
+
+export async function getSchemaVersion() {
+  try {
+    const record = await tx(STORES.META, 'readonly', (s) => s.get('schemaVersion'));
+    return record?.value ?? CURRENT_SCHEMA_VERSION;
+  } catch {
+    return CURRENT_SCHEMA_VERSION;
+  }
+}
+
+export async function setSchemaVersion(version) {
+  try {
+    await tx(STORES.META, 'readwrite', (s) => s.put({ key: 'schemaVersion', value: version }));
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Generic transaction helper ───────────────────────────────────────────────

@@ -505,6 +505,125 @@ paths:
                     type: integer
                     example: 5493201
 
+  # ────────────────────────────────────────────────────────────────────────────
+  # DASHBOARD API — GAS PREDICTION
+  # ────────────────────────────────────────────────────────────────────────────
+  /api/v1/gas/predict:
+    post:
+      servers:
+        - url: /
+          description: Stellar Dev Dashboard Public API (own backend)
+      tags:
+        - Gas Prediction (Dashboard API)
+      summary: Predict Soroban Contract Call Gas Cost
+      description: |
+        Predicts the resource fee, instruction count, and inclusion fee for a
+        Soroban contract invocation before it is submitted, using the
+        dashboard's gas prediction model. Predictions are network-specific:
+        `pubnet`, `testnet`, and `futurenet` are the only supported values.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GasPredictionRequest'
+            examples:
+              pubnetTransfer:
+                summary: Valid pubnet request
+                value:
+                  contractId: CABCD1234EXAMPLECONTRACTID000000000000000000000000000000000
+                  functionName: transfer
+                  network: pubnet
+                  operationsCount: 1
+                  congestionRatio: 0.6
+                  storageEntryCount: 2
+                  functionComplexity: 4
+                  isWrite: true
+                  args:
+                    - type: address
+                      value: GD3W47O7L6J22XCQNFSK3L2V3N45EPEHPEH4J46EPEH4J46EPEH4J46E
+                    - type: int
+                      value: '1000000'
+              futurenetMaxOperations:
+                summary: Boundary case — futurenet request at the max allowable operations count (100)
+                value:
+                  contractId: CFUTURENETEXAMPLECONTRACTID0000000000000000000000000000000000
+                  functionName: batchUpdate
+                  network: futurenet
+                  operationsCount: 100
+              invalidNegativeOperations:
+                summary: Invalid — negative operationsCount
+                value:
+                  contractId: CABCD1234EXAMPLECONTRACTID000000000000000000000000000000000
+                  functionName: transfer
+                  network: testnet
+                  operationsCount: -1
+              unsupportedNetwork:
+                summary: Invalid — unsupported network environment
+                value:
+                  contractId: CABCD1234EXAMPLECONTRACTID000000000000000000000000000000000
+                  functionName: transfer
+                  network: mainnet-legacy
+      responses:
+        '200':
+          description: Gas prediction successfully generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasPredictionResponse'
+              example:
+                network: pubnet
+                operationsCount: 1
+                baseFee: 100
+                inclusionFee: 87
+                predictedMinResourceFee: 187
+                predictedInstructionCount: 561
+                predictedTotalFee: 188
+                confidence: 0.83
+                confidenceInterval: [149.4, 224.6]
+                predictionTimestamp: '2026-08-29T12:00:00.000Z'
+                modelVersion: 1.0.0
+                accuracy: 0.95
+                featureBreakdown:
+                  baseFee: 100
+                  argComplexity: 45
+                  storageAccess: 10
+                  networkCongestion: 30
+                  functionOverhead: 32
+                  writePenalty: 30
+                  operationsCost: 2
+                warning: null
+        '400':
+          description: Invalid payload parameters (e.g. missing required fields, or a negative/out-of-range operationsCount)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasPredictionValidationError'
+              example:
+                error: ValidationError
+                message: operationsCount must be a non-negative number
+                field: operationsCount
+        '422':
+          description: Unsupported network environment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasPredictionUnsupportedNetworkError'
+              example:
+                error: UnsupportedNetworkError
+                message: 'network must be one of: pubnet, testnet, futurenet'
+                field: network
+                allowed: [pubnet, testnet, futurenet]
+        '503':
+          description: The gas prediction engine failed to compute a result (internal calculation or RPC node engine failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasPredictionServiceUnavailableError'
+              example:
+                error: ServiceUnavailableError
+                message: Gas prediction engine is temporarily unavailable
+
 components:
   schemas:
     # ─── Horizon Schemas ──────────────────────────────────────────────────────
@@ -897,3 +1016,156 @@ components:
             message:
               type: string
               example: Invalid Request
+
+    # ─── Dashboard API — Gas Prediction Schemas ──────────────────────────────
+    GasPredictionArg:
+      type: object
+      properties:
+        type:
+          type: string
+          example: address
+        value:
+          type: string
+          example: GD3W47O7L6J22XCQNFSK3L2V3N45EPEHPEH4J46EPEH4J46EPEH4J46E
+
+    GasPredictionRequest:
+      type: object
+      required:
+        - contractId
+        - functionName
+      properties:
+        contractId:
+          type: string
+          description: Soroban contract ID being invoked
+          example: CABCD1234EXAMPLECONTRACTID000000000000000000000000000000000
+        functionName:
+          type: string
+          description: Name of the contract function being invoked
+          example: transfer
+        network:
+          type: string
+          description: Stellar network environment to predict for. Defaults to `testnet` when omitted.
+          enum: [pubnet, testnet, futurenet]
+          default: testnet
+          example: pubnet
+        operationsCount:
+          type: integer
+          description: Number of operations in the enclosing transaction. Must be between 0 and 100 (a Stellar transaction's operation limit).
+          minimum: 0
+          maximum: 100
+          default: 1
+          example: 1
+        args:
+          type: array
+          description: Arguments passed to the contract function
+          items:
+            $ref: '#/components/schemas/GasPredictionArg'
+        congestionRatio:
+          type: number
+          description: Current network congestion ratio, 0-1
+          example: 0.6
+        storageEntryCount:
+          type: integer
+          example: 2
+        functionComplexity:
+          type: integer
+          example: 4
+        isWrite:
+          type: boolean
+          example: true
+
+    GasPredictionResponse:
+      type: object
+      properties:
+        network:
+          type: string
+          enum: [pubnet, testnet, futurenet]
+          example: pubnet
+        operationsCount:
+          type: integer
+          example: 1
+        baseFee:
+          type: number
+          description: Flat base resource fee, in stroops
+          example: 100
+        inclusionFee:
+          type: number
+          description: Predicted priority/inclusion fee on top of the base fee, in stroops
+          example: 87
+        predictedMinResourceFee:
+          type: number
+          example: 187
+        predictedInstructionCount:
+          type: integer
+          example: 561
+        predictedTotalFee:
+          type: number
+          example: 188
+        confidence:
+          type: number
+          description: Model confidence score, 0-1
+          example: 0.83
+        confidenceInterval:
+          type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+          example: [149.4, 224.6]
+        predictionTimestamp:
+          type: string
+          format: date-time
+        modelVersion:
+          type: string
+          example: 1.0.0
+        accuracy:
+          type: number
+          example: 0.95
+        featureBreakdown:
+          type: object
+          additionalProperties:
+            type: number
+        warning:
+          type: string
+          nullable: true
+
+    GasPredictionValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: ValidationError
+        message:
+          type: string
+          example: operationsCount must be a non-negative number
+        field:
+          type: string
+          example: operationsCount
+
+    GasPredictionUnsupportedNetworkError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: UnsupportedNetworkError
+        message:
+          type: string
+          example: 'network must be one of: pubnet, testnet, futurenet'
+        field:
+          type: string
+          example: network
+        allowed:
+          type: array
+          items:
+            type: string
+          example: [pubnet, testnet, futurenet]
+
+    GasPredictionServiceUnavailableError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: ServiceUnavailableError
+        message:
+          type: string
+          example: Gas prediction engine is temporarily unavailable

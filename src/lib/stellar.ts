@@ -3,6 +3,7 @@ import { Cache, TTL } from './cache.js';
 import { rateLimiter } from './rateLimiter.js';
 import auditTrail from './auditTrail.js';
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker';
+import { validateMemo } from './validation';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -55,6 +56,50 @@ function validateSimulationParams(params: BuildTransactionParams) {
       errors.push('Time bounds must be valid Unix timestamps.');
     } else if (minTime > maxTime) {
       errors.push('Min time cannot be greater than max time.');
+    }
+  }
+
+  if (params.preconditions) {
+    if (params.preconditions.ledgerBounds) {
+      const minLedger = Number(params.preconditions.ledgerBounds.minLedger);
+      const maxLedger = Number(params.preconditions.ledgerBounds.maxLedger);
+      if (!Number.isNaN(minLedger) && minLedger < 0) {
+        errors.push('Ledger bounds minLedger cannot be negative.');
+      }
+      if (!Number.isNaN(maxLedger) && maxLedger < 0) {
+        errors.push('Ledger bounds maxLedger cannot be negative.');
+      }
+      if (!Number.isNaN(minLedger) && !Number.isNaN(maxLedger) && maxLedger > 0 && minLedger > maxLedger) {
+        errors.push('Ledger bounds minLedger cannot be greater than maxLedger.');
+      }
+    }
+
+    if (params.preconditions.minSequence !== undefined && params.preconditions.minSequence !== '') {
+      const minSeq = Number(params.preconditions.minSequence);
+      if (Number.isNaN(minSeq) || minSeq < 0) {
+        errors.push('Min sequence cannot be negative.');
+      }
+    }
+
+    if (params.preconditions.minSequenceAge !== undefined && params.preconditions.minSequenceAge !== '') {
+      const age = Number(params.preconditions.minSequenceAge);
+      if (Number.isNaN(age) || age < 0) {
+        errors.push('Min sequence age cannot be negative.');
+      }
+    }
+
+    if (params.preconditions.minSequenceLedgerGap !== undefined && params.preconditions.minSequenceLedgerGap !== '') {
+      const gap = Number(params.preconditions.minSequenceLedgerGap);
+      if (Number.isNaN(gap) || gap < 0) {
+        errors.push('Min sequence ledger gap cannot be negative.');
+      }
+    }
+
+    if (params.preconditions.extraSigners) {
+      const invalid = params.preconditions.extraSigners.filter((s) => !isValidPublicKey(s));
+      if (invalid.length > 0) {
+        errors.push(`Invalid extra signer public key(s): ${invalid.join(', ')}`);
+      }
     }
   }
 
@@ -481,19 +526,72 @@ export async function probeAllNetworks(): Promise<NetworkProbeResult[]> {
   return Promise.all(probes);
 }
 
+// ─── Cancellation ─────────────────────────────────────────────────────────────
+
+/**
+ * Per-request options accepted by the account-scoped Horizon readers.
+ *
+ * `signal` lets a caller abandon a read when the user switches account or network
+ * (Issue #745). Every reader below is backwards compatible: omit the argument and
+ * behaviour is unchanged.
+ */
+export interface HorizonRequestOptions {
+  signal?: AbortSignal;
+}
+
+/** DOM-compatible abort error, usable where `DOMException` is unavailable. */
+function createAbortError(): Error {
+  if (typeof DOMException === 'function') {
+    return new DOMException('The operation was aborted.', 'AbortError');
+  }
+  const error = new Error('The operation was aborted.');
+  error.name = 'AbortError';
+  return error;
+}
+
+/** Rejects immediately when `signal` is already aborted. */
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw createAbortError();
+}
+
+/**
+ * Rejects as soon as `signal` aborts, even when `promise` cannot itself be
+ * cancelled. The Stellar SDK's `CallBuilder`/`loadAccount` do not accept an
+ * `AbortSignal`, so the underlying HTTP request may still complete — but its result
+ * is detached from the caller and can no longer overwrite current state.
+ */
+function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(createAbortError());
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(createAbortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort);
+    });
+  });
+}
+
 // ─── Account ──────────────────────────────────────────────────────────────────
 
 export async function fetchAccount(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<StellarSdk.Horizon.AccountResponse> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `account:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
 
   const breaker = getCircuitBreaker(`horizon:${network}`, { failureThreshold: 5, timeout: 30_000 });
   const server = getServer(network);
-  const account = await breaker.execute(() => server.loadAccount(publicKey));
+  const account = await withAbort(
+    breaker.execute(() => server.loadAccount(publicKey)),
+    options.signal
+  );
   stellarCache.set(cacheKey, account, TTL.ACCOUNT, ['account', publicKey]);
   return account;
 }
@@ -504,12 +602,15 @@ export async function fetchTransactions(
   publicKey: string,
   network: NetworkName = 'testnet',
   limit = 20,
-  cursor: string | null = null
+  cursor: string | null = null,
+  options: HorizonRequestOptions = {}
 ): Promise<{
   records: StellarSdk.Horizon.ServerApi.TransactionRecord[];
   nextCursor: string | null;
   hasMore: boolean;
 }> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `transactions:${publicKey}:${network}:${limit}:${cursor || 'null'}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
@@ -519,7 +620,7 @@ export async function fetchTransactions(
 
   if (cursor) request.cursor(cursor);
 
-  const txs = await request.call();
+  const txs = await withAbort(request.call(), options.signal);
   const records = txs.records || [];
   const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null;
 
@@ -536,12 +637,15 @@ export async function fetchOperations(
   publicKey: string,
   network: NetworkName = 'testnet',
   limit = 20,
-  cursor: string | null = null
+  cursor: string | null = null,
+  options: HorizonRequestOptions = {}
 ): Promise<{
   records: StellarSdk.Horizon.ServerApi.OperationRecord[];
   nextCursor: string | null;
   hasMore: boolean;
 }> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `operations:${publicKey}:${network}:${limit}:${cursor || 'null'}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
@@ -551,7 +655,7 @@ export async function fetchOperations(
 
   if (cursor) request.cursor(cursor);
 
-  const ops = await request.call();
+  const ops = await withAbort(request.call(), options.signal);
   const records = ops.records || [];
   const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : null;
 
@@ -566,14 +670,17 @@ export async function fetchOperations(
 
 export async function fetchAccountOffers(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<StellarSdk.Horizon.ServerApi.OfferRecord[]> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `offers:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
 
   const server = getServer(network);
-  const offers = await server.offers().forAccount(publicKey).call();
+  const offers = await withAbort(server.offers().forAccount(publicKey).call(), options.signal);
   const records = offers.records || [];
   stellarCache.set(cacheKey, records, TTL.ACCOUNT, ['offers', publicKey]);
   return records;
@@ -646,8 +753,11 @@ export function getOperationLabel(type: string): string {
 
 export async function fetchAccountCreationDate(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<string | null> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `creation-date:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
@@ -655,7 +765,10 @@ export async function fetchAccountCreationDate(
   const server = getServer(network);
 
   try {
-    const ops = await server.operations().forAccount(publicKey).order('asc').limit(1).call();
+    const ops = await withAbort(
+      server.operations().forAccount(publicKey).order('asc').limit(1).call(),
+      options.signal
+    );
 
     const operation = ops.records[0];
     const date = operation?.type === 'create_account' ? operation.created_at || null : null;
@@ -664,7 +777,10 @@ export async function fetchAccountCreationDate(
       stellarCache.set(cacheKey, date, TTL.ACCOUNT, ['account', publicKey]);
     }
     return date;
-  } catch {
+  } catch (error) {
+    // A creation date is best-effort, but an abort is not a "no date found" —
+    // swallowing it would let a cancelled read resolve and clear current state.
+    if ((error as Error | undefined)?.name === 'AbortError') throw error;
     return null;
   }
 }
@@ -1254,6 +1370,63 @@ export function parseMuxedAccount(
   }
 }
 
+// ─── Memo requirement check (SEP-29) ───────────────────────────────────────────
+
+export interface MemoRequirementResult {
+  /** True only when the destination account has published a SEP-29 memo requirement. */
+  required: boolean;
+  /** True when the lookup completed (successfully or with a definitive "not found"). */
+  checked: boolean;
+  /** Present when the requirement could not be determined (network error, unsupported input). */
+  error?: string;
+}
+
+/**
+ * Check whether a destination requires a memo per SEP-29, by looking for a
+ * `config.memo_required` data entry (base64-encoded "1") on the account.
+ * Exchanges and custodians commonly set this flag on shared deposit addresses.
+ *
+ * Muxed accounts (M...) already encode their own memo ID and never require one.
+ * Federated (name*domain) and contract (C...) destinations are not currently
+ * checked here — federation records surface their own memo via resolveAddress().
+ */
+export async function checkDestinationMemoRequirement(
+  destination: string,
+  network: NetworkName = 'testnet'
+): Promise<MemoRequirementResult> {
+  if (typeof destination !== 'string' || !destination.trim()) {
+    return { required: false, checked: false, error: 'No destination provided.' };
+  }
+  const trimmed = destination.trim();
+
+  if (isValidMuxedAccount(trimmed)) {
+    return { required: false, checked: true };
+  }
+
+  if (!isValidEd25519PublicKey(trimmed)) {
+    return { required: false, checked: false, error: 'Destination is not a directly checkable account address.' };
+  }
+
+  try {
+    const server = getServer(network);
+    const account = await server.loadAccount(trimmed);
+    const raw = (account as unknown as { data_attr?: Record<string, string> }).data_attr?.['config.memo_required'];
+    if (!raw) return { required: false, checked: true };
+    const decoded = typeof atob === 'function' ? atob(raw) : Buffer.from(raw, 'base64').toString('utf8');
+    return { required: decoded === '1', checked: true };
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      // Unfunded accounts cannot carry the SEP-29 data entry.
+      return { required: false, checked: true };
+    }
+    return {
+      required: false,
+      checked: false,
+      error: error?.message || 'Failed to check destination memo requirement.',
+    };
+  }
+}
+
 /**
  * Resolve a federated address to a Stellar account via Horizon federation endpoint
  */
@@ -1441,15 +1614,24 @@ export function formatClaimPredicate(predicate: Record<string, unknown>): string
 
 export async function fetchClaimableBalances(
   publicKey: string,
-  network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet',
+  options: HorizonRequestOptions = {}
 ): Promise<ClaimableBalanceRecord[]> {
+  throwIfAborted(options.signal);
+
   const cacheKey = `claimable:${publicKey}:${network}`;
   const cached = stellarCache.get(cacheKey);
   if (cached) return cached;
 
   const config = NETWORKS[network];
   const url = `${config.horizonUrl}/claimable_balances?claimant=${encodeURIComponent(publicKey)}&limit=50`;
-  const response = await rateLimitedFetch(url, undefined, 'medium', config.customHeaders);
+  // This path goes through `fetch`, so the signal cancels the request on the wire.
+  const response = await rateLimitedFetch(
+    url,
+    options.signal ? { signal: options.signal } : undefined,
+    'medium',
+    config.customHeaders
+  );
 
   if (!response.ok) throw new Error(`Horizon error ${response.status}`);
 
@@ -1457,6 +1639,275 @@ export async function fetchClaimableBalances(
   const records: ClaimableBalanceRecord[] = data._embedded?.records ?? [];
   stellarCache.set(cacheKey, records, TTL.ACCOUNT, ['claimable', publicKey]);
   return records;
+}
+
+// ─── Claimable Balance predicate explanation ───────────────────────────────────
+
+/**
+ * Structured, human-readable explanation of a claimable-balance claimant
+ * predicate. Used by the claimable-balance workspace to explain *when* and
+ * *whether* a balance can be claimed.
+ */
+export interface PredicateExplanation {
+  /** Normalized predicate kind. */
+  kind: 'unconditional' | 'abs_before' | 'abs_after' | 'rel_before' | 'and' | 'or' | 'not' | 'unknown';
+  /** Short human-readable summary. */
+  summary: string;
+  /** Whether the predicate currently permits a claim (best-effort, null = unknown). */
+  claimableNow: boolean | null;
+  /** Epoch ms at/after which the balance becomes claimable, if determinable. */
+  claimableAt: number | null;
+  /** Sub-explanations for `and` / `or` / `not` predicates. */
+  children?: PredicateExplanation[];
+}
+
+function toEpochMs(value: unknown): number | null {
+  if (typeof value === 'number') return value * 1000; // Horizon timestamps are seconds
+  if (typeof value === 'string') {
+    const n = Number(value);
+    if (!Number.isNaN(n) && value.trim() !== '') return n * 1000;
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
+}
+
+/** Combine child `claimableNow` results for an AND predicate. */
+function combineAnd(children: PredicateExplanation[]): boolean | null {
+  if (children.length === 0) return null;
+  if (children.some((c) => c.claimableNow === false)) return false;
+  if (children.some((c) => c.claimableNow === null)) return null;
+  return true;
+}
+
+/** Combine child `claimableNow` results for an OR predicate. */
+function combineOr(children: PredicateExplanation[]): boolean | null {
+  if (children.length === 0) return null;
+  if (children.some((c) => c.claimableNow === true)) return true;
+  if (children.some((c) => c.claimableNow === null)) return null;
+  return false;
+}
+
+/**
+ * Explain a claimant predicate deterministically.
+ *
+ * @param predicate - Raw Horizon predicate object (or already a string/object)
+ * @param now - Reference timestamp in ms (defaults to `Date.now()`); injectable
+ *              for tests and deterministic rendering.
+ * @returns {PredicateExplanation}
+ */
+export function explainClaimPredicate(predicate: unknown, now: number = Date.now()): PredicateExplanation {
+  if (!predicate || typeof predicate !== 'object' || Array.isArray(predicate) || Object.keys(predicate).length === 0) {
+    return {
+      kind: 'unconditional',
+      summary: 'Unconditional — claimable by the recipient at any time',
+      claimableNow: true,
+      claimableAt: null,
+    };
+  }
+
+  const p = predicate as Record<string, unknown>;
+
+  if ('unconditional' in p) {
+    return {
+      kind: 'unconditional',
+      summary: 'Unconditional — claimable by the recipient at any time',
+      claimableNow: true,
+      claimableAt: null,
+    };
+  }
+
+  if ('abs_before' in p) {
+    const ms = toEpochMs(p.abs_before);
+    if (ms == null) {
+      return { kind: 'abs_before', summary: `Before ${String(p.abs_before)}`, claimableNow: null, claimableAt: null };
+    }
+    return {
+      kind: 'abs_before',
+      summary: `Claimable before ${new Date(ms).toUTCString()}`,
+      claimableNow: now < ms,
+      claimableAt: null,
+    };
+  }
+
+  if ('abs_after' in p) {
+    const ms = toEpochMs(p.abs_after);
+    if (ms == null) {
+      return { kind: 'abs_after', summary: `After ${String(p.abs_after)}`, claimableNow: null, claimableAt: null };
+    }
+    return {
+      kind: 'abs_after',
+      summary: `Claimable after ${new Date(ms).toUTCString()}`,
+      claimableNow: now >= ms,
+      claimableAt: ms,
+    };
+  }
+
+  if ('rel_before' in p) {
+    const secs = Number(p.rel_before);
+    if (Number.isNaN(secs)) {
+      return { kind: 'rel_before', summary: `Within ${String(p.rel_before)}s of claim`, claimableNow: null, claimableAt: null };
+    }
+    return {
+      kind: 'rel_before',
+      summary: `Claimable within ${secs}s of the balance's creation ledger`,
+      claimableNow: null,
+      claimableAt: null,
+    };
+  }
+
+  if ('and' in p) {
+    const children = Array.isArray(p.and) ? (p.and as unknown[]).map((c) => explainClaimPredicate(c, now)) : [];
+    return {
+      kind: 'and',
+      summary: `All of: ${children.map((c) => c.summary).join(' AND ')}`,
+      claimableNow: combineAnd(children),
+      claimableAt: null,
+      children,
+    };
+  }
+
+  if ('or' in p) {
+    const children = Array.isArray(p.or) ? (p.or as unknown[]).map((c) => explainClaimPredicate(c, now)) : [];
+    return {
+      kind: 'or',
+      summary: `Any of: ${children.map((c) => c.summary).join(' OR ')}`,
+      claimableNow: combineOr(children),
+      claimableAt: null,
+      children,
+    };
+  }
+
+  if ('not' in p) {
+    const child = explainClaimPredicate(p.not, now);
+    return {
+      kind: 'not',
+      summary: `NOT (${child.summary})`,
+      claimableNow: child.claimableNow === null ? null : !child.claimableNow,
+      claimableAt: null,
+      children: [child],
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    summary: JSON.stringify(predicate),
+    claimableNow: null,
+    claimableAt: null,
+  };
+}
+
+// ─── Claimable Balance predicate builder ───────────────────────────────────────
+
+/**
+ * Declarative spec for building a Stellar claimable-balance claimant predicate.
+ * Kept UI-agnostic and pure so it can be unit-tested without the Stellar SDK.
+ */
+export type PredicateSpec =
+  | { type: 'unconditional' }
+  | { type: 'before'; date: string | Date }
+  | { type: 'after'; date: string | Date }
+  | { type: 'relative'; seconds: number }
+  | { type: 'and'; predicates: PredicateSpec[] }
+  | { type: 'or'; predicates: PredicateSpec[] }
+  | { type: 'not'; predicate: PredicateSpec };
+
+function toISODate(value: string | Date): string | null {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return new Date(t).toISOString();
+  }
+  return null;
+}
+
+/**
+ * Build a Stellar claimant predicate object from a declarative {@link PredicateSpec}.
+ *
+ * @param spec - The predicate specification
+ * @returns A plain predicate object consumable by `StellarSdk.Claimant`
+ * @throws {TypeError} If the spec is invalid (bad date, non-positive relative
+ *                      time, too few operands, or unknown type)
+ */
+export function buildClaimPredicate(spec: PredicateSpec): Record<string, unknown> {
+  if (!spec || typeof spec !== 'object') {
+    throw new TypeError('buildClaimPredicate: spec must be an object');
+  }
+  switch (spec.type) {
+    case 'unconditional':
+      return { unconditional: null };
+    case 'before': {
+      const iso = toISODate(spec.date);
+      if (!iso) throw new TypeError('buildClaimPredicate: "before" requires a valid date');
+      return { abs_before: iso };
+    }
+    case 'after': {
+      const iso = toISODate(spec.date);
+      if (!iso) throw new TypeError('buildClaimPredicate: "after" requires a valid date');
+      return { abs_after: iso };
+    }
+    case 'relative': {
+      const secs = Number(spec.seconds);
+      if (!Number.isFinite(secs) || secs <= 0) {
+        throw new TypeError('buildClaimPredicate: "relative" requires a positive number of seconds');
+      }
+      return { rel_before: Math.floor(secs) };
+    }
+    case 'and':
+    case 'or': {
+      const list = spec.predicates;
+      if (!Array.isArray(list) || list.length < 2) {
+        throw new TypeError(`buildClaimPredicate: "${spec.type}" requires at least two predicates`);
+      }
+      return { [spec.type]: list.map(buildClaimPredicate) };
+    }
+    case 'not': {
+      if (!spec.predicate) throw new TypeError('buildClaimPredicate: "not" requires a predicate');
+      return { not: buildClaimPredicate(spec.predicate) };
+    }
+    default:
+      throw new TypeError(`buildClaimPredicate: unknown predicate type "${(spec as { type?: string }).type}"`);
+  }
+}
+
+// ─── Claimable Balance inspection ──────────────────────────────────────────────
+
+/**
+ * Fetch a single claimable balance by its id (Horizon `GET /claimable_balances/:id`).
+ *
+ * Used by the workspace "inspect" view to show full claimant/predicate detail.
+ *
+ * @param balanceId - Horizon claimable-balance id (non-empty string)
+ * @param network - Target network
+ * @returns {Promise<ClaimableBalanceRecord>}
+ * @throws {TypeError} If `balanceId` is not a non-empty string
+ * @throws {Error} If the network is unsupported or Horizon returns an error
+ *                  (404 → "not found")
+ */
+export async function fetchClaimableBalanceById(
+  balanceId: string,
+  network: NetworkName = 'testnet'
+): Promise<ClaimableBalanceRecord> {
+  if (typeof balanceId !== 'string' || balanceId.trim().length === 0) {
+    throw new TypeError('fetchClaimableBalanceById: balanceId must be a non-empty string');
+  }
+  const config = NETWORKS[network];
+  if (!config || !config.horizonUrl) {
+    throw new Error(`fetchClaimableBalanceById: unsupported network "${network}"`);
+  }
+
+  const url = `${config.horizonUrl}/claimable_balances/${encodeURIComponent(balanceId)}`;
+  const response = await rateLimitedFetch(url, undefined, 'medium', config.customHeaders);
+
+  if (response.status === 404) {
+    throw new Error(`Claimable balance ${balanceId} not found`);
+  }
+  if (!response.ok) {
+    throw new Error(`Horizon error ${response.status} while fetching claimable balance`);
+  }
+
+  const data = await response.json();
+  return data as ClaimableBalanceRecord;
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -1504,12 +1955,24 @@ export interface TimeBounds {
   maxTime?: string | number;
 }
 
+export interface TransactionPreconditions {
+  ledgerBounds?: {
+    minLedger?: number | string;
+    maxLedger?: number | string;
+  };
+  minSequence?: number | string;
+  minSequenceAge?: number | string;
+  minSequenceLedgerGap?: number | string;
+  extraSigners?: string[];
+}
+
 export interface BuildTransactionParams {
   sourceAccount: string;
   operations: BuilderOperation[];
   memo?: string;
   baseFee: number;
   timeBounds: TimeBounds;
+  preconditions?: TransactionPreconditions;
   network: NetworkName;
 }
 
@@ -1568,6 +2031,30 @@ export async function buildTransaction(
     );
   }
 
+  if (preconditions) {
+    if (preconditions.ledgerBounds) {
+      const minLedger = parseInt(String(preconditions.ledgerBounds.minLedger || 0), 10);
+      const maxLedger = parseInt(String(preconditions.ledgerBounds.maxLedger || 0), 10);
+      txBuilder.setLedgerbounds(minLedger, maxLedger);
+    }
+
+    if (preconditions.minSequence !== undefined && preconditions.minSequence !== '') {
+      txBuilder.setMinAccountSequence(parseInt(String(preconditions.minSequence), 10));
+    }
+
+    if (preconditions.minSequenceAge !== undefined && preconditions.minSequenceAge !== '') {
+      txBuilder.setMinAccountSequenceAge(parseInt(String(preconditions.minSequenceAge), 10));
+    }
+
+    if (preconditions.minSequenceLedgerGap !== undefined && preconditions.minSequenceLedgerGap !== '') {
+      txBuilder.setMinAccountSequenceLedgerGap(parseInt(String(preconditions.minSequenceLedgerGap), 10));
+    }
+
+    if (preconditions.extraSigners && preconditions.extraSigners.length > 0) {
+      txBuilder.setExtraSigners(preconditions.extraSigners);
+    }
+  }
+
   operations.forEach((op) => {
     if (op.type === 'payment') {
       txBuilder.addOperation(
@@ -1585,7 +2072,6 @@ export async function buildTransaction(
         })
       );
     } else if (op.type === 'invokeHostFunction') {
-      // Simplified support for invocation for simulation purposes
       txBuilder.addOperation(
         StellarSdk.Operation.invokeHostFunction({
           func: (op as any).func,
@@ -1596,6 +2082,10 @@ export async function buildTransaction(
   });
 
   if (memo) {
+    const memoCheck = validateMemo(memo, 'text');
+    if (!memoCheck.valid) {
+      throw new Error(memoCheck.errors[0]);
+    }
     txBuilder.addMemo(StellarSdk.Memo.text(memo));
   }
 
@@ -1612,12 +2102,19 @@ export interface SimulateResult {
   warnings?: string[];
   feeOptions?: SimulationFeeOption[];
   xdr?: string;
+  resourceUsage?: {
+    cpuInstructions: number;
+    memoryBytes: number;
+    ledgerReadWrite: number;
+    ledgerReadOnly: number;
+  };
   sorobanMetrics?: {
     footprint: {
       readOnly: SerializedLedgerKey[];
       readWrite: SerializedLedgerKey[];
     };
     resourceFee: string;
+    refundableFee?: string;
     events?: SerializedContractEvent[];
   };
 }
@@ -1641,6 +2138,23 @@ export async function simulateTransaction(params: BuildTransactionParams): Promi
   const warnings = [...validation.warnings];
   let transaction: StellarSdk.Transaction | StellarSdk.FeeBumpTransaction | null = null;
   let sorobanMetrics = undefined;
+
+  if (!params.memo) {
+    const paymentDestinations = (params.operations || [])
+      .filter((op): op is PaymentOperation => op.type === 'payment' && Boolean((op as PaymentOperation).destination))
+      .map((op) => op.destination);
+
+    for (const destination of paymentDestinations) {
+      const memoCheck = await checkDestinationMemoRequirement(destination, params.network);
+      if (memoCheck.checked && memoCheck.required) {
+        warnings.push(
+          `Destination ${shortAddress(destination)} requires a memo (SEP-29). Add one before submitting or the network will reject this transaction.`
+        );
+      }
+      // Unsupported environments (federated/contract addresses, network errors)
+      // are surfaced via memoCheck.error but are non-fatal — we skip the warning.
+    }
+  }
 
   if (errors.length === 0) {
     try {
@@ -1683,17 +2197,29 @@ export async function simulateTransaction(params: BuildTransactionParams): Promi
         } else {
           const successfulSimulation = simulation as any;
           if (successfulSimulation.transactionData) {
+            const readOnly = successfulSimulation.transactionData.getReadOnly();
+            const readWrite = successfulSimulation.transactionData.getReadWrite();
+            const cost = successfulSimulation.cost as { cpuInstructions?: number; memoryBytes?: number } | undefined;
+            const cpuInstructions = cost?.cpuInstructions ?? Math.max(100_000, readWrite.length * 200_000 + readOnly.length * 50_000 + operationCount * 25_000);
+            const memoryBytes = cost?.memoryBytes ?? Math.max(1024, (readWrite.length + readOnly.length) * 2048 + operationCount * 512);
+            const resourceFee = successfulSimulation.minResourceFee;
+            const refundableFee = resourceFee ? Math.floor(parseInt(resourceFee, 10) * 0.3) : undefined;
+
             sorobanMetrics = {
               footprint: {
-                readOnly: successfulSimulation.transactionData
-                  .getReadOnly()
-                  .map(serializeLedgerKey),
-                readWrite: successfulSimulation.transactionData
-                  .getReadWrite()
-                  .map(serializeLedgerKey),
+                readOnly: readOnly.map(serializeLedgerKey),
+                readWrite: readWrite.map(serializeLedgerKey),
               },
-              resourceFee: successfulSimulation.minResourceFee,
+              resourceFee,
+              refundableFee: refundableFee?.toString(),
               events: (successfulSimulation.events || []).map(serializeDiagnosticEvent),
+            };
+
+            result.resourceUsage = {
+              cpuInstructions,
+              memoryBytes,
+              ledgerReadWrite: readWrite.length,
+              ledgerReadOnly: readOnly.length,
             };
           }
         }
@@ -1920,6 +2446,24 @@ export interface FetchPaymentPathsParams {
   amount: string;
   mode?: PathPaymentMode;
   network?: NetworkName;
+}
+
+export type PathPaymentErrorCode =
+  | 'INVALID_INPUT'
+  | 'UNSUPPORTED_NETWORK'
+  | 'HORIZON_ERROR'
+  | 'REQUEST_FAILED';
+
+/** A user-safe path quote failure with a stable code for UI handling. */
+export class PathPaymentError extends Error {
+  constructor(
+    public readonly code: PathPaymentErrorCode,
+    message: string,
+    public readonly status?: number
+  ) {
+    super(message);
+    this.name = 'PathPaymentError';
+  }
 }
 
 // ─── Liquidity pools ─────────────────────────────────────────────────────────
@@ -2676,7 +3220,43 @@ export async function fetchPaymentPaths(
   params: FetchPaymentPathsParams
 ): Promise<PaymentPathRecord[]> {
   const { sourceAsset, destAsset, amount, mode = 'strict-send', network = 'testnet' } = params;
-  const horizonUrl = NETWORKS[network].horizonUrl;
+
+  if (mode !== 'strict-send' && mode !== 'strict-receive') {
+    throw new PathPaymentError('INVALID_INPUT', 'Choose either strict-send or strict-receive mode.');
+  }
+
+  if (!/^\d+(\.\d{1,7})?$/.test(amount) || Number(amount) <= 0) {
+    throw new PathPaymentError(
+      'INVALID_INPUT',
+      'Amount must be a positive decimal with no more than 7 decimal places.'
+    );
+  }
+
+  function validateAsset(asset: PathAsset, label: string): void {
+    if (!asset || (asset.type !== 'native' && asset.type !== 'credit')) {
+      throw new PathPaymentError('INVALID_INPUT', `${label} asset type is invalid.`);
+    }
+    if (asset.type === 'credit') {
+      if (!/^[a-zA-Z0-9]{1,12}$/.test(asset.code)) {
+        throw new PathPaymentError('INVALID_INPUT', `${label} asset code must contain 1 to 12 letters or numbers.`);
+      }
+      if (!asset.issuer || !isValidPublicKey(asset.issuer)) {
+        throw new PathPaymentError('INVALID_INPUT', `${label} asset issuer must be a valid Stellar G address.`);
+      }
+    }
+  }
+
+  validateAsset(sourceAsset, 'Source');
+  validateAsset(destAsset, 'Destination');
+
+  const networkConfig = NETWORKS[network];
+  if (!networkConfig?.horizonUrl) {
+    throw new PathPaymentError(
+      'UNSUPPORTED_NETWORK',
+      `Path quotes are not available for the ${network || 'selected'} network.`
+    );
+  }
+  const horizonUrl = networkConfig.horizonUrl.replace(/\/$/, '');
 
   function assetParams(asset: PathAsset, prefix: string): string {
     if (asset.type === 'native') {
@@ -2698,10 +3278,55 @@ export async function fetchPaymentPaths(
     url = `${horizonUrl}/paths/strict-receive?${assetParams(destAsset, 'destination')}&destination_amount=${amount}&source_assets=${encodeURIComponent(assetString(sourceAsset))}`;
   }
 
-  const res = await fetch(url, withNetworkHeaders({}, network));
-  if (!res.ok) throw new Error(`Horizon error: ${res.status}`);
-  const data = (await res.json()) as { _embedded?: { records: PaymentPathRecord[] } };
-  return data._embedded?.records ?? [];
+  let res: Response;
+  try {
+    res = await fetch(url, withNetworkHeaders({}, network));
+  } catch {
+    throw new PathPaymentError(
+      'REQUEST_FAILED',
+      'Could not reach Horizon. Check your connection and try again.'
+    );
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const problem = (await res.json()) as { detail?: string };
+      detail = problem.detail ? ` ${problem.detail}` : '';
+    } catch {
+      // Horizon may return an empty or non-JSON proxy response.
+    }
+    throw new PathPaymentError(
+      'HORIZON_ERROR',
+      `Horizon could not produce a path quote (${res.status}).${detail}`,
+      res.status
+    );
+  }
+
+  let records: PaymentPathRecord[];
+  try {
+    const data = (await res.json()) as { _embedded?: { records?: PaymentPathRecord[] } };
+    records = Array.isArray(data._embedded?.records) ? data._embedded.records : [];
+  } catch {
+    throw new PathPaymentError('HORIZON_ERROR', 'Horizon returned an invalid path quote response.');
+  }
+
+  const amountFor = (record: PaymentPathRecord) => Number(
+    mode === 'strict-send' ? record.destination_amount : record.source_amount
+  );
+  const validRecords = records.filter((record) => Number.isFinite(amountFor(record)) && amountFor(record) > 0);
+  validRecords.sort((a, b) => mode === 'strict-send'
+    ? amountFor(b) - amountFor(a)
+    : amountFor(a) - amountFor(b));
+
+  const bestAmount = validRecords[0] ? amountFor(validRecords[0]) : 0;
+  return validRecords.map((record) => {
+    const quotedAmount = amountFor(record);
+    const slippage = mode === 'strict-send'
+      ? ((bestAmount - quotedAmount) / bestAmount) * 100
+      : ((quotedAmount - bestAmount) / bestAmount) * 100;
+    return { ...record, slippagePct: slippage.toFixed(2) };
+  });
 }
 
 /**
@@ -2753,6 +3378,7 @@ export default {
   isValidMuxedAccount,
   isFederatedAddress,
   parseMuxedAccount,
+  checkDestinationMemoRequirement,
   resolveFederatedAddress,
   resolveAddress,
   isValidContractId,

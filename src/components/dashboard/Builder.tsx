@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../../lib/store'
-import { buildTransaction, simulateTransaction, exportTransactionXDR } from '../../lib/stellar'
+import { buildTransaction, simulateTransaction, exportTransactionXDR, checkDestinationMemoRequirement } from '../../lib/stellar'
+import { validateMemo } from '../../lib/validation'
 import { predictTransactionFailure } from '../../lib/transactionFailurePrediction'
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
 import { StatCard } from './Card'
@@ -21,17 +22,70 @@ export default function Builder() {
   const [memo, setMemo] = useState('')
   const [baseFee, setBaseFee] = useState('100')
   const [timeBounds, setTimeBounds] = useState({ minTime: '', maxTime: '' })
+  const [preconditions, setPreconditions] = useState({
+    ledgerBounds: { minLedger: '', maxLedger: '' },
+    minSequence: '',
+    minSequenceAge: '',
+    minSequenceLedgerGap: '',
+    extraSigners: '',
+  })
   const [sourceAccount, setSourceAccount] = useState('')
   const [simulation, setSimulation] = useState(null)
   const [isSimulating, setIsSimulating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null })
+  const memoValidation = useMemo(() => validateMemo(memo, 'text'), [memo])
+  const primaryDestination = useMemo(
+    () => operations.find((op) => (op.type === 'payment' || op.type === 'accountMerge') && op.destination)?.destination || '',
+    [operations],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    if (!primaryDestination.trim()) {
+      setMemoRequirement({ checking: false, required: false, error: null })
+      return
+    }
+    setMemoRequirement((current) => ({ ...current, checking: true }))
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await checkDestinationMemoRequirement(primaryDestination.trim(), network)
+        if (cancelled) return
+        setMemoRequirement({
+          checking: false,
+          required: Boolean(result.checked && result.required),
+          error: result.checked ? null : result.error || "Unable to verify this destination's memo requirement.",
+        })
+      } catch (err) {
+        if (cancelled) return
+        setMemoRequirement({ checking: false, required: false, error: err.message || 'Unable to verify memo requirement.' })
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [primaryDestination, network])
+
+  const memoRequiredWarning = memoRequirement.required && !memo
+
   const transactionParams = {
     sourceAccount,
     operations,
     memo,
     baseFee: parseInt(baseFee || '100', 10),
     timeBounds,
+    preconditions: {
+      ledgerBounds: preconditions.ledgerBounds.minLedger || preconditions.ledgerBounds.maxLedger ? {
+        minLedger: preconditions.ledgerBounds.minLedger ? parseInt(preconditions.ledgerBounds.minLedger, 10) : undefined,
+        maxLedger: preconditions.ledgerBounds.maxLedger ? parseInt(preconditions.ledgerBounds.maxLedger, 10) : undefined,
+      } : undefined,
+      minSequence: preconditions.minSequence ? parseInt(preconditions.minSequence, 10) : undefined,
+      minSequenceAge: preconditions.minSequenceAge ? parseInt(preconditions.minSequenceAge, 10) : undefined,
+      minSequenceLedgerGap: preconditions.minSequenceLedgerGap ? parseInt(preconditions.minSequenceLedgerGap, 10) : undefined,
+      extraSigners: preconditions.extraSigners ? preconditions.extraSigners.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    },
     network,
   }
   const prediction = useMemo(() => predictTransactionFailure({
@@ -51,6 +105,13 @@ export default function Builder() {
     setMemo('')
     setBaseFee('100')
     setTimeBounds({ minTime: '', maxTime: '' })
+    setPreconditions({
+      ledgerBounds: { minLedger: '', maxLedger: '' },
+      minSequence: '',
+      minSequenceAge: '',
+      minSequenceLedgerGap: '',
+      extraSigners: '',
+    })
     setSourceAccount('')
     setSimulation(null)
     setError('')
@@ -104,6 +165,11 @@ export default function Builder() {
       return
     }
 
+    if (!memoValidation.valid) {
+      setError(memoValidation.errors[0])
+      return
+    }
+
     setIsSimulating(true)
     setError('')
     setSimulation(null)
@@ -115,6 +181,7 @@ export default function Builder() {
         memo,
         baseFee: parseInt(baseFee),
         timeBounds,
+        preconditions: transactionParams.preconditions,
         network
       })
       setSimulation(result)
@@ -131,6 +198,11 @@ export default function Builder() {
       return
     }
 
+    if (!memoValidation.valid) {
+      setError(memoValidation.errors[0])
+      return
+    }
+
     try {
       const xdr = await exportTransactionXDR({
         sourceAccount,
@@ -138,6 +210,7 @@ export default function Builder() {
         memo,
         baseFee: parseInt(baseFee),
         timeBounds,
+        preconditions: transactionParams.preconditions,
         network
       })
       
@@ -147,6 +220,25 @@ export default function Builder() {
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  const formatInstructions = (instr) => {
+    if (instr < 1000) return `${instr}`
+    if (instr < 1000000) return `${(instr / 1000).toFixed(2)}K`
+    return `${(instr / 1000000).toFixed(2)}M`
+  }
+
+  const formatBytes = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+  }
+
+  const formatStroops = (stroops) => {
+    const s = parseInt(String(stroops), 10)
+    if (Number.isNaN(s)) return '—'
+    const xlm = s / 10000000
+    return `${xlm.toFixed(7)} XLM (${s.toLocaleString()} stroops)`
   }
 
   return (
@@ -250,13 +342,31 @@ export default function Builder() {
             style={{
               width: '100%',
               padding: '10px 12px',
-              border: '1px solid var(--border)',
+              border: `1px solid ${memoValidation.valid ? 'var(--border)' : 'var(--red)'}`,
               borderRadius: 'var(--radius)',
               background: 'var(--bg-surface)',
               color: 'var(--text-primary)',
               fontSize: '12px'
             }}
           />
+          {!memoValidation.valid && (
+            <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '6px' }}>
+              {memoValidation.errors[0]}
+            </div>
+          )}
+          {memoRequiredWarning && (
+            <div style={{
+              marginTop: '8px',
+              padding: '8px 10px',
+              background: 'var(--amber-glow)',
+              border: '1px solid var(--amber)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              color: 'var(--amber)',
+            }}>
+              This destination requires a memo (SEP-29). Add one or the network will reject this transaction.
+            </div>
+          )}
         </div>
 
         {/* Base Fee */}
@@ -334,6 +444,141 @@ export default function Builder() {
         </div>
       </div>
 
+      {/* Preconditions */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', marginBottom: '12px' }}>
+          Preconditions (Optional)
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Ledger
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.ledgerBounds.minLedger}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, ledgerBounds: { ...prev.ledgerBounds, minLedger: e.target.value } }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Max Ledger
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.ledgerBounds.maxLedger}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, ledgerBounds: { ...prev.ledgerBounds, maxLedger: e.target.value } }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Sequence
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.minSequence}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, minSequence: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Sequence Age (seconds)
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.minSequenceAge}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, minSequenceAge: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Min Sequence Ledger Gap
+            </label>
+            <input
+              type="number"
+              placeholder="0"
+              value={preconditions.minSequenceLedgerGap}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, minSequenceLedgerGap: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', display: 'block' }}>
+              Extra Signers (comma-separated public keys)
+            </label>
+            <input
+              type="text"
+              placeholder="G..., G..."
+              value={preconditions.extraSigners}
+              onChange={(e) => setPreconditions(prev => ({ ...prev, extraSigners: e.target.value }))}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)'
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* AI Failure Prediction */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -392,7 +637,7 @@ export default function Builder() {
       <div style={{ display: 'flex', gap: '12px' }}>
         <button
           onClick={handleSimulate}
-          disabled={isSimulating || operations.length === 0 || offline}
+          disabled={isSimulating || operations.length === 0 || offline || !memoValidation.valid}
           title={offline ? 'Simulation requires a network connection' : ''}
           style={{
             display: 'flex',
@@ -415,7 +660,7 @@ export default function Builder() {
 
         <button
           onClick={handleExportXDR}
-          disabled={operations.length === 0}
+          disabled={operations.length === 0 || !memoValidation.valid}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -481,7 +726,7 @@ export default function Builder() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
               <StatCard 
                 label="Estimated Fee" 
-                value={`${simulation.fee} stroops`} 
+                value={`${simulation.fee.toLocaleString()} stroops`} 
                 accent="var(--cyan)" 
               />
               <StatCard 
@@ -490,13 +735,55 @@ export default function Builder() {
                 accent="var(--green)" 
               />
               {simulation.resourceUsage && (
-                <StatCard 
-                  label="CPU Instructions" 
-                  value={simulation.resourceUsage.cpuInstructions?.toLocaleString()} 
-                  accent="var(--amber)" 
-                />
+                <>
+                  <StatCard 
+                    label="CPU Instructions" 
+                    value={formatInstructions(simulation.resourceUsage.cpuInstructions)} 
+                    accent="var(--amber)" 
+                  />
+                  <StatCard 
+                    label="Memory Usage" 
+                    value={formatBytes(simulation.resourceUsage.memoryBytes)} 
+                    accent="var(--purple)" 
+                  />
+                  <StatCard 
+                    label="Ledger Reads (RO/RW)" 
+                    value={`${simulation.resourceUsage.ledgerReadOnly} / ${simulation.resourceUsage.ledgerReadWrite}`} 
+                    accent="var(--blue)" 
+                  />
+                </>
               )}
             </div>
+
+            {simulation.sorobanMetrics && (
+              <div style={{ marginTop: '16px', padding: '14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                  Soroban Resource Estimates
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Minimum Resource Fee</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--green)' }}>
+                      {formatStroops(simulation.sorobanMetrics.resourceFee)}
+                    </div>
+                  </div>
+                  {simulation.sorobanMetrics.refundableFee && (
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Estimated Refundable Fee</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--cyan)' }}>
+                        {formatStroops(simulation.sorobanMetrics.refundableFee)}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Ledger Footprint</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {simulation.sorobanMetrics.footprint.readOnly.length} RO / {simulation.sorobanMetrics.footprint.readWrite.length} RW keys
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {simulation.warnings && simulation.warnings.length > 0 && (
               <div style={{ marginTop: '16px' }}>

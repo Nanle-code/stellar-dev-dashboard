@@ -70,105 +70,15 @@ app.post('/analyze-upgrade', async (req, res) => {
   }
 })
 
-// Liquidity Prediction API Endpoints
-app.get('/api/liquidity/predict', ...);
-
-// Federated learning feedback endpoint
-app.post('/feedback-federated', ...);
-
-app.post('/api/liquidity/slippage', ...);
-
-// Participate in federated learning round
-app.post('/federated-train', ...);
-
-app.get('/api/liquidity/metrics', ...);
-
-// Get federated learning status
-app.get('/federated-status', ...);
-
-app.post('/api/liquidity/train', ...);
-
-// Sync with federated server
-app.post('/federated-sync', ...);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Liquidity Prediction API Endpoints
-app.get('/api/liquidity/predict', ...);
-
-// Federated learning feedback endpoint
-app.post('/feedback-federated', ...);
-
-app.post('/api/liquidity/slippage', ...);
-
-// Participate in federated learning round
-app.post('/federated-train', ...);
-
-app.get('/api/liquidity/metrics', ...);
-
-// Get federated learning status
-app.get('/federated-status', ...);
-
-app.post('/api/liquidity/train', ...);
-
-// Sync with federated server
-app.post('/federated-sync', ...);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Liquidity Prediction API Endpoints
-app.get('/api/liquidity/predict', ...);
-
-// Federated learning feedback endpoint
-app.post('/feedback-federated', ...);
-
-app.post('/api/liquidity/slippage', ...);
-
-// Participate in federated learning round
-app.post('/federated-train', ...);
-
-app.get('/api/liquidity/metrics', ...);
-
-// Get federated learning status
-app.get('/federated-status', ...);
-
-app.post('/api/liquidity/train', ...);
-
-// Sync with federated server
-app.post('/federated-sync', ...);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Liquidity Prediction API Endpoints
-app.get('/api/liquidity/predict', ...);
-
-// Federated learning feedback endpoint
-app.post('/feedback-federated', ...);
-
-app.post('/api/liquidity/slippage', ...);
-
-// Participate in federated learning round
-app.post('/federated-train', ...);
-
-app.get('/api/liquidity/metrics', ...);
-
-// Get federated learning status
-app.get('/federated-status', ...);
-
-app.post('/api/liquidity/train', ...);
-
-// Sync with federated server
-app.post('/federated-sync', ...);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Liquidity Prediction API Endpoints (stubs — implementations pending)
+app.get('/api/liquidity/predict', (req, res) => res.json({ status: 'not implemented' }));
+app.post('/feedback-federated', (req, res) => res.json({ status: 'not implemented' }));
+app.post('/api/liquidity/slippage', (req, res) => res.json({ status: 'not implemented' }));
+app.post('/federated-train', (req, res) => res.json({ status: 'not implemented' }));
+app.get('/api/liquidity/metrics', (req, res) => res.json({ status: 'not implemented' }));
+app.get('/federated-status', (req, res) => res.json({ status: 'not implemented' }));
+app.post('/api/liquidity/train', (req, res) => res.json({ status: 'not implemented' }));
+app.post('/federated-sync', (req, res) => res.json({ status: 'not implemented' }));
 
 const port = process.env.PORT || 4001
 app.listen(port, () => {

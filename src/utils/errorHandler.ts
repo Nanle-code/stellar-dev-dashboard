@@ -212,7 +212,7 @@ export const getHelpLinks = (category: ErrorCategory): HelpLink[] => {
  * Determine if an error is retryable
  */
 export const isRetryableError = (error: unknown, category: ErrorCategory): boolean => {
-  const retryableCategories = [
+  const retryableCategories: ErrorCategory[] = [
     ERROR_CATEGORIES.NETWORK,
     ERROR_CATEGORIES.RATE_LIMIT,
     ERROR_CATEGORIES.UNKNOWN

@@ -23,17 +23,26 @@ import {
   refreshPersonalization,
   clearPersonalizationData,
 } from '../../src/lib/personalizationEngine.js';
+import { requireSelfOrAdmin } from '../middleware/auth.js';
 
 export const router = express.Router();
 
 router.use((req, res, next) => {
-  const userId = req.headers['x-user-id'] || req.query.userId;
+  const userId = req.headers['x-user-id'] || req.query.userId || req.user?.id;
   if (!userId && req.path !== '/settings') {
     return res.status(400).json({ error: 'x-user-id header or userId query parameter is required' });
   }
-  req.userId = userId;
+
+  const requestedUserId = req.headers['x-user-id'] || req.query.userId;
+  if (requestedUserId && req.user && requestedUserId !== req.user.id && !req.user.roles?.includes('admin')) {
+    return res.status(403).json({ error: 'Forbidden', message: 'You do not have access to this user-scoped resource.' });
+  }
+
+  req.userId = requestedUserId || req.user?.id;
   next();
 });
+
+router.use(requireSelfOrAdmin((req) => req.headers['x-user-id'] || req.query.userId || req.user?.id));
 
 router.post('/predict/intent', async (req, res) => {
   try {

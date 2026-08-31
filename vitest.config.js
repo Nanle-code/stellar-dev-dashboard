@@ -15,7 +15,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.js'],
+    // Absolute path: Vite's relative-to-root URL resolution for setupFiles
+    // drops the root's final path segment when it isn't slash-terminated,
+    // which breaks whenever the checkout's parent directory happens to share
+    // its own last path segment (e.g. a nested `foo/foo` clone).
+    setupFiles: [path.resolve(__dirname, './tests/setup.js')],
     exclude: ['tests/e2e/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',

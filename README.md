@@ -110,18 +110,18 @@ npm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
 
 ## Development
 
-### Mobile universal links
+### Node.js support
 
-The mobile app supports deep links to the account and transaction screens using either a hosted URL or a custom `stellar://` scheme.
+This project supports Node.js **22 through 26**. Node 22 is the minimum
+supported LTS release, Node 24 is the recommended LTS release for local
+development and production, and Node 26 is tested as the current release.
+Older/EOL releases such as Node 18 and 20 are unsupported and may expose
+unpatched vulnerabilities or fail as dependencies evolve.
 
-Examples:
-
-```text
-https://dashboard.stellar.org/account/GD... 
-stellar://testnet/tx/abc123
-```
-
-Unsupported hosts, malformed values, and missing account/transaction IDs are rejected with a clear error path. The deep-link parser is intentionally strict so the app only navigates to valid Stellar targets.
+Use `npm run check:node` to validate the active runtime. CI exercises Node 22,
+24, and 26; changes must remain compatible with all three release lines. When
+Node changes its active release schedule, update `package.json` engines, the CI
+matrix, and `scripts/node-version-policy.mjs` together.
 
 ### Adding New Prediction Models
 

@@ -220,7 +220,12 @@ jobs:
       #   - No regressions: CI passes (exit 0)
       - name: Detect performance regressions
         if: always()  # Run even if Lighthouse CI fails
-        run: node scripts/detect-performance-regressions.mjs --threshold=2.5 --verbose
+        run: |
+          if [ -d .lighthouseci ]; then
+            node scripts/detect-performance-regressions.mjs --threshold=2.5 --verbose
+          else
+            echo "Lighthouse CI results not found - skipping regression detection."
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}

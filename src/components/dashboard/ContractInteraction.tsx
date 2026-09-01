@@ -5,12 +5,14 @@ import { simulateContractCall, isValidContractId } from "../../lib/stellar";
 import { addContractInteraction } from "../../lib/storage";
 import { generateId } from "../../lib/notifications";
 import ContractHistory from "./ContractHistory";
+import ContractEventDisplay from "./ContractEventDisplay";
 import { useContractRecommendations } from "../../hooks/useContractRecommendations";
 import { useGasPrediction } from "../../hooks/useGasPrediction";
 import { usePreferences } from "../../hooks/usePreferences";
 import { getContractInteractions } from "../../lib/storage";
 import { Sparkles, AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
 import GasCostEstimator from "./GasCostEstimator";
+import MainnetReviewModal from "../security/MainnetReviewModal";
 
 const ARGUMENT_TYPES = [
   { value: 'string', label: 'String' },
@@ -187,6 +189,7 @@ export default function ContractInteraction() {
   const [simulationResult, setSimulationResult] = useState(null);
   const [invokeResult, setInvokeResult] = useState(null);
   const [invokeStatus, setInvokeStatus] = useState(null);
+  const [showMainnetReview, setShowMainnetReview] = useState(false);
 
   const { preferences, update } = usePreferences();
   const advancedPreferences = preferences?.advanced || {};
@@ -528,6 +531,14 @@ export default function ContractInteraction() {
   }
 
   async function handleInvoke() {
+    if (isMainnet) {
+      setShowMainnetReview(true);
+      return;
+    }
+    await _doInvoke();
+  }
+
+  async function _doInvoke() {
     setError('');
     setInvokeResult(null);
     setInvokeStatus('PENDING');
@@ -559,6 +570,19 @@ export default function ContractInteraction() {
     } finally {
       setInvokeLoading(false);
     }
+  }
+
+  function buildMainnetReviewItems() {
+    const source = form.sourceAccount || connectedAddress || '—';
+    return [
+      { label: 'Network', value: 'Mainnet (Public)', highlight: true },
+      { label: 'Source', value: source ? `${source.slice(0, 8)}…${source.slice(-8)}` : '—', mono: true },
+      { label: 'Contract', value: form.contractId ? `${form.contractId.slice(0, 8)}…${form.contractId.slice(-8)}` : '—', mono: true },
+      { label: 'Function', value: form.functionName || '—', mono: true },
+      { label: 'Arguments', value: form.args.filter(a => a.value.trim()).length > 0
+          ? form.args.filter(a => a.value.trim()).map(a => `${a.name || a.type}: ${a.value}`).join(', ')
+          : 'none' },
+    ];
   }
 
   function handleReplay(record) {
@@ -896,7 +920,7 @@ export default function ContractInteraction() {
             }}
           >
             {isMainnet
-              ? "Mainnet mode: Simulation available, but transaction submission is disabled for safety."
+              ? "Mainnet mode: Simulation always available. Invoking on Mainnet requires an explicit review step."
               : "Testnet mode: Full simulation and submission available."}
           </div>
 
@@ -918,9 +942,9 @@ export default function ContractInteraction() {
             disabled={simulateLoading || invokeLoading || anomalies.some(a => a.severity === 'error')}
           />
           <ActionButton
-            label={invokeLoading ? `${invokeStatus || "PENDING"}...` : "Invoke"}
+            label={invokeLoading ? `${invokeStatus || "PENDING"}...` : isMainnet ? "Invoke on Mainnet…" : "Invoke"}
             onClick={handleInvoke}
-            disabled={isMainnet || invokeLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
+            disabled={invokeLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
             tone="secondary"
           />
         </div>
@@ -951,7 +975,7 @@ export default function ContractInteraction() {
             label="Simulation Result"
             data={simulationResult.result}
           />
-          <ResultBlock label="Events" data={simulationResult.events} />
+          <ContractEventDisplay events={simulationResult.events} label="Simulation Events" />
         </div>
       )}
 
@@ -962,6 +986,23 @@ export default function ContractInteraction() {
           )}
           {invokeResult && <ResultBlock label="Invocation Result" data={invokeResult} />}
         </>
+      )}
+
+      {showMainnetReview && (
+        <MainnetReviewModal
+          actionTitle="Invoke Contract Function"
+          irreversible
+          items={buildMainnetReviewItems()}
+          warnings={[
+            "Contract invocations on Mainnet consume real XLM fees and may modify on-chain state.",
+            "Ensure you have simulated this call successfully before invoking.",
+          ]}
+          onConfirm={() => {
+            setShowMainnetReview(false);
+            _doInvoke();
+          }}
+          onCancel={() => setShowMainnetReview(false)}
+        />
       )}
     </div>
   );

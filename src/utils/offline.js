@@ -74,7 +74,7 @@ function notifyInstallPromptListeners(available) {
  * Registers the service worker and sets up connectivity listeners.
  */
 export async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator) || (typeof navigator !== 'undefined' && navigator.webdriver)) return;
 
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', {
@@ -147,7 +147,7 @@ export function initSWUpdatePrompt(registration) {
   // controllerchange on the new page.
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
+    if (refreshing || (typeof navigator !== 'undefined' && navigator.webdriver)) return;
     refreshing = true;
     window.location.reload();
   });

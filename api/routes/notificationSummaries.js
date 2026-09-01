@@ -2,8 +2,17 @@ import express from 'express';
 import { clusterNotifications } from '../services/notificationClustering.js';
 import { summarizeCluster } from '../services/notificationSummarizer.js';
 import { saveFeedback } from '../services/feedbackStore.js';
+import { requireSelfOrAdmin } from '../middleware/auth.js';
 
 export const router = express.Router();
+
+router.use((req, res, next) => {
+  if (req.path === '/cluster' || req.path === '/summarize') {
+    return next();
+  }
+
+  return requireSelfOrAdmin((request) => request.body?.userId || request.headers['x-user-id'] || request.query.userId)(req, res, next);
+});
 
 // POST /api/v1/notification-summaries/cluster
 router.post('/cluster', (req, res) => {

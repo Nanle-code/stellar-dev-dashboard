@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
 } from 'react-native'
+import { useRoute } from '@react-navigation/native'
 import { useStore } from '../store'
 import { fetchTransactions, shortAddress, getOperationLabel } from '../services/stellar'
 import { colors, radii, spacing, typography } from '../theme'
@@ -14,6 +15,7 @@ import Card from '../components/Card'
 import Loading from '../components/Loading'
 
 export default function TransactionsScreen() {
+  const route = useRoute<any>()
   const connectedAddress = useStore((s) => s.connectedAddress)
   const transactions = useStore((s) => s.transactions)
   const txLoading = useStore((s) => s.txLoading)
@@ -22,7 +24,13 @@ export default function TransactionsScreen() {
   const network = useStore((s) => s.network)
 
   const [refreshing, setRefreshing] = useState(false)
-  const [selectedTx, setSelectedTx] = useState<string | null>(null)
+  const [selectedTx, setSelectedTx] = useState<string | null>(route.params?.transactionHash ?? null)
+
+  useEffect(() => {
+    if (route.params?.transactionHash) {
+      setSelectedTx(route.params.transactionHash)
+    }
+  }, [route.params?.transactionHash])
 
   async function onRefresh() {
     if (!connectedAddress) return

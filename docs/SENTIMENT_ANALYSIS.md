@@ -459,6 +459,7 @@ describe('Sentiment Analyzer', () => {
 ## API Reference
 
 See [sentimentAnalyzer.ts](../src/lib/sentimentAnalyzer.ts) for detailed API documentation.
+See the [API documentation](../src/components/sentiment/SentimentDashboard.tsx) for implementation details.
 
 ## Troubleshooting
 

@@ -3,11 +3,24 @@
  * Polls Horizon for account data and evaluates rules
  */
 
-import type { AlertRule, BalanceThresholdConfig, OperationTypeConfig, CounterpartyConfig } from '../types/alerts'
+import type {
+  AlertRule,
+  BalanceThresholdConfig,
+  OperationTypeConfig,
+  CounterpartyConfig,
+  FeeSpikeConfig,
+  SubmissionFailuresConfig,
+  RpcLatencyConfig,
+} from '../types/alerts'
 import type { NetworkName } from './stellar'
 import { fetchAccount, fetchOperations, isValidPublicKey } from './stellar'
 import { getEnabledRules, updateRuleEvaluationTime } from './alertRulesDb'
 import { deliverNotification, createAlertNotification } from './alertNotifications'
+import {
+  countMetricEventsInWindow,
+  getMetricPointsInWindow,
+  getPercentile,
+} from '../utils/metricsCollector'
 
 // Evaluation loop state
 let evaluationInterval: ReturnType<typeof setInterval> | null = null
@@ -129,6 +142,12 @@ async function evaluateRule(rule: AlertRule, network: NetworkName): Promise<bool
       return evaluateOperationType(rule, network)
     case 'counterparty':
       return evaluateCounterparty(rule, network)
+    case 'fee_spike':
+      return evaluateFeeSpike(rule)
+    case 'submission_failures':
+      return evaluateSubmissionFailures(rule)
+    case 'rpc_latency':
+      return evaluateRpcLatency(rule)
     default:
       return false
   }
@@ -255,6 +274,58 @@ async function evaluateCounterparty(
   }
 }
 
+export function evaluateFeeSpike(rule: AlertRule): boolean {
+  const config = rule.config as FeeSpikeConfig
+  if (!Number.isFinite(config.multiplier) || config.multiplier <= 1) {
+    return false
+  }
+
+  const windowMs = Math.max(1, config.windowSeconds) * 1000
+  const points = getMetricPointsInWindow('business.fee.stroops', windowMs)
+  if (points.length < Math.max(1, config.minSamples)) {
+    return false
+  }
+
+  const values = points.map((point) => point.value)
+  const baseline = values.slice(0, -1)
+  if (!baseline.length) {
+    return false
+  }
+
+  const baselineMean = baseline.reduce((sum, value) => sum + value, 0) / baseline.length
+  const latest = values[values.length - 1]
+  return latest >= baselineMean * config.multiplier
+}
+
+export function evaluateSubmissionFailures(rule: AlertRule): boolean {
+  const config = rule.config as SubmissionFailuresConfig
+  if (!Number.isFinite(config.failureCountThreshold) || config.failureCountThreshold <= 0) {
+    return false
+  }
+
+  const windowMs = Math.max(1, config.windowSeconds) * 1000
+  const failures = countMetricEventsInWindow('business.tx.failure', windowMs)
+  return failures >= config.failureCountThreshold
+}
+
+export function evaluateRpcLatency(rule: AlertRule): boolean {
+  const config = rule.config as RpcLatencyConfig
+  if (!Number.isFinite(config.thresholdMs) || config.thresholdMs <= 0) {
+    return false
+  }
+
+  const windowMs = Math.max(1, config.windowSeconds) * 1000
+  const labels = config.endpoint ? { endpoint: config.endpoint } : undefined
+  const points = getMetricPointsInWindow('technical.api.latency_ms', windowMs, labels)
+  if (points.length < Math.max(1, config.minSamples)) {
+    return false
+  }
+
+  const values = points.map((point) => point.value)
+  const observed = getPercentile(values, config.percentile)
+  return observed >= config.thresholdMs
+}
+
 /**
  * Check if an operation matches counterparty criteria
  */
@@ -330,6 +401,24 @@ function createNotificationForRule(rule: AlertRule): any {
       const shortAddr = `${config.counterpartyAddress.slice(0, 6)}...${config.counterpartyAddress.slice(-6)}`
       title = 'Counterparty Alert'
       message = `${config.direction === 'incoming' ? 'Incoming' : config.direction === 'outgoing' ? 'Outgoing' : 'New'} transaction with ${shortAddr}`
+      break
+    }
+    case 'fee_spike': {
+      const config = rule.config as FeeSpikeConfig
+      title = 'Fee Spike Alert'
+      message = `Observed fees exceeded ${config.multiplier}x the recent baseline`
+      break
+    }
+    case 'submission_failures': {
+      const config = rule.config as SubmissionFailuresConfig
+      title = 'Submission Failure Alert'
+      message = `${config.failureCountThreshold}+ failed submissions detected in ${config.windowSeconds}s`
+      break
+    }
+    case 'rpc_latency': {
+      const config = rule.config as RpcLatencyConfig
+      title = 'RPC Latency Alert'
+      message = `p${config.percentile} latency exceeded ${config.thresholdMs}ms`
       break
     }
   }

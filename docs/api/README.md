@@ -40,9 +40,11 @@ The API docs now include generated reference material and runnable examples.
 - [docs/api/REQUEST_RESPONSE_SAMPLES.md](REQUEST_RESPONSE_SAMPLES.md) — request/response payload examples for Horizon, Soroban RPC, CoinGecko, and Friendbot.
 - [docs/api/ERROR_REFERENCE.md](ERROR_REFERENCE.md) — developer reference for error categories, codes, and recovery strategies.
 - [docs/api/RATE_LIMITING.md](RATE_LIMITING.md) — client-side rate limiting, priority queues, and throttle configurations.
+- [docs/api/IDEMPOTENCY.md](IDEMPOTENCY.md) — idempotency keys for mutating public API proxy endpoints.
 - [docs/api/CHANGELOG.md](CHANGELOG.md) — API documentation changelog.
 - [docs/api/VERSION_HISTORY.md](generated/VERSION_HISTORY.md) — version history and release metadata.
 - [docs/api/examples/js/send-payment.mjs](examples/js/send-payment.mjs) and [docs/api/examples/python/send_payment.py](examples/python/send_payment.py) — runnable example scripts for JavaScript and Python (see `examples/js/` and `examples/python/`).
+- [docs/api/examples/](examples/js/send-payment.mjs) — runnable example scripts for JavaScript and Python.
 
 Regenerate the API docs with:
 
@@ -427,6 +429,9 @@ This directory documents the public JavaScript modules exposed by the dashboard.
 | [tutorialSystem.js](../../TUTORIAL_SYSTEM_GUIDE.md) | Guided tours and contextual help system |
 | [multisig.js](../../src/lib/multisig/index.ts) | Multi-signature transaction coordination |
 | [priceFeed.js](../../src/lib/priceFeed.js) | XLM and asset price feeds |
+| tutorialSystem.js | Guided tours and contextual help system |
+| multisig.js | Multi-signature transaction coordination |
+| priceFeed.js | XLM and asset price feeds |
 | [transactionBuilder.js](./transactionBuilder.md) | Multi-operation transaction builder and simulator |
 | [transactionTemplates.js](./transactionTemplates.md) | Pre-built transaction templates |
 | [import.js / export.js](./dataExport.md) | Dashboard backup, export, and import utilities |

@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getStoredValue, setStoredValue } from '../lib/storage'
-import { onStateChange, syncState, resolveStateConflict } from '../utils/stateSync'
+import {
+  onStateChange,
+  syncState,
+  resolveStateConflict,
+  getTabId,
+  loadSyncedState,
+} from '../utils/stateSync'
 
 /**
  * Custom hook for state that persists in IndexedDB with cross-tab sync (#105).
@@ -23,6 +29,12 @@ export function usePersistedState(key, defaultValue) {
   const [loaded, setLoaded] = useState(false)
   const valueRef = useRef(defaultValue)
 
+  // Track the version/metadata of the value currently held locally so incoming
+  // cross-tab updates can be resolved deterministically (#751).
+  const localVersionRef = useRef(0)
+  const localTsRef = useRef(0)
+  const localWriterRef = useRef('')
+
   // Keep a ref in sync so the cross-tab handler always sees the latest value
   useEffect(() => { valueRef.current = value }, [value])
 
@@ -33,21 +45,40 @@ export function usePersistedState(key, defaultValue) {
       if (!cancelled && stored !== null) {
         setValue(stored)
         valueRef.current = stored
+        const synced = loadSyncedState(key)
+        if (synced) {
+          localVersionRef.current = synced.version
+          localTsRef.current = synced.timestamp
+          localWriterRef.current = synced.writerId
+        }
       }
       if (!cancelled) setLoaded(true)
-    }).catch(() => {
+    }).catch((err) => {
+      console.warn(`Failed to hydrate persisted state for "${key}":`, err)
       if (!cancelled) setLoaded(true)
     })
     return () => { cancelled = true }
   }, [key])
 
-  // Subscribe to cross-tab state changes (#105)
+  // Subscribe to cross-tab state changes (#105, deterministic since #751)
   useEffect(() => {
-    const unsubscribe = onStateChange((changedKey, incomingValue) => {
+    const unsubscribe = onStateChange((changedKey, incomingValue, meta) => {
       if (changedKey !== key) return
       setValue((current) => {
-        const merged = resolveStateConflict(current, incomingValue)
-        valueRef.current = merged
+        const localMeta = {
+          version: localVersionRef.current,
+          timestamp: localTsRef.current,
+          writerId: localWriterRef.current,
+        }
+        const merged = resolveStateConflict(current, localMeta, incomingValue, meta)
+        if (merged === incomingValue) {
+          // Incoming won — adopt its metadata so the next local comparison is
+          // made against the canonical, higher-version record.
+          localVersionRef.current = meta ? meta.version : localVersionRef.current
+          localTsRef.current = meta ? meta.timestamp : localTsRef.current
+          localWriterRef.current = meta ? meta.writerId : localWriterRef.current
+          valueRef.current = incomingValue
+        }
         return merged
       })
     })
@@ -58,8 +89,12 @@ export function usePersistedState(key, defaultValue) {
     setValue((prev) => {
       const resolved = typeof newValue === 'function' ? newValue(prev) : newValue
       valueRef.current = resolved
-      // Persist and broadcast to other tabs
-      syncState(key, resolved).catch(() => {
+      // Persist with deterministic, conflict-safe cross-tab sync (#751)
+      syncState(key, resolved).then((version) => {
+        localVersionRef.current = version
+        localTsRef.current = Date.now()
+        localWriterRef.current = getTabId()
+      }).catch(() => {
         // Fallback: at least persist locally
         setStoredValue(key, resolved).catch(() => {})
       })

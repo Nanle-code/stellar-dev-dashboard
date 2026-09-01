@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createDrawerNavigator } from '@react-navigation/drawer'
-import { ActivityIndicator, View, StyleSheet } from 'react-native'
+import { ActivityIndicator, View, StyleSheet, Linking } from 'react-native'
 import { useStore } from '../store'
 import { authenticateWithBiometrics, isBiometricsEnabled } from '../services/biometrics'
 import TabNavigator from './TabNavigator'
@@ -12,6 +12,7 @@ import PortfolioScreen from '../screens/PortfolioScreen'
 import MultisigScreen from '../screens/MultisigScreen'
 import ConnectScreen from '../screens/ConnectScreen'
 import CustomDrawerContent from '../components/CustomDrawerContent'
+import { parseUniversalLink } from '../utils/universalLinking'
 import type { RootStackParamList, DrawerParamList } from './types'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
@@ -101,8 +102,59 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function AppNavigator() {
+  const navigationRef = useRef<any>(null)
+
+  useEffect(() => {
+    const handleDeepLink = (url: string | null) => {
+      if (!url) return
+
+      try {
+        const parsed = parseUniversalLink(url)
+
+        if (parsed.type === 'account') {
+          navigationRef.current?.navigate('MainTabs', {
+            screen: 'Account',
+            params: { accountId: parsed.accountId },
+          })
+          return
+        }
+
+        if (parsed.type === 'transaction') {
+          navigationRef.current?.navigate('MainTabs', {
+            screen: 'Transactions',
+            params: { transactionHash: parsed.transactionHash },
+          })
+        }
+      } catch (error) {
+        console.warn('Invalid mobile universal link', error)
+      }
+    }
+
+    Linking.getInitialURL().then(handleDeepLink)
+    const subscription = Linking.addEventListener('url', ({ url }) => handleDeepLink(url))
+
+    return () => subscription.remove()
+  }, [])
+
   return (
-    <NavigationContainer theme={navDarkTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navDarkTheme}
+      linking={{
+        prefixes: ['stellar://', 'https://dashboard.stellar.org', 'https://www.dashboard.stellar.org'],
+        config: {
+          screens: {
+            MainTabs: {
+              screens: {
+                Overview: '',
+                Account: 'account/:accountId',
+                Transactions: 'tx/:transactionHash',
+              },
+            },
+          },
+        },
+      }}
+    >
       <BiometricGate>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="MainTabs" component={DrawerNavigator} />

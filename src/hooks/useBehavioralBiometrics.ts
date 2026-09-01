@@ -20,7 +20,6 @@ import { useBiometricStore } from '../lib/behavioralBiometrics/store'
 import type { BehavioralProfile } from '../lib/behavioralBiometrics/profileBuilder'
 
 // storage.js is a plain JS module; we import it with type assertions to keep TS happy
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 // @ts-ignore — storage.js has no declaration file; this is intentional
 const storageModule = import('../lib/storage') as Promise<any>
 

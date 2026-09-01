@@ -8,6 +8,7 @@ import {
   fetchOperations,
   resolveAddress,
 } from '../../lib/stellar'
+import { accountRequests, AccountLanes, isCancellation } from '../../lib/requestCancellation'
 import { stellarCacheManager } from '../../lib/cacheManager'
 import { getOnlineStatus } from '../../utils/offline'
 import { useResponsive } from '../../hooks/useResponsive'
@@ -61,24 +62,35 @@ export default function ConnectPanel() {
     }
     setError('')
     setAccountLoading(true)
-    
+
+    // Supersede any connect still in flight. A slower response for the previously
+    // requested account (or network) is aborted where possible, and discarded
+    // rather than written to state if it still arrives (Issue #745).
+    const lease = accountRequests.begin(AccountLanes.Connect)
+    // Pin the network for the whole flow so a mid-flight switch cannot mix
+    // an address resolved on one network with data fetched from another.
+    const requestNetwork = network
+
     try {
       // Resolve the address (handles G, M, and federated formats)
-      const resolved = await resolveAddress(addr, network)
-      
+      const resolved = await lease.run(() => resolveAddress(addr, requestNetwork))
+
       if (!resolved) {
-        setError('Failed to resolve address')
-        setAddressInfo(null)
-        setAccountLoading(false)
+        lease.commit(() => {
+          setError('Failed to resolve address')
+          setAddressInfo(null)
+        })
         return
       }
 
       // Store the resolved address info
-      setAddressInfo({
-        masterAccount: resolved.accountId,
-        muxedId: resolved.muxedId,
-        federated: resolved.federatedAddress,
-      })
+      lease.commit(() =>
+        setAddressInfo({
+          masterAccount: resolved.accountId,
+          muxedId: resolved.muxedId,
+          federated: resolved.federatedAddress,
+        })
+      )
 
       // Fetch account data for the master account
       let account
@@ -86,29 +98,36 @@ export default function ConnectPanel() {
 
       if (!online) {
         // Offline — try to serve from cache
-        const cached = await stellarCacheManager.getWithFallback(
-          `account:${resolved.accountId}:${network}`,
+        const cached = await lease.run(() =>
+          stellarCacheManager.getWithFallback(`account:${resolved.accountId}:${requestNetwork}`)
         )
         if (cached.value) {
           account = cached.value
         } else {
-          setError('You are offline and no cached data is available for this account.')
-          setAddressInfo(null)
-          setAccountLoading(false)
+          lease.commit(() => {
+            setError('You are offline and no cached data is available for this account.')
+            setAddressInfo(null)
+          })
           return
         }
       } else {
-        account = await fetchAccount(resolved.accountId, network)
+        account = await lease.run((signal) =>
+          fetchAccount(resolved.accountId, requestNetwork, { signal })
+        )
       }
 
-      setConnectedAddress(resolved.accountId)
-      setAccountData(account)
-      setActiveTab('overview')
+      // Only the newest connect may publish account state.
+      const published = lease.commit(() => {
+        setConnectedAddress(resolved.accountId)
+        setAccountData(account)
+        setActiveTab('overview')
+      })
+      if (!published) return
 
       // Persist account data for offline reads (TTL 5 min)
       if (online) {
         stellarCacheManager
-          .set(`account:${resolved.accountId}:${network}`, account, 300_000, ['account'])
+          .set(`account:${resolved.accountId}:${requestNetwork}`, account, 300_000, ['account'])
           .catch(() => {})
       }
       announceToScreenReader('Connected to account ' + resolved.accountId.slice(0, 8) + '...')
@@ -117,41 +136,57 @@ export default function ConnectPanel() {
 
       setTxLoading(true)
       setOpsLoading(true)
-      
-      fetchTransactions(resolved.accountId, network, 50)
+
+      fetchTransactions(resolved.accountId, requestNetwork, 50, null, { signal: lease.signal })
         .then(({ records, nextCursor, hasMore }) => {
-          setTransactions(records)
-          setTxNextCursor(nextCursor)
-          setTxHasMore(hasMore)
+          lease.commit(() => {
+            setTransactions(records)
+            setTxNextCursor(nextCursor)
+            setTxHasMore(hasMore)
+          })
         })
-        .catch(() => {
-          setTransactions([])
-          setTxNextCursor(null)
-          setTxHasMore(false)
+        .catch((err) => {
+          if (isCancellation(err)) return
+          lease.commit(() => {
+            setTransactions([])
+            setTxNextCursor(null)
+            setTxHasMore(false)
+          })
         })
         .finally(() => {
-          setTxLoading(false)
+          lease.commit(() => setTxLoading(false))
         })
 
-      fetchOperations(resolved.accountId, network, 50)
+      fetchOperations(resolved.accountId, requestNetwork, 50, null, { signal: lease.signal })
         .then(({ records, nextCursor, hasMore }) => {
-          setOperations(records)
-          setOpsNextCursor(nextCursor)
-          setOpsHasMore(hasMore)
+          lease.commit(() => {
+            setOperations(records)
+            setOpsNextCursor(nextCursor)
+            setOpsHasMore(hasMore)
+          })
         })
-        .catch(() => {
-          setOperations([])
-          setOpsNextCursor(null)
-          setOpsHasMore(false)
+        .catch((err) => {
+          if (isCancellation(err)) return
+          lease.commit(() => {
+            setOperations([])
+            setOpsNextCursor(null)
+            setOpsHasMore(false)
+          })
         })
         .finally(() => {
-          setOpsLoading(false)
+          lease.commit(() => setOpsLoading(false))
         })
     } catch (err) {
-      setError((err as Error)?.message || 'Account not found on ' + network)
-      setAddressInfo(null)
+      // Superseded by a newer connect — stay silent so we don't clobber its state.
+      if (isCancellation(err)) return
+      lease.commit(() => {
+        setError((err as Error)?.message || 'Account not found on ' + requestNetwork)
+        setAddressInfo(null)
+      })
     } finally {
-      setAccountLoading(false)
+      // Only the newest connect may clear the spinner; an older one finishing
+      // must not make an in-progress load look finished.
+      lease.commit(() => setAccountLoading(false))
     }
   }
 

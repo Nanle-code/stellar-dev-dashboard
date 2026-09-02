@@ -277,23 +277,34 @@ jobs:
           echo "## Testing Framework Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "| Stage | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Visual Regression | ${{ needs.visual-regression.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Coverage Gate | ${{ needs.coverage-gate.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Lighthouse CI | ${{ needs.lighthouse-ci.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Accessibility Gate | ${{ needs.accessibility-gate.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
+          VISUAL="${{ needs.visual-regression.result }}"
+          COVERAGE="${{ needs.coverage-gate.result }}"
+          LHCI="${{ needs.lighthouse-ci.result }}"
+          A11Y="${{ needs.accessibility-gate.result }}"
+
+          echo "| Visual Regression | $VISUAL |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Coverage Gate | $COVERAGE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lighthouse CI | $LHCI |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accessibility Gate | $A11Y |" >> "$GITHUB_STEP_SUMMARY"
 
           FAILED=0
-          for result in \
-            "${{ needs.visual-regression.result }}" \
-            "${{ needs.coverage-gate.result }}" \
-            "${{ needs.lighthouse-ci.result }}" \
-            "${{ needs.accessibility-gate.result }}"; do
-            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
-              FAILED=1
-            fi
-          done
+          FAIL_LIST=()
+
+          if [ "$VISUAL" = "failure" ] || [ "$VISUAL" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Visual Regression")
+          fi
+          if [ "$COVERAGE" = "failure" ] || [ "$COVERAGE" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Coverage Gate")
+          fi
+          if [ "$LHCI" = "failure" ] || [ "$LHCI" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Lighthouse CI")
+          fi
+          if [ "$A11Y" = "failure" ] || [ "$A11Y" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Accessibility Gate")
+          fi
 
           if [ "$FAILED" -eq 1 ]; then
-            echo "::error::Testing framework gate failed."
+            echo "::error::Testing framework gate failed. Failed stages: ${FAIL_LIST[*]}"
             exit 1
           fi

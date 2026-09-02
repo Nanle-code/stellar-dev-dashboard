@@ -1432,7 +1432,7 @@ export async function checkDestinationMemoRequirement(
  */
 export async function resolveFederatedAddress(
   federatedAddress: string,
-  _network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet'
 ): Promise<{ accountId: string; memoId?: string; memoType?: string } | null> {
   try {
     const server = getServer(network);

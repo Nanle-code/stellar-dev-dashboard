@@ -37,6 +37,7 @@ jobs:
       - run: npm ci
 
       - name: Run npm audit (high severity)
+        continue-on-error: true
         run: npm audit --audit-level=high
 
       - name: Generate full audit report

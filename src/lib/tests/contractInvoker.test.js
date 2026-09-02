@@ -3,7 +3,8 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import { 
   parseContractWasm, 
   invokeContractFunction, 
-  normalizeContractValue 
+  normalizeContractValue,
+  waitForTransaction,
 } from '../contractInvoker';
 import { getSorobanServer, getServer, isValidContractId, isValidPublicKey } from '../stellar';
 
@@ -11,7 +12,10 @@ vi.mock('../stellar', () => ({
   getSorobanServer: vi.fn(),
   getServer: vi.fn(),
   NETWORKS: {
-    testnet: { passphrase: 'Test SDF Network ; September 2015' }
+    testnet: {
+      sorobanUrl: 'https://soroban-testnet.stellar.org',
+      passphrase: 'Test SDF Network ; September 2015'
+    }
   },
   isValidContractId: vi.fn(),
   isValidPublicKey: vi.fn(),
@@ -37,6 +41,7 @@ describe('Contract Invoker Flows', () => {
       getLedgerEntries: vi.fn(),
       prepareTransaction: vi.fn(),
       sendTransaction: vi.fn(),
+      getTransaction: vi.fn(),
     };
 
     mockHorizonServer = {
@@ -82,7 +87,8 @@ describe('Contract Invoker Flows', () => {
         contractId: 'INVALID_ID',
         functionName: 'increment',
         sourceAccount: MOCK_PUBKEY,
-        secretKey: MOCK_SECRET
+        secretKey: MOCK_SECRET,
+        polling: { pollIntervalMs: 0 }
       })).rejects.toThrow('Invalid contract ID');
     });
 
@@ -93,6 +99,16 @@ describe('Contract Invoker Flows', () => {
         sourceAccount: MOCK_PUBKEY,
         secretKey: MOCK_SECRET
       })).rejects.toThrow('Function name is required');
+    });
+
+    it('rejects networks without a configured Soroban endpoint', async () => {
+      await expect(invokeContractFunction({
+        contractId: MOCK_CONTRACT_ID,
+        functionName: 'increment',
+        sourceAccount: MOCK_PUBKEY,
+        secretKey: MOCK_SECRET,
+        network: 'custom',
+      })).rejects.toThrow('Soroban is not configured for the custom network');
     });
 
     it('throws error for unsupported argument types', async () => {
@@ -114,6 +130,9 @@ describe('Contract Invoker Flows', () => {
         status: 'PENDING',
         latestLedger: 12345
       });
+      mockSorobanServer.getTransaction
+        .mockResolvedValueOnce({ status: 'NOT_FOUND' })
+        .mockResolvedValueOnce({ status: 'SUCCESS', latestLedger: 12346 });
 
       const args = [
         { type: 'string', value: 'hello soroban' },
@@ -135,9 +154,55 @@ describe('Contract Invoker Flows', () => {
       
       expect(result).toEqual({
         hash: 'mock-tx-hash',
-        status: 'PENDING',
-        latestLedger: 12345
+        status: 'SUCCESS',
+        latestLedger: 12346
       });
+    });
+
+    it('returns expired when the transaction remains absent through the polling window', async () => {
+      mockSorobanServer.getTransaction
+        .mockResolvedValueOnce({ status: 'NOT_FOUND' });
+
+      await expect(waitForTransaction(mockSorobanServer, 'mock-tx-hash', {
+        maxAttempts: 1,
+        pollIntervalMs: 0,
+      })).resolves.toMatchObject({
+        hash: 'mock-tx-hash',
+        status: 'EXPIRED',
+      });
+    });
+
+    it('returns timeout when status polling fails', async () => {
+      mockSorobanServer.getTransaction.mockRejectedValue(new Error('RPC unavailable'));
+
+      await expect(waitForTransaction(mockSorobanServer, 'mock-tx-hash', {
+        maxAttempts: 1,
+        pollIntervalMs: 0,
+      })).resolves.toMatchObject({
+        hash: 'mock-tx-hash',
+        status: 'TIMEOUT',
+      });
+    });
+
+    it('normalizes an RPC submission error to a failed terminal result', async () => {
+      mockSorobanServer.prepareTransaction.mockResolvedValue({ sign: vi.fn() });
+      mockSorobanServer.sendTransaction.mockResolvedValue({
+        hash: 'mock-tx-hash',
+        status: 'ERROR',
+        errorResultXdr: 'mock-error',
+      });
+
+      await expect(invokeContractFunction({
+        contractId: MOCK_CONTRACT_ID,
+        functionName: 'failing_call',
+        sourceAccount: MOCK_PUBKEY,
+        secretKey: MOCK_SECRET,
+        polling: { pollIntervalMs: 0 },
+      })).resolves.toMatchObject({
+        hash: 'mock-tx-hash',
+        status: 'FAILED',
+      });
+      expect(mockSorobanServer.getTransaction).not.toHaveBeenCalled();
     });
 
     it('handles Soroban RPC simulation/preparation failures seamlessly', async () => {

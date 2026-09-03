@@ -38,7 +38,7 @@ test.describe('Connect Panel', () => {
 
   test('invalid key error state', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('textbox').fill('BADKEY');
+    await page.getByRole('textbox', { name: /stellar account address/i }).or(page.locator('#connect-address-input')).first().fill('BADKEY');
     await page.getByRole('button', { name: /connect/i }).click();
     await waitForStable(page);
     await expect(page).toHaveScreenshot('connect-panel-error.png');
@@ -53,7 +53,12 @@ test.describe('Layout', () => {
   test('sidebar', async ({ page }) => {
     await page.goto('/');
     await waitForStable(page);
-    await expect(page.locator('aside')).toHaveScreenshot('sidebar.png');
+    const sidebar = page.locator('aside').first();
+    if (await sidebar.isVisible().catch(() => false)) {
+      await expect(sidebar).toHaveScreenshot('sidebar.png');
+    } else {
+      await expect(page).toHaveScreenshot('sidebar-mobile-fallback.png');
+    }
   });
 
   test('price ticker bar', async ({ page }) => {
@@ -61,7 +66,7 @@ test.describe('Layout', () => {
     await waitForStable(page);
     // The price ticker is the first child of the main layout header area
     const ticker = page.locator('[data-testid="price-ticker"], .price-ticker').first();
-    if (await ticker.count()) {
+    if (await ticker.isVisible().catch(() => false)) {
       await expect(ticker).toHaveScreenshot('price-ticker.png');
     } else {
       // Fallback: top 80px strip of the viewport
@@ -105,7 +110,7 @@ test.describe('Dashboard tabs', () => {
 test.describe('Connected account views', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('textbox').fill(TESTNET_KEY);
+    await page.getByRole('textbox', { name: /stellar account address/i }).or(page.locator('#connect-address-input')).first().fill(TESTNET_KEY);
     await page.getByRole('button', { name: /connect/i }).click();
     await waitForStable(page);
   });

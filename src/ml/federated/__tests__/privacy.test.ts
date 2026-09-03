@@ -1,5 +1,5 @@
 // Tests for Privacy-Preserving Data Collection
-const { PrivacyPreservingCollector } = require('../privacy');
+const { PrivacyPreservingCollector } = require('../privacy.cjs');
 
 describe('PrivacyPreservingCollector', () => {
   let collector;

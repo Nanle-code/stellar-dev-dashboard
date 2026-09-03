@@ -12,8 +12,16 @@ const TESTNET_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
 
 /** Wait for the page to be visually stable (no pending network or animations). */
 async function waitForStable(page) {
-  await page.waitForLoadState('networkidle');
-  // Extra tick so CSS transitions triggered by load finish
+  try {
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+  } catch {
+    // proceed
+  }
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 10000 });
+  } catch {
+    // ignore network idle timeout in CI environment
+  }
   await page.waitForTimeout(200);
 }
 

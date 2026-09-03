@@ -56,7 +56,23 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache-e2e
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium browser
+        if: steps.playwright-cache-e2e.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies if cached
+        if: steps.playwright-cache-e2e.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Build app
         run: npm run build
@@ -83,7 +99,23 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache-visual
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium browser
+        if: steps.playwright-cache-visual.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies if cached
+        if: steps.playwright-cache-visual.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Build app
         run: npm run build
@@ -144,9 +176,7 @@ jobs:
         with:
           path: tests/e2e/snapshots
           key: visual-snapshots-${{ github.base_ref || github.ref_name }}
-      - uses: actions/checkout@v4
-      - name: Run Tests
-        run: echo "Unit and integration tests passed"
+
 
   build:
     name: Production Build

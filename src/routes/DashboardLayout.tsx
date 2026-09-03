@@ -15,7 +15,7 @@ import ConnectPanel from '../components/dashboard/ConnectPanel';
 import PriceTicker from '../components/dashboard/PriceTicker';
 import RealTimeNotificationCenter from '../components/notifications/RealTimeNotificationCenter';
 import { useRealTimeNotifications } from '../hooks/useRealTimeNotifications';
-import { initCache, handleNetworkSwitch } from '../lib/cacheInit';
+import { initCache } from '../lib/cacheInit';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useStore } from '../lib/store';
 import { useResponsive } from '../hooks/useResponsive';

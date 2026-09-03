@@ -5,7 +5,7 @@ import App from "./App";
 import "./styles/globals.css";
 import { initMonitoring } from "./utils/monitoring";
 import { selfHealingManager } from "./lib/errorHandling/SelfHealingManager";
-import { registerBuiltInStrategies, registerNetworkProbes } from "./lib/errorHandling/RecoveryStrategyRegistry.ts";
+import { registerBuiltInStrategies, registerNetworkProbes } from "./lib/errorHandling/RecoveryStrategyRegistry";
 import { registerServiceWorker } from "./utils/offline";
 
 // ── Monitoring must be the very first thing that runs so Sentry and the
@@ -20,13 +20,16 @@ registerNetworkProbes().then(() => {
   // Non-critical: app continues without self-healing probes
 });
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+}
 
 // Register the service worker after the app has mounted.
 // Using window.load ensures the SW registration doesn't compete with initial

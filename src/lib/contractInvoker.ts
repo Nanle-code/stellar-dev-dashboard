@@ -80,6 +80,71 @@ function safeInvoke(target, methods, ...args) {
   return undefined;
 }
 
+const TERMINAL_TRANSACTION_STATUSES = new Set(["SUCCESS", "FAILED"]);
+
+const wait = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+export async function waitForTransaction(
+  server,
+  hash,
+  { maxAttempts = 30, pollIntervalMs = 1000, onStatus } = {},
+) {
+  if (!hash || typeof hash !== "string") {
+    throw new Error("Transaction hash is required");
+  }
+  if (!server || typeof server.getTransaction !== "function") {
+    throw new Error("Soroban RPC does not support transaction status tracking");
+  }
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new Error("Transaction polling attempts must be a positive integer");
+  }
+  if (!Number.isFinite(pollIntervalMs) || pollIntervalMs < 0) {
+    throw new Error("Transaction polling interval must be a non-negative number");
+  }
+
+  let lastResponse = null;
+  let hadRpcError = false;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const response = await server.getTransaction(hash);
+      lastResponse = response;
+      const status = response?.status || "PENDING";
+      onStatus?.(status, response);
+
+      if (status === "ERROR") {
+        return { ...response, hash, status: "FAILED" };
+      }
+      if (TERMINAL_TRANSACTION_STATUSES.has(status)) {
+        return { ...response, hash };
+      }
+    } catch {
+      hadRpcError = true;
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await wait(pollIntervalMs);
+    }
+  }
+
+  const status = hadRpcError
+    ? "TIMEOUT"
+    : lastResponse?.status === "NOT_FOUND"
+      ? "EXPIRED"
+      : "TIMEOUT";
+
+  return {
+    ...(lastResponse || {}),
+    hash,
+    status,
+    error:
+      status === "EXPIRED"
+        ? "Transaction was not found before the polling window ended and may have expired"
+        : "Transaction status polling timed out",
+  };
+}
+
 function readSwitchName(value) {
   const switchValue = safeInvoke(value, "switch");
 
@@ -455,6 +520,8 @@ export async function invokeContractFunction({
   sourceAccount,
   secretKey,
   network = "testnet",
+  onStatus,
+  polling,
 }) {
   if (!isValidContractId(contractId)) {
     throw new Error("Invalid contract ID");
@@ -472,7 +539,15 @@ export async function invokeContractFunction({
     throw new Error("Invalid secret key");
   }
 
+  const networkConfig = NETWORKS?.[network];
+  if (!networkConfig?.sorobanUrl || !networkConfig.passphrase) {
+    throw new Error(`Soroban is not configured for the ${network} network`);
+  }
+
   const server = getSorobanServer(network);
+  if (typeof server?.getTransaction !== "function") {
+    throw new Error("Soroban RPC does not support transaction status tracking");
+  }
   const horizon = getServer(network);
   const account = await horizon.loadAccount(sourceAccount);
   const contract = new StellarSdk.Contract(contractId);
@@ -506,11 +581,18 @@ export async function invokeContractFunction({
 
   const response = await server.sendTransaction(prepared);
 
-  return {
-    hash: response.hash,
-    status: response.status,
-    latestLedger: response.latestLedger,
-  };
+  if (!response?.hash) {
+    throw new Error("Soroban RPC did not return a transaction hash");
+  }
+
+  const submittedStatus = response.status || "PENDING";
+  onStatus?.(submittedStatus, response);
+  if (submittedStatus === "ERROR") {
+    onStatus?.("FAILED", response);
+    return { ...response, status: "FAILED" };
+  }
+
+  return waitForTransaction(server, response.hash, { ...polling, onStatus });
 }
 
 export function normalizeContractValue(value) {

@@ -12,6 +12,21 @@ vi.mock('../../../src/utils/stateSync', () => ({
   resolveStateConflict: vi.fn((local) => local),
   getTabId: vi.fn().mockReturnValue('test-tab'),
 }));
+vi.mock('../../../src/lib/cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+// requestCancellation is safe to use real — no side effects at import time.
+// But mock it so tests run fast and don't depend on AbortController polyfills.
+vi.mock('../../../src/lib/requestCancellation', () => ({
+  accountRequests: { abortAll: vi.fn(), begin: vi.fn(() => ({ active: true, commit: vi.fn(() => true), abort: vi.fn() })) },
+  AccountLanes: { Connect: 'account:connect', Offers: 'account:offers', CreationDate: 'account:creation-date' },
+  isCancellation: vi.fn(() => false),
+  isStaleRequestError: vi.fn(() => false),
+  StaleRequestError: class StaleRequestError extends Error {},
+}));
 
 import { useStore } from '../../../src/lib/store';
 

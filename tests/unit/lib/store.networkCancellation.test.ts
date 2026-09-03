@@ -1,7 +1,27 @@
 // tests/unit/lib/store.networkCancellation.test.ts
 // Issue #745 — switching network must cancel in-flight Horizon reads and leave no
 // loading flag stuck on, since the cancelled requests' own handlers will not fire.
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../../../src/lib/storage', () => ({
+  getStoredValue: vi.fn().mockResolvedValue(null),
+  setStoredValue: vi.fn(),
+}));
+vi.mock('../../../src/utils/stateSync', () => ({
+  broadcastStateChange: vi.fn(),
+  onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(0),
+  loadSyncedState: vi.fn().mockReturnValue(null),
+  resolveStateConflict: vi.fn((local: unknown) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
+}));
+vi.mock('../../../src/lib/cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+
 import { useStore } from '../../../src/lib/store';
 import { accountRequests, AccountLanes } from '../../../src/lib/requestCancellation';
 

@@ -700,7 +700,7 @@ let lastAppliedTs = 0
 let lastAppliedWriter = ''
 
 if (typeof window !== 'undefined') {
-  getStoredValue(STORE_PERSIST_KEY).then((saved: Record<string, unknown> | null) => {
+  Promise.resolve(getStoredValue(STORE_PERSIST_KEY)).then((saved: Record<string, unknown> | null) => {
     if (!saved || typeof saved !== 'object') return
     const slice: Partial<StoreState> = {}
     for (const key of PERSIST_KEYS) {

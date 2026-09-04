@@ -328,6 +328,9 @@ export async function clearPersonalizationData(userId: string): Promise<void> {
 const PROFILE_STORAGE_KEY = 'stellar_personalization_profile'
 
 export interface PersonalizationProfile {
+  userId?: string
+  version?: number
+  interactionHistory?: Array<Record<string, unknown>>
   /** Total number of recorded interactions */
   interactionCount: number
   /** Map of tab name → visit count */
@@ -364,8 +367,11 @@ export interface WidgetScore {
   reason: string
 }
 
-function defaultProfile(): PersonalizationProfile {
+export function createDefaultProfile(userId?: string): PersonalizationProfile {
   return {
+    userId: userId ?? `user-${Math.random().toString(36).slice(2, 9)}`,
+    version: 1,
+    interactionHistory: [],
     interactionCount: 0,
     tabVisits: {},
     widgetUsage: {},
@@ -378,14 +384,20 @@ function defaultProfile(): PersonalizationProfile {
   }
 }
 
+export function getWidgetEfficiencyScore(profile: PersonalizationProfile, widgetType: string): number {
+  const usage = profile.widgetUsage[widgetType] ?? 0
+  const accepted = profile.acceptedWidgets.includes(widgetType)
+  return Math.min(100, usage * 10 + (accepted ? 30 : 0))
+}
+
 export async function loadPersonalizationProfile(): Promise<PersonalizationProfile> {
   try {
     const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
-    if (raw) return { ...defaultProfile(), ...JSON.parse(raw) }
+    if (raw) return { ...createDefaultProfile(), ...JSON.parse(raw) }
   } catch {
     // ignore parse errors
   }
-  return defaultProfile()
+  return createDefaultProfile()
 }
 
 export async function savePersonalizationProfile(profile: PersonalizationProfile): Promise<void> {
@@ -397,7 +409,7 @@ export async function savePersonalizationProfile(profile: PersonalizationProfile
 }
 
 export async function resetPersonalization(): Promise<PersonalizationProfile> {
-  const fresh = defaultProfile()
+  const fresh = createDefaultProfile()
   await savePersonalizationProfile(fresh)
   return fresh
 }

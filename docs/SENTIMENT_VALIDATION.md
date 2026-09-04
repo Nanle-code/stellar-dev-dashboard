@@ -448,5 +448,6 @@ OVERALL: ✓ READY FOR PRODUCTION
 - [Sentiment Types](../src/types/sentiment.ts)
 - [NLP Analyzer](../src/lib/sentimentAnalyzer.ts)
 - [Data Pipeline](../src/lib/sentimentPipeline.ts)
+- [Sentiment Documentation](docs/SENTIMENT_ANALYSIS.md)
 - [Sentiment Documentation](./SENTIMENT_ANALYSIS.md)
 - [Test Suite](../tests/unit/sentimentAnalysis.test.ts)

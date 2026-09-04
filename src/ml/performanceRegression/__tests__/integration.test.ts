@@ -29,16 +29,20 @@ vi.mock('../../../../lib/alerts.js', () => ({
   },
 }));
 
-vi.mock('node:child_process', () => ({
-  exec: vi.fn((cmd, options, callback) => {
-    // Mock git log output
+vi.mock('node:child_process', () => {
+  const execMock = vi.fn((cmd, options, callback) => {
     const mockCommits = [
       'abc123|John Doe <john@example.com>|1640000000|feat: add feature',
       'def456|Alice <alice@example.com>|1640001000|fix: bug fix',
     ].join('\n');
-    callback(null, mockCommits, '');
-  }),
-}));
+    const cb = typeof options === 'function' ? options : callback;
+    if (typeof cb === 'function') cb(null, mockCommits, '');
+  });
+  return {
+    default: { exec: execMock },
+    exec: execMock,
+  };
+});
 
 vi.mock('node:util', () => ({
   promisify: (fn) => fn,

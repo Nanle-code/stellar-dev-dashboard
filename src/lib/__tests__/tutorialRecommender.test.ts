@@ -6,6 +6,7 @@ import {
   type ScoredTutorial,
 } from '../tutorialRecommender';
 import { createDefaultModel, updateProfile, recordTutorialCompletion, updateSkillLevel, type LearnerModel } from '../learnerModel';
+import { TOURS } from '../tutorialSystem';
 
 describe('TutorialRecommender', () => {
   let model: LearnerModel;
@@ -41,7 +42,7 @@ describe('TutorialRecommender', () => {
 
   it('returns fewer results than requested when not enough tutorials available', () => {
     const recs = getRecommendedTutorials(model, 100);
-    expect(recs.length).toBeLessThanOrEqual(Object.keys(require('../tutorialSystem').TOURS).length);
+    expect(recs.length).toBeLessThanOrEqual(Object.keys(TOURS).length);
   });
 
   it('excludes already completed tutorials', () => {
@@ -91,7 +92,7 @@ describe('TutorialRecommender', () => {
   });
 
   it('returns null for next when all completed', () => {
-    const tours = Object.keys(require('../tutorialSystem').TOURS);
+    const tours = Object.keys(TOURS);
     tours.forEach((t) => recordTutorialCompletion(model, t, 180000, 90));
 
     const next = getNextTutorial(model);

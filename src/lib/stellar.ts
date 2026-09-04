@@ -1432,7 +1432,7 @@ export async function checkDestinationMemoRequirement(
  */
 export async function resolveFederatedAddress(
   federatedAddress: string,
-  _network: NetworkName = 'testnet'
+  network: NetworkName = 'testnet'
 ): Promise<{ accountId: string; memoId?: string; memoType?: string } | null> {
   try {
     const server = getServer(network);
@@ -3349,6 +3349,25 @@ export function getCacheStats() {
   return stellarCache.getStats();
 }
 
+export function formatInstructions(instructions: number): string {
+  if (instructions < 1000) return `${instructions}`;
+  if (instructions < 1000000) return `${(instructions / 1000).toFixed(2)}K`;
+  return `${(instructions / 1000000).toFixed(2)}M`;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export function formatStroops(stroops: unknown): string {
+  const num = typeof stroops === 'number' ? stroops : parseInt(String(stroops), 10);
+  if (isNaN(num)) return '—';
+  const xlm = (num / 10000000).toFixed(7);
+  return `${xlm} XLM (${num.toLocaleString('en-US')} stroops)`;
+}
+
 export { StellarSdk };
 
 export default {
@@ -3404,6 +3423,9 @@ export default {
   calculateAccountReserves,
   clearCache,
   getCacheStats,
+  formatInstructions,
+  formatBytes,
+  formatStroops,
   StellarSdk,
 };
 

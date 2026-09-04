@@ -6,9 +6,10 @@ import {
   formatCommitSummary,
 } from '../changeCorrelation.js';
 
-// Mock child_process
+const execFn = vi.fn();
 vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
+  default: { exec: execFn },
+  exec: execFn,
 }));
 
 vi.mock('node:util', () => ({

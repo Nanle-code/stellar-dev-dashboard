@@ -1,5 +1,5 @@
 // Tests for Federated Learning Integration
-const { FederatedLearningIntegration } = require('../integration');
+const { FederatedLearningIntegration } = require('../integration.cjs');
 
 describe('FederatedLearningIntegration', () => {
   let integration;

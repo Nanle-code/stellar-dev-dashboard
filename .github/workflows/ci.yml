@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [master, main]
 
+env:
+  NODE_VERSION: '24'
+
 jobs:
   lint:
     name: Lint & Typecheck
@@ -20,8 +23,161 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Tests
-        run: echo "Unit and integration tests passed"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify supported runtime
+        run: npm run check:node
+
+      - name: Test Node support policy boundaries
+        run: npm run test:node-support
+
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache-e2e
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium browser
+        if: steps.playwright-cache-e2e.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies if cached
+        if: steps.playwright-cache-e2e.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  visual-regression:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache-visual
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium browser
+        if: steps.playwright-cache-visual.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies if cached
+        if: steps.playwright-cache-visual.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Restore baseline snapshots
+        uses: actions/cache@v4
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ github.base_ref || github.ref_name }}
+          restore-keys: visual-snapshots-
+
+      - name: Run visual regression tests
+        run: npm run test:visual
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff-${{ github.run_number }}
+          path: |
+            tests/e2e/report/
+            test-results/
+          retention-days: 14
+
+      - name: Comment on PR with failure details
+        if: >-
+          failure() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ❌ Visual Regression Failures',
+                '',
+                'Screenshots differ from baseline. Download the **`visual-diff-${{ github.run_number }}`** artifact to review diffs.',
+                '',
+                'To update baselines intentionally, run locally:',
+                '```bash',
+                'npm run test:visual:update',
+                'git add tests/e2e/snapshots',
+                'git commit -m "chore: update visual baselines"',
+                '```',
+                '',
+                `Run: [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              ].join('\n')
+            })
+
+      - name: Save updated snapshots
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: tests/e2e/snapshots
+          key: visual-snapshots-${{ github.base_ref || github.ref_name }}
 
   build:
     name: Production Build

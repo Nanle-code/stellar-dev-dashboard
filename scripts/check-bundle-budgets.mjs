@@ -31,8 +31,8 @@ function checkBudgets() {
       const gzipped = zlib.gzipSync(content);
       const sizeKB = gzipped.length / 1024;
 
-      // Extract chunk name: chunkName-[hash].js
-      const chunkNameMatch = file.match(/^(.+)-[a-f0-9]+\.js$/);
+      // Extract chunk name: chunkName-[hash].js (Vite uses base62 hashes)
+      const chunkNameMatch = file.match(/^(.+)-[0-9a-zA-Z_-]+\.js$/);
       const chunkName = chunkNameMatch ? chunkNameMatch[1] : 'unknown';
 
       const budget = BUDGETS[chunkName] || BUDGETS['default'];

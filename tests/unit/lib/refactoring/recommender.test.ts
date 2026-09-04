@@ -10,25 +10,25 @@
  */
 
 import { describe, expect, it, beforeEach } from 'vitest';
-import { analyzeFile } from '../../src/lib/refactoring/codeAnalyzer';
-import { recommend } from '../../src/lib/refactoring/recommender';
-import { runDetectors } from '../../src/lib/refactoring/refactoringPatterns';
+import { analyzeFile } from '../../../../src/lib/refactoring/codeAnalyzer';
+import { recommend } from '../../../../src/lib/refactoring/recommender';
+import { runDetectors } from '../../../../src/lib/refactoring/refactoringPatterns';
 import {
   assessSafety,
   buildSafetyContext,
-} from '../../src/lib/refactoring/safetyAnalysis';
+} from '../../../../src/lib/refactoring/safetyAnalysis';
 import {
   buildBaseline,
   computeImpact,
   computePriority,
   rankSuggestions,
   maintainabilityIndex,
-} from '../../src/lib/refactoring/impactAssessment';
-import { toHTML, toJSON, toMarkdown } from '../../src/lib/refactoring/reportGenerator';
+} from '../../../../src/lib/refactoring/impactAssessment';
+import { toHTML, toJSON, toMarkdown } from '../../../../src/lib/refactoring/reportGenerator';
 import type {
   FileTarget,
   RefactoringSuggestion,
-} from '../../src/lib/refactoring/types';
+} from '../../../../src/lib/refactoring/types';
 
 const RISKY_FILE = `
 export function evaluateRisk(profile, holder, asset) {
@@ -327,3 +327,5 @@ function fakeSuggestion(id: string, priority: number, confidence: number): Refac
     predictedLabels: [],
   };
 }
+
+

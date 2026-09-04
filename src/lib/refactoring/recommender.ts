@@ -228,7 +228,7 @@ export function recommend(input: RecommendInput): RecommendResult {
     0
   );
   const avgAcceptance = filtered.length
-    ? filtered.reduce((sum, s) => sum + s.confidence * s.safety, 0) / filtered.length
+    ? filtered.reduce((sum, s) => sum + (0.6 * s.confidence + 0.4 * s.safety), 0) / filtered.length
     : 0;
   const overallQuality = metrics.length
     ? metrics.reduce((sum, f) => sum + maintainabilityIndex(f), 0) /

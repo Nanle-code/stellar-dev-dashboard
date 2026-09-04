@@ -236,7 +236,10 @@ class TransactionSigningAuditLog {
     const errors: string[] = []
     let previousHash = computeHash('GENESIS')
 
-    for (const entry of this.state.entries) {
+    // Entries are stored newest-first; iterate oldest-first to verify chain
+    const entriesOldestFirst = [...this.state.entries].reverse()
+
+    for (const entry of entriesOldestFirst) {
       // Verify entry hash
       const computedHash = createEntryHash(entry, entry.previousEntryHash)
       if (computedHash !== entry.entryHash) {

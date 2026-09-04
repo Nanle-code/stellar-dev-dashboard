@@ -226,56 +226,56 @@ describe('Session management', () => {
     network: 'testnet',
   });
 
-  it('createSession persists to localStorage', () => {
-    const session = createSession(baseSession());
+  it('createSession persists to localStorage', async () => {
+    const session = await createSession(baseSession());
     expect(session.id).toMatch(/^msig-/);
-    expect(loadSessions()).toHaveLength(1);
+    expect(await loadSessions()).toHaveLength(1);
   });
 
-  it('createSession sets status to pending', () => {
-    const session = createSession(baseSession());
+  it('createSession sets status to pending', async () => {
+    const session = await createSession(baseSession());
     expect(session.status).toBe(SESSION_STATUS.PENDING);
   });
 
-  it('updateSession modifies fields', () => {
-    const session = createSession(baseSession());
-    const updated = updateSession(session.id, { description: 'Updated' });
+  it('updateSession modifies fields', async () => {
+    const session = await createSession(baseSession());
+    const updated = await updateSession(session.id, { description: 'Updated' });
     expect(updated.description).toBe('Updated');
-    expect(loadSessions()[0].description).toBe('Updated');
+    expect((await loadSessions())[0].description).toBe('Updated');
   });
 
-  it('deleteSession removes from storage', () => {
-    const session = createSession(baseSession());
-    deleteSession(session.id);
-    expect(loadSessions()).toHaveLength(0);
+  it('deleteSession removes from storage', async () => {
+    const session = await createSession(baseSession());
+    await deleteSession(session.id);
+    expect(await loadSessions()).toHaveLength(0);
   });
 
-  it('addSignatureToSession adds signature and updates XDR', () => {
-    const session = createSession(baseSession());
-    const updated = addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'SIGNED_XDR_1');
+  it('addSignatureToSession adds signature and updates XDR', async () => {
+    const session = await createSession(baseSession());
+    const updated = await addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'SIGNED_XDR_1');
     expect(updated.collectedSignatures).toHaveLength(1);
     expect(updated.txXdr).toBe('SIGNED_XDR_1');
     expect(updated.status).toBe(SESSION_STATUS.COLLECTING);
   });
 
-  it('addSignatureToSession sets status to ready when threshold met', () => {
-    const session = createSession(baseSession());
-    addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'XDR_1');
-    const updated = addSignatureToSession(session.id, KEYPAIR_B.publicKey(), 'XDR_2');
+  it('addSignatureToSession sets status to ready when threshold met', async () => {
+    const session = await createSession(baseSession());
+    await addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'XDR_1');
+    const updated = await addSignatureToSession(session.id, KEYPAIR_B.publicKey(), 'XDR_2');
     expect(updated.status).toBe(SESSION_STATUS.READY);
   });
 
-  it('addSignatureToSession ignores duplicate signers', () => {
-    const session = createSession(baseSession());
-    addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'XDR_1');
-    const updated = addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'XDR_DUPE');
+  it('addSignatureToSession ignores duplicate signers', async () => {
+    const session = await createSession(baseSession());
+    await addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'XDR_1');
+    const updated = await addSignatureToSession(session.id, KEYPAIR_A.publicKey(), 'XDR_DUPE');
     expect(updated.collectedSignatures).toHaveLength(1);
   });
 
-  it('multiple sessions are stored in order (newest first)', () => {
-    createSession({ ...baseSession(), description: 'First' });
-    createSession({ ...baseSession(), description: 'Second' });
-    const sessions = loadSessions();
+  it('multiple sessions are stored in order (newest first)', async () => {
+    await createSession({ ...baseSession(), description: 'First' });
+    await createSession({ ...baseSession(), description: 'Second' });
+    const sessions = await loadSessions();
     expect(sessions[0].description).toBe('Second');
     expect(sessions[1].description).toBe('First');
   });

@@ -62,7 +62,7 @@ jobs:
           fi
 
       - name: Attach SBOM to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.value }}
           files: dist/sbom.cyclonedx.json

@@ -18,10 +18,10 @@ import { isQuotaExceededError, selectEvictionCandidates, notifyQuotaExceeded } f
 
 // ─── DB config ────────────────────────────────────────────────────────────────
 
-const DB_NAME    = 'stellar-dev-dashboard';
-const DB_VERSION = 5;
+export const DB_NAME    = 'stellar-dev-dashboard';
+export const DB_VERSION = 5;
 
-const STORES = {
+export const STORES = {
   APP_STATE:  'app-state',    // Zustand persistence
   API_CACHE:  'api-cache',    // TTL-aware API response cache
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
@@ -30,7 +30,7 @@ const STORES = {
   META: '__meta__', // Schema metadata and migration tracking
 };
 
-const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 const MIGRATIONS = {
   4: async (db) => {

@@ -171,9 +171,9 @@ describe('PrivacyPreservingCollector', () => {
     
     const budget = collector.calculatePrivacyBudget(operations);
     
-    expect(budget.used).toBe(0.9);
+    expect(budget.used).toBeCloseTo(0.9);
     expect(budget.remaining).toBeCloseTo(0.1);
-    expect(budget.percentage).toBe(90);
+    expect(budget.percentage).toBeCloseTo(90);
   });
 
   test('should check privacy requirements', () => {

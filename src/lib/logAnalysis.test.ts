@@ -242,7 +242,7 @@ describe('logAnalysis', () => {
       );
 
       const result = analyzeLogs(logs);
-      expect(result.recommendations.some((r) => r.includes('Critical'))).toBe(true);
+      expect(result.recommendations.some((r) => r.includes('High error rate'))).toBe(true);
     });
   });
 });

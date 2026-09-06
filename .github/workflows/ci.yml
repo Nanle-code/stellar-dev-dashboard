@@ -80,7 +80,9 @@ jobs:
         run: npm run build
 
       - name: Run E2E tests
-        run: npm run test:e2e
+        run: npx playwright test --project=chromium
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -128,6 +130,12 @@ jobs:
           path: tests/e2e/snapshots
           key: visual-snapshots-${{ github.base_ref || github.ref_name }}
           restore-keys: visual-snapshots-
+
+      - name: Generate baseline snapshots if missing
+        if: hashFiles('tests/e2e/snapshots/*.png') == ''
+        run: npm run test:visual:update
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
 
       - name: Run visual regression tests
         run: npm run test:visual

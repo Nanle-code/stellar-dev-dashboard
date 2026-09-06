@@ -29,6 +29,7 @@ function buildSimulationCacheKey(params: BuildTransactionParams) {
     memo: params.memo,
     baseFee: params.baseFee,
     timeBounds: params.timeBounds,
+    preconditions: params.preconditions,
     network: params.network,
   });
 }
@@ -1979,7 +1980,7 @@ export interface BuildTransactionParams {
 export async function buildTransaction(
   params: BuildTransactionParams
 ): Promise<StellarSdk.Transaction | StellarSdk.FeeBumpTransaction> {
-  const { sourceAccount, operations, memo, baseFee, timeBounds, network } = params;
+  const { sourceAccount, operations, memo, baseFee, timeBounds, preconditions, network } = params;
 
   // ── Fee-bump shortcut ──────────────────────────────────────────────────────
   // A fee-bump must be the only operation and is built entirely from its own

@@ -10,6 +10,12 @@ import { test, expect } from '@playwright/test';
 
 const TESTNET_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+  });
+});
+
 /** Wait for the page to be visually stable (no pending network or animations). */
 async function waitForStable(page) {
   try {

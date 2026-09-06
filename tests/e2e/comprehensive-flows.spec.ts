@@ -4,6 +4,10 @@ const TESTNET_ACCOUNT = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN
 
 test.describe('Comprehensive Dashboard Flows', () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+    });
+
     // Set up common routes to avoid hitting real APIs
     await page.route('**/horizon**.stellar.org/**', async route => {
       const url = route.request().url();

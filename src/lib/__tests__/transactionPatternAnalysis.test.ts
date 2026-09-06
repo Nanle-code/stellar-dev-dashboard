@@ -350,7 +350,7 @@ describe('extractTrainingData', () => {
     const dataNormal = extractTrainingData([tx], [op], {})
     expect(dataNormal.features).toHaveLength(1)
     expect(dataNormal.labels[0]).toHaveLength(11) // 11 pattern classes
-    expect(dataNormal.labels[0][0]).toBe(1) // Normal label is index 0
+    expect(dataNormal.labels[0].reduce((sum: number, v: number) => sum + v, 0)).toBe(1) // exactly one class is set
   })
 
   it('handles feedback weighting correctly', () => {

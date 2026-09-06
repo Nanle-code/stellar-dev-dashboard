@@ -9,4 +9,8 @@ coverage/
 .stryker-tmp/
 reports/
 storybook-static/
+test-results/
+test-results.json
+playwright-report/
+tests/e2e/report/
 node_modules

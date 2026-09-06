@@ -30,7 +30,7 @@ Requirements:
 ## Decision
 
 Adopt a plugin-style connector layer under
-`src/lib/wallet/` (e.g. [`freighter.js`](../../src/lib/wallet/freighter.js)) with a
+`src/lib/wallet/` (e.g. [`freighter.ts`](../../src/lib/wallet/freighter.ts)) with a
 common contract:
 
 - `is<Wallet>Installed()` — capability probe.
@@ -40,26 +40,26 @@ common contract:
 
 Specifics:
 
-- **Freighter** (`freighter.js`): read the injected `window.freighterApi` (CDN
+- **Freighter** (`freighter.ts`): read the injected `window.freighterApi` (CDN
   SDK loaded from `@stellar/freighter-api`) and expose `requestAccess`,
   `getAddress`, `getNetwork`, and `signTransaction`. Account/network/lock change
   events are surfaced for revalidation.
-- **xBull** (`xbull.js`): use the injected `window.xBullWalletConnect` extension
+- **xBull** (`xbull.ts`): use the injected `window.xBullWalletConnect` extension
   API and fall back to the `@creit.tech/xbull-wallet-connect` connector library for
   mobile/cross-origin.
-- **Lobstr / Solar** (`lobstr.js`, `solar.js`): extension + WalletConnect-based
+- **Lobstr / Solar** (`lobstr.ts`, `solar.ts`): extension + WalletConnect-based
   mobile connectors.
-- **Ledger** (`ledger.js`): optional peer dependencies
+- **Ledger** (`ledger.ts`): optional peer dependencies
   `@ledgerhq/hw-transport-webusb`, `@ledgerhq/hw-transport-webhid`, and
   `@stellar/ledger`, dynamically imported. WebUSB preferred with WebHID fallback;
   only offered when `navigator.usb`/`navigator.hid` is present. Commits signatures
   to the parsed transaction and returns the signed envelope.
-- **WalletConnect v2** (`walletconnect.js`): optional `@walletconnect/sign-client`
+- **WalletConnect v2** (`walletconnect.ts`): optional `@walletconnect/sign-client`
   and `@walletconnect/modal`, using the `stellar` namespace with
   `stellar_signXDR` / `stellar_getPublicKey` methods and `stellar:pubnet` /
   `stellar:testnet` chains. The public key is parsed from the session account
   string `stellar:<chain>:<G...>`.
-- **Security layer** (`security.js`, `hardwareWalletSecurity.ts`): phishing-marker
+- **Security layer** (`security.ts`, `hardwareWalletSecurity.ts`): phishing-marker
   detection before signing, transaction confirmation summaries, a local security
   audit log, and a session security-posture score per wallet type.
 - **UI wiring:** [`WalletConnect.tsx`](../../src/components/dashboard/WalletConnect.tsx)
@@ -87,7 +87,7 @@ so bundles stay wallet-agnostic and missing packages throw install instructions.
   returns a "not installed / install from <url>" error otherwise.
 - When adding a wallet, add the connector under `src/lib/wallet/`, extend
   `WalletConnect.tsx`, and add a row to the posture scoring table in
-  `security.js`. DID flows in `didAuth.ts` consume the same uniform surface.
+  `security.ts`. DID flows in `didAuth.ts` consume the same uniform surface.
 
 ## Security Considerations
 
@@ -131,13 +131,13 @@ so bundles stay wallet-agnostic and missing packages throw install instructions.
 
 ## References
 
-- [`src/lib/wallet/freighter.js`](../../src/lib/wallet/freighter.js)
-- [`src/lib/wallet/xbull.js`](../../src/lib/wallet/xbull.js)
-- [`src/lib/wallet/ledger.js`](../../src/lib/wallet/ledger.js)
-- [`src/lib/wallet/walletconnect.js`](../../src/lib/wallet/walletconnect.js)
-- [`src/lib/wallet/lobstr.js`](../../src/lib/wallet/lobstr.js)
-- [`src/lib/wallet/solar.js`](../../src/lib/wallet/solar.js)
-- [`src/lib/wallet/security.js`](../../src/lib/wallet/security.js)
+- [`src/lib/wallet/freighter.ts`](../../src/lib/wallet/freighter.ts)
+- [`src/lib/wallet/xbull.ts`](../../src/lib/wallet/xbull.ts)
+- [`src/lib/wallet/ledger.ts`](../../src/lib/wallet/ledger.ts)
+- [`src/lib/wallet/walletconnect.ts`](../../src/lib/wallet/walletconnect.ts)
+- [`src/lib/wallet/lobstr.ts`](../../src/lib/wallet/lobstr.ts)
+- [`src/lib/wallet/solar.ts`](../../src/lib/wallet/solar.ts)
+- [`src/lib/wallet/security.ts`](../../src/lib/wallet/security.ts)
 - [`src/components/dashboard/WalletConnect.tsx`](../../src/components/dashboard/WalletConnect.tsx)
 - [`src/lib/didAuth.ts`](../../src/lib/didAuth.ts)
 - Related: [ADR-0004: Soroban tooling](./adr-0004-soroban-tooling.md)

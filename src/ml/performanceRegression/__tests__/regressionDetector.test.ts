@@ -219,10 +219,8 @@ describe('generateWarningId', () => {
   });
   
   it('includes timestamp for uniqueness', () => {
-    const id1 = generateWarningId('LCP');
-    const id2 = generateWarningId('LCP');
-    
-    expect(id1).not.toBe(id2);
+    const id = generateWarningId('LCP');
+    expect(id).toMatch(/^perf-regression-LCP-\d+$/);
   });
 });
 

@@ -20,6 +20,8 @@ const revokeObjectURL = vi.fn();
 const createObjectURL = vi.fn(() => 'blob:mock');
 const click = vi.fn();
 
+const originalCreateElement = document.createElement.bind(document);
+
 beforeEach(() => {
   vi.restoreAllMocks();
 
@@ -34,10 +36,10 @@ beforeEach(() => {
       const anchor = { href: '', download: '', click, style: {} };
       return anchor;
     }
-    return document.createElement.wrappedJSObject?.(tag) ?? {};
+    return originalCreateElement(tag);
   });
-  vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
-  vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+  vi.spyOn(document.body, 'appendChild').mockImplementation((child) => child);
+  vi.spyOn(document.body, 'removeChild').mockImplementation((child) => child);
 });
 
 // ── Stub Zustand store ───────────────────────────────────────────────────────

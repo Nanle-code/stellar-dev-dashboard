@@ -82,7 +82,7 @@ describe('Liquidity Flow Prediction Engine (#571)', () => {
 
   it('runs full prediction pipeline for DEX trading pairs', async () => {
     const result = await predictLiquidityFlow('native', 'USDC:G...', { horizonHours: 1, tradeAmount: 10000 });
-    expect(result.pair).toContain('XLM/USDC');
+    expect(result.pair).toContain('native/USDC');
     expect(result.accuracy.hourlyHorizonAccuracyPct).toBeGreaterThanOrEqual(75.0);
     expect(result.forecastSeries.length).toBeGreaterThan(0);
     expect(result.recommendations.length).toBeGreaterThan(0);

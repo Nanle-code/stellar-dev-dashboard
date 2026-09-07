@@ -4,6 +4,34 @@ import { notifyQuotaExceeded, _resetQuotaListeners } from '../../../src/lib/stor
 import { useStore } from '../../../src/lib/store';
 import { useStorageQuotaAlerts } from '../../../src/hooks/useStorageQuotaAlerts';
 
+// store.ts now imports cacheInit and requestCancellation — mock both so the
+// cache stack does not load in jsdom.
+vi.mock('../../../src/lib/storage', () => ({
+  getStoredValue: vi.fn().mockResolvedValue(null),
+  setStoredValue: vi.fn(),
+}));
+vi.mock('../../../src/utils/stateSync', () => ({
+  broadcastStateChange: vi.fn(),
+  onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(0),
+  loadSyncedState: vi.fn().mockReturnValue(null),
+  resolveStateConflict: vi.fn((local: unknown) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
+}));
+vi.mock('../../../src/lib/cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+vi.mock('../../../src/lib/requestCancellation', () => ({
+  accountRequests: { abortAll: vi.fn(), begin: vi.fn(() => ({ active: true, commit: vi.fn(() => true), abort: vi.fn() })) },
+  AccountLanes: { Connect: 'account:connect', Offers: 'account:offers', CreationDate: 'account:creation-date' },
+  isCancellation: vi.fn(() => false),
+  isStaleRequestError: vi.fn(() => false),
+  StaleRequestError: class StaleRequestError extends Error {},
+}));
+
 describe('useStorageQuotaAlerts', () => {
   beforeEach(() => {
     useStore.setState({ notifications: [], notificationHistory: [] });

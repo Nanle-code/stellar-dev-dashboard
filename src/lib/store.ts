@@ -6,6 +6,7 @@ import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
 import { generateInsights, type AnalyticsSummary } from './analytics'
 import { accountRequests } from './requestCancellation'
 import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
+import { handleNetworkSwitch } from './cacheInit'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -297,7 +298,13 @@ export const useStore = create<StoreState>((set) => ({
   network: readInitialNetwork(),
   perNetworkData: {},
   setNetwork: (network) => {
+    const validNetworks: NetworkName[] = ['testnet', 'mainnet', 'futurenet', 'local', 'custom']
+    if (!validNetworks.includes(network)) return
+
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(SELECTED_NETWORK_KEY, network) } catch { /* ignore */ }
+
+    // Capture previous network for cache invalidation before mutating state
+    const prevNetwork = useStore.getState().network
 
     // Cancel Horizon reads issued against the network we are leaving. Without this
     // a slower response could repopulate the state this switch is about to clear,
@@ -376,6 +383,12 @@ export const useStore = create<StoreState>((set) => ({
         opsPagingLoading: false,
       }
     })
+
+    // Invalidate the SWR/IDB cache for both networks after state is updated.
+    // Only runs in environments where the cache is available (not SSR/tests).
+    if (prevNetwork !== network) {
+      handleNetworkSwitch(prevNetwork, network)
+    }
   },
   setPerNetworkData: (network, data) => set((state) => ({
     perNetworkData: {

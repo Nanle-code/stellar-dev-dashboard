@@ -102,6 +102,27 @@ style objects scattered across component files.
 
 ---
 
+## Cross-tab state sync is now deterministic (#751)
+
+`src/utils/stateSync.js` persists settings and connected-account state with a
+versioned compare-and-swap envelope. See `docs/CROSS_TAB_STATE_SYNC.md` for the
+full guide (compatibility, security, migration).
+
+**What changed (read before upgrading):**
+
+- `syncState(key, value)` now stores an envelope `{ __v, __t, __w, value }`
+  instead of the raw JSON value. Read it back with `loadSyncedState(key)` or
+  `onStateChange`'s `value` argument. Pre-#751 raw values are still read
+  correctly (normalised to version 0).
+- `syncState` now returns `Promise<number>` (the assigned version) and **may
+  reject** (invalid input, unavailable storage, quota, exhausted retries). Call
+  sites must tolerate rejection.
+- `onStateChange` callback is now `(key, value, meta)` — `meta` carries
+  `{ version, writerId, timestamp }`.
+- New exports: `resolveStateConflict`, `getTabId`, `loadSyncedState`.
+
+---
+
 ## Adding a Breaking Change (for maintainers)
 
 1. Add to `docs/api/CHANGELOG.md` under `## Breaking Changes` for the next version.

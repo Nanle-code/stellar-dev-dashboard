@@ -1,232 +1,138 @@
-import React, { useState, useCallback, useEffect, type FormEvent } from 'react';
-import { shortAddress } from '../../lib/stellar';
+import React, { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { fetchPathPayments, type PathPaymentPath } from '../../lib/payments';
+import {
+  shortAddress,
+  type NetworkName,
+  type PathAsset,
+  type PathPaymentMode,
+} from '../../lib/stellar';
 import { useRouteOptimization } from '../../hooks/useRouteOptimization';
 import AIRouteRecommendations from './AIRouteRecommendations';
 import RouteComparison from './RouteComparison';
 
-interface ExplorePathsCardProps {
-  destination: string
-  amount: string
-  sourceAsset: string
-  paths: PathPaymentPath[]
-  isLoading: boolean
-  lastSearched: boolean
+const controlStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  background: 'var(--bg-canvas)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)',
+  color: 'var(--text-primary)',
+  fontSize: '13px',
+  fontFamily: 'var(--font-mono)',
+  outline: 'none',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '5px',
+  color: 'var(--text-muted)',
+  fontSize: '12px',
+  fontWeight: 500,
+};
+
+function assetName(type: string, code?: string): string {
+  return type === 'native' ? 'XLM' : (code || 'Unknown');
 }
 
-interface MultiHopPathProps {
-  path: PathPaymentPath
-  sourceAsset: string
-  index: number
-  total: number
-}
-
-interface PathStepProps {
-  label: string
-  value: string
-  sub?: string
-}
-
-const DEFAULT_ASSET = 'native';
-
-const PathStep = ({ label, value, sub }: PathStepProps) => (
-  <div style={{
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-    padding: '8px 12px',
-    background: 'var(--bg-canvas)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-sm)',
-  }}>
-    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-      {label}
-    </div>
-    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600 }}>
-      {value}
-    </div>
-    {sub && (
-      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-        {sub}
-      </div>
-    )}
-  </div>
-);
-
-const MultiHopPath = ({ path, sourceAsset, index, total }: MultiHopPathProps) => {
-  const pathHops = path.path || [];
-  const isBest = index === 0;
-  const effectiveSourceAmount = sourceAsset === DEFAULT_ASSET
-    ? path.source_amount
-    : path.destination_amount;
-
+function AssetEditor({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: PathAsset;
+  onChange: (asset: PathAsset) => void;
+}) {
   return (
-    <div style={{
-      border: `1px solid ${isBest ? 'var(--green)' : 'var(--border)'}`,
+    <fieldset style={{ flex: 1, minWidth: '260px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px' }}>
+      <legend style={{ color: 'var(--text-primary)', fontSize: '12px', fontWeight: 600 }}>{label}</legend>
+      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px' }}>
+        <label style={labelStyle}>
+          Type
+          <select
+            aria-label={`${label} type`}
+            value={value.type}
+            onChange={(event) => onChange(event.target.value === 'native'
+              ? { type: 'native', code: 'XLM' }
+              : { type: 'credit', code: '', issuer: '' })}
+            style={controlStyle}
+          >
+            <option value="native">XLM</option>
+            <option value="credit">Credit</option>
+          </select>
+        </label>
+        <label style={labelStyle}>
+          Asset code
+          <input
+            aria-label={`${label} code`}
+            value={value.type === 'native' ? 'XLM' : value.code}
+            disabled={value.type === 'native'}
+            maxLength={12}
+            onChange={(event) => onChange({ ...value, code: event.target.value.toUpperCase() })}
+            style={controlStyle}
+            placeholder="USDC"
+          />
+        </label>
+      </div>
+      {value.type === 'credit' && (
+        <label style={{ ...labelStyle, marginTop: '8px' }}>
+          Issuer
+          <input
+            aria-label={`${label} issuer`}
+            value={value.issuer || ''}
+            onChange={(event) => onChange({ ...value, issuer: event.target.value.trim() })}
+            style={controlStyle}
+            placeholder="G..."
+          />
+        </label>
+      )}
+    </fieldset>
+  );
+}
+
+function QuoteCard({ path, index, total }: { path: PathPaymentPath; index: number; total: number }) {
+  const best = index === 0;
+  return (
+    <article style={{
+      border: `1px solid ${best ? 'var(--green)' : 'var(--border)'}`,
       borderRadius: 'var(--radius-md)',
       padding: '14px',
-      background: isBest ? 'var(--green-glow-sm)' : 'var(--bg-elevated)',
-      transition: 'var(--transition)',
+      background: best ? 'var(--green-glow-sm)' : 'var(--bg-elevated)',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-        <div style={{
-          fontSize: '12px',
-          fontWeight: 600,
-          color: isBest ? 'var(--green)' : 'var(--text-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          {isBest ? '⭐ Best Path' : `Path #${index + 1}`}
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>
-            ({total} total)
-          </span>
-        </div>
-        <div style={{
-          fontSize: '11px',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          background: 'var(--bg-canvas)',
-          padding: '3px 8px',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)'
-        }}>
-          {pathHops.length} hop{pathHops.length !== 1 ? 's' : ''}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+        <strong style={{ color: best ? 'var(--green)' : 'var(--text-primary)', fontSize: '13px' }}>
+          {best ? 'Best quote' : `Quote ${index + 1}`} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({total} total)</span>
+        </strong>
+        <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{path.path?.length || 0} hops</span>
       </div>
-
-      {path.source_amount && (
-        <div style={{ marginBottom: '10px' }}>
-          <PathStep
-            label="Source Amount"
-            value={`${parseFloat(path.source_amount).toLocaleString()} ${path.source_asset_type === DEFAULT_ASSET ? 'XLM' : (path.source_asset_code || 'Unknown')}`}
-          />
-        </div>
-      )}
-
-      {pathHops.length > 0 && (
-        <div style={{ marginBottom: '10px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 500 }}>
-            Intermediate Hops
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: '8px' }}>
+        {[
+          ['Source amount', `${path.source_amount} ${assetName(path.source_asset_type, path.source_asset_code)}`],
+          ['Destination amount', `${path.destination_amount} ${assetName(path.destination_asset_type, path.destination_asset_code)}`],
+          ['Quote difference', `${path.slippagePct ?? '0.00'}%`],
+        ].map(([label, value]) => (
+          <div key={label} style={{ padding: '9px 11px', background: 'var(--bg-canvas)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase' }}>{label}</div>
+            <div style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '13px', marginTop: '3px' }}>{value}</div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {pathHops.map((hop: string, hopIndex: number) => (
-              <div key={hopIndex} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 10px',
-                background: 'var(--bg-canvas)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '12px',
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--text-muted)'
-              }}>
-                <span style={{ color: 'var(--cyan)', fontSize: '10px' }}>⬤</span>
-                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Hop {hopIndex + 1}</span>
-                <span>{shortAddress(hop, 6)}</span>
-              </div>
-            ))}
-          </div>
+        ))}
+      </div>
+      {(path.path?.length || 0) > 0 && (
+        <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '10px' }}>
+          Route: {path.path.map((hop) => assetName(hop.asset_type, hop.asset_code)).join(' -> ')}
         </div>
       )}
-
-      {path.destination_amount && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <PathStep
-            label="Destination Amount"
-            value={`${parseFloat(path.destination_amount).toLocaleString()} ${path.destination_asset_code || (path.destination_asset_type === DEFAULT_ASSET ? 'XLM' : 'Unknown')}`}
-            sub={path.destination_asset_issuer ? `Issuer: ${shortAddress(path.destination_asset_issuer, 6)}` : undefined}
-          />
-        </div>
-      )}
-
-      {effectiveSourceAmount && !path.destination_amount && (
-        <div style={{ padding: '8px 12px', border: '1px solid var(--amber)', borderRadius: 'var(--radius-sm)', background: 'var(--amber-glow-sm)', fontSize: '12px', color: 'var(--amber)' }}>
-          ⚠ Incomplete path data – source amount available but destination amount is not quoted.
-        </div>
-      )}
-    </div>
+      {path.source_asset_issuer && <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '6px' }}>Source issuer: {shortAddress(path.source_asset_issuer, 6)}</div>}
+    </article>
   );
-};
-
-const ExplorePathsCard = ({ destination, amount, sourceAsset, paths, isLoading, lastSearched }: ExplorePathsCardProps) => {
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-        <div style={{ fontSize: '14px', marginBottom: '8px' }}>⏳</div>
-        <div style={{ fontSize: '13px' }}>Searching for payment paths...</div>
-      </div>
-    );
-  }
-
-  if (!lastSearched) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-        <div style={{ fontSize: '32px', marginBottom: '12px', opacity: 0.4 }}>{''}</div>
-        <div style={{ fontSize: '14px' }}>Enter a destination and amount, then click &quot;Find Paths&quot;</div>
-        <div style={{ fontSize: '12px', marginTop: '6px', color: 'var(--text-muted)' }}>
-          Pathfinding finds the cheapest route across the Stellar network.
-        </div>
-      </div>
-    );
-  }
-
-  if (!paths || paths.length === 0) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px' }}>
-        <div style={{ fontSize: '32px', marginBottom: '12px', opacity: 0.5 }}>🔍</div>
-        <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>No paths found</div>
-        <div style={{ fontSize: '12px', marginTop: '6px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '400px' }}>
-          Could not find any payment paths for the specified parameters. The destination may not accept the asset, or no liquid path exists.
-        </div>
-      </div>
-    );
-  }
-
-  const bestPath = paths[0];
-  const savingsMessage = paths.length > 1 && bestPath.source_amount && paths[paths.length - 1].source_amount
-    ? `${((parseFloat(paths[paths.length - 1].source_amount!) - parseFloat(bestPath.source_amount)) / parseFloat(paths[paths.length - 1].source_amount!) * 100).toFixed(1)}% cheaper than worst`
-    : null;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-          {paths.length} path{paths.length !== 1 ? 's' : ''} found
-        </div>
-        {savingsMessage && (
-          <div style={{
-            fontSize: '11px',
-            padding: '4px 10px',
-            background: 'var(--green-glow-sm)',
-            border: '1px solid var(--green)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--green)',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 500
-          }}>
-            {savingsMessage}
-          </div>
-        )}
-      </div>
-      {paths.map((path: PathPaymentPath, index: number) => (
-        <MultiHopPath
-          key={index}
-          path={path}
-          sourceAsset={sourceAsset}
-          index={index}
-          total={paths.length}
-        />
-      ))}
-    </div>
-  );
-};
+}
 
 export default function PathExplorer() {
-  const [destination, setDestination] = useState('');
+  const [mode, setMode] = useState<PathPaymentMode>('strict-send');
+  const [network, setNetwork] = useState<NetworkName>('testnet');
   const [amount, setAmount] = useState('');
-  const [sourceAsset, setSourceAsset] = useState<string>(DEFAULT_ASSET);
+  const [sourceAsset, setSourceAsset] = useState<PathAsset>({ type: 'native', code: 'XLM' });
+  const [destAsset, setDestAsset] = useState<PathAsset>({ type: 'credit', code: '', issuer: '' });
   const [paths, setPaths] = useState<PathPaymentPath[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSearched, setLastSearched] = useState(false);
@@ -244,255 +150,101 @@ export default function PathExplorer() {
     selectRoute,
   } = useRouteOptimization();
 
-  const handleSubmit = useCallback(async (e?: FormEvent) => {
-    if (e) e.preventDefault();
+  const handleSubmit = useCallback(async (event?: FormEvent) => {
+    event?.preventDefault();
     setError(null);
-
-    if (!destination || !amount) {
-      setError('Please enter both a destination address and amount.');
-      return;
-    }
-
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      setError('Amount must be a positive number.');
-      return;
-    }
-
     setIsLoading(true);
     setPaths([]);
-
+    setLastSearched(false);
     try {
-      const result = await fetchPathPayments({
-        destination,
-        amount: amountNum.toString(),
-        sourceAsset,
-        sourceAssetIssuer: undefined,
-      });
+      const result = await fetchPathPayments({ sourceAsset, destAsset, amount, mode, network });
       setPaths(result);
       setLastSearched(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error fetching paths';
-      setError(message);
-      setPaths([]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not fetch path quotes.');
       setLastSearched(true);
     } finally {
       setIsLoading(false);
     }
-  }, [destination, amount, sourceAsset]);
+  }, [amount, destAsset, mode, network, sourceAsset]);
 
   useEffect(() => {
     if (paths.length > 0 && !isLoading) {
       optimizeRoutes(paths, {
-        sourceAsset,
-        destAsset: 'XLM',
-        amount: parseFloat(amount || '0'),
+        sourceAsset: assetName(sourceAsset.type, sourceAsset.code),
+        destAsset: assetName(destAsset.type, destAsset.code),
+        amount: Number(amount),
         liquidity: 0.5,
       });
     }
-  }, [paths, isLoading, optimizeRoutes, sourceAsset, amount]);
+  }, [amount, destAsset, isLoading, optimizeRoutes, paths, sourceAsset]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '4px' }}>
       <div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '8px' }}>
-          Path Explorer
-        </div>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: '0 0 8px' }}>Path Explorer</h2>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-          Discover optimal payment paths across the Stellar network with AI-powered route optimization.
+          Compare strict-send and strict-receive Horizon quotes by source amount, destination amount, and quote difference.
         </p>
       </div>
 
-      <div className="card" style={{
-        padding: '20px',
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)'
-      }}>
-        <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px', color: 'var(--text-primary)' }}>
-          Search Parameters
-        </div>
+      <div className="card" style={{ padding: '20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
-              Destination Address
-            </label>
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="GABCD... or *.stellar"
-              style={{
-                padding: '10px 12px',
-                background: 'var(--bg-canvas)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: '13px',
-                fontFamily: 'var(--font-mono)',
-                outline: 'none',
-                transition: 'var(--transition)',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: '140px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                Amount
-              </label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="100.00"
-                step="any"
-                min="0"
-                style={{
-                  padding: '10px 12px',
-                  background: 'var(--bg-canvas)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  fontSize: '13px',
-                  fontFamily: 'var(--font-mono)',
-                  outline: 'none',
-                  transition: 'var(--transition)',
-                }}
-              />
-            </div>
-
-            <div style={{ flex: 1, minWidth: '140px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                Source Asset
-              </label>
-              <select
-                value={sourceAsset}
-                onChange={(e) => setSourceAsset(e.target.value)}
-                style={{
-                  padding: '10px 12px',
-                  background: 'var(--bg-canvas)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  fontSize: '13px',
-                  fontFamily: 'var(--font-mono)',
-                  outline: 'none',
-                  transition: 'var(--transition)',
-                  cursor: 'pointer',
-                }}
-              >
-                <option value={DEFAULT_ASSET}>XLM (Native)</option>
-                <option value="USDC">USDC</option>
-                <option value="yUSDC">yUSDC</option>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            <label style={{ ...labelStyle, flex: 1, minWidth: '180px' }}>
+              Quote mode
+              <select value={mode} onChange={(event) => setMode(event.target.value as PathPaymentMode)} style={controlStyle}>
+                <option value="strict-send">Strict send (exact source)</option>
+                <option value="strict-receive">Strict receive (exact destination)</option>
               </select>
-            </div>
+            </label>
+            <label style={{ ...labelStyle, flex: 1, minWidth: '140px' }}>
+              Network
+              <select value={network} onChange={(event) => setNetwork(event.target.value as NetworkName)} style={controlStyle}>
+                <option value="mainnet">Mainnet</option>
+                <option value="testnet">Testnet</option>
+                <option value="futurenet">Futurenet</option>
+              </select>
+            </label>
+            <label style={{ ...labelStyle, flex: 1, minWidth: '180px' }}>
+              {mode === 'strict-send' ? 'Exact source amount' : 'Exact destination amount'}
+              <input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="100.0000000" style={controlStyle} />
+            </label>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                padding: '10px 20px',
-                background: isLoading ? 'var(--bg-elevated)' : 'var(--cyan)',
-                color: isLoading ? 'var(--text-muted)' : 'white',
-                border: `1px solid ${isLoading ? 'var(--border)' : 'var(--cyan)'}`,
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                transition: 'var(--transition)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {isLoading ? 'Searching...' : '🔍 Find Paths'}
-            </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            <AssetEditor label="Source asset" value={sourceAsset} onChange={setSourceAsset} />
+            <AssetEditor label="Destination asset" value={destAsset} onChange={setDestAsset} />
+          </div>
 
-            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showAIRecommendations}
-                  onChange={(e) => setShowAIRecommendations(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                AI Recommendations
-              </label>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showComparison}
-                  onChange={(e) => setShowComparison(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                Compare Routes
-              </label>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <button type="submit" disabled={isLoading} style={{ ...controlStyle, background: isLoading ? 'var(--bg-canvas)' : 'var(--cyan)', color: isLoading ? 'var(--text-muted)' : 'white', cursor: isLoading ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              {isLoading ? 'Searching...' : 'Find paths'}
+            </button>
+            <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}><input type="checkbox" checked={showAIRecommendations} onChange={(event) => setShowAIRecommendations(event.target.checked)} /> AI recommendations</label>
+            <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}><input type="checkbox" checked={showComparison} onChange={(event) => setShowComparison(event.target.checked)} /> Compare routes</label>
           </div>
         </form>
 
-        {error && (
-          <div style={{
-            marginTop: '14px',
-            padding: '10px 14px',
-            background: 'var(--red-glow-sm)',
-            border: '1px solid var(--red)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--red)',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <span>⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
+        {error && <div role="alert" style={{ marginTop: '14px', padding: '10px 14px', color: 'var(--red)', background: 'var(--red-glow-sm)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}>{error}</div>}
       </div>
 
       {showAIRecommendations && rankedRoutes.length > 0 && (
-        <AIRouteRecommendations
-          rankedRoutes={rankedRoutes}
-          slippagePredictions={slippagePredictions}
-          routeExplanations={routeExplanations}
-          onSelectRoute={selectRoute}
-          selectedRoute={selectedRoute}
-          isLoading={isOptimizing}
-          showExplanations={true}
-        />
+        <AIRouteRecommendations rankedRoutes={rankedRoutes} slippagePredictions={slippagePredictions} routeExplanations={routeExplanations} onSelectRoute={selectRoute} selectedRoute={selectedRoute} isLoading={isOptimizing} showExplanations />
       )}
+      {showComparison && rankedRoutes.length >= 2 && <RouteComparison routes={rankedRoutes} onSelectRoute={selectRoute} selectedRoute={selectedRoute} />}
 
-      {showComparison && rankedRoutes.length >= 2 && (
-        <RouteComparison
-          routes={rankedRoutes}
-          onSelectRoute={selectRoute}
-          selectedRoute={selectedRoute}
-        />
+      {isLoading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Searching for payment paths...</div>}
+      {!isLoading && !lastSearched && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Enter two assets and an amount to request a quote.</div>}
+      {!isLoading && lastSearched && paths.length === 0 && !error && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No liquid payment path was found for these assets and amount.</div>}
+      {!isLoading && paths.length > 0 && (
+        <section aria-label="Path quotes" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+            {paths.length} quote{paths.length === 1 ? '' : 's'}; 0.00% is the best returned quote. Quotes can change before submission.
+          </div>
+          {paths.map((path, index) => <QuoteCard key={`${path.source_amount}-${path.destination_amount}-${index}`} path={path} index={index} total={paths.length} />)}
+        </section>
       )}
-
-      <ExplorePathsCard
-        destination={destination}
-        amount={amount}
-        sourceAsset={sourceAsset}
-        paths={paths}
-        isLoading={isLoading}
-        lastSearched={lastSearched}
-      />
     </div>
   );
 }

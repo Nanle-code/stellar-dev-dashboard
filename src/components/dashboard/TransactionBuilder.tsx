@@ -7,6 +7,8 @@ import {
   getCachedUserTransactionTemplates,
   upsertUserTransactionTemplate,
 } from "../../lib/transactionTemplateVault.ts";
+import { fetchContractData, checkDestinationMemoRequirement } from "../../lib/stellar";
+import { validateMemo } from "../../lib/validation";
 import { fetchContractData, resolveFederatedAddress } from "../../lib/stellar";
 import { useTransactionHistory } from "../../lib/txHistory";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
@@ -300,6 +302,7 @@ export default function TransactionBuilder() {
   const [inspectContractError, setInspectContractError] = useState("");
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
   const [draftsList, setDraftsList] = useState([]);
+  const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null, destination: null });
 
   function addOperation() {
     setOperations([
@@ -422,8 +425,56 @@ export default function TransactionBuilder() {
     return errors;
   }, [operations]);
 
+  const memoValidation = useMemo(() => validateMemo(memo, memoType), [memo, memoType]);
+
+  // First payment-style destination in the operation list, used for the
+  // SEP-29 "memo required" destination check below.
+  const primaryDestination = useMemo(() => {
+    const op = operations.find(
+      (o) => ["payment", "pathPaymentStrictSend", "pathPaymentStrictReceive", "accountMerge"].includes(o.type) && o.params?.destination,
+    );
+    return op?.params?.destination || "";
+  }, [operations]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!primaryDestination || !primaryDestination.trim()) {
+      setMemoRequirement({ checking: false, required: false, error: null, destination: null });
+      return;
+    }
+
+    setMemoRequirement((current) => ({ ...current, checking: true }));
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await checkDestinationMemoRequirement(primaryDestination.trim(), network);
+        if (cancelled) return;
+        setMemoRequirement({
+          checking: false,
+          required: Boolean(result.checked && result.required),
+          error: result.checked ? null : result.error || "Unable to verify this destination's memo requirement.",
+          destination: primaryDestination.trim(),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setMemoRequirement({
+          checking: false,
+          required: false,
+          error: error?.message || "Unable to verify this destination's memo requirement.",
+          destination: primaryDestination.trim(),
+        });
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [primaryDestination, network]);
+
+  const memoRequiredWarning = memoRequirement.required && !memo;
+
   const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
-  const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && (sourceAccount || feeBumpOnly);
+  const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && memoValidation.valid && (sourceAccount || feeBumpOnly);
   
   // Transaction history (undo/redo) + drafts
   const getSnapshot = () => ({
@@ -1180,11 +1231,46 @@ export default function TransactionBuilder() {
             <input
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="Optional memo"
-              style={textInputStyle()}
+              placeholder={
+                memoType === "id"
+                  ? "Optional memo (unsigned integer)"
+                  : memoType === "hash" || memoType === "return"
+                  ? "Optional memo (64 hex characters)"
+                  : "Optional memo"
+              }
+              style={textInputStyle(!memoValidation.valid)}
             />
+            {!memoValidation.valid && (
+              <div style={{ fontSize: "11px", color: "var(--red)", marginTop: "4px" }}>
+                {memoValidation.errors[0]}
+              </div>
+            )}
           </LabeledField>
         </div>
+
+        {memoRequiredWarning && (
+          <div style={{
+            marginTop: "14px",
+            padding: "10px 14px",
+            background: "var(--amber-glow)",
+            border: "1px solid var(--amber)",
+            borderRadius: "var(--radius-md)",
+            fontSize: "12px",
+            color: "var(--amber)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}>
+            <AlertCircle size={14} />
+            This destination requires a memo (SEP-29). Transactions without one will be rejected by the network — add a memo above before submitting.
+          </div>
+        )}
+
+        {memoRequirement.error && !memoRequirement.checking && (
+          <div style={{ marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>
+            Memo requirement for this destination could not be verified ({memoRequirement.error}). Double-check with the recipient if unsure.
+          </div>
+        )}
       </Panel>
 
       {/* Visual Flow Diagram */}

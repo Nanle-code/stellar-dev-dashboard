@@ -40,6 +40,7 @@ The API docs now include generated reference material and runnable examples.
 - [docs/api/REQUEST_RESPONSE_SAMPLES.md](REQUEST_RESPONSE_SAMPLES.md) — request/response payload examples for Horizon, Soroban RPC, CoinGecko, and Friendbot.
 - [docs/api/ERROR_REFERENCE.md](ERROR_REFERENCE.md) — developer reference for error categories, codes, and recovery strategies.
 - [docs/api/RATE_LIMITING.md](RATE_LIMITING.md) — client-side rate limiting, priority queues, and throttle configurations.
+- [docs/api/IDEMPOTENCY.md](IDEMPOTENCY.md) — idempotency keys for mutating public API proxy endpoints.
 - [docs/api/CHANGELOG.md](CHANGELOG.md) — API documentation changelog.
 - [docs/api/VERSION_HISTORY.md](generated/VERSION_HISTORY.md) — version history and release metadata.
 - [docs/api/examples/](examples/js/send-payment.mjs) — runnable example scripts for JavaScript and Python.

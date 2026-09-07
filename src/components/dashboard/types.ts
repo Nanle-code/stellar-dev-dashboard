@@ -293,9 +293,9 @@ export interface LiquidityPool {
 /** User's LP position */
 export interface LiquidityPosition {
   poolId: string
-  shares?: string
+  shares?: string | number
   balance?: string
-  sharePercent: string
+  sharePercent: string | number
 }
 
 /** Validator status from network monitoring */

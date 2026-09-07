@@ -1,4 +1,3 @@
-```json
 {
   "name": "stellar-dev-dashboard",
   "version": "0.1.0",
@@ -6,10 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=18.0.0 <21.0.0",
+    "node": ">=22 <27",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "check:node": "node scripts/node-version-policy.mjs",
+    "test:node-support": "node --test tests/node-version-policy.test.mjs",
     "ml:train": "node src/ml/train.js",
     "ml:train:liquidity": "node src/ml/trainLiquidity.cjs",
     "ml:train:phishing": "node src/ml/train_phishing.cjs",
@@ -54,6 +55,7 @@
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
     "check:package-manager": "node scripts/validate-package-manager.mjs",
+    "sbom:generate": "node scripts/generate-sbom.mjs",
     "api:start": "node api/server.js"
   },
   "dependencies": {
@@ -141,4 +143,3 @@
     "*.{json,md,css,html,yml,yaml}": "prettier --check"
   }
 }
-```

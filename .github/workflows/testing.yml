@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [master, main]
 
+env:
+  NODE_VERSION: '24'
+
 jobs:
   unit-tests:
     name: Unit Tests
@@ -23,6 +26,122 @@ jobs:
       - name: Run integration tests
         run: echo "Integration tests passed"
 
+      # ── Predictive Performance Regression Detection (#624) ─────────────────
+      # Analyzes Lighthouse metrics against historical baselines to detect
+      # performance regressions before they impact users. Uses statistical
+      # z-score analysis with 2.5σ threshold and correlates findings with
+      # recent git commits for root cause investigation.
+      #
+      # Exit behavior:
+      #   - High-confidence regressions (confidence ≥ 0.5): Fails CI (exit 1)
+      #   - Low-confidence regressions: Logs warning, CI passes (exit 0)
+      #   - No regressions: CI passes (exit 0)
+      - name: Detect performance regressions
+        if: always()  # Run even if Lighthouse CI fails
+        run: |
+          if [ -d .lighthouseci ]; then
+            node scripts/detect-performance-regressions.mjs --threshold=2.5 --verbose
+          else
+            echo "Lighthouse CI results not found - skipping regression detection."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Step 5 — Accessibility gate (axe-core)
+  # ══════════════════════════════════════════════════════════════════════════
+  accessibility-gate:
+    name: Accessibility Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache-a11y
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium browser
+        if: steps.playwright-cache-a11y.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies if cached
+        if: steps.playwright-cache-a11y.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Run accessibility gate
+        run: npm run test:a11y
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload a11y report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-report
+          path: tests/e2e/report/
+          retention-days: 14
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Testing framework summary gate
+  # ══════════════════════════════════════════════════════════════════════════
+  testing-gate:
+    name: Testing Framework Gate
+    runs-on: ubuntu-latest
+    needs: [visual-regression, coverage-gate, lighthouse-ci, accessibility-gate]
+    if: always()
+    steps:
+      - name: Summarize testing pipeline
+        run: |
+          echo "## Testing Framework Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+          VISUAL="${{ needs.visual-regression.result }}"
+          COVERAGE="${{ needs.coverage-gate.result }}"
+          LHCI="${{ needs.lighthouse-ci.result }}"
+          A11Y="${{ needs.accessibility-gate.result }}"
+
+          echo "| Visual Regression | $VISUAL |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Coverage Gate | $COVERAGE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lighthouse CI | $LHCI |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accessibility Gate | $A11Y |" >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=0
+          FAIL_LIST=()
+
+          if [ "$VISUAL" = "failure" ] || [ "$VISUAL" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Visual Regression")
+          fi
+          if [ "$COVERAGE" = "failure" ] || [ "$COVERAGE" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Coverage Gate")
+          fi
+          if [ "$LHCI" = "failure" ] || [ "$LHCI" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Lighthouse CI")
+          fi
+          if [ "$A11Y" = "failure" ] || [ "$A11Y" = "cancelled" ]; then
+            FAILED=1; FAIL_LIST+=("Accessibility Gate")
+          fi
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::Testing framework gate failed. Failed stages: ${FAIL_LIST[*]}"
+            exit 1
+          fi
   coverage:
     name: Coverage Report
     runs-on: ubuntu-latest

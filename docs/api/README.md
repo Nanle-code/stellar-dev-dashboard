@@ -43,6 +43,7 @@ The API docs now include generated reference material and runnable examples.
 - [docs/api/IDEMPOTENCY.md](IDEMPOTENCY.md) — idempotency keys for mutating public API proxy endpoints.
 - [docs/api/CHANGELOG.md](CHANGELOG.md) — API documentation changelog.
 - [docs/api/VERSION_HISTORY.md](generated/VERSION_HISTORY.md) — version history and release metadata.
+- [docs/api/examples/js/send-payment.mjs](examples/js/send-payment.mjs) and [docs/api/examples/python/send_payment.py](examples/python/send_payment.py) — runnable example scripts for JavaScript and Python (see `examples/js/` and `examples/python/`).
 - [docs/api/examples/](examples/js/send-payment.mjs) — runnable example scripts for JavaScript and Python.
 
 Regenerate the API docs with:
@@ -425,6 +426,9 @@ This directory documents the public JavaScript modules exposed by the dashboard.
 | [stellar.js](./stellar.md) | Horizon & Soroban RPC wrappers with caching and rate limiting |
 | [storage.js](./storage.md) | Persistent IndexedDB storage with localStorage fallback |
 | [encryption.js](./encryption.md) | AES-GCM encryption for sensitive local data |
+| [tutorialSystem.js](../../TUTORIAL_SYSTEM_GUIDE.md) | Guided tours and contextual help system |
+| [multisig.js](../../src/lib/multisig/index.ts) | Multi-signature transaction coordination |
+| [priceFeed.js](../../src/lib/priceFeed.js) | XLM and asset price feeds |
 | tutorialSystem.js | Guided tours and contextual help system |
 | multisig.js | Multi-signature transaction coordination |
 | priceFeed.js | XLM and asset price feeds |

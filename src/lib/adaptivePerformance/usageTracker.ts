@@ -189,6 +189,8 @@ export function resetUsageTracker() {
   documentRef = undefined
 }
 
+export const __resetUsageTracker = resetUsageTracker;
+
 export function subscribeUsage(listener: UsageListener): () => void {
   listeners.add(listener)
   try { listener(getUsageProfile()) } catch { /* ignore */ }

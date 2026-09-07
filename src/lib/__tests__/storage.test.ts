@@ -4,65 +4,78 @@
  */
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import {
-  getStoredValue,
-  setStoredValue,
-  removeStoredValue,
-  clearStorage,
-  getSchemaVersion,
-  setSchemaVersion,
-  storageStats,
-  DB_NAME,
-  DB_VERSION,
-  CURRENT_SCHEMA_VERSION,
-  STORES,
-} from '../storage'
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function createMockIDB() {
   const stores = new Map()
+
+  function createStore(name, opts = {}) {
+    const data = new Map()
+    const store = {
+      keyPath: opts.keyPath || null,
+      autoIncrement: opts.autoIncrement || false,
+      indexes: new Map(),
+      data,
+      createIndex: (idxName, keyPath, unique) => {
+        store.indexes.set(idxName, { keyPath, unique })
+      },
+      get: (key) => {
+        const req = { result: data.get(key) ?? undefined, onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      put: (value, key) => {
+        const k = key !== undefined ? key : (opts.keyPath ? value[opts.keyPath] : value.key)
+        data.set(k, value)
+        const req = { result: k, onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      add: (value) => {
+        const k = opts.autoIncrement ? data.size + 1 : (opts.keyPath ? value[opts.keyPath] : value.id)
+        data.set(k, value)
+        const req = { result: k, onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      delete: (key) => {
+        data.delete(key)
+        const req = { result: undefined, onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      clear: () => {
+        data.clear()
+        const req = { result: undefined, onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      getAll: () => {
+        const req = { result: Array.from(data.values()), onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      count: () => {
+        const req = { result: data.size, onsuccess: null, onerror: null }
+        queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+        return req
+      },
+      index: () => ({
+        openCursor: () => {
+          const req = { result: null, onsuccess: null, onerror: null }
+          queueMicrotask(() => { if (req.onsuccess) req.onsuccess() })
+          return req
+        },
+      }),
+    }
+    stores.set(name, store)
+    return store
+  }
+
   const db = {
     objectStoreNames: {
       contains: (name) => stores.has(name),
     },
-    createObjectStore: (name, opts = {}) => {
-      const store = {
-        keyPath: opts.keyPath || null,
-        autoIncrement: opts.autoIncrement || false,
-        indexes: new Map(),
-        data: new Map(),
-        createIndex: (idxName, keyPath, unique) => {
-          store.indexes.set(idxName, { keyPath, unique })
-        },
-        get: (key) => ({ result: store.data.get(key), onsuccess: null, onerror: null }),
-        put: (value) => {
-          const key = value[store.keyPath] ?? value.key
-          store.data.set(key, value)
-          return { result: undefined, onsuccess: null, onerror: null }
-        },
-        delete: (key) => {
-          store.data.delete(key)
-          return { result: undefined, onsuccess: null, onerror: null }
-        },
-        clear: () => {
-          store.data.clear()
-          return { result: undefined, onsuccess: null, onerror: null }
-        },
-        getAll: () => ({ result: Array.from(store.data.values()), onsuccess: null, onerror: null }),
-        count: () => ({ result: store.data.size, onsuccess: null, onerror: null }),
-        index: (name) => ({
-          openCursor: () => ({ result: null, onsuccess: null, onerror: null }),
-        }),
-        transaction: () => ({
-          objectStore: (name) => stores.get(name),
-          oncomplete: null,
-          onerror: null,
-        }),
-      }
-      stores.set(name, store)
-      return store
-    },
+    createObjectStore: (name, opts) => createStore(name, opts),
     transaction: (storeName, mode) => {
       const store = stores.get(storeName)
       return {
@@ -80,32 +93,28 @@ function createMockIDB() {
 let mockIDB = null
 let openDBRequest = null
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules()
   mockIDB = createMockIDB()
-  openDBRequest = {
-    result: null,
-    onsuccess: null,
-    onerror: null,
-    onblocked: null,
-    onupgradeneeded: null,
-  }
-
-  const originalOpenDB = (globalThis as any).indexedDB?.open
-    ? (globalThis as any).indexedDB.open.bind((globalThis as any).indexedDB)
-    : null
 
   ;(globalThis as any).indexedDB = {
     open: (name, version) => {
       const req = {
-        result: null,
+        result: mockIDB.db,
         onsuccess: null,
         onerror: null,
         onblocked: null,
         onupgradeneeded: null,
-        oldVersion: 0,
-        transaction: () => mockIDB.db.transaction(),
       }
       openDBRequest = req
+      queueMicrotask(() => {
+        if (req.onupgradeneeded) {
+          req.onupgradeneeded({ target: { result: mockIDB.db }, oldVersion: 0 })
+        }
+        if (req.onsuccess) {
+          req.onsuccess()
+        }
+      })
       return req
     },
   }
@@ -114,27 +123,26 @@ beforeEach(() => {
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('storage schema versioning', () => {
-  it('exposes the current schema version', () => {
+  it('exposes the current schema version', async () => {
+    const { CURRENT_SCHEMA_VERSION } = await import('../storage')
     expect(CURRENT_SCHEMA_VERSION).toBe(5)
   })
 
   it('creates the meta store on open', async () => {
-    const { setStoredValue: _set, getStoredValue: _get, ...rest } = await import('../storage')
+    const { setStoredValue, STORES } = await import('../storage')
     await setStoredValue('theme', 'dark')
     expect(mockIDB.stores.has(STORES.APP_STATE)).toBe(true)
     expect(mockIDB.stores.has(STORES.META)).toBe(true)
   })
 
   it('migrates from schema version 4 to 5', async () => {
-    // Simulate an old DB by pre-populating without meta store
+    const { STORES } = await import('../storage')
     const appStore = mockIDB.db.createObjectStore(STORES.APP_STATE)
     appStore.put({ key: 'legacy', value: 'data' })
 
-    // Trigger upgrade by dispatching onupgradeneeded
     openDBRequest.oldVersion = 4
     openDBRequest.onupgradeneeded({ target: { result: mockIDB.db }, oldVersion: 4 })
 
-    // Check meta store was created and version set
     const metaStore = mockIDB.stores.get(STORES.META)
     const versionRecord = metaStore.data.get('schemaVersion')
     expect(versionRecord).toBeDefined()
@@ -142,17 +150,20 @@ describe('storage schema versioning', () => {
   })
 
   it('returns current schema version when no version is stored', async () => {
+    const { getSchemaVersion, CURRENT_SCHEMA_VERSION } = await import('../storage')
     const version = await getSchemaVersion()
     expect(version).toBe(CURRENT_SCHEMA_VERSION)
   })
 
   it('persists and retrieves schema version', async () => {
+    const { setSchemaVersion, getSchemaVersion } = await import('../storage')
     await setSchemaVersion(5)
     const version = await getSchemaVersion()
     expect(version).toBe(5)
   })
 
   it('handles invalid schema version input gracefully', async () => {
+    const { setSchemaVersion, getSchemaVersion } = await import('../storage')
     await expect(setSchemaVersion(NaN)).resolves.toBeUndefined()
     await expect(setSchemaVersion(-1)).resolves.toBeUndefined()
     const version = await getSchemaVersion()
@@ -160,6 +171,7 @@ describe('storage schema versioning', () => {
   })
 
   it('handles unsupported environment (no indexedDB)', async () => {
+    const { getSchemaVersion, CURRENT_SCHEMA_VERSION } = await import('../storage')
     const originalIDB = (globalThis as any).indexedDB
     ;(globalThis as any).indexedDB = undefined
 
@@ -172,7 +184,7 @@ describe('storage schema versioning', () => {
 
 describe('storage error handling and fallback', () => {
   it('falls back to localStorage when IndexedDB fails', async () => {
-    const store = new Map()
+    const { setStoredValue, getStoredValue } = await import('../storage')
     const originalIDB = (globalThis as any).indexedDB
     ;(globalThis as any).indexedDB = {
       open: () => {
@@ -192,6 +204,7 @@ describe('storage error handling and fallback', () => {
   })
 
   it('handles blocked state gracefully', async () => {
+    const { getStoredValue } = await import('../storage')
     const originalIDB = (globalThis as any).indexedDB
     ;(globalThis as any).indexedDB = {
       open: () => {
@@ -209,6 +222,7 @@ describe('storage error handling and fallback', () => {
 
 describe('storageStats', () => {
   it('returns counts for each store', async () => {
+    const { storageStats } = await import('../storage')
     const stats = await storageStats()
     expect(stats).toHaveProperty('appState')
     expect(stats).toHaveProperty('apiCache')
@@ -217,6 +231,7 @@ describe('storageStats', () => {
   })
 
   it('returns zeros on failure', async () => {
+    const { storageStats } = await import('../storage')
     const originalIDB = (globalThis as any).indexedDB
     ;(globalThis as any).indexedDB = undefined
 

@@ -30,6 +30,7 @@ const config = {
           editUrl: 'https://github.com/damiedee96/stellar-dev-dashboard/edit/master/docs-site/',
           showLastUpdateTime: true,
           showLastUpdateAuthor: true,
+          docItemComponent: '@theme/ApiItem',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -56,6 +57,26 @@ const config = {
         },
       },
     ],
+    function polyfillNodeModules(context, options) {
+      return {
+        name: 'polyfill-node-modules',
+        configureWebpack(config, isServer, utils) {
+          return {
+            node: {
+              __filename: true,
+              __dirname: true,
+            },
+            resolve: {
+              fallback: {
+                path: require.resolve('path-browserify'),
+                process: require.resolve('process/browser'),
+                buffer: require.resolve('buffer/'),
+              },
+            },
+          };
+        },
+      };
+    },
   ],
 
   themes: ['docusaurus-theme-openapi-docs'],

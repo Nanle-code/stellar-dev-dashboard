@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+﻿import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -145,9 +145,9 @@ async function main() {
   console.log();
   for (const error of errors) {
     if (error.type === 'missing-file') {
-      console.log(`ERROR: File not found: "${error.link}" (resolved: ${error.resolved}) — referenced from ${path.relative(repoRoot, error.file)}`);
+      console.log(`ERROR: File not found: "${error.link}" (resolved: ${error.resolved}) â€” referenced from ${path.relative(repoRoot, error.file)}`);
     } else if (error.type === 'missing-script') {
-      console.log(`ERROR: Script not found: "npm run ${error.script}" — referenced from ${path.relative(repoRoot, error.file)}`);
+      console.log(`ERROR: Script not found: "npm run ${error.script}" â€” referenced from ${path.relative(repoRoot, error.file)}`);
     }
   }
   console.log();

@@ -39,7 +39,7 @@ describe('useStorageQuotaAlerts', () => {
 
   afterEach(() => {
     _resetQuotaListeners();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('shows a recovery notification when eviction freed enough space (primary flow)', () => {

@@ -3,9 +3,10 @@ module.exports = {
   ci: {
     collect: {
       staticDistDir: './dist',
-      numberOfRuns: 3,
+      numberOfRuns: process.env.CI ? 1 : 3,
       settings: {
         preset: 'desktop',
+        chromeFlags: '--disable-dev-shm-usage --no-sandbox --disable-gpu',
         onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
       },
     },

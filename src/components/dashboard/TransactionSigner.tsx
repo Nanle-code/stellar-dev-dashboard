@@ -60,18 +60,8 @@ export default function TransactionSigner() {
     }
   }, [bio, network])
 
-  // Start collecting behavior as soon as user interacts with the XDR textarea
-  const handleXdrChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setXdr(e.target.value);
-      if (bio.enabled && !bio.authStatus.match(/collecting|evaluating/)) {
-        bio.startCollection();
-      }
-    },
-    [bio]
-  );
-
-  // networkPassphrase moved up
+  // networkPassphrase
+  const networkPassphrase = NETWORKS[network]?.passphrase ?? NETWORKS.testnet.passphrase
   const handleSign = async () => {
     if (!xdr.trim()) {
       setError('Please enter a transaction XDR to sign');
@@ -505,27 +495,6 @@ export default function TransactionSigner() {
             </div>
           )}
 
-          <button
-            onClick={handleSign}
-            disabled={signing || !xdr.trim()}
-            style={{
-              padding: '12px 20px',
-              background: signing ? 'transparent' : 'var(--cyan-glow)',
-              border: `1px solid ${signing ? 'var(--border)' : 'var(--cyan)'}`,
-              borderRadius: 'var(--radius-md)',
-              color: signing ? 'var(--text-muted)' : 'var(--cyan)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              cursor: signing ? 'wait' : 'pointer',
-              transition: 'var(--transition)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              opacity: !xdr.trim() ? 0.5 : 1,
-            }}
-          />
         </div>
 
         {envelopeInfo && <EnvelopeDetails info={envelopeInfo} />}
@@ -636,7 +605,7 @@ export default function TransactionSigner() {
               </span>
             </div>
           )}
-        </div>
+        </button>
       </Card>
 
       {/* Biometric overlay — rendered as a portal-like fixed overlay */}

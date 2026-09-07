@@ -6,7 +6,7 @@ import {
   initUsageTracker,
   recordInteraction,
   subscribeUsage,
-} from '../../../src/lib/adaptivePerformance/usageTracker'
+} from '../../../../src/lib/adaptivePerformance/usageTracker'
 
 function makeDocument(): typeof document {
   return {

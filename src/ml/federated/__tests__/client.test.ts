@@ -1,5 +1,5 @@
 // Tests for Federated Learning Client
-const { FederatedClient } = require('../client');
+const { FederatedClient } = require('../client.cjs');
 const tf = require('@tensorflow/tfjs-node');
 
 describe('FederatedClient', () => {

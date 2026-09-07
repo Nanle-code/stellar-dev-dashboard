@@ -20,6 +20,11 @@ reports/
 
 # Storybook
 storybook-static/
+test-results/
+test-results.json
+playwright-report/
+tests/e2e/report/
+node_modules
 
 # Environment files
 .env

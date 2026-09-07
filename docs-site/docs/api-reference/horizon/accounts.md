@@ -6,7 +6,7 @@ sidebar_label: Accounts
 
 # Accounts
 
-## GET /accounts/{accountId}
+## GET /accounts/\{accountId\}
 
 Fetch account balances, sequence number, thresholds, signers, and flags for a given Stellar public key.
 
@@ -101,7 +101,7 @@ account = server.accounts().account_id("GABC...YOUR_PUBLIC_KEY").call()
 
 ---
 
-## GET /accounts/{accountId}/transactions
+## GET /accounts/\{accountId\}/transactions
 
 Paginated list of transactions for an account.
 
@@ -145,7 +145,7 @@ records = page["_embedded"]["records"]
 
 ---
 
-## GET /accounts/{accountId}/operations
+## GET /accounts/\{accountId\}/operations
 
 Paginated list of operations for an account.
 

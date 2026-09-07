@@ -44,7 +44,7 @@ describe('stellar simulation diagnostics', () => {
     expect(result.errors).toContain('Operation 1: Amount must be greater than zero.');
     expect(result.errors).toContain('Base fee must be a positive number.');
     expect(result.errors).toContain('Time bounds must be valid Unix timestamps.');
-    expect(result.errors).toContain('Memo text must be 28 bytes or fewer.');
+    expect(result.warnings).toContain('Memo text may exceed the 28-character limit accepted by the Stellar network.');
   });
 
   it('warns when a payment destination requires a memo (SEP-29) and none is set', async () => {

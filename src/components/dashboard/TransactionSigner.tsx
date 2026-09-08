@@ -636,7 +636,7 @@ export default function TransactionSigner() {
               </span>
             </div>
           )}
-        </div>
+        </button>
       </Card>
 
       {/* Biometric overlay — rendered as a portal-like fixed overlay */}

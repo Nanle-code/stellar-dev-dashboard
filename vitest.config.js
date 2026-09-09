@@ -7,7 +7,7 @@ export default defineConfig({
   define: { global: 'globalThis' },
   resolve: {
     // .ts before .js to match Vite's resolve order
-    extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+    extensions: ['.ts', '.tsx', '.js', '.jsx', '.cjs', '.json'],
     alias: {
       buffer: 'buffer',
     },

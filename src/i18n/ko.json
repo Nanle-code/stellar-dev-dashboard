@@ -282,5 +282,52 @@
             "placeholder": "여기에 Stellar 코드를 작성하세요...",
             "run": "코드 실행"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "전환",
+        "stats": {
+            "title": "AI 번역 통계",
+            "languages": "언어",
+            "tmEntries": "번역 메모리 항목",
+            "communityContributions": "커뮤니티 수정",
+            "accuracy": "목표 정확도",
+            "apiStatus": "기계 번역 API",
+            "apiConnected": "연결됨",
+            "apiNotConfigured": "미설정"
+        },
+        "demo": {
+            "title": "AI 번역 시도",
+            "subtitle": "Stellar 전용 용어를 포함한 임의 텍스트의 실시간 번역을 테스트하세요.",
+            "placeholder": "번역할 텍스트 입력...",
+            "targetLanguage": "대상 언어",
+            "translateBtn": "번역"
+        },
+        "api": {
+            "title": "번역 API",
+            "description": "LibreTranslate 호환 엔드포인트를 연결하여 더 높은 정확도를 얻으세요. Stellar 용어는 항상 보호됩니다.",
+            "endpointLabel": "API 엔드포인트 URL",
+            "keyLabel": "API 키",
+            "keyOptional": "선택",
+            "saveBtn": "설정",
+            "saved": "설정이 저장되었습니다"
+        },
+        "correction": {
+            "title": "수정 기여",
+            "description": "오역을 발견하셨나요? 수정을 제출하면 번역 메모리를 통해 즉시 적용됩니다.",
+            "sourceText": "원본 영어 텍스트",
+            "originalTranslation": "잘못된 번역",
+            "originalPlaceholder": "잘못된 번역 붙여넣기 (선택)",
+            "correctedTranslation": "수정 내용",
+            "correctedPlaceholder": "올바른 번역 입력",
+            "targetLanguage": "수정할 언어",
+            "submitBtn": "수정 제출",
+            "submitted": "수정이 저장되었습니다 — 감사합니다!",
+            "errorEmpty": "소스 텍스트와 수정 내용을 입력해 주세요."
+        },
+        "terms": {
+            "title": "보호된 Stellar 용어",
+            "description": "이 기술 용어들은 기계 번역되지 않습니다 — 정확성을 위해 항상 그대로 보존됩니다.",
+            "more": "개 이상의 용어 보호됨"
+        }
     }
 }

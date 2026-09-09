@@ -98,6 +98,13 @@ export function recordApiCall(endpoint: string, durationMs: number, statusCode: 
   incrementCounter('technical.api.calls', 1, { endpoint })
 }
 
+export function recordFeeObservation(feeStroops: number): void {
+  if (!Number.isFinite(feeStroops) || feeStroops < 0) {
+    return
+  }
+  recordMetric('business.fee.stroops', feeStroops)
+}
+
 export function recordCacheOperation(hit: boolean): void {
   incrementCounter(hit ? 'technical.cache.hits' : 'technical.cache.misses')
 }
@@ -184,6 +191,51 @@ export function getMetric(name: string): MetricSeries | undefined {
   return registry.get(name)
 }
 
+export function getMetricPointsInWindow(
+  name: string,
+  windowMs: number,
+  labels?: Record<string, string>,
+): MetricPoint[] {
+  const series = registry.get(name)
+  if (!series || !series.points.length) {
+    return []
+  }
+
+  const cutoff = Date.now() - windowMs
+  return series.points.filter((point) => {
+    const timestamp = Date.parse(point.timestamp)
+    if (!Number.isFinite(timestamp) || timestamp < cutoff) {
+      return false
+    }
+
+    if (!labels) {
+      return true
+    }
+
+    return Object.entries(labels).every(([key, value]) => point.labels?.[key] === value)
+  })
+}
+
+export function countMetricEventsInWindow(
+  counterName: string,
+  windowMs: number,
+  labels?: Record<string, string>,
+): number {
+  const points = getMetricPointsInWindow(counterName, windowMs, labels)
+  if (!points.length) {
+    return 0
+  }
+
+  const series = registry.get(counterName)
+  if (series?.kind === 'counter') {
+    return points.length
+  }
+
+  const first = points[0]?.value ?? 0
+  const last = points[points.length - 1]?.value ?? 0
+  return Math.max(0, last - first)
+}
+
 export function clearMetric(name: string): void {
   const series = registry.get(name)
   if (series) {
@@ -199,6 +251,7 @@ export function clearMetric(name: string): void {
   ['business.tx.success', 'counter', 'ops', 'Successful transaction submissions'],
   ['business.tx.failure', 'counter', 'ops', 'Failed transaction submissions'],
   ['business.tx.duration_ms', 'histogram', 'ms', 'Transaction submission duration'],
+  ['business.fee.stroops', 'histogram', 'stroops', 'Observed transaction base fees'],
   ['technical.api.latency_ms', 'histogram', 'ms', 'API call latency'],
   ['technical.api.calls', 'counter', 'ops', 'Total API calls'],
   ['technical.api.errors', 'counter', 'ops', 'API error count'],

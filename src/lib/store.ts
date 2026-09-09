@@ -1,9 +1,12 @@
 import { create } from 'zustand'
 import { getStoredValue } from './storage'
-import { syncState, onStateChange } from '../utils/stateSync'
+import { syncState, onStateChange, resolveStateConflict, loadSyncedState, getTabId } from '../utils/stateSync'
 import type { NetworkName, NetworkStats } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
+import { generateInsights, type AnalyticsSummary } from './analytics'
+import { accountRequests } from './requestCancellation'
 import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
+import { handleNetworkSwitch } from './cacheInit'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +189,11 @@ export interface StoreState {
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
 
+  // Analytics
+  analytics: AnalyticsSummary | null
+  isGeneratingInsights: boolean
+  generateDataInsights: () => void
+
   deploymentStatus: Record<string, unknown> | null
   setDeploymentStatus: (s: Record<string, unknown> | null) => void
 
@@ -233,8 +241,10 @@ export interface StoreState {
   walletConnected: boolean
   walletType: string | null
   walletPublicKey: string | null
+  walletSessionRevokedReason: string | null
   setWalletConnected: (connected: boolean, type?: string | null, publicKey?: string | null) => void
   disconnectWallet: () => void
+  revokeWalletSession: (reason?: string) => void
 
   notifications: Notification[]
   notificationHistory: Notification[]
@@ -276,6 +286,10 @@ export interface StoreState {
   sessionRecordingActive: boolean
   sessionRecordingId: string | null
   setSessionRecordingActive: (active: boolean, id?: string | null) => void
+
+  // Capacity planning
+  capacityPredictionHorizon: number
+  setCapacityPredictionHorizon: (days: number) => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -284,7 +298,18 @@ export const useStore = create<StoreState>((set) => ({
   network: readInitialNetwork(),
   perNetworkData: {},
   setNetwork: (network) => {
+    const validNetworks: NetworkName[] = ['testnet', 'mainnet', 'futurenet', 'local', 'custom']
+    if (!validNetworks.includes(network)) return
+
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(SELECTED_NETWORK_KEY, network) } catch { /* ignore */ }
+
+    // Capture previous network for cache invalidation before mutating state
+    const prevNetwork = useStore.getState().network
+
+    // Cancel Horizon reads issued against the network we are leaving. Without this
+    // a slower response could repopulate the state this switch is about to clear,
+    // showing the previous network's account data under the new network (#745).
+    accountRequests.abortAll()
 
     // Stash current network data before switching
     const stash = (prev: StoreState) => {
@@ -307,6 +332,12 @@ export const useStore = create<StoreState>((set) => ({
       const updatedData = stash(state)
       const cached = updatedData[network]
       const clear = {
+        // These reads were just aborted above, so nothing is loading any more.
+        // Their own `finally` handlers are lease-guarded and will no longer fire,
+        // which would otherwise leave a spinner stuck on after a network switch.
+        accountLoading: false,
+        txLoading: false,
+        opsLoading: false,
         networkStats: null,
         statsLoading: false,
         streamLedgers: [],
@@ -352,6 +383,12 @@ export const useStore = create<StoreState>((set) => ({
         opsPagingLoading: false,
       }
     })
+
+    // Invalidate the SWR/IDB cache for both networks after state is updated.
+    // Only runs in environments where the cache is available (not SSR/tests).
+    if (prevNetwork !== network) {
+      handleNetworkSwitch(prevNetwork, network)
+    }
   },
   setPerNetworkData: (network, data) => set((state) => ({
     perNetworkData: {
@@ -475,6 +512,14 @@ export const useStore = create<StoreState>((set) => ({
   setContractLoading: (v) => set({ contractLoading: v }),
   setContractError: (e) => set({ contractError: e }),
 
+  // Analytics
+  analytics: null,
+  isGeneratingInsights: false,
+  generateDataInsights: () => set((state) => {
+    const summary = generateInsights(state.transactions, state.operations)
+    return { analytics: summary, isGeneratingInsights: false }
+  }),
+
   deploymentStatus: null,
   setDeploymentStatus: (s) => set({ deploymentStatus: s }),
 
@@ -518,10 +563,14 @@ export const useStore = create<StoreState>((set) => ({
 
   comparisonSlots: [],
   addComparisonSlot: () => set((state) => ({
-    comparisonSlots: [...state.comparisonSlots, { key: '', data: null, loading: false, error: null }],
+    comparisonSlots: state.comparisonSlots.length >= 5
+      ? state.comparisonSlots
+      : [...state.comparisonSlots, { key: '', data: null, loading: false, error: null }],
   })),
   removeComparisonSlot: (index) => set((state) => ({
-    comparisonSlots: state.comparisonSlots.filter((_, i) => i !== index),
+    comparisonSlots: state.comparisonSlots.length <= 2
+      ? state.comparisonSlots
+      : state.comparisonSlots.filter((_, i) => i !== index),
   })),
   reorderComparisonSlots: (orderedSlots) => set({ comparisonSlots: orderedSlots }),
   setComparisonKey: (index, key) => set((state) => {
@@ -541,16 +590,39 @@ export const useStore = create<StoreState>((set) => ({
   }),
   setComparisonError: (index, error) => set((state) => {
     const next = [...state.comparisonSlots]
-    if (next[index]) next[index].error = error
+    if (next[index]) { next[index].error = error; next[index].data = null }
     return { comparisonSlots: next }
   }),
 
   walletConnected: false,
   walletType: null,
   walletPublicKey: null,
+  walletSessionRevokedReason: null,
   setWalletConnected: (connected, type = null, publicKey = null) =>
-    set({ walletConnected: connected, walletType: type, walletPublicKey: publicKey }),
-  disconnectWallet: () => set({ walletConnected: false, walletType: null, walletPublicKey: null }),
+    set({
+      walletConnected: connected,
+      walletType: type,
+      walletPublicKey: publicKey,
+      walletSessionRevokedReason: connected ? null : get().walletSessionRevokedReason,
+    }),
+  disconnectWallet: () =>
+    set({
+      walletConnected: false,
+      walletType: null,
+      walletPublicKey: null,
+      walletSessionRevokedReason: null,
+    }),
+  revokeWalletSession: (reason = 'session_revoked') =>
+    set({
+      walletConnected: false,
+      walletType: null,
+      walletPublicKey: null,
+      walletSessionRevokedReason: reason,
+      connectedAddress: null,
+      accountData: null,
+      accountLoading: false,
+      accountError: null,
+    }),
 
   notifications: [],
   notificationHistory: [],
@@ -575,7 +647,11 @@ export const useStore = create<StoreState>((set) => ({
   streamLedgers: [],
   streamError: null,
   setStreamStatus: (status) => set({ streamStatus: status }),
-  addStreamLedger: (l) => set((state) => ({ streamLedgers: [l, ...state.streamLedgers].slice(0, 50) })),
+  addStreamLedger: (l) => set((state) => {
+    const exists = state.streamLedgers.some((s) => s.sequence === l.sequence)
+    if (exists) return {}
+    return { streamLedgers: [l, ...state.streamLedgers].slice(0, 50) }
+  }),
   clearStreamLedgers: () => set({ streamLedgers: [] }),
   setStreamError: (e) => set({ streamError: e }),
 
@@ -604,6 +680,10 @@ export const useStore = create<StoreState>((set) => ({
   sessionRecordingActive: false,
   sessionRecordingId: null,
   setSessionRecordingActive: (active, id = null) => set({ sessionRecordingActive: active, sessionRecordingId: id ?? null }),
+
+  // Capacity planning
+  capacityPredictionHorizon: 30,
+  setCapacityPredictionHorizon: (days) => set({ capacityPredictionHorizon: days }),
 }))
 
 // ─── Expose store for e2e testing ────────────────────────────────────────────
@@ -622,6 +702,15 @@ if (typeof window !== 'undefined') {
 }
 
 // ─── Persistence middleware ───────────────────────────────────────────────────
+// Cross-tab state is persisted deterministically (#751): every write is a
+// versioned compare-and-swap, and incoming updates are merged via
+// resolveStateConflict so concurrent edits across tabs never diverge.
+
+// Tracks the version/metadata of the slice we last applied or wrote, so an
+// incoming update can be resolved deterministically against local state.
+let lastAppliedVersion = 0
+let lastAppliedTs = 0
+let lastAppliedWriter = ''
 
 if (typeof window !== 'undefined') {
   getStoredValue(STORE_PERSIST_KEY).then((saved: Record<string, unknown> | null) => {
@@ -640,25 +729,44 @@ if (typeof window !== 'undefined') {
         applyCustomThemeToDOM(restored.themeBuilderDraft as ThemeDefinition)
       }
     }
+    const synced = loadSyncedState(STORE_PERSIST_KEY)
+    if (synced) {
+      lastAppliedVersion = synced.version
+      lastAppliedTs = synced.timestamp
+      lastAppliedWriter = synced.writerId
+    }
   }).catch(() => {})
 
   useStore.subscribe((state) => {
     const slice: Record<string, unknown> = {}
     for (const key of PERSIST_KEYS) slice[key] = state[key]
-    syncState(STORE_PERSIST_KEY, slice).catch(() => {})
+    syncState(STORE_PERSIST_KEY, slice)
+      .then((version) => {
+        lastAppliedVersion = version
+        lastAppliedTs = Date.now()
+        lastAppliedWriter = getTabId()
+      })
+      .catch(() => {})
   })
 
-  onStateChange((key: string, value: unknown) => {
-    if (key === STORE_PERSIST_KEY && value && typeof value === 'object') {
-      const current = useStore.getState()
-      const incoming = value as Record<string, unknown>
-      const patch: Partial<StoreState> = {}
-      for (const k of PERSIST_KEYS) {
-        if (incoming[k] !== undefined && incoming[k] !== current[k]) {
-          (patch as Record<string, unknown>)[k] = incoming[k]
-        }
+  onStateChange((key: string, value: unknown, meta?: { version: number; writerId: string; timestamp: number } | null) => {
+    if (key !== STORE_PERSIST_KEY || !value || typeof value !== 'object') return
+    const current = useStore.getState()
+    const incoming = value as Record<string, unknown>
+    const localMeta = { version: lastAppliedVersion, timestamp: lastAppliedTs, writerId: lastAppliedWriter }
+    const patch: Partial<StoreState> = {}
+    for (const k of PERSIST_KEYS) {
+      if (incoming[k] === undefined) continue
+      const winner = resolveStateConflict(current[k], localMeta, incoming[k], meta ?? undefined)
+      if (winner === incoming[k]) (patch as Record<string, unknown>)[k] = incoming[k]
+    }
+    if (Object.keys(patch).length > 0) {
+      useStore.setState(patch)
+      if (meta) {
+        lastAppliedVersion = meta.version
+        lastAppliedTs = meta.timestamp
+        lastAppliedWriter = meta.writerId || lastAppliedWriter
       }
-      if (Object.keys(patch).length > 0) useStore.setState(patch)
     }
   })
 }

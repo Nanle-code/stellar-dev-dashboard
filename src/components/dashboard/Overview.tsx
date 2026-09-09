@@ -14,9 +14,11 @@ import BalanceWidget from '../layout/widgets/BalanceWidget';
 import AssetsWidget from '../layout/widgets/AssetsWidget';
 import TransactionsWidget from '../layout/widgets/TransactionsWidget';
 import NetworkStatsWidget from '../layout/widgets/NetworkStatsWidget';
+import CongestionForecastWidget from '../layout/widgets/CongestionForecastWidget';
 import AccountStatsWidget from '../layout/widgets/AccountStatsWidget';
 import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
+import DataInsightsWidget from '../layout/widgets/DataInsightsWidget';
 import LedgerStatsWidget from './LedgerStatsWidget';
 import { PresenceIndicator } from '../collaboration/PresenceIndicator';
 import { LayoutTemplate, ChevronDown } from 'lucide-react';
@@ -32,19 +34,23 @@ const getWidgetComponent = (type: string): React.ComponentType<Record<string, un
     assets: AssetsWidget,
     transactions: TransactionsWidget,
     networkStats: NetworkStatsWidget,
+    congestionForecast: CongestionForecastWidget,
     accountStats: AccountStatsWidget,
     quickActions: QuickActionsWidget,
     priceTicker: PriceTickerWidget,
     ledgerStats: LedgerStatsWidget as React.ComponentType<Record<string, unknown>>,
+    dataInsights: DataInsightsWidget as React.ComponentType<Record<string, unknown>>,
   };
   return components[type] || BalanceWidget;
 };
 
 const DEFAULT_WIDGETS: WidgetConfig[] = [
+  { id: 'insights-default', type: 'dataInsights', height: 300, span: 2 },
   { id: 'balance-default', type: 'balance', height: 260, span: 1 },
   { id: 'assets-default', type: 'assets', height: 320, span: 1 },
   { id: 'transactions-default', type: 'transactions', height: 360, span: 2 },
-  { id: 'networkStats-default', type: 'networkStats', height: 300, span: 1 }
+  { id: 'networkStats-default', type: 'networkStats', height: 300, span: 1 },
+  { id: 'congestionForecast-default', type: 'congestionForecast', height: 360, span: 2 }
 ];
 
 export default function Overview() {

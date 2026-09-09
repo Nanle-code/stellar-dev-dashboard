@@ -1,6 +1,27 @@
 /**
  * RetryManager.ts — Issue #144
- * Exponential backoff retry logic for API calls.
+ * Exponential backoff retry logic with jitter for resilient load distribution.
+ *
+ * LOAD BALANCING — TRANSIENT FAILURE RECOVERY SUBSYSTEM
+ * =====================================================
+ * The RetryManager handles transient failures (network timeouts, rate limits,
+ * 5xx errors) with exponential backoff to avoid compounding load on already
+ * strained endpoints. This prevents retry storms that could cascade into
+ * system-wide degradation.
+ *
+ * Backoff strategy:
+ *   1. Base delay: 1s, doubled each attempt (1s, 2s, 4s, 8s...)
+ *   2. Max delay capped at 30s to bound worst-case latency
+ *   3. Jitter (±10%) spreads retries across time, avoiding thundering herd
+ *   4. Non-retryable errors (auth failures, 4xx client errors) are never retried
+ *
+ * Integration with load distribution:
+ *   - CircuitBreaker: retries attempt before tripping the breaker
+ *   - RateLimiter: retried requests get priority-decayed in the queue
+ *   - OfflineQueue: pending operations replay with retry when back online
+ *   - Capacity predictor: adjusts maxRetries during predicted congestion
+ *
+ * @see CircuitBreaker.ts — companion module for circuit breaking after retries exhaust
  */
 
 import { createLogger } from '../../utils/logger'

@@ -5,6 +5,8 @@ import { getServer } from '../../lib/stellar'
 import {
   fetchHistoricalPerformance,
   generatePortfolioSummary,
+  generatePortfolioPredictions,
+  evaluatePredictionAlerts,
 } from '../../lib/portfolioAnalytics';
 import {
   PieChart,
@@ -29,6 +31,8 @@ import {
   AlertTriangle,
   Target,
   DollarSign,
+  BrainCircuit,
+  BellRing,
 } from 'lucide-react';
 import Card, { StatCard } from './Card';
 
@@ -86,7 +90,9 @@ export default function PortfolioValue() {
     setPricesLoading,
     setPricesError,
   } = useStore();
-  const [activeView, setActiveView] = useState('overview'); // overview, allocation, performance, risk
+  const [activeView, setActiveView] = useState('overview'); // overview, allocation, performance, risk, predictions
+  const [predictionAlertsEnabled, setPredictionAlertsEnabled] = useState(false);
+  const [predictionAlertThreshold, setPredictionAlertThreshold] = useState(5);
   const [historicalData, setHistoricalData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -173,9 +179,26 @@ export default function PortfolioValue() {
     });
 
     const summary = generatePortfolioSummary(portfolio.items, historicalPerformance);
+    const predictionSummary = generatePortfolioPredictions({
+      portfolioItems: portfolio.items,
+      historicalData: historicalPerformance,
+      marketConditions: {
+        priceMomentum: summary.performance24h?.changePercent ?? 0,
+        volatility: summary.volatility ?? 0,
+        liquidityScore: Math.min(100, 45 + (summary.diversificationScore ?? 0) / 2),
+        sentimentScore: (summary.performance24h?.changePercent ?? 0) >= 0 ? 58 : 42,
+      },
+      networkActivity: {
+        operationGrowth: network === 'testnet' ? 4 : 2,
+        activeAccountGrowth: portfolio.items.length > 1 ? 3 : 1,
+        feePressure: summary.riskAssessment?.components?.valuation ?? 0,
+        ledgerUtilization: network === 'testnet' ? 35 : 65,
+      },
+    });
 
     return {
       ...summary,
+      predictionSummary,
       change24h: summary.performance24h?.changePercent ?? 0,
       historicalPerformance,
       summary,
@@ -204,6 +227,7 @@ export default function PortfolioValue() {
     { id: 'allocation', label: 'Allocation', icon: PieChartIcon },
     { id: 'performance', label: 'Performance', icon: Activity },
     { id: 'risk', label: 'Risk', icon: AlertTriangle },
+    { id: 'predictions', label: 'Predictions', icon: BrainCircuit },
   ];
 
   return (
@@ -299,6 +323,16 @@ export default function PortfolioValue() {
         )}
 
         {!pricesLoading && activeView === 'risk' && analytics && <RiskView analytics={analytics} />}
+
+        {!pricesLoading && activeView === 'predictions' && analytics && (
+          <PredictionsView
+            analytics={analytics}
+            alertsEnabled={predictionAlertsEnabled}
+            alertThreshold={predictionAlertThreshold}
+            onToggleAlerts={() => setPredictionAlertsEnabled((enabled) => !enabled)}
+            onAlertThresholdChange={setPredictionAlertThreshold}
+          />
+        )}
       </div>
     </Card>
   );
@@ -851,6 +885,82 @@ function RiskView({ analytics }) {
           </div>
         </Panel>
       )}
+    </div>
+  );
+}
+
+// ─── Predictions View ────────────────────────────────────────────────────────
+
+interface PredictionsViewProps {
+  analytics: any;
+  alertsEnabled: boolean;
+  alertThreshold: number;
+  onToggleAlerts: () => void;
+  onAlertThresholdChange: (value: number) => void;
+}
+
+function PredictionsView({
+  analytics,
+  alertsEnabled,
+  alertThreshold,
+  onToggleAlerts,
+  onAlertThresholdChange,
+}: PredictionsViewProps) {
+  const predictionSummary = analytics.predictionSummary;
+  const alerts = evaluatePredictionAlerts(predictionSummary, {
+    dropPercent: alertThreshold,
+    gainPercent: alertThreshold,
+    confidenceRequired: 70,
+  });
+
+  if (!predictionSummary) {
+    return <div style={{ color: 'var(--text-muted)', padding: '20px' }}>Prediction data is unavailable.</div>;
+  }
+
+  const chartData = predictionSummary.predictions.map((prediction: any) => ({
+    name: `${prediction.horizonDays}D`,
+    value: Number(prediction.predictedValue.toFixed(2)),
+    lower: Number(prediction.lowerBound.toFixed(2)),
+    upper: Number(prediction.upperBound.toFixed(2)),
+  }));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+        <StatCard label="7-day Prediction" value={`$${predictionSummary.sevenDay.predictedValue.toFixed(2)}`} sub={`${predictionSummary.sevenDay.changePercent >= 0 ? '+' : ''}${predictionSummary.sevenDay.changePercent.toFixed(2)}% expected`} accent={predictionSummary.sevenDay.changePercent >= 0 ? 'var(--green)' : 'var(--red)'} />
+        <StatCard label="Model Accuracy" value={`${predictionSummary.modelAccuracy}%`} sub={predictionSummary.isTargetAccuracyMet ? 'Meets 80% target' : 'Needs more history'} accent={predictionSummary.isTargetAccuracyMet ? 'var(--green)' : 'var(--amber)'} />
+        <StatCard label="Daily Update" value={new Date(predictionSummary.nextUpdateAt).toLocaleDateString()} sub="Predictions refresh every 24h" accent="var(--cyan)" />
+      </div>
+
+      <Panel title="Multi-horizon forecast">
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
+            <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
+            <Tooltip contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px' }} formatter={(value) => `$${Number(value).toFixed(2)}`} />
+            <Legend />
+            <Line type="monotone" dataKey="upper" name="Upper confidence" stroke="#a78bfa" strokeDasharray="4 4" dot={false} />
+            <Line type="monotone" dataKey="value" name="Predicted value" stroke="#00d4ff" strokeWidth={2} />
+            <Line type="monotone" dataKey="lower" name="Lower confidence" stroke="#fb923c" strokeDasharray="4 4" dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </Panel>
+
+      <Panel title="Prediction alerts">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <button type="button" onClick={onToggleAlerts} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: alertsEnabled ? 'var(--cyan-dim)' : 'var(--bg-card)', color: alertsEnabled ? 'var(--cyan)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}>
+            <BellRing size={14} /> {alertsEnabled ? 'Prediction alerts enabled' : 'Enable prediction alerts'}
+          </button>
+          <label style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+            Alert when forecast changes by at least {alertThreshold}%
+            <input type="range" min="1" max="20" value={alertThreshold} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onAlertThresholdChange(Number(event.target.value))} style={{ width: '100%', marginTop: '8px' }} />
+          </label>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+            {alertsEnabled && alerts.length > 0 ? alerts.map((alert: any) => alert.message).join(' • ') : 'No prediction alerts currently match your threshold.'}
+          </div>
+        </div>
+      </Panel>
     </div>
   );
 }

@@ -29,21 +29,26 @@ jobs:
       matrix:
         viewport: [mobile, tablet, desktop, wide]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
 
       - name: Build production bundle
-        run: npm run build
+        run: pnpm run build
 
       - name: Restore visual baselines
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: tests/e2e/snapshots
           key: visual-snapshots-${{ matrix.viewport }}-${{ github.base_ref || github.ref_name }}
@@ -66,7 +71,7 @@ jobs:
 
       - name: Save baselines
         if: success()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: tests/e2e/snapshots
           key: visual-snapshots-${{ matrix.viewport }}-${{ github.base_ref || github.ref_name }}
@@ -77,17 +82,22 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || vars.CHROMATIC_ENABLED == 'true'
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npm run build-storybook
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build-storybook
 
       - name: Run Chromatic
         uses: chromaui/action@latest
@@ -105,17 +115,22 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Run Stryker mutation tests
-        run: npx stryker run
+        run: pnpm exec stryker run
 
       - name: Upload mutation report
         if: always()
@@ -132,17 +147,22 @@ jobs:
     name: Coverage Gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Run tests with coverage
-        run: npm run test:coverage || true
+        run: pnpm run test:coverage || true
 
       - name: Enforce coverage thresholds
         run: |
@@ -183,18 +203,25 @@ jobs:
     name: Lighthouse CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # Fetch full history for regression correlation
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npm run build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
 
       - name: Run Lighthouse CI
-        run: npx lhci autorun
+        run: pnpm exec lhci autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
 
@@ -206,6 +233,23 @@ jobs:
           path: .lighthouseci/
           retention-days: 30
 
+      # ── Predictive Performance Regression Detection (#624) ─────────────────
+      # Analyzes Lighthouse metrics against historical baselines to detect
+      # performance regressions before they impact users. Uses statistical
+      # z-score analysis with 2.5σ threshold and correlates findings with
+      # recent git commits for root cause investigation.
+      #
+      # Exit behavior:
+      #   - High-confidence regressions (confidence ≥ 0.5): Fails CI (exit 1)
+      #   - Low-confidence regressions: Logs warning, CI passes (exit 0)
+      #   - No regressions: CI passes (exit 0)
+      - name: Detect performance regressions
+        if: always()  # Run even if Lighthouse CI fails
+        run: node scripts/detect-performance-regressions.mjs --threshold=2.5 --verbose
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+
   # ══════════════════════════════════════════════════════════════════════════
   # Step 5 — Accessibility gate (axe-core)
   # ══════════════════════════════════════════════════════════════════════════
@@ -213,21 +257,26 @@ jobs:
     name: Accessibility Gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
 
       - name: Build app
-        run: npm run build
+        run: pnpm run build
 
       - name: Run accessibility gate
-        run: npm run test:a11y
+        run: pnpm run test:a11y
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
 

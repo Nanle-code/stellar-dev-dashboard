@@ -293,9 +293,9 @@ export interface LiquidityPool {
 /** User's LP position */
 export interface LiquidityPosition {
   poolId: string
-  shares?: string
+  shares?: string | number
   balance?: string
-  sharePercent: string
+  sharePercent: string | number
 }
 
 /** Validator status from network monitoring */
@@ -400,3 +400,16 @@ export interface TabDefinition {
   label: string
   icon: React.ComponentType<{ size?: number }>
 }
+
+// ─── Capacity Prediction types (re-exported for component use) ────────────────
+
+export type {
+  CapacityDataPoint,
+  PredictionPoint,
+  ScenarioType,
+  ScenarioProjection,
+  FeatureAdoptionMetric,
+  InfraRecommendation,
+  CapacityPlanningReport,
+  CapacityPredictionResult,
+} from '../../lib/capacityPrediction'

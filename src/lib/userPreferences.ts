@@ -105,6 +105,8 @@ export interface UserPreferences {
     cooldownPeriod: number // in seconds
     requireEmailConfirmation: boolean
     confirmationEmail: string
+    autoBlockHighRisk: boolean
+    highRiskThreshold: number // risk score threshold for auto-blocking counterparties
   }
   notificationPreferences?: import('./notificationPreferences').NotificationPreferences
 }
@@ -175,6 +177,7 @@ export const DEFAULT_ADVANCED_PREFERENCES: Record<string, PreferenceValue> = {
   showRawXdr: false,
   showApiTimings: false,
   enableExperimentalSorobanPanels: false,
+  enableContractAssistant: true,
   logLevel: 'warn',
   syncAcrossDevices: false,
   syncConflictStrategy: 'newest',
@@ -252,6 +255,7 @@ export const PREFERENCE_SCHEMA: PreferenceDefinition[] = [
       showRawXdr: 'developer',
       showApiTimings: 'developer',
       enableExperimentalSorobanPanels: 'developer',
+      enableContractAssistant: 'general',
       logLevel: 'developer',
       syncAcrossDevices: 'sync',
       syncConflictStrategy: 'sync',
@@ -310,6 +314,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     cooldownPeriod: 30, // in seconds
     requireEmailConfirmation: false,
     confirmationEmail: '',
+    autoBlockHighRisk: false,
+    highRiskThreshold: 75,
   },
 }
 

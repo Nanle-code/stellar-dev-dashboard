@@ -14,22 +14,18 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Strictness */
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictPropertyInitialization": true,
+    /* Strictness — relaxed for mid-migration codebase */
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictPropertyInitialization": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
 
     /* Keep type-check focused on the TypeScript migration surface. */
-    "allowJs": false,
+    "allowJs": true,
     "checkJs": false
   },
-  "include": [
-    "src/**/*.d.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ]
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

@@ -2,9 +2,18 @@ import React, { useState, useMemo, useCallback } from 'react'
 import { useAddressLabels } from '../../hooks/useAddressLabels'
 import { shortAddress } from '../../lib/stellar'
 import {
-  X, Users, TrendingUp, Layers, ArrowUpRight, ArrowLeftRight,
-  Star, Network, Zap, Activity,
+  X, Users, Layers, ArrowLeftRight,
+  Star, Network, Zap, Activity, Brain, Tag, Edit3, Check, AlertCircle,
 } from 'lucide-react'
+import {
+  saveAnnotation,
+  removeAnnotation,
+  type EnhancedRelationship,
+  type EnhancedRankedNode,
+  type EnhancedCluster,
+  type EnhancedSummary,
+  type RelationshipType,
+} from '../../lib/accountRelationshipEngine'
 
 interface ScoreColorTier {
   min: number;
@@ -12,58 +21,18 @@ interface ScoreColorTier {
   label: string;
 }
 
-interface Relationship {
-  key: string;
-  addressA: string;
-  addressB: string;
-  score: number;
-  txCount: number;
-  totalAmount: number;
-  isBidirectional: boolean;
-  lastSeen?: string;
-  frequency: number;
-  volume: number;
-  recency: number;
-  directionality: number;
-  diversity: number;
-  types: string[];
-}
-
-interface RankedNode {
-  address: string;
-  isCentral: boolean;
-  importance: number;
-  relationshipCount: number;
-  totalTx: number;
-}
-
-interface Cluster {
-  size: number;
-  edgeCount: number;
-  members: string[];
-}
-
-interface ReportSummary {
-  totalRelationships: number;
-  highVolumeCount: number;
-  clusterCount: number;
-  frequentCounterparties: number;
-  largestClusterSize: number;
-  totalAddresses: number;
-}
-
 interface RelationshipReport {
-  summary: ReportSummary;
-  relationships: Relationship[];
-  clusters: Cluster[];
-  rankedNodes: RankedNode[];
+  summary: EnhancedSummary;
+  relationships: EnhancedRelationship[];
+  clusters: EnhancedCluster[];
+  rankedNodes: EnhancedRankedNode[];
 }
 
 interface RelationshipPanelProps {
   report: RelationshipReport | null;
   connectedAddress: string;
   loading: boolean;
-  onSelectAddress?: (address: string) => void;
+  onSelectAddress?: (_address: string) => void;
   onClose?: () => void;
 }
 
@@ -74,6 +43,22 @@ const SCORE_COLORS: ScoreColorTier[] = [
   { min: 0.2, color: '#6366f1', label: 'Low' },
   { min: 0, color: '#14b8a6', label: 'Minimal' },
 ]
+
+const TYPE_COLORS: Record<RelationshipType, string> = {
+  business: '#3b82f6',
+  personal: '#10b981',
+  exchange: '#f59e0b',
+  defi: '#8b5cf6',
+  unknown: '#6b7280',
+}
+
+const TYPE_LABELS: Record<RelationshipType, string> = {
+  business: 'Business',
+  personal: 'Personal',
+  exchange: 'Exchange',
+  defi: 'DeFi',
+  unknown: 'Unknown',
+}
 
 function scoreColor(score: number): ScoreColorTier {
   for (const tier of SCORE_COLORS) {
@@ -101,12 +86,12 @@ export default function RelationshipPanel({
   const [activeTab, setActiveTab] = useState('relationships')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  const selectedRel = useMemo<Relationship | null>(() => {
+  const selectedRel = useMemo<EnhancedRelationship | null>(() => {
     if (!selectedKey || !report) return null
     return report.relationships.find((r) => r.key === selectedKey) || null
   }, [selectedKey, report])
 
-  const handleSelectRel = useCallback((rel: Relationship) => {
+  const handleSelectRel = useCallback((rel: EnhancedRelationship) => {
     setSelectedKey(selectedKey === rel.key ? null : rel.key)
   }, [selectedKey])
 
@@ -138,7 +123,7 @@ export default function RelationshipPanel({
       }}>
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
           <Network size={13} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-          Relationships
+          AI Relationships
         </span>
         {onClose && (
           <button onClick={onClose} style={{ border: 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}>
@@ -156,7 +141,7 @@ export default function RelationshipPanel({
         <StatBox icon={<Users size={10} />} label="Clusters" value={summary.clusterCount} />
         <StatBox icon={<Star size={10} />} label="Frequent" value={summary.frequentCounterparties} />
         <StatBox icon={<Layers size={10} />} label="Largest Cluster" value={summary.largestClusterSize} />
-        <StatBox icon={<TrendingUp size={10} />} label="Total Addrs" value={summary.totalAddresses} />
+        <StatBox icon={<Brain size={10} />} label="AI Conf" value={Math.round(summary.aiConfidence * 100)} />
       </div>
 
       <div style={{ display: 'flex', borderBottom: '1px solid #1a2332' }}>
@@ -164,6 +149,7 @@ export default function RelationshipPanel({
           { id: 'relationships', label: 'Relationships', icon: <ArrowLeftRight size={11} /> },
           { id: 'addresses', label: 'Addresses', icon: <Users size={11} /> },
           { id: 'clusters', label: 'Clusters', icon: <Layers size={11} /> },
+          { id: 'insights', label: 'AI Insights', icon: <Brain size={11} /> },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -183,8 +169,14 @@ export default function RelationshipPanel({
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {activeTab === 'relationships' && (
-          selectedRel ? <RelationshipDetail rel={selectedRel} onBack={() => setSelectedKey(null)} labelMap={labelMap} connectedAddress={connectedAddress} /> :
-          relationships.length === 0 ? (
+          selectedRel ? (
+            <RelationshipDetail
+              rel={selectedRel}
+              onBack={() => setSelectedKey(null)}
+              labelMap={labelMap}
+              connectedAddress={connectedAddress}
+            />
+          ) : relationships.length === 0 ? (
             <EmptyState message="No relationships found" />
           ) : (
             relationships.map((rel) => (
@@ -233,6 +225,15 @@ export default function RelationshipPanel({
             ))
           )
         )}
+
+        {activeTab === 'insights' && (
+          <AIInsightsTab
+            summary={summary}
+            relationships={relationships}
+            rankedNodes={rankedNodes}
+            clusters={clusters}
+          />
+        )}
       </div>
     </div>
   )
@@ -251,13 +252,35 @@ function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string;
   )
 }
 
-function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, onSelectAddress }: {
-  rel: Relationship;
+function TypeBadge({ type, confidence }: { type: RelationshipType; confidence?: number }) {
+  const color = TYPE_COLORS[type]
+  return (
+    <span
+      title={`${TYPE_LABELS[type]}${confidence != null ? ` (${Math.round(confidence * 100)}% confidence)` : ''}`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '3px',
+        padding: '1px 6px', fontSize: '9px', fontWeight: 600,
+        background: `${color}20`, border: `1px solid ${color}40`,
+        borderRadius: '3px', color,
+      }}
+    >
+      {confidence != null && (
+        <span style={{ opacity: 0.7 }}>
+          {confidence >= 0.9 ? <Check size={9} /> : <AlertCircle size={9} />}
+        </span>
+      )}
+      {TYPE_LABELS[type]}
+    </span>
+  )
+}
+
+function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, onSelectAddress: _onSelectAddress }: {
+  rel: EnhancedRelationship;
   labelMap: LabelMap;
   connectedAddress: string;
   selected: boolean;
   onClick: () => void;
-  onSelectAddress?: (address: string) => void;
+  onSelectAddress?: (_address: string) => void;
 }) {
   const otherAddr = rel.addressA === connectedAddress ? rel.addressB : rel.addressA
   const otherLabel = labelMap[otherAddr]?.label || shortAddress(otherAddr)
@@ -298,19 +321,19 @@ function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, o
         <span>{rel.txCount} tx</span>
         {rel.totalAmount > 0 && <span>{formatAmount(rel.totalAmount)} XLM</span>}
         {rel.isBidirectional && <span style={{ color: '#06b6d4' }}>↔</span>}
+        <TypeBadge type={rel.classification.type} confidence={rel.classification.confidence} />
         <span style={{ flex: 1 }} />
         <span>{dateStr}</span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onSelectAddress?.(otherAddr) }}
-          title="Go to address"
-          style={{ border: 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '1px' }}
-        >
-          <ArrowUpRight size={9} />
-        </button>
       </div>
 
       {selected && (
         <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #1a2332', fontSize: '10px', color: 'var(--text-muted)' }}>
+          {rel.annotation && (
+            <div style={{ marginBottom: '4px', padding: '3px 6px', background: '#3b82f610', border: '1px solid #3b82f630', borderRadius: '3px', fontSize: '9px' }}>
+              <Tag size={8} style={{ marginRight: '3px', verticalAlign: 'middle' }} />
+              Annotated: {TYPE_LABELS[rel.annotation.type]} - {rel.annotation.note}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
             <span>Frequency</span>
             <span style={{ color: 'var(--text-primary)' }}>{(rel.frequency * 100).toFixed(0)}%</span>
@@ -340,6 +363,97 @@ function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, o
               ))}
             </div>
           )}
+          <div style={{ marginTop: '6px' }}>
+            <AnnotationDropdown relKey={rel.key} currentType={rel.classification.type} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AnnotationDropdown({ relKey, currentType }: { relKey: string; currentType: RelationshipType }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const handleAnnotate = (type: RelationshipType) => {
+    saveAnnotation(relKey, { type, note: note || `manually set to ${type}`, timestamp: Date.now() })
+    setSaved(true)
+    setIsOpen(false)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = () => {
+    removeAnnotation(relKey)
+    setSaved(true)
+    setIsOpen(false)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px',
+          fontSize: '9px', background: '#1a2332', border: '1px solid #253040',
+          borderRadius: '3px', color: 'var(--text-secondary)', cursor: 'pointer',
+        }}
+      >
+        <Edit3 size={9} /> {saved ? 'Saved!' : 'Annotate'}
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute', bottom: '100%', left: '0', zIndex: 20,
+            padding: '6px', background: '#1a2332', border: '1px solid #253040',
+            borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '3px',
+            minWidth: '120px',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(Object.keys(TYPE_COLORS) as RelationshipType[]).map((type) => (
+            <button
+              key={type}
+              onClick={() => handleAnnotate(type)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 6px',
+                fontSize: '9px', border: 'none', borderRadius: '2px',
+                background: type === currentType ? `${TYPE_COLORS[type]}30` : 'transparent',
+                color: type === currentType ? TYPE_COLORS[type] : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: TYPE_COLORS[type], display: 'inline-block' }} />
+              {TYPE_LABELS[type]}
+            </button>
+          ))}
+          <div style={{ marginTop: '3px', borderTop: '1px solid #253040', paddingTop: '3px' }}>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional note..."
+              style={{
+                width: '100%', padding: '2px 4px', fontSize: '9px',
+                background: '#0d1520', border: '1px solid #253040',
+                borderRadius: '2px', color: 'var(--text-primary)', outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <button
+            onClick={handleClear}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 6px',
+              fontSize: '9px', border: 'none', borderRadius: '2px',
+              background: 'transparent', color: '#ef4444', cursor: 'pointer', marginTop: '2px',
+            }}
+          >
+            <X size={9} /> Clear annotation
+          </button>
         </div>
       )}
     </div>
@@ -347,7 +461,7 @@ function RelationshipRow({ rel, labelMap, connectedAddress, selected, onClick, o
 }
 
 function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }: {
-  rel: Relationship;
+  rel: EnhancedRelationship;
   onBack: () => void;
   labelMap: LabelMap;
   connectedAddress: string;
@@ -376,6 +490,15 @@ function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }: {
         </div>
       </div>
 
+      <div style={{ marginBottom: '8px' }}>
+        <TypeBadge type={rel.classification.type} confidence={rel.classification.confidence} />
+        {rel.classification.reasons.length > 0 && (
+          <ul style={{ margin: '4px 0 0 0', padding: '0 0 0 12px', fontSize: '9px', color: 'var(--text-muted)' }}>
+            {rel.classification.reasons.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        )}
+      </div>
+
       <div style={{ fontSize: '24px', fontWeight: 700, color: c.color, fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>
         {(rel.score * 100).toFixed(0)}
         <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '6px' }}>
@@ -401,6 +524,20 @@ function RelationshipDetail({ rel, onBack, labelMap, connectedAddress }: {
       <ScoreBar label="Recency" value={rel.recency} />
       <ScoreBar label="Directionality" value={rel.directionality} />
       <ScoreBar label="Diversity" value={rel.diversity} />
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #1a2332', paddingTop: '10px' }}>
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <Brain size={10} /> AI Features
+        </div>
+        <ScoreBar label="Amount StdDev" value={Math.min(rel.features.amountStdDev / (rel.features.avgAmount || 1), 1)} />
+        <ScoreBar label="Day Spread" value={Math.min(rel.features.daySpread / 365, 1)} />
+        <ScoreBar label="Hour Variance" value={Math.min(rel.features.hourStdDev / 12, 1)} />
+        <ScoreBar label="Asset Diversity" value={Math.min(rel.features.uniqueAssetCount / 5, 1)} />
+      </div>
+
+      <div style={{ marginTop: '10px' }}>
+        <AnnotationDropdown relKey={rel.key} currentType={rel.classification.type} />
+      </div>
     </div>
   )
 }
@@ -422,10 +559,10 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 }
 
 function AddressRow({ node, rank, labelMap, onSelect }: {
-  node: RankedNode;
+  node: EnhancedRankedNode;
   rank: number;
   labelMap: LabelMap;
-  onSelect?: (address: string) => void;
+  onSelect?: (_address: string) => void;
 }) {
   const top3 = rank <= 3
   const label = labelMap[node.address]?.label
@@ -460,6 +597,9 @@ function AddressRow({ node, rank, labelMap, onSelect }: {
         {!node.isCentral && (
           <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
             {shortAddress(node.address)} · {node.relationshipCount} rel · {node.totalTx} tx
+            <span style={{ color: '#8b5cf6', marginLeft: '4px' }}>
+              C:{node.communityId >= 0 ? node.communityId : '-'}
+            </span>
           </div>
         )}
       </div>
@@ -470,12 +610,12 @@ function AddressRow({ node, rank, labelMap, onSelect }: {
   )
 }
 
-function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddress }: {
-  cluster: Cluster;
+function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddress: _onSelectAddress }: {
+  cluster: EnhancedCluster;
   index: number;
   labelMap: LabelMap;
   connectedAddress: string;
-  onSelectAddress?: (address: string) => void;
+  onSelectAddress?: (_address: string) => void;
 }) {
   return (
     <div style={{ padding: '10px 12px', borderBottom: '1px solid #111c2e' }}>
@@ -485,11 +625,15 @@ function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddres
           background: `hsl(${index * 60}, 60%, 50%)`, display: 'inline-block',
         }} />
         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)' }}>
-          Cluster {index + 1}
+          Community {cluster.communityId}
         </span>
         <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
           {cluster.size} addresses · {cluster.edgeCount} edges
         </span>
+        <TypeBadge type={cluster.dominantType} />
+      </div>
+      <div style={{ display: 'flex', fontSize: '9px', color: 'var(--text-muted)', gap: '8px', marginBottom: '4px' }}>
+        <span>Density: {(cluster.density * 100).toFixed(0)}%</span>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
         {cluster.members.slice(0, 8).map((addr) => {
@@ -518,6 +662,92 @@ function ClusterRow({ cluster, index, labelMap, connectedAddress, onSelectAddres
           </span>
         )}
       </div>
+    </div>
+  )
+}
+
+export function AIInsightsTab({
+  summary,
+  relationships,
+  rankedNodes,
+  clusters,
+}: {
+  summary: EnhancedSummary;
+  relationships: EnhancedRelationship[];
+  rankedNodes: EnhancedRankedNode[];
+  clusters: EnhancedCluster[];
+}) {
+  const classifiedCount = relationships.filter((r) => r.classification.type !== 'unknown').length
+  const classifiedPct = relationships.length > 0 ? Math.round((classifiedCount / relationships.length) * 100) : 0
+  const highConfidenceCount = relationships.filter((r) => r.classification.confidence >= 0.8).length
+
+  const topByType = (Object.entries(summary.typeBreakdown) as [RelationshipType, number][])
+    .filter(([, count]) => count > 0)
+    .sort(([, a], [, b]) => b - a)
+
+  return (
+    <div style={{ padding: '12px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Brain size={12} /> AI Analysis Summary
+      </div>
+
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '4px' }}>Relationship Type Distribution</div>
+        {topByType.map(([type, count]) => {
+          const pct = summary.totalRelationships > 0 ? Math.round((count / summary.totalRelationships) * 100) : 0
+          return (
+            <div key={type} style={{ marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginBottom: '2px' }}>
+                <span style={{ color: TYPE_COLORS[type] }}>{TYPE_LABELS[type]}</span>
+                <span style={{ color: 'var(--text-muted)' }}>{count} ({pct}%)</span>
+              </div>
+              <div style={{ height: '3px', background: '#1a2332', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: TYPE_COLORS[type], borderRadius: '2px', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ marginBottom: '12px', padding: '8px', background: '#1a2332', borderRadius: '4px' }}>
+        <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '4px' }}>Classification Stats</div>
+        <div style={{ fontSize: '10px', color: 'var(--text-primary)' }}>
+          {classifiedPct}% classified ({classifiedCount}/{relationships.length})
+        </div>
+        <div style={{ fontSize: '10px', color: 'var(--text-primary)' }}>
+          {highConfidenceCount} high-confidence predictions
+        </div>
+        <div style={{ fontSize: '10px', color: 'var(--text-primary)' }}>
+          AI confidence: {(summary.aiConfidence * 100).toFixed(0)}%
+        </div>
+      </div>
+
+      {clusters.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '4px' }}>Community Detection</div>
+          {clusters.slice(0, 3).map((cluster, i) => (
+            <div key={i} style={{ padding: '4px 0', fontSize: '9px', color: 'var(--text-secondary)' }}>
+              Community {cluster.communityId}: {cluster.size} addresses, {cluster.edgeCount} edges
+              {cluster.dominantType !== 'unknown' && (
+                <span style={{ color: TYPE_COLORS[cluster.dominantType], marginLeft: '4px' }}>
+                  ({TYPE_LABELS[cluster.dominantType]})
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {rankedNodes.length > 0 && (
+        <div>
+          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginBottom: '4px' }}>Centrality</div>
+          {rankedNodes.filter((n) => !n.isCentral).slice(0, 3).map((node) => (
+            <div key={node.address} style={{ padding: '2px 0', fontSize: '9px', color: 'var(--text-secondary)' }}>
+              {shortAddress(node.address)}: betw. {(node.betweennessCentrality * 100).toFixed(0)}%, comm. {node.communityId >= 0 ? node.communityId : '-'}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

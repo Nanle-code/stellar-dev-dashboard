@@ -282,5 +282,52 @@
             "placeholder": "اكتب كود ستيلار الخاص بك هنا...",
             "run": "تشغيل الكود"
         }
+    },
+    "aiTranslation": {
+        "switchTo": "التبديل إلى",
+        "stats": {
+            "title": "إحصائيات الترجمة بالذكاء الاصطناعي",
+            "languages": "اللغات",
+            "tmEntries": "إدخالات ذاكرة الترجمة",
+            "communityContributions": "تصحيحات المجتمع",
+            "accuracy": "الدقة المستهدفة",
+            "apiStatus": "واجهة برمجة الترجمة الآلية",
+            "apiConnected": "متصلة",
+            "apiNotConfigured": "غير مُعدَّة"
+        },
+        "demo": {
+            "title": "تجربة الترجمة بالذكاء الاصطناعي",
+            "subtitle": "اختبر الترجمة الفورية لأي نص بما في ذلك المصطلحات الخاصة بـ Stellar.",
+            "placeholder": "أدخل النص للترجمة...",
+            "targetLanguage": "اللغة المستهدفة",
+            "translateBtn": "ترجمة"
+        },
+        "api": {
+            "title": "واجهة برمجة الترجمة",
+            "description": "اربط نقطة نهاية متوافقة مع LibreTranslate للحصول على دقة أعلى. مصطلحات Stellar محمية دائمًا.",
+            "endpointLabel": "عنوان URL لنقطة النهاية",
+            "keyLabel": "مفتاح API",
+            "keyOptional": "اختياري",
+            "saveBtn": "الإعدادات",
+            "saved": "تم حفظ الإعدادات"
+        },
+        "correction": {
+            "title": "المساهمة بتصحيح",
+            "description": "وجدت خطأً في الترجمة؟ أرسل تصحيحًا وسيُطبَّق فورًا عبر ذاكرة الترجمة.",
+            "sourceText": "النص الإنجليزي الأصلي",
+            "originalTranslation": "الترجمة الخاطئة",
+            "originalPlaceholder": "الصق الترجمة الخاطئة (اختياري)",
+            "correctedTranslation": "تصحيحك",
+            "correctedPlaceholder": "أدخل الترجمة الصحيحة",
+            "targetLanguage": "اللغة المراد تصحيحها",
+            "submitBtn": "إرسال التصحيح",
+            "submitted": "تم حفظ التصحيح — شكرًا!",
+            "errorEmpty": "يرجى ملء النص المصدر والتصحيح."
+        },
+        "terms": {
+            "title": "مصطلحات Stellar المحمية",
+            "description": "هذه المصطلحات التقنية لا تُترجم آليًا أبدًا — يتم الحفاظ عليها كما هي لضمان الدقة.",
+            "more": "مصطلحًا محميًا إضافيًا"
+        }
     }
 }

@@ -4,6 +4,8 @@ import { useStore } from "../../lib/store";
 import { fetchOrderBook, fetchTrades, parseAssetString } from "../../lib/dex";
 import type { OrderBookEntry, SpreadInfo } from "./types";
 import LiquidityPools from "./LiquidityPools";
+import LiquidityPredictionDashboard from "./LiquidityPredictionDashboard";
+import SlippageTradePanel from "./SlippageTradePanel";
 
 interface OrderBookData {
   bids: OrderBookEntry[]
@@ -165,10 +167,15 @@ export default function DEXExplorer() {
           <ViewButton active={activeView === "pools"} onClick={() => setActiveView("pools")}>
             Liquidity Pools
           </ViewButton>
+          <ViewButton active={activeView === "prediction"} onClick={() => setActiveView("prediction")}>
+            🧠 Liquidity AI
+          </ViewButton>
         </div>
       </div>
 
-      {activeView === "pools" ? (
+      {activeView === "prediction" ? (
+        <LiquidityPredictionDashboard />
+      ) : activeView === "pools" ? (
         <LiquidityPools />
       ) : (
         <>
@@ -247,6 +254,12 @@ export default function DEXExplorer() {
         <BookSide title="Bids" rows={book?.bids || []} accent="var(--green)" />
         <BookSide title="Asks" rows={book?.asks || []} accent="var(--red)" />
       </div>
+
+      <SlippageTradePanel
+        sellingAsset={selling}
+        buyingAsset={buying}
+        orderbook={book}
+      />
 
       <div
         style={{

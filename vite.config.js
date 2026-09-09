@@ -56,22 +56,20 @@ export default defineConfig({
         // Manual chunks keep large libraries and feature areas cacheable while
         // route-level dynamic imports keep the app shell small.
         manualChunks(id) {
-          if (!id.includes('node_modules')) {
-            if (id.includes('/src/components/charts/')) return 'charts'
-            if (id.includes('/src/components/assets/')) return 'assets'
-            if (id.includes('/src/components/multisig/')) return 'multisig'
-            if (id.includes('/src/components/deployment/')) return 'deployment'
+          const normalizedId = id.replace(/\\/g, '/')
+          if (!normalizedId.includes('node_modules')) {
+            if (normalizedId.includes('/src/components/charts/')) return 'charts'
+            if (normalizedId.includes('/src/components/assets/')) return 'assets'
+            if (normalizedId.includes('/src/components/multisig/')) return 'multisig'
+            if (normalizedId.includes('/src/components/deployment/')) return 'deployment'
             return undefined
           }
 
-          if (id.includes('@stellar/stellar-sdk')) return 'stellar-sdk'
-          if (id.includes('recharts')) return 'charts-vendor'
-          if (id.includes('lucide-react')) return 'icons-vendor'
-          if (id.includes('i18next')) return 'i18n'
-          if (id.includes('react-router-dom') || id.includes('react-router')) return 'react-vendor'
-          if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor'
-          if (id.includes('date-fns')) return 'date-vendor'
-          if (id.includes('zustand')) return 'react-vendor'
+          if (normalizedId.includes('@stellar/stellar-sdk')) return 'stellar-sdk'
+          if (normalizedId.includes('recharts')) return 'charts-vendor'
+          if (normalizedId.includes('lucide-react')) return 'icons-vendor'
+          if (normalizedId.includes('i18next')) return 'i18n'
+          if (normalizedId.includes('date-fns')) return 'date-vendor'
 
           return 'vendor'
         },

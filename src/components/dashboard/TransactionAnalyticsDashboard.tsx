@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchTransactions } from '../../api/transactions';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
+import AccessibleChart from '../charts/AccessibleChart';
 
 // Mock data generators (replace with real data)
 const generateFrequencyData = (transactions) => {
@@ -48,27 +49,47 @@ export default function TransactionAnalyticsDashboard() {
     <div style={{ padding: '16px', display: 'grid', gap: '24px' }}>
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px' }}>Transaction Analytics</h2>
       {/* Frequency Chart */}
-      <ResponsiveContainer width='100%' height={300}>
-        <LineChart data={freqData}>
-          <CartesianGrid strokeDasharray='3 3' />
-          <XAxis dataKey='date' />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type='monotone' dataKey='count' stroke='var(--cyan)' name='Tx Count' />
-        </LineChart>
-      </ResponsiveContainer>
+      <AccessibleChart
+        title="Transaction Frequency"
+        data={freqData}
+        series={[{ key: 'count', label: 'Tx Count' }]}
+        categoryKey="date"
+        categoryLabel="Date"
+        height={300}
+        emptyMessage="No transaction frequency data is currently available."
+      >
+        <ResponsiveContainer width='100%' height='100%'>
+          <LineChart data={freqData}>
+            <CartesianGrid strokeDasharray='3 3' />
+            <XAxis dataKey='date' />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type='monotone' dataKey='count' stroke='var(--cyan)' name='Tx Count' />
+          </LineChart>
+        </ResponsiveContainer>
+      </AccessibleChart>
       {/* Amount Distribution */}
-      <ResponsiveContainer width='100%' height={300}>
-        <BarChart data={distData}>
-          <CartesianGrid strokeDasharray='3 3' />
-          <XAxis dataKey='range' />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey='count' fill='var(--amber)' name='Transactions' />
-        </BarChart>
-      </ResponsiveContainer>
+      <AccessibleChart
+        title="Transaction Amount Distribution"
+        data={distData}
+        series={[{ key: 'count', label: 'Transactions' }]}
+        categoryKey="range"
+        categoryLabel="Amount range"
+        height={300}
+        emptyMessage="No transaction amount distribution data is currently available."
+      >
+        <ResponsiveContainer width='100%' height='100%'>
+          <BarChart data={distData}>
+            <CartesianGrid strokeDasharray='3 3' />
+            <XAxis dataKey='range' />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey='count' fill='var(--amber)' name='Transactions' />
+          </BarChart>
+        </ResponsiveContainer>
+      </AccessibleChart>
       {/* Additional charts (counterparty, time‑of‑day, seasonal, prediction) can be added similarly */}
     </div>
   );

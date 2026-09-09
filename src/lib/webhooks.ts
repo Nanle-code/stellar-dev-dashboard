@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { signWebhookPayload, verifyWebhookSignature } from './webhookSignatures';
 
 export type WebhookEventType = 'payment' | 'trust' | 'contract' | 'account_merge' | 'all';
 export type WebhookProvider = 'custom' | 'zapier' | 'make';
@@ -211,7 +212,8 @@ class WebhookManager {
     event.lastAttempt = new Date().toISOString();
 
     try {
-      const signature = this.generateSignature(event.payload, endpoint.secret);
+      const body = JSON.stringify(event.payload);
+      const signature = await signWebhookPayload(body, endpoint.secret);
       const response = await fetch(endpoint.url, {
         method: 'POST',
         headers: {
@@ -221,7 +223,7 @@ class WebhookManager {
           'X-Webhook-Event-Id': event.id,
           'X-Automation-Provider': endpoint.provider || 'custom',
         },
-        body: JSON.stringify(event.payload),
+        body,
       });
 
       const responseTime = Date.now() - startTime;
@@ -265,23 +267,6 @@ class WebhookManager {
     return INITIAL_RETRY_DELAY * Math.pow(2, attempts - 1);
   }
 
-  // Signature Generation & Verification
-  private generateSignature(payload: Record<string, unknown>, secret: string): string {
-    const payloadString = JSON.stringify(payload);
-    return this.hmacSha256(payloadString, secret);
-  }
-
-  private hmacSha256(data: string, secret: string): string {
-    // Using Web Crypto API for HMAC-SHA256
-    const encoder = new TextEncoder();
-    const dataBuffer = encoder.encode(data);
-    const keyBuffer = encoder.encode(secret);
-
-    // For browser compatibility, we'll use a simple hash
-    // In production, use proper HMAC-SHA256 implementation
-    return btoa(data + secret).slice(0, 64);
-  }
-
   async verifySignature(
     payload: Record<string, unknown>,
     signature: string,
@@ -290,8 +275,9 @@ class WebhookManager {
     const endpoint = await this.getEndpoint(endpointId);
     if (!endpoint) return false;
 
-    const expectedSignature = this.generateSignature(payload, endpoint.secret);
-    return signature === expectedSignature;
+    const rawBody = JSON.stringify(payload);
+    const result = await verifyWebhookSignature(rawBody, signature, endpoint.secret);
+    return result.valid;
   }
 
   // Event Storage
@@ -325,7 +311,9 @@ class WebhookManager {
 
       request.onsuccess = () => {
         const events = request.result;
-        events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        events.sort((a: WebhookEvent, b: WebhookEvent) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        );
         resolve(events.slice(0, limit));
       };
       request.onerror = () => reject(request.error);

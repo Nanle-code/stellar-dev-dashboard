@@ -1,4 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    profiles: [production]
+
   app:
     build:
       context: .
@@ -7,6 +21,7 @@ services:
       - "8080:80"
     environment:
       - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/health"]
@@ -26,3 +41,6 @@ services:
     environment:
       - NODE_ENV=development
     profiles: [dev]
+
+volumes:
+  redis_data:

@@ -2,7 +2,13 @@
  * Type definitions for the Alert Rules and Notifications System
  */
 
-export type AlertRuleType = 'balance_threshold' | 'operation_type' | 'counterparty'
+export type AlertRuleType =
+  | 'balance_threshold'
+  | 'operation_type'
+  | 'counterparty'
+  | 'fee_spike'
+  | 'submission_failures'
+  | 'rpc_latency'
 export type NotificationChannel = 'in_app' | 'browser'
 export type BalanceDirection = 'below' | 'above'
 export type CounterpartyDirection = 'incoming' | 'outgoing' | 'any'
@@ -24,10 +30,32 @@ export interface CounterpartyConfig {
   direction: CounterpartyDirection
 }
 
-export type AlertRuleConfig = 
-  | BalanceThresholdConfig 
-  | OperationTypeConfig 
+export interface FeeSpikeConfig {
+  multiplier: number
+  windowSeconds: number
+  minSamples: number
+}
+
+export interface SubmissionFailuresConfig {
+  failureCountThreshold: number
+  windowSeconds: number
+}
+
+export interface RpcLatencyConfig {
+  endpoint?: string
+  percentile: 50 | 95 | 99
+  thresholdMs: number
+  windowSeconds: number
+  minSamples: number
+}
+
+export type AlertRuleConfig =
+  | BalanceThresholdConfig
+  | OperationTypeConfig
   | CounterpartyConfig
+  | FeeSpikeConfig
+  | SubmissionFailuresConfig
+  | RpcLatencyConfig
 
 export interface AlertRule {
   id: string

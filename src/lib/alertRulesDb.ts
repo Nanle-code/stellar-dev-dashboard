@@ -4,6 +4,7 @@
  */
 
 import type { AlertRule, AlertNotification } from '../types/alerts'
+import { recordQuery } from './queryOptimizer'
 
 // Use native IndexedDB instead of idb library to avoid adding new dependencies
 type IDBPDatabase = IDBDatabase
@@ -78,13 +79,25 @@ export async function deleteRule(ruleId: string): Promise<void> {
 
 export async function getRules(userId: string): Promise<AlertRule[]> {
   const db = await initDb()
+  const startedAt = performance.now()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(RULES_STORE, 'readonly')
     const store = tx.objectStore(RULES_STORE)
     const index = store.index('userId')
     const request = index.getAll(userId)
-    
-    request.onsuccess = () => resolve(request.result)
+
+    request.onsuccess = () => {
+      const result = request.result
+      recordQuery({
+        store: RULES_STORE,
+        operation: 'index-lookup',
+        indexUsed: 'userId',
+        durationMs: performance.now() - startedAt,
+        rowsScanned: result.length,
+        rowsReturned: result.length,
+      })
+      resolve(result)
+    }
     request.onerror = () => reject(request.error)
   })
 }
@@ -142,23 +155,30 @@ export async function getNotifications(
   unreadOnly = false
 ): Promise<AlertNotification[]> {
   const db = await initDb()
+  const startedAt = performance.now()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(NOTIFICATIONS_STORE, 'readonly')
     const store = tx.objectStore(NOTIFICATIONS_STORE)
     const index = store.index('accountAddress')
     const request = index.getAll(userId)
-    
+
     request.onsuccess = () => {
       const notifications = request.result
       const sorted = notifications.sort((a, b) => b.triggeredAt - a.triggeredAt)
-      
-      if (unreadOnly) {
-        resolve(sorted.filter(n => !n.read))
-      } else {
-        resolve(sorted)
-      }
+      const filtered = unreadOnly ? sorted.filter(n => !n.read) : sorted
+
+      recordQuery({
+        store: NOTIFICATIONS_STORE,
+        operation: 'index-lookup',
+        indexUsed: 'accountAddress',
+        durationMs: performance.now() - startedAt,
+        rowsScanned: notifications.length,
+        rowsReturned: filtered.length,
+      })
+
+      resolve(filtered)
     }
-    
+
     request.onerror = () => reject(request.error)
   })
 }

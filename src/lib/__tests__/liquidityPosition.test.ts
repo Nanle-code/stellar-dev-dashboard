@@ -58,4 +58,3 @@ describe("estimateLiquidityPosition", () => {
     })).toMatchObject({ ok: false, error: "unsupported-network" });
   });
 });
-

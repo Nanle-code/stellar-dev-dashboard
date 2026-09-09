@@ -64,5 +64,5 @@ node scripts/generate-sbom.mjs --output dist/sbom.spdx.json --format spdx
 
 ## Automated coverage
 
-- `tests/ci/generate-sbom.test.js` — CLI parsing, format validation, and generation smoke test
+- `tests/ci/generate-sbom.test.mjs` — CLI parsing, format validation, and generation smoke test
 - `release.yml` `validate-sbom-script` job — runs the test suite on every tagged release workflow

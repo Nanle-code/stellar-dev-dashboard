@@ -4,6 +4,20 @@ closes #550
 
 A real-time developer dashboard for the Stellar network with advanced features including AI-enhanced transaction fee prediction.
 
+## Package manager policy
+
+This repository standardizes on pnpm for deterministic dependency resolution. Use the repo lockfile and do not rely on npm-generated `package-lock.json` files.
+
+```bash
+corepack enable
+pnpm install
+pnpm run check:package-manager
+```
+
+- Supported: Node.js 18 LTS and Node.js 20 LTS with pnpm 9+
+- Unsupported: npm or yarn installs, and Node.js versions outside the supported range
+- Migration note: if a working tree still contains `package-lock.json`, remove it before installing or this repo will reject the environment as unsupported
+
 ## AI-Enhanced Transaction Fee Prediction (Feature #535)
 
 The fee prediction system uses machine learning to provide optimal transaction fee recommendations.

@@ -1,7 +1,27 @@
-const SUPPORTED_ENVIRONMENTS = new Set(['development', 'test', 'production']);
+import { Request, Response, NextFunction } from 'express';
 
-export function getRuntimeEnvironment(environment = process.env.NODE_ENV || 'development') {
-  const normalized = String(environment || '').trim().toLowerCase();
+export type EnvironmentType = 'development' | 'test' | 'production';
+
+interface User {
+  id: string;
+  roles: string[];
+  environment: EnvironmentType;
+  role?: string;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+      userId?: string;
+    }
+  }
+}
+
+const SUPPORTED_ENVIRONMENTS = new Set<EnvironmentType>(['development', 'test', 'production']);
+
+export function getRuntimeEnvironment(environment: string = process.env.NODE_ENV || 'development'): EnvironmentType {
+  const normalized = String(environment || '').trim().toLowerCase() as EnvironmentType;
 
   if (!normalized) {
     return 'development';
@@ -14,7 +34,7 @@ export function getRuntimeEnvironment(environment = process.env.NODE_ENV || 'dev
   return normalized;
 }
 
-export const oauthAuth = (req, res, next) => {
+export const oauthAuth = (req: Request, res: Response, next: NextFunction): Response | void => {
   const authHeader = req.headers?.authorization;
 
   if (typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
@@ -38,9 +58,9 @@ export const oauthAuth = (req, res, next) => {
   return next();
 };
 
-export const requireRole = (...requiredRoles) => (req, res, next) => {
+export const requireRole = (...requiredRoles: string[]) => (req: Request, res: Response, next: NextFunction): Response | void => {
   const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
-  const roleList = new Set([...userRoles, ...(req.user?.role ? [req.user.role] : [])]);
+  const roleList = new Set<string>([...userRoles, ...(req.user?.role ? [req.user.role] : [])]);
 
   if (!req.user || requiredRoles.length === 0) {
     return next();
@@ -56,7 +76,7 @@ export const requireRole = (...requiredRoles) => (req, res, next) => {
   return next();
 };
 
-export const requireSelfOrAdmin = (userIdSelector = (req) => req.params.userId || req.query.userId || req.body.userId || req.headers['x-user-id']) => (req, res, next) => {
+export const requireSelfOrAdmin = (userIdSelector: (req: Request) => string | undefined = (req) => req.params.userId || (req.query?.userId as string) || (req.body?.userId as string) || (req.headers['x-user-id'] as string)) => (req: Request, res: Response, next: NextFunction): Response | void => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
   }

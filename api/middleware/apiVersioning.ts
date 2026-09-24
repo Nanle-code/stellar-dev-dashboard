@@ -1,15 +1,18 @@
-/**
- * Public dashboard API versioning and deprecation headers.
- */
+import { Request, Response, NextFunction } from 'express';
 
 export const CURRENT_API_VERSION = '1.0.0';
 
 export const SUPPORTED_API_VERSIONS = ['1.0', '1.0.0', 'v1'];
 
-/**
- * Routes scheduled for removal. Prefix matching is applied to req.path.
- */
-export const DEPRECATED_ROUTES = [
+export interface DeprecatedRoute {
+  prefix: string;
+  deprecatedAt: string;
+  sunset: string;
+  successor: string;
+  message: string;
+}
+
+export const DEPRECATED_ROUTES: DeprecatedRoute[] = [
   {
     prefix: '/api/v1/behavior',
     deprecatedAt: 'Sat, 01 Jun 2026 00:00:00 GMT',
@@ -19,7 +22,7 @@ export const DEPRECATED_ROUTES = [
   },
 ];
 
-function findDeprecatedRoute(pathname) {
+function findDeprecatedRoute(pathname: string): DeprecatedRoute | null {
   if (typeof pathname !== 'string' || !pathname) {
     return null;
   }
@@ -27,10 +30,7 @@ function findDeprecatedRoute(pathname) {
   return DEPRECATED_ROUTES.find((route) => pathname.startsWith(route.prefix)) || null;
 }
 
-/**
- * Attach version metadata and deprecation headers to every API response.
- */
-export function apiVersioningMiddleware(req, res, next) {
+export function apiVersioningMiddleware(req: Request, res: Response, next: NextFunction): Response | void {
   res.setHeader('API-Version', CURRENT_API_VERSION);
   res.setHeader('X-API-Version', CURRENT_API_VERSION);
 
@@ -55,11 +55,13 @@ export function apiVersioningMiddleware(req, res, next) {
   return next();
 }
 
-/**
- * Wrap JSON payloads with explicit API version metadata.
- */
-export function withApiVersion(payload, options = {}) {
-  const response = {
+export interface WithApiVersionOptions {
+  deprecated?: boolean;
+  successor?: string;
+}
+
+export function withApiVersion(payload: Record<string, unknown>, options: WithApiVersionOptions = {}): Record<string, unknown> {
+  const response: Record<string, unknown> = {
     apiVersion: CURRENT_API_VERSION,
     ...payload,
   };

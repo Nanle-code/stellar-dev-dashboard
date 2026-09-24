@@ -1,21 +1,37 @@
-/**
- * IDEMPOTENCY STORE BACKENDS
- * ==========================
- * Pluggable storage for idempotency replay records. Uses an in-memory Map in
- * development and Redis in production so retries stay consistent across
- * horizontally scaled API instances.
- */
+import type { Redis } from 'ioredis';
+
+export interface IdempotencyRecord {
+  status: 'processing' | 'completed';
+  fingerprint: string;
+  response?: IdempotencyResponse;
+  expiresAt: number;
+}
+
+export interface IdempotencyResponse {
+  statusCode: number;
+  headers: Record<string, string>;
+  body: unknown;
+}
+
+export interface IdempotencyStoreBackend {
+  get(key: string): Promise<IdempotencyRecord | null>;
+  begin(key: string, fingerprint: string, ttlMs?: number): Promise<boolean>;
+  complete(key: string, fingerprint: string, response: IdempotencyResponse, ttlMs?: number): Promise<void>;
+  abandon(key: string): Promise<void>;
+  disconnect(): Promise<void>;
+}
 
 const DEFAULT_TTL_MS = 86_400_000;
 
-class MemoryIdempotencyStore {
+class MemoryIdempotencyStore implements IdempotencyStoreBackend {
+  private _records: Map<string, IdempotencyRecord> = new Map();
+  private _cleanupTimer: NodeJS.Timeout;
+
   constructor() {
-    /** @type {Map<string, { status: string, fingerprint: string, response?: object, expiresAt: number }>} */
-    this._records = new Map();
     this._cleanupTimer = setInterval(() => this._cleanup(), 300_000);
   }
 
-  _cleanup() {
+  private _cleanup(): void {
     const now = Date.now();
     for (const [key, record] of this._records.entries()) {
       if (record.expiresAt <= now) {
@@ -24,7 +40,7 @@ class MemoryIdempotencyStore {
     }
   }
 
-  async get(key) {
+  async get(key: string): Promise<IdempotencyRecord | null> {
     const record = this._records.get(key);
     if (!record) return null;
     if (record.expiresAt <= Date.now()) {
@@ -34,7 +50,7 @@ class MemoryIdempotencyStore {
     return record;
   }
 
-  async begin(key, fingerprint, ttlMs = DEFAULT_TTL_MS) {
+  async begin(key: string, fingerprint: string, ttlMs: number = DEFAULT_TTL_MS): Promise<boolean> {
     const existing = await this.get(key);
     if (existing) {
       return false;
@@ -48,7 +64,7 @@ class MemoryIdempotencyStore {
     return true;
   }
 
-  async complete(key, fingerprint, response, ttlMs = DEFAULT_TTL_MS) {
+  async complete(key: string, fingerprint: string, response: IdempotencyResponse, ttlMs: number = DEFAULT_TTL_MS): Promise<void> {
     this._records.set(key, {
       status: 'completed',
       fingerprint,
@@ -57,43 +73,43 @@ class MemoryIdempotencyStore {
     });
   }
 
-  async abandon(key) {
+  async abandon(key: string): Promise<void> {
     const record = this._records.get(key);
     if (record?.status === 'processing') {
       this._records.delete(key);
     }
   }
 
-  async disconnect() {
+  async disconnect(): Promise<void> {
     clearInterval(this._cleanupTimer);
   }
 }
 
-class RedisIdempotencyStore {
-  /**
-   * @param {import('ioredis').default} redis
-   * @param {{ log?: Console }} [opts]
-   */
-  constructor(redis, opts = {}) {
+class RedisIdempotencyStore implements IdempotencyStoreBackend {
+  private _redis: Redis;
+  private _log: Console;
+
+  constructor(redis: Redis, opts: { log?: Console } = {}) {
     this._redis = redis;
     this._log = opts.log || console;
   }
 
-  _key(key) {
+  private _key(key: string): string {
     return `idempotency:${key}`;
   }
 
-  async get(key) {
+  async get(key: string): Promise<IdempotencyRecord | null> {
     try {
       const raw = await this._redis.get(this._key(key));
       return raw ? JSON.parse(raw) : null;
     } catch (err) {
-      this._log.warn('[idempotency] Redis get failed\n', err.message);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this._log.warn('[idempotency] Redis get failed\n', errorMsg);
       throw err;
     }
   }
 
-  async begin(key, fingerprint, ttlMs = DEFAULT_TTL_MS) {
+  async begin(key: string, fingerprint: string, ttlMs: number = DEFAULT_TTL_MS): Promise<boolean> {
     const redisKey = this._key(key);
     const payload = JSON.stringify({
       status: 'processing',
@@ -101,11 +117,11 @@ class RedisIdempotencyStore {
       expiresAt: Date.now() + ttlMs,
     });
 
-    const result = await this._redis.set(redisKey, payload, 'PX', ttlMs, 'NX');
+    const result = await (this._redis as any).set(redisKey, payload, 'PX', ttlMs, 'NX');
     return result === 'OK';
   }
 
-  async complete(key, fingerprint, response, ttlMs = DEFAULT_TTL_MS) {
+  async complete(key: string, fingerprint: string, response: IdempotencyResponse, ttlMs: number = DEFAULT_TTL_MS): Promise<void> {
     const redisKey = this._key(key);
     const payload = JSON.stringify({
       status: 'completed',
@@ -113,37 +129,37 @@ class RedisIdempotencyStore {
       response,
       expiresAt: Date.now() + ttlMs,
     });
-    await this._redis.set(redisKey, payload, 'PX', ttlMs);
+    await (this._redis as any).set(redisKey, payload, 'PX', ttlMs);
   }
 
-  async abandon(key) {
+  async abandon(key: string): Promise<void> {
     try {
       const record = await this.get(key);
       if (record?.status === 'processing') {
         await this._redis.del(this._key(key));
       }
     } catch (err) {
-      this._log.warn('[idempotency] Redis abandon failed\n', err.message);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this._log.warn('[idempotency] Redis abandon failed\n', errorMsg);
     }
   }
 
-  async disconnect() {
+  async disconnect(): Promise<void> {
     try {
       await this._redis.quit();
     } catch {
-      // ignore shutdown errors
+      // ignore
     }
   }
 }
 
-let _store = null;
+let _store: IdempotencyStoreBackend | null = null;
 
-/**
- * Resolve the configured idempotency store.
- *
- * @returns {Promise<MemoryIdempotencyStore|RedisIdempotencyStore>}
- */
-export async function getIdempotencyStore(opts = {}) {
+interface GetIdempotencyStoreOptions {
+  log?: Console;
+}
+
+export async function getIdempotencyStore(opts: GetIdempotencyStoreOptions = {}): Promise<IdempotencyStoreBackend> {
   if (_store) return _store;
 
   const log = opts.log || console;
@@ -158,13 +174,13 @@ export async function getIdempotencyStore(opts = {}) {
         const { default: Redis } = await import('ioredis');
         const redis = new Redis(redisUrl, {
           maxRetriesPerRequest: 2,
-          retryStrategy(times) {
+          retryStrategy(times: number) {
             if (times > 3) return null;
             return Math.min(times * 200, 2000);
           },
-        });
+        } as any);
 
-        await new Promise((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
           redis.once('ready', resolve);
           redis.once('error', reject);
         });
@@ -173,8 +189,9 @@ export async function getIdempotencyStore(opts = {}) {
         _store = new RedisIdempotencyStore(redis, { log });
         return _store;
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         log.warn(
-          `[idempotency] Redis initialisation failed — falling back to in-memory store\n  ${err.message}`,
+          `[idempotency] Redis initialisation failed — falling back to in-memory store\n  ${errorMsg}`,
         );
       }
     }
@@ -185,8 +202,7 @@ export async function getIdempotencyStore(opts = {}) {
   return _store;
 }
 
-/** Reset cached store (testing helper). */
-export function _resetIdempotencyStoreCache() {
+export function _resetIdempotencyStoreCache(): void {
   _store = null;
 }
 

@@ -1,43 +1,35 @@
-/**
- * IDEMPOTENCY KEY MIDDLEWARE
- * ==========================
- * Accepts `Idempotency-Key` on mutating proxy requests so clients can safely
- * retry POST / PUT / PATCH / DELETE calls without duplicating side effects.
- *
- * Behaviour
- * ---------
- * • Optional header — requests without a key pass through unchanged.
- * • First request with a key executes normally; the response is cached.
- * • Retries with the same key and identical payload return the cached response
- *   with `Idempotency-Replayed: true`.
- * • The same key with a different payload returns 409 Conflict.
- * • A concurrent duplicate while the first request is in-flight returns 409 with
- *   `Retry-After: 1`.
- *
- * Environment variables
- * ---------------------
- *   IDEMPOTENCY_ENABLED  – "false" disables the middleware (default: enabled)
- *   IDEMPOTENCY_TTL_MS   – cache lifetime in ms (default: 86_400_000 / 24 h)
- *   IDEMPOTENCY_STORE    – "memory" (default) | "redis"
- *   REDIS_URL            – required when IDEMPOTENCY_STORE=redis
- *
- * Failure modes
- * -------------
- * 1. Invalid / missing key format when provided → 422 Unprocessable Entity
- * 2. Same key, different body                   → 409 Conflict
- * 3. In-flight duplicate                        → 409 + Retry-After
- * 4. Store unavailable                          → fail-open (request proceeds)
- * 5. IDEMPOTENCY_ENABLED=false                  → middleware is a no-op
- */
-
 import crypto from 'node:crypto';
-import { getIdempotencyStore } from './idempotencyStore.js';
+import { Request, Response, NextFunction } from 'express';
+import { getIdempotencyStore } from './idempotencyStore';
+
+export interface IdempotencyRecord {
+  status: 'processing' | 'completed';
+  fingerprint: string;
+  response: IdempotencyResponse;
+}
+
+export interface IdempotencyResponse {
+  statusCode: number;
+  headers: Record<string, string>;
+  body: unknown;
+}
+
+export type IdempotencyStore = {
+  get(key: string): Promise<IdempotencyRecord | null>;
+  begin(key: string, fingerprint: string, ttlMs: number): Promise<boolean>;
+  complete(key: string, fingerprint: string, response: IdempotencyResponse, ttlMs: number): Promise<void>;
+};
+
+interface IdempotencyConfig {
+  enabled: boolean;
+  ttlMs: number;
+}
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const DEFAULT_TTL_MS = 86_400_000; // 24 hours
 const KEY_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
-function config() {
+function config(): IdempotencyConfig {
   const enabled = (process.env.IDEMPOTENCY_ENABLED || 'true').toLowerCase() !== 'false';
 
   const rawTtl = process.env.IDEMPOTENCY_TTL_MS;
@@ -49,13 +41,7 @@ function config() {
   return { enabled, ttlMs };
 }
 
-/**
- * Stable fingerprint for method + path + JSON body.
- *
- * @param {import('express').Request} req
- * @returns {string}
- */
-export function requestFingerprint(req) {
+export function requestFingerprint(req: Request): string {
   const body = req.body === undefined || req.body === null ? '' : JSON.stringify(req.body);
   return crypto
     .createHash('sha256')
@@ -63,13 +49,7 @@ export function requestFingerprint(req) {
     .digest('hex');
 }
 
-/**
- * Validate an idempotency key supplied by the client.
- *
- * @param {unknown} key
- * @returns {string|null} error message or null when valid
- */
-export function validateIdempotencyKey(key) {
+export function validateIdempotencyKey(key: unknown): string | null {
   if (key === undefined || key === null || key === '') {
     return 'Idempotency-Key header is required when idempotency is requested';
   }
@@ -86,22 +66,16 @@ export function validateIdempotencyKey(key) {
   return null;
 }
 
-let _storePromise = null;
+let _storePromise: Promise<IdempotencyStore> | null = null;
 
-async function ensureStore() {
+async function ensureStore(): Promise<IdempotencyStore> {
   if (!_storePromise) {
     _storePromise = getIdempotencyStore();
   }
   return _storePromise;
 }
 
-/**
- * Replay a previously stored response onto the current Express response.
- *
- * @param {import('express').Response} res
- * @param {{ statusCode: number, headers: Record<string, string>, body: unknown }} record
- */
-function replayResponse(res, record) {
+function replayResponse(res: Response, record: IdempotencyResponse): void {
   res.set('Idempotency-Replayed', 'true');
   for (const [name, value] of Object.entries(record.headers || {})) {
     if (!['content-length', 'transfer-encoding'].includes(name.toLowerCase())) {
@@ -111,13 +85,10 @@ function replayResponse(res, record) {
   res.status(record.statusCode).json(record.body);
 }
 
-/**
- * Create the idempotency middleware.
- */
 export function createIdempotencyMiddleware() {
   const { enabled, ttlMs } = config();
 
-  return async function idempotencyMiddleware(req, res, next) {
+  return async function idempotencyMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (!enabled) {
       return next();
     }
@@ -179,10 +150,10 @@ export function createIdempotencyMiddleware() {
       }
 
       const originalJson = res.json.bind(res);
-      res.json = function jsonWithIdempotencyCapture(body) {
-        res.json = originalJson;
+      (res.json as any) = function jsonWithIdempotencyCapture(body: unknown) {
+        (res.json as any) = originalJson;
 
-        const responseRecord = {
+        const responseRecord: IdempotencyResponse = {
           statusCode: res.statusCode || 200,
           headers: {
             'Content-Type': 'application/json; charset=utf-8',
@@ -199,19 +170,10 @@ export function createIdempotencyMiddleware() {
         return originalJson(body);
       };
 
-      res.on('finish', () => {
-        if (res.headersSent && res.statusCode >= 400) {
-          store
-            .abandon(key)
-            .catch((err) => console.error('[idempotency] Failed to abandon in-flight key\n', err));
-        }
-      });
-
-      return next();
+      next();
     } catch (err) {
-      console.error('[idempotency] Store error — allowing request (fail-open)\n', err);
-      res.set('Idempotency-Degraded', 'true');
-      return next();
+      console.error('[idempotency] Store error — proceeding without idempotency\n', err);
+      next();
     }
   };
 }

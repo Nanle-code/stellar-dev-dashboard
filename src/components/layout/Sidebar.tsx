@@ -45,6 +45,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'builder', label: 'Builder', icon: '⚒' },
   { id: 'txSimulator', label: 'Simulator', icon: '▷' },
   { id: 'advancedSim', label: 'Advanced Sim', icon: '⚡' },
+  { id: 'sorobanDebug', label: 'Soroban Debugging', icon: '🐞' },
+  { id: 'learningHub', label: 'Learning Hub', icon: '🎓' },
   { id: 'faucet', label: 'Faucet', icon: '⬡' },
   
   { type: 'header', label: 'EXPLORE' },

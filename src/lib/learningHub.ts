@@ -81,9 +81,15 @@ class LearningHubManager {
   private db: IDBDatabase | null = null;
   private tutorials: Tutorial[] = [];
 
+  constructor() {
+    this.initializeTutorials();
+  }
+
   async initialize(): Promise<void> {
     await this.initializeDatabase();
-    this.initializeTutorials();
+    if (this.tutorials.length === 0) {
+      this.initializeTutorials();
+    }
   }
 
   private async initializeDatabase(): Promise<void> {
@@ -328,10 +334,269 @@ console.log('Success!', result);`,
           ],
         },
       },
+      {
+        id: 'tut-4',
+        title: 'Soroban Debugging: Simulation Errors & Host Traps',
+        description: 'Diagnose pre-flight simulation errors, WASM traps, integer overflows, and CPU budget exhaustion.',
+        category: 'soroban',
+        difficulty: 'beginner',
+        duration: 20,
+        content: `
+# Soroban Debugging: Simulation Errors & Host Execution Traps
+
+In Soroban, all transactions must undergo pre-flight simulation via the RPC \`simulateTransaction\` endpoint before submission. This simulation evaluates contract execution, computes resource fees, and generates the required ledger footprint.
+
+## 1. Understanding HostFunctionError & WASM Traps
+
+When contract execution violates runtime constraints, the Soroban host halts execution and returns a trapped result code:
+
+- **Integer Overflow/Underflow**: Rust operations like \`+\`, \`-\`, or \`*\` on primitive integers without checked arithmetic trigger panic traps.
+- **Division by Zero**: Any division with divisor zero triggers an \`unreachable\` WASM opcode.
+- **Missing Storage Unwraps**: Calling \`.unwrap()\` on uninitialized storage keys panics the host.
+
+## 2. Budget Exhaustion (CPU & Memory Limits)
+
+Every Soroban transaction has strict resource caps (default 100M CPU instructions). Unbounded loops or excessive memory copies cause \`HostBudgetExceeded\` errors during simulation.
+
+## 3. Best Practices for Defensive Execution
+
+1. Always use checked arithmetic: \`.checked_add()\`, \`.checked_mul()\`, and \`.checked_div()\`.
+2. Bound array sizes and batch processing loops with explicit maximum constants.
+3. Use \`.unwrap_or()\` or pattern match \`Option<T>\` instead of blind unwraps.
+        `,
+        codeExamples: [
+          {
+            id: 'ex-soroban-sim-1',
+            title: 'Fixing Arithmetic Overflows in Rust',
+            language: 'rust',
+            code: `use soroban_sdk::{contracterror, Env};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Error {
+    DivisionByZero = 1,
+    ArithmeticOverflow = 2,
+}
+
+pub fn calculate_reward(env: Env, base_amount: u64, multiplier: u64, divisor: u64) -> Result<u64, Error> {
+    if divisor == 0 {
+        return Err(Error::DivisionByZero);
+    }
+    base_amount
+        .checked_mul(multiplier)
+        .and_then(|val| val.checked_div(divisor))
+        .ok_or(Error::ArithmeticOverflow)
+}`,
+            explanation: 'Checked operations prevent VM traps by returning typed contract errors that clients can gracefully handle.',
+            editable: true,
+          },
+          {
+            id: 'ex-soroban-sim-2',
+            title: 'Pre-flight Simulation with JavaScript SDK',
+            language: 'javascript',
+            code: `import { rpc, TransactionBuilder } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+const simResult = await server.simulateTransaction(builtTx);
+
+if (rpc.Api.isSimulationError(simResult)) {
+    console.error('Simulation Failed:', simResult.error);
+} else {
+    console.log('CPU Instructions:', simResult.cost.cpuInsns);
+    console.log('Footprint Read/Write:', simResult.transactionData.build().resources().footprint());
+}`,
+            explanation: 'Simulating transactions locally inspects resource costs and ensures the transaction will succeed before committing fees.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-tut-4',
+          tutorialId: 'tut-4',
+          questions: [
+            {
+              id: 'q-sim-1',
+              question: 'What error occurs when a contract triggers an unhandled panic in Soroban?',
+              options: [
+                'InvokeHostFunctionResultCodeTrapped',
+                'TxSuccessWithWarning',
+                'BadSequenceNumber',
+                'MalformedXdrError',
+              ],
+              correctAnswer: 0,
+              explanation: 'Unhandled panics compile to WASM unreachable instructions, resulting in InvokeHostFunctionResultCodeTrapped.',
+            },
+            {
+              id: 'q-sim-2',
+              question: 'Why is pre-flight simulation mandatory in Soroban before submitting a transaction?',
+              options: [
+                'To mine testnet tokens',
+                'To discover ledger footprint keys, measure CPU/memory consumption, and verify execution without risk',
+                'To register your public key with the validator quorum',
+                'To compile the Rust contract into WebAssembly bytecode',
+              ],
+              correctAnswer: 1,
+              explanation: 'Simulation computes the exact ledger footprint and resource limits required for inclusion in a Stellar transaction.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-5',
+        title: 'Soroban Debugging: Declarative Authorization & Auth Trees',
+        description: 'Master debugging InvokeHostFunctionResultCodeAuthorizationError, caller verification, and sub-contract authorization trees.',
+        category: 'soroban',
+        difficulty: 'intermediate',
+        duration: 25,
+        content: `
+# Soroban Debugging: Declarative Authorization & Auth Trees
+
+Soroban enforces a decentralized, explicit authorization framework. Contract code cannot assume caller identity or spend user funds without cryptographic proof of authorization.
+
+## 1. The Address::require_auth() Model
+
+Contracts call \`address.require_auth()\` to assert that the owner of \`address\` approved the current invocation. If the required signature or authorization credential is missing, the host rejects execution with:
+\`InvokeHostFunctionResultCode::InvokeHostFunctionResultCodeAuthorizationError\`
+
+## 2. Scoped Authorization with require_auth_for_args()
+
+For maximum security against replay attacks and parameter tampering, contracts use \`require_auth_for_args(args)\`. This guarantees that the caller authorized the *exact arguments* being executed, not just generic invocation.
+
+## 3. Sub-Contract Calls and Auth Trees
+
+When Contract A invokes Contract B to perform a transfer on behalf of Alice, Contract B requires Alice's authorization. Soroban uses **Authorization Trees** where users sign tree structures explicitly granting sub-contract invocation privileges.
+        `,
+        codeExamples: [
+          {
+            id: 'ex-soroban-auth-1',
+            title: 'Requiring Caller Authorization in Rust',
+            language: 'rust',
+            code: `use soroban_sdk::{contractimpl, Address, Env};
+
+pub struct VaultContract;
+
+#[contractimpl]
+impl VaultContract {
+    pub fn withdraw(env: Env, from: Address, to: Address, amount: i128) {
+        // Enforce that 'from' authorized this debit
+        from.require_auth();
+
+        let mut bal: i128 = env.storage().persistent().get(&from).unwrap_or(0);
+        assert!(bal >= amount, "Insufficient vault balance");
+        
+        env.storage().persistent().set(&from, &(bal - amount));
+        transfer_asset(&env, &to, amount);
+    }
+}`,
+            explanation: 'Adding from.require_auth() guarantees that no third party can initiate withdrawals from accounts they do not control.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-tut-5',
+          tutorialId: 'tut-5',
+          questions: [
+            {
+              id: 'q-auth-1',
+              question: 'Which Soroban SDK method verifies that an address approved an operation with specific arguments?',
+              options: [
+                'address.verify_signature()',
+                'address.require_auth_for_args(args)',
+                'env.storage().check_auth()',
+                'address.assert_owner()',
+              ],
+              correctAnswer: 1,
+              explanation: 'require_auth_for_args binds the signature directly to specific function argument values.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-6',
+        title: 'Soroban Debugging: Ledger Footprints & Storage Isolation',
+        description: 'Learn how to diagnose read-only footprint mutation conflicts, state archival/TTL expiration, and storage tier isolation.',
+        category: 'soroban',
+        difficulty: 'advanced',
+        duration: 30,
+        content: `
+# Soroban Debugging: Ledger Footprints & Storage Isolation
+
+Stellar executes Soroban smart contracts concurrently. To enable parallel validation without race conditions, transactions declare an explicit **Ledger Footprint** containing all keys read or modified.
+
+## 1. Footprint Conflict Errors
+
+Every key in the footprint is categorized as either:
+- **readOnly**: The contract may inspect but NOT write to this key.
+- **readWrite**: The contract may both inspect and mutate this key.
+
+If a contract modifies a key marked as \`readOnly\`, the host aborts with \`FootprintConflictError\`.
+
+## 2. State Expiration and TTL Management
+
+Soroban entries have a Time-To-Live (TTL). When TTL reaches zero:
+- **Temporary storage**: The entry is permanently deleted and CANNOT be restored.
+- **Persistent storage**: The entry is archived and requires a \`RestoreFootprintOp\` before access.
+
+Contracts should periodically invoke \`extend_ttl()\` to protect vital accounts and state.
+        `,
+        codeExamples: [
+          {
+            id: 'ex-soroban-foot-1',
+            title: 'Extending Persistent Storage TTL in Rust',
+            language: 'rust',
+            code: `use soroban_sdk::{contractimpl, Address, Env};
+
+pub struct StakingContract;
+
+#[contractimpl]
+impl StakingContract {
+    pub fn touch_stake(env: Env, user: Address) {
+        user.require_auth();
+        let key = user.clone();
+        
+        // Ensure entry remains active for at least 50,000 ledgers
+        // Threshold: 10,000 ledgers; Target extension: 100,000 ledgers
+        env.storage().persistent().extend_ttl(&key, 10_000, 100_000);
+    }
+}`,
+            explanation: 'Calling extend_ttl prevents key archival and guarantees continuous contract functionality.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-tut-6',
+          tutorialId: 'tut-6',
+          questions: [
+            {
+              id: 'q-foot-1',
+              question: 'What happens when a contract tries to modify a storage key declared in readOnly footprint?',
+              options: [
+                'The write is silently discarded',
+                'The host terminates with FootprintConflictError',
+                'The network dynamically converts the transaction to readWrite',
+                'The contract balance is deducted as penalty',
+              ],
+              correctAnswer: 1,
+              explanation: 'Writing to a key marked as readOnly violates declarative concurrency guarantees, immediately halting execution.',
+            },
+            {
+              id: 'q-foot-2',
+              question: 'Which storage tier should be used for user token balances that must never be lost?',
+              options: [
+                'Temporary storage',
+                'Persistent storage',
+                'Ephemeral stack memory',
+                'Horizon log entries',
+              ],
+              correctAnswer: 1,
+              explanation: 'Persistent storage preserves balances and supports archival restoration if needed, whereas Temporary storage is unrecoverable when expired.',
+            },
+          ],
+        },
+      },
     ];
 
     // Add more tutorials dynamically
-    for (let i = 4; i <= 25; i++) {
+    for (let i = 7; i <= 25; i++) {
       this.tutorials.push({
         id: `tut-${i}`,
         title: `Advanced Topic ${i - 3}`,

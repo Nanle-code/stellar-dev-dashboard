@@ -4,12 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Video, Code, Award, CheckCircle, Play, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, Video, Code, Award, CheckCircle, Play, ChevronRight, Bug, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { learningHub, Tutorial, UserProgress } from '../../lib/learningHub';
 
 export const LearningHub: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [selectedTutorial, setSelectedTutorial] = useState<Tutorial | null>(null);
@@ -93,6 +95,83 @@ export const LearningHub: React.FC = () => {
           <StatCard icon={BookOpen} label={t('learningHub.stat.points')} value={progress.totalPoints.toString()} color="var(--info)" />
         </div>
       )}
+
+      {/* Featured Interactive Soroban Debugging Lab */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(168, 85, 247, 0.12))',
+          border: '1px solid rgba(59, 130, 246, 0.3)',
+          borderRadius: '0.75rem',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '8px',
+              background: 'var(--primary, #3b82f6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+            }}
+          >
+            <Bug size={24} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Interactive Soroban Debugging Series</h3>
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '999px',
+                  background: 'rgba(168, 85, 247, 0.2)',
+                  color: '#c084fc',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <Sparkles size={11} /> 2026 Lab
+              </span>
+            </div>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              Hands-on interactive lab: simulate host function errors, fix auth trees, and resolve footprint conflicts.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => navigate('/sorobanDebug')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.65rem 1.25rem',
+            background: 'var(--primary, #3b82f6)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '0.5rem',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span>Launch Debugger Lab</span>
+          <ChevronRight size={16} />
+        </button>
+      </div>
 
       {/* Category Filter */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

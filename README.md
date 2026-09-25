@@ -186,3 +186,12 @@ The server-side API uses a narrow trust boundary for user-specific and operation
 - Route handlers validate input before processing and return `400 Bad Request` for malformed payloads instead of throwing uncaught exceptions.
 
 This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.
+
+## Canary Deployment Health Probes
+
+The API service includes automated canary deployment health probes and auto-abort reliability gating:
+
+- **Docker Compose Canary Service**: Run `docker compose --profile canary up -d --build redis api-canary` to start the staged canary API candidate on port 4001 with active healthchecks.
+- **Critical Route Health Probing**: `pnpm run canary:probe` exercises critical API routes (`/health`, `/health/deep`, `/api/docs`, accounts, transactions, gas prediction) across configurable test iterations.
+- **Error Budget Auto-Abort**: Automatically halts rollouts and executes rollback commands when error budget (default: 5%) or p95 latency thresholds (default: 2000ms) are breached.
+- **Full Guide**: See [docs/CANARY_DEPLOYMENT.md](docs/CANARY_DEPLOYMENT.md) for full architecture, CLI flags, Docker Compose setup, and deployment workflow details.

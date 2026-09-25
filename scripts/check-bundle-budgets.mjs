@@ -32,7 +32,7 @@ function checkBudgets() {
       const sizeKB = gzipped.length / 1024;
 
       // Extract chunk name: chunkName-[hash].js
-      const chunkNameMatch = file.match(/^(.+)-[a-f0-9]+\.js$/);
+      const chunkNameMatch = file.match(/^(.+)-[a-zA-Z0-9_-]+\.js$/);
       const chunkName = chunkNameMatch ? chunkNameMatch[1] : 'unknown';
 
       const budget = BUDGETS[chunkName] || BUDGETS['default'];

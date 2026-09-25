@@ -205,7 +205,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # Fetch full history for regression correlation
+          fetch-depth: 0 # Fetch full history for regression correlation
 
       - uses: pnpm/action-setup@v4
         with:
@@ -220,10 +220,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
-      - name: Run Lighthouse CI
-        run: pnpm exec lhci autorun
+      - name: Run Lighthouse CI (Desktop)
+        run: pnpm exec lhci autorun --config=lighthouserc.desktop.cjs
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Run Lighthouse CI (Mobile)
+        run: pnpm exec lhci autorun --config=lighthouserc.mobile.cjs
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Enforce Lighthouse performance budgets
+        if: always()
+        run: node scripts/enforce-lighthouse-budgets.mjs
 
       - name: Upload Lighthouse report
         if: always()
@@ -244,7 +253,7 @@ jobs:
       #   - Low-confidence regressions: Logs warning, CI passes (exit 0)
       #   - No regressions: CI passes (exit 0)
       - name: Detect performance regressions
-        if: always()  # Run even if Lighthouse CI fails
+        if: always() # Run even if Lighthouse CI fails
         run: node scripts/detect-performance-regressions.mjs --threshold=2.5 --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

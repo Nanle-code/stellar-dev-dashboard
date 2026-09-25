@@ -25,18 +25,34 @@ export function usePermission(permission: Permission): boolean {
 }
 
 /** Returns a can() checker bound to the current user's role. */
-export function useRBAC() {
+export interface UseRBACContext {
+  ownResource?: boolean;
+}
+
+export interface UseRBACReturn {
+  role: Role;
+  userId: string | null;
+  can: (permission: Permission, context?: UseRBACContext) => boolean;
+  is: (minRole: Role) => boolean;
+  permissions: Permission[];
+  hierarchy: Role[];
+  assignments: RoleAssignment[];
+  assign: (assignment: RoleAssignment) => void;
+  revoke: (targetUserId: string) => void;
+}
+
+export function useRBAC(): UseRBACReturn {
   const role = useCurrentRole();
   const userId = useStore((s) => s.walletPublicKey);
 
   const can = useCallback(
-    (permission: Permission, context?: { ownResource?: boolean }) =>
+    (permission: Permission, context?: UseRBACContext): boolean =>
       canPerform(role, permission, context),
     [role],
   );
 
   const is = useCallback(
-    (minRole: Role) => roleAtLeast(role, minRole),
+    (minRole: Role): boolean => roleAtLeast(role, minRole),
     [role],
   );
 
@@ -45,11 +61,11 @@ export function useRBAC() {
 
   const assignments = useMemo(() => getAllAssignments(), []);
 
-  const assign = useCallback((assignment: RoleAssignment) => {
+  const assign = useCallback((assignment: RoleAssignment): void => {
     setRoleAssignment(assignment);
   }, []);
 
-  const revoke = useCallback((targetUserId: string) => {
+  const revoke = useCallback((targetUserId: string): void => {
     removeRoleAssignment(targetUserId);
   }, []);
 

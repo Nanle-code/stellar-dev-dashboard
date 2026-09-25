@@ -145,7 +145,7 @@ export function useSentimentAnalysis(
 /**
  * Hook for sentiment alerts
  */
-export function useSentimentAlerts(assetCode?: string) {
+export function useSentimentAlerts(assetCode?: string): SentimentAlert[] {
   const [alerts, setAlerts] = useState<SentimentAlert[]>([]);
 
   useEffect(() => {
@@ -174,10 +174,19 @@ export function useSentimentAlerts(assetCode?: string) {
   return alerts;
 }
 
+export interface UseAssetSentimentReturn {
+  aggregated: AggregatedSentiment | null;
+  trend: SentimentTrend | null;
+  onChain: OnChainIndicators | null;
+  correlation: SentimentPriceCorrelation | null;
+  isLoading: boolean;
+  error: Error | null;
+}
+
 /**
  * Hook for single asset sentiment
  */
-export function useAssetSentiment(assetCode: string) {
+export function useAssetSentiment(assetCode: string): UseAssetSentimentReturn {
   const data = useSentimentAnalysis([assetCode]);
   
   return {

@@ -6,15 +6,35 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { FormValidator, Validator, AsyncValidator, FormState } from '../lib/validation/validators';
 
+/**
+ * Options accepted by the {@link useFormValidation} hook.
+ */
+export interface UseFormValidationOptions<T extends Record<string, unknown>> {
+  onChange?: (state: FormState<T>) => void;
+  onValidate?: (field: keyof T, error: string | null) => void;
+  autoSave?: boolean;
+  autoSaveKey?: string;
+}
+
+/**
+ * Return value of the {@link useFormValidation} hook.
+ */
+export interface UseFormValidationReturn<T extends Record<string, unknown>> {
+  state: FormState<T>;
+  addValidator: (field: keyof T, validator: Validator) => void;
+  addAsyncValidator: (field: keyof T, validator: AsyncValidator) => void;
+  setFieldValue: (field: keyof T, value: unknown) => void;
+  setFieldTouched: (field: keyof T, touched: boolean) => void;
+  validateField: (field: keyof T) => Promise<void>;
+  validateForm: () => Promise<boolean>;
+  reset: () => void;
+  setSubmitting: (isSubmitting: boolean) => void;
+}
+
 export function useFormValidation<T extends Record<string, unknown>>(
   initialValues: T,
-  options?: {
-    onChange?: (state: FormState<T>) => void;
-    onValidate?: (field: keyof T, error: string | null) => void;
-    autoSave?: boolean;
-    autoSaveKey?: string;
-  }
-) {
+  options?: UseFormValidationOptions<T>
+): UseFormValidationReturn<T> {
   const [state, setState] = useState<FormState<T>>({
     values: { ...initialValues },
     errors: {} as Record<keyof T, string | null>,
@@ -63,38 +83,38 @@ export function useFormValidation<T extends Record<string, unknown>>(
     }
   }, [state.values, state.dirty, options]);
 
-  const addValidator = useCallback((field: keyof T, validator: Validator) => {
+  const addValidator = useCallback((field: keyof T, validator: Validator): void => {
     validatorRef.current?.addValidator(field, validator);
   }, []);
 
-  const addAsyncValidator = useCallback((field: keyof T, validator: AsyncValidator) => {
+  const addAsyncValidator = useCallback((field: keyof T, validator: AsyncValidator): void => {
     validatorRef.current?.addAsyncValidator(field, validator);
   }, []);
 
-  const setFieldValue = useCallback((field: keyof T, value: unknown) => {
+  const setFieldValue = useCallback((field: keyof T, value: unknown): void => {
     validatorRef.current?.setFieldValue(field, value);
   }, []);
 
-  const setFieldTouched = useCallback((field: keyof T, touched: boolean) => {
+  const setFieldTouched = useCallback((field: keyof T, touched: boolean): void => {
     validatorRef.current?.setFieldTouched(field, touched);
   }, []);
 
-  const validateField = useCallback(async (field: keyof T) => {
+  const validateField = useCallback(async (field: keyof T): Promise<void> => {
     await validatorRef.current?.validateField(field);
   }, []);
 
-  const validateForm = useCallback(async () => {
+  const validateForm = useCallback(async (): Promise<boolean> => {
     return await validatorRef.current?.validateForm() ?? false;
   }, []);
 
-  const reset = useCallback(() => {
+  const reset = useCallback((): void => {
     validatorRef.current?.reset();
     if (options?.autoSave && options?.autoSaveKey) {
       localStorage.removeItem(options.autoSaveKey);
     }
   }, [options]);
 
-  const setSubmitting = useCallback((isSubmitting: boolean) => {
+  const setSubmitting = useCallback((isSubmitting: boolean): void => {
     setState(prev => ({ ...prev, isSubmitting }));
   }, []);
 
@@ -115,11 +135,11 @@ export function useFormValidation<T extends Record<string, unknown>>(
 export function useDebouncedValidation<T extends Record<string, unknown>>(
   validate: (field: keyof T) => Promise<void>,
   delay: number = 300
-) {
+): (field: keyof T) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedValidate = useCallback(
-    (field: keyof T) => {
+    (field: keyof T): void => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }

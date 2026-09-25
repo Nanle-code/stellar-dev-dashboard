@@ -6,7 +6,21 @@ const FONT_SIZES = [
   { value: 'large', label: 'Large', px: '16px' },
 ]
 
-export default function ThemeSettings({ preferences, onChange }) {
+export type ThemeChoice = 'dark' | 'light' | 'auto'
+
+export interface ThemeSettingsPreferences {
+  theme: ThemeChoice
+  fontSize: string
+}
+
+export interface ThemeSettingsProps {
+  preferences: ThemeSettingsPreferences
+  onChange: (key: 'theme' | 'fontSize', value: string) => void
+}
+
+const THEME_CHOICES: ThemeChoice[] = ['dark', 'light', 'auto']
+
+export default function ThemeSettings({ preferences, onChange }: ThemeSettingsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Theme */}
@@ -14,10 +28,14 @@ export default function ThemeSettings({ preferences, onChange }) {
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '10px' }}>
           Color Theme
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {['dark', 'light', 'auto'].map((t) => (
+        <div role="radiogroup" aria-label="Color theme" style={{ display: 'flex', gap: '8px' }}>
+          {THEME_CHOICES.map((t) => (
             <button
               key={t}
+              type="button"
+              role="radio"
+              aria-checked={preferences.theme === t}
+              aria-label={`${t} theme`}
               onClick={() => onChange('theme', t)}
               style={{
                 padding: '8px 16px',
@@ -29,6 +47,16 @@ export default function ThemeSettings({ preferences, onChange }) {
                 fontFamily: 'var(--font-mono)',
                 cursor: 'pointer',
                 textTransform: 'capitalize',
+              }}
+              onFocus={(e) => {
+                // Keyboard-only focus ring; mouse clicks keep the clean look.
+                if (e.target instanceof HTMLElement && e.target.matches(':focus-visible')) {
+                  e.target.style.outline = '2px solid var(--cyan)'
+                  e.target.style.outlineOffset = '2px'
+                }
+              }}
+              onBlur={(e) => {
+                if (e.target instanceof HTMLElement) e.target.style.outline = ''
               }}
             >
               {t === 'dark' ? '☾ Dark' : t === 'light' ? '☀ Light' : '⚙ Auto'}

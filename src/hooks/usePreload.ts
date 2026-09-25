@@ -57,7 +57,11 @@ export function preloadTab(tab: string): void {
   })
 }
 
+export interface UsePreloadReturn {
+  preload: (tab: string) => void
+}
+
 /** Hook that returns a stable `preload` callback for use in event handlers. */
-export function usePreload() {
+export function usePreload(): UsePreloadReturn {
   return { preload: preloadTab }
 }

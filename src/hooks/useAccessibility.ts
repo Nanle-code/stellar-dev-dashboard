@@ -5,14 +5,34 @@ import { announceToScreenReader, setFocus, registerShortcut } from '../utils/acc
  * useAccessibility - React hook for accessibility features
  * Handles focus management, keyboard shortcuts, and screen reader announcements
  */
-export const useAccessibility = (elementId = null) => {
+
+/** Options for registering an accessibility keyboard shortcut. */
+export interface UseAccessibilityShortcutOptions {
+  description?: string;
+  category?: string;
+  id?: string;
+  [key: string]: unknown;
+}
+
+/** Return value of the {@link useAccessibility} hook. */
+export interface UseAccessibilityReturn {
+  announce: (message: string, polite?: boolean) => void;
+  setFocus: (target: string | HTMLElement) => void;
+  registerShortcut: (
+    key: string,
+    handler: (event: KeyboardEvent) => void,
+    options?: UseAccessibilityShortcutOptions
+  ) => () => void;
+}
+
+export const useAccessibility = (elementId: string | null = null): UseAccessibilityReturn => {
   // Announce a message to screen readers
-  const announce = useCallback((message, polite = false) => {
+  const announce = useCallback((message: string, polite = false): void => {
     announceToScreenReader(message, polite ? 'polite' : 'assertive');
   }, []);
 
   // Set focus to an element
-  const setElementFocus = useCallback((target) => {
+  const setElementFocus = useCallback((target: string | HTMLElement): void => {
     if (typeof target === 'string') {
       setFocus(target);
     } else if (target instanceof HTMLElement) {
@@ -21,7 +41,7 @@ export const useAccessibility = (elementId = null) => {
   }, []);
 
   // Register a keyboard shortcut
-  const registerAccessibilityShortcut = useCallback((key, handler, options = {}) => {
+  const registerAccessibilityShortcut = useCallback((key: string, handler: (event: KeyboardEvent) => void, options: UseAccessibilityShortcutOptions = {}): (() => void) => {
     return registerShortcut(key, handler, {
       ...options,
       category: 'accessibility'

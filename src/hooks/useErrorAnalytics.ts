@@ -6,7 +6,7 @@ interface ErrorRecord {
   message: string;
   timestamp: number;
   retryable: boolean;
-  context?: any;
+  context?: Record<string, unknown>;
 }
 
 interface ErrorTrend {
@@ -14,10 +14,26 @@ interface ErrorTrend {
   count: number;
 }
 
+/**
+ * A top-error entry: [message, count].
+ */
+export type TopErrorEntry = [message: string, count: number];
+
+/**
+ * Return value of the {@link useErrorAnalytics} hook.
+ */
+export interface UseErrorAnalyticsReturn {
+  analytics: ErrorRecord[];
+  trends: ErrorTrend[];
+  topErrors: TopErrorEntry[];
+  recordError: (error: ErrorRecord) => void;
+  clearAnalytics: () => void;
+}
+
 const ERROR_STORAGE_KEY = 'error-analytics';
 const MAX_STORED_ERRORS = 1000;
 
-export function useErrorAnalytics() {
+export function useErrorAnalytics(): UseErrorAnalyticsReturn {
   const [analytics, setAnalytics] = useState<ErrorRecord[]>([]);
 
   useEffect(() => {
@@ -31,7 +47,7 @@ export function useErrorAnalytics() {
     }
   }, []);
 
-  const recordError = useCallback((error: ErrorRecord) => {
+  const recordError = useCallback((error: ErrorRecord): void => {
     setAnalytics(prev => {
       const updated = [error, ...prev].slice(0, MAX_STORED_ERRORS);
       localStorage.setItem(ERROR_STORAGE_KEY, JSON.stringify(updated));
@@ -39,7 +55,7 @@ export function useErrorAnalytics() {
     });
   }, []);
 
-  const clearAnalytics = useCallback(() => {
+  const clearAnalytics = useCallback((): void => {
     setAnalytics([]);
     localStorage.removeItem(ERROR_STORAGE_KEY);
   }, []);

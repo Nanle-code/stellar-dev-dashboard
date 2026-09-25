@@ -1,28 +1,53 @@
 import { useState, useCallback } from 'react';
 import { handleGlobalError, retryWithBackoff } from '../utils/errorHandler';
+import type { ErrorDetails } from '../types/error';
 import { addBreadcrumb } from '../lib/errorReporting';
+
+/**
+ * Context metadata attached to handled errors.
+ */
+export type ErrorContext = Record<string, unknown>;
+
+/**
+ * An async operation that can be retried or wrapped with error handling.
+ */
+export type RetryableOperation<T = unknown> = () => Promise<T>;
+
+/**
+ * Return value of the {@link useErrorHandler} hook.
+ */
+export interface UseErrorHandlerReturn {
+  error: ErrorDetails | null;
+  isRetrying: boolean;
+  retryCount: number;
+  handleError: (error: unknown, additionalContext?: ErrorContext) => ErrorDetails;
+  clearError: () => void;
+  retryOperation: <T>(operation: RetryableOperation<T> | null | undefined, maxAttempts?: number) => Promise<T | undefined>;
+  withErrorHandling: <TArgs extends unknown[], T>(asyncOperation: (...args: TArgs) => Promise<T>) => (...args: TArgs) => Promise<T>;
+  hasError: boolean;
+}
 
 /**
  * Custom hook for handling errors in components
  */
-export function useErrorHandler(context = 'Component') {
-  const [error, setError] = useState(null);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+export function useErrorHandler(context = 'Component'): UseErrorHandlerReturn {
+  const [error, setError] = useState<ErrorDetails | null>(null);
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
+  const [retryCount, setRetryCount] = useState<number>(0);
 
-  const handleError = useCallback((error, additionalContext = {}) => {
+  const handleError = useCallback((error: unknown, additionalContext: ErrorContext = {}): ErrorDetails => {
     const errorDetails = handleGlobalError(error, context, additionalContext);
     setError(errorDetails);
     return errorDetails;
   }, [context]);
 
-  const clearError = useCallback(() => {
+  const clearError = useCallback((): void => {
     setError(null);
     setRetryCount(0);
   }, []);
 
-  const retryOperation = useCallback(async (operation, maxAttempts = 3) => {
-    if (!operation) return;
+  const retryOperation = useCallback(async <T>(operation: RetryableOperation<T> | null | undefined, maxAttempts = 3): Promise<T | undefined> => {
+    if (!operation) return undefined;
 
     setIsRetrying(true);
     
@@ -43,8 +68,8 @@ export function useErrorHandler(context = 'Component') {
     }
   }, [context, error, handleError, clearError]);
 
-  const withErrorHandling = useCallback((asyncOperation) => {
-    return async (...args) => {
+  const withErrorHandling = useCallback(<TArgs extends unknown[], T>(asyncOperation: (...args: TArgs) => Promise<T>) => {
+    return async (...args: TArgs): Promise<T> => {
       try {
         clearError();
         const result = await asyncOperation(...args);
@@ -72,12 +97,24 @@ export function useErrorHandler(context = 'Component') {
 /**
  * Hook for handling async operations with automatic error handling
  */
-export function useAsyncOperation(operation, dependencies = []) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+export interface UseAsyncOperationReturn<T = unknown> {
+  data: T | null;
+  loading: boolean;
+  error: ErrorDetails | null;
+  execute: (...args: unknown[]) => Promise<T>;
+  retry: (...args: unknown[]) => Promise<T | undefined>;
+  clearError: () => void;
+}
+
+export function useAsyncOperation<T = unknown>(
+  operation: (...args: unknown[]) => Promise<T>,
+  dependencies: unknown[] = []
+): UseAsyncOperationReturn<T> {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const { error, handleError, clearError, retryOperation } = useErrorHandler('AsyncOperation');
 
-  const execute = useCallback(async (...args) => {
+  const execute = useCallback(async (...args: unknown[]): Promise<T> => {
     setLoading(true);
     clearError();
     
@@ -93,7 +130,7 @@ export function useAsyncOperation(operation, dependencies = []) {
     }
   }, [operation, handleError, clearError, ...dependencies]);
 
-  const retry = useCallback(async (...args) => {
+  const retry = useCallback(async (...args: unknown[]): Promise<T | undefined> => {
     return retryOperation(() => execute(...args));
   }, [retryOperation, execute]);
 
@@ -108,15 +145,45 @@ export function useAsyncOperation(operation, dependencies = []) {
 }
 
 /**
- * Hook for form validation with error handling
+ * A single field validation rule.
  */
-export function useFormValidation(validationRules = {}) {
-  const [errors, setErrors] = useState({});
-  const [touched, setTouched] = useState({});
+export interface ErrorHandlerValidationRule {
+  required?: boolean | string;
+  pattern?: RegExp;
+  patternMessage?: string;
+  minLength?: number;
+  maxLength?: number;
+  custom?: (value: unknown, values: Record<string, unknown>) => string | null | undefined;
+}
+
+/**
+ * Validation rules keyed by field name.
+ */
+export type ErrorHandlerValidationRules = Record<string, ErrorHandlerValidationRule>;
+
+/**
+ * Return value of the {@link useFormValidation} hook.
+ */
+export interface UseErrorHandlerFormValidationReturn {
+  errors: Record<string, string>;
+  touched: Record<string, boolean>;
+  validate: (values: Record<string, unknown>) => boolean;
+  setFieldTouched: (field: string, isTouched?: boolean) => void;
+  setFieldError: (field: string, error: string) => void;
+  clearFieldError: (field: string) => void;
+  clearAllErrors: () => void;
+  getFieldError: (field: string) => string | null;
+  hasErrors: boolean;
+  hasFieldError: (field: string) => boolean;
+}
+
+export function useFormValidation(validationRules: ErrorHandlerValidationRules = {}): UseErrorHandlerFormValidationReturn {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const { handleError } = useErrorHandler('FormValidation');
 
-  const validate = useCallback((values) => {
-    const newErrors = {};
+  const validate = useCallback((values: Record<string, unknown>): boolean => {
+    const newErrors: Record<string, string> = {};
     
     Object.keys(validationRules).forEach(field => {
       const rules = validationRules[field];
@@ -147,15 +214,15 @@ export function useFormValidation(validationRules = {}) {
     return Object.keys(newErrors).length === 0;
   }, [validationRules, handleError]);
 
-  const setFieldTouched = useCallback((field, isTouched = true) => {
+  const setFieldTouched = useCallback((field: string, isTouched = true): void => {
     setTouched(prev => ({ ...prev, [field]: isTouched }));
   }, []);
 
-  const setFieldError = useCallback((field, error) => {
+  const setFieldError = useCallback((field: string, error: string): void => {
     setErrors(prev => ({ ...prev, [field]: error }));
   }, []);
 
-  const clearFieldError = useCallback((field) => {
+  const clearFieldError = useCallback((field: string): void => {
     setErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[field];
@@ -163,12 +230,12 @@ export function useFormValidation(validationRules = {}) {
     });
   }, []);
 
-  const clearAllErrors = useCallback(() => {
+  const clearAllErrors = useCallback((): void => {
     setErrors({});
     setTouched({});
   }, []);
 
-  const getFieldError = useCallback((field) => {
+  const getFieldError = useCallback((field: string): string | null => {
     return touched[field] ? errors[field] : null;
   }, [errors, touched]);
 
@@ -182,6 +249,6 @@ export function useFormValidation(validationRules = {}) {
     clearAllErrors,
     getFieldError,
     hasErrors: Object.keys(errors).length > 0,
-    hasFieldError: (field) => !!getFieldError(field)
+    hasFieldError: (field: string): boolean => !!getFieldError(field)
   };
 }

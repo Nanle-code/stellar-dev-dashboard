@@ -17,27 +17,72 @@ import {
 } from '../utils/stateSync';
 
 /**
- * @param {object} store - Raw Zustand store object (not the hook)
- *   Must expose: .getState(), .setState(), .subscribe()
- * @param {object} [options]
- * @param {boolean} [options.enableWebSocket=false] - If true, enables WS stub
- * @param {string}  [options.wsUrl]                 - WebSocket URL when stub is active
+ * Minimal Zustand-like store shape required by {@link useCollaboration}.
  */
-export function useCollaboration(store, options = {}) {
+export interface CollaborationStore<TState = Record<string, unknown>> {
+  getState: () => TState;
+  setState: (partial: Partial<TState>) => void;
+  subscribe: (listener: (state: TState) => void) => () => void;
+}
+
+/**
+ * Options accepted by {@link useCollaboration}.
+ */
+export interface UseCollaborationOptions {
+  enableWebSocket?: boolean;
+  wsUrl?: string;
+}
+
+/**
+ * Cross-tab sync status.
+ */
+export type CollaborationSyncStatus = 'idle' | 'active' | 'error';
+
+/**
+ * WebSocket connection status.
+ */
+export type CollaborationWsStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+/**
+ * Return value of the {@link useCollaboration} hook.
+ */
+export interface UseCollaborationReturn {
+  syncStatus: CollaborationSyncStatus;
+  connectedTabs: number;
+  shareURL: string;
+  generateShareLink: () => string | undefined;
+  copyShareLink: () => Promise<void>;
+  copySuccess: boolean;
+  showPrivacyWarning: boolean;
+  dismissPrivacyWarning: () => void;
+  wsStatus: CollaborationWsStatus;
+}
+
+/**
+ * @param store - Raw Zustand store object (not the hook)
+ *   Must expose: .getState(), .setState(), .subscribe()
+ * @param [options]
+ * @param [options.enableWebSocket=false] - If true, enables WS stub
+ * @param [options.wsUrl]                 - WebSocket URL when stub is active
+ */
+export function useCollaboration<TState extends Record<string, unknown> = Record<string, unknown>>(
+  store: CollaborationStore<TState> | null | undefined,
+  options: UseCollaborationOptions = {}
+): UseCollaborationReturn {
   const { enableWebSocket = false, wsUrl } = options;
 
   // ── Sync status ─────────────────────────────────────────────────────────────
-  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'active' | 'error'
-  const [connectedTabs, setConnectedTabs] = useState(1);
+  const [syncStatus, setSyncStatus] = useState<CollaborationSyncStatus>('idle'); // 'idle' | 'active' | 'error'
+  const [connectedTabs, setConnectedTabs] = useState<number>(1);
 
   // ── Share link ───────────────────────────────────────────────────────────────
-  const [shareURL, setShareURL] = useState('');
-  const [showPrivacyWarning, setShowPrivacyWarning] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
+  const [shareURL, setShareURL] = useState<string>('');
+  const [showPrivacyWarning, setShowPrivacyWarning] = useState<boolean>(false);
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   // ── WebSocket stub ───────────────────────────────────────────────────────────
-  const wsRef = useRef(null);
-  const [wsStatus, setWsStatus] = useState('disconnected'); // 'disconnected' | 'connecting' | 'connected' | 'error'
+  const wsRef = useRef<WebSocket | null>(null);
+  const [wsStatus, setWsStatus] = useState<CollaborationWsStatus>('disconnected'); // 'disconnected' | 'connecting' | 'connected' | 'error'
 
   // ── Init BroadcastChannel sync ───────────────────────────────────────────────
   useEffect(() => {

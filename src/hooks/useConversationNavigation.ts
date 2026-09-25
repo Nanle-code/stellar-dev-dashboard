@@ -24,13 +24,61 @@ import {
   getVoiceGreeting,
   getCommandHelpText,
   type Message,
+  type ConversationState,
+  type ClarificationState,
 } from '../lib/conversationStore';
 
-export function useConversationNavigation() {
+/**
+ * Minimal SpeechRecognition shape used by this hook (avoids DOM lib gaps).
+ */
+export interface ConversationSpeechRecognition {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  onresult: ((event: ConversationSpeechResultEvent) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+/**
+ * Minimal speech-result event shape.
+ */
+export interface ConversationSpeechResultEvent {
+  results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
+}
+
+/**
+ * Window with optional SpeechRecognition constructors.
+ */
+export interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: new () => ConversationSpeechRecognition;
+  webkitSpeechRecognition?: new () => ConversationSpeechRecognition;
+}
+
+/**
+ * Return value of the {@link useConversationNavigation} hook.
+ */
+export interface UseConversationNavigationReturn {
+  messages: Message[];
+  isProcessing: boolean;
+  isListening: boolean;
+  isVoiceSupported: boolean;
+  pendingClarification: ClarificationState | null;
+  lastNavigation: ConversationState['lastNavigation'];
+  sendMessage: (text: string) => void;
+  startListening: () => void;
+  stopListening: () => void;
+  clearConversation: () => void;
+}
+
+export function useConversationNavigation(): UseConversationNavigationReturn {
   const [state, dispatch] = useReducer(conversationReducer, initialState);
   const navigate = useNavigate();
   const { setActiveTab } = useStore();
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<ConversationSpeechRecognition | null>(null);
   const stateRef = useRef(state);
 
   // Keep a ref to latest state for use in callbacks without stale closures
@@ -41,7 +89,7 @@ export function useConversationNavigation() {
   // ─── Navigate to a specific tab ─────────────────────────────────────────────
 
   const executeNavigation = useCallback(
-    (intent: NavigationIntent) => {
+    (intent: NavigationIntent): void => {
       const { type } = intent;
 
       // Navigate (help is handled inline in processInput)
@@ -81,7 +129,7 @@ export function useConversationNavigation() {
   // ─── Resolve clarification ──────────────────────────────────────────────────
 
   const resolveClarification = useCallback(
-    (input: string) => {
+    (input: string): boolean => {
       const currentState = stateRef.current;
       if (!currentState.pendingClarification) {
         // No clarification pending — treat as new command
@@ -158,7 +206,7 @@ export function useConversationNavigation() {
   // ─── Process user input ─────────────────────────────────────────────────────
 
   const processInput = useCallback(
-    (input: string) => {
+    (input: string): void => {
       const trimmed = input.trim();
       if (!trimmed) return;
 
@@ -234,12 +282,13 @@ export function useConversationNavigation() {
 
   // ─── Voice Input ────────────────────────────────────────────────────────────
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback((): void => {
     const currentState = stateRef.current;
     if (currentState.isListening) return;
 
+    const speechWindow = window as unknown as SpeechRecognitionWindow;
     const SpeechRecognitionAPI =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
       dispatch({
@@ -260,7 +309,7 @@ export function useConversationNavigation() {
     // Track most recent interim result to avoid flooding
     let lastInterimText = '';
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: ConversationSpeechResultEvent) => {
       // Use the latest result, not just the first alternative
       const resultIndex = event.results.length - 1;
       const transcript = event.results[resultIndex][0].transcript.trim();
@@ -284,7 +333,7 @@ export function useConversationNavigation() {
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: { error: string }) => {
       dispatch({ type: 'SET_LISTENING', payload: false });
       dispatch({
         type: 'ADD_MESSAGE',
@@ -308,7 +357,7 @@ export function useConversationNavigation() {
     recognition.start();
   }, [processInput]);
 
-  const stopListening = useCallback(() => {
+  const stopListening = useCallback((): void => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
@@ -318,14 +367,14 @@ export function useConversationNavigation() {
 
   // ─── Clear conversation ────────────────────────────────────────────────────
 
-  const clearConversation = useCallback(() => {
+  const clearConversation = useCallback((): void => {
     dispatch({ type: 'CLEAR_CONVERSATION' });
   }, []);
 
   // ─── Send text message ──────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string): void => {
       const currentState = stateRef.current;
       if (currentState.isListening) {
         stopListening();

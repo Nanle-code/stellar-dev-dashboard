@@ -16,27 +16,37 @@ import {
 import { readFileAsText, parseBackup, validateBackupPayload, applyBackupToStore } from "../lib/import";
 
 /**
- * @returns {{
- *   isExporting: boolean,
- *   isImporting: boolean,
- *   exportError: string|null,
- *   importError: string|null,
- *   importSuccess: boolean,
- *   exportDashboard: () => void,
- *   exportTransactions: (transactions: Object[]) => void,
- *   exportBalances: (balances: Object[]) => void,
- *   importBackup: (file: File) => Promise<void>,
- * }}
+ * A generic exportable row (transaction or balance record).
  */
-export function useDataExport() {
-  const store = useStore();
-  const [isExporting, setIsExporting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
-  const [importError, setImportError] = useState(null);
-  const [importSuccess, setImportSuccess] = useState(false);
+export type ExportableRow = Record<string, unknown>;
 
-  const exportDashboard = useCallback(() => {
+/**
+ * Return value of the {@link useDataExport} hook.
+ */
+export interface UseDataExportReturn {
+  isExporting: boolean;
+  isImporting: boolean;
+  exportError: string | null;
+  importError: string | null;
+  importSuccess: boolean;
+  exportDashboard: () => void;
+  exportTransactions: (transactions: ExportableRow[]) => void;
+  exportBalances: (balances: ExportableRow[]) => void;
+  importBackup: (file: File) => Promise<void>;
+}
+
+/**
+ * @returns Export/import actions bound to the live Zustand store state.
+ */
+export function useDataExport(): UseDataExportReturn {
+  const store = useStore();
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<boolean>(false);
+
+  const exportDashboard = useCallback((): void => {
     setIsExporting(true);
     setExportError(null);
     try {
@@ -52,7 +62,7 @@ export function useDataExport() {
     }
   }, [store]);
 
-  const exportTransactions = useCallback((transactions) => {
+  const exportTransactions = useCallback((transactions: ExportableRow[]): void => {
     setIsExporting(true);
     setExportError(null);
     try {
@@ -65,7 +75,7 @@ export function useDataExport() {
     }
   }, []);
 
-  const exportBalances = useCallback((balances) => {
+  const exportBalances = useCallback((balances: ExportableRow[]): void => {
     setIsExporting(true);
     setExportError(null);
     try {
@@ -79,7 +89,7 @@ export function useDataExport() {
   }, []);
 
   const importBackup = useCallback(
-    async (file) => {
+    async (file: File): Promise<void> => {
       setIsImporting(true);
       setImportError(null);
       setImportSuccess(false);

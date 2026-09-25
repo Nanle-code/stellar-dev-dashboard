@@ -19,18 +19,24 @@
  */
 import { useRef, useEffect, useCallback } from 'react'
 
+/**
+ * Return value of the {@link useInfiniteScroll} hook: a ref to attach
+ * to the sentinel element at the bottom of the list.
+ */
+export type UseInfiniteScrollReturn = React.RefObject<HTMLDivElement | null>;
+
 export function useInfiniteScroll(
   onLoadMore: () => void,
   hasMore: boolean,
   loading: boolean,
   debounceMs = 300,
   threshold = 0.1,
-) {
+): UseInfiniteScrollReturn {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const lastCallRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const debouncedLoad = useCallback(() => {
+  const debouncedLoad = useCallback((): void => {
     const now = Date.now()
     const elapsed = now - lastCallRef.current
     if (elapsed >= debounceMs) {

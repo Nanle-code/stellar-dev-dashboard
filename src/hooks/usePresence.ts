@@ -7,10 +7,24 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { presenceManager } from '../lib/collaboration/presenceManager'
+import type { PresenceUser } from '../lib/collaboration/presenceManager'
 
-export function usePresence() {
-  const [users, setUsers] = useState([])
-  const [isInitialized, setIsInitialized] = useState(false)
+export type PresenceSelectionType = 'account' | 'transaction' | 'contract'
+
+export interface UsePresenceReturn {
+  users: PresenceUser[]
+  isInitialized: boolean
+  updateAccount: (accountId: string | null) => void
+  updateActiveTab: (tab: string) => void
+  updateCursor: (x: number, y: number, element?: string) => void
+  updateSelection: (type: PresenceSelectionType, id: string) => void
+  getUsersForAccount: (accountId: string) => PresenceUser[]
+  getUserCount: () => number
+}
+
+export function usePresence(): UsePresenceReturn {
+  const [users, setUsers] = useState<PresenceUser[]>([])
+  const [isInitialized, setIsInitialized] = useState<boolean>(false)
 
   useEffect(() => {
     // Initialize presence manager on mount
@@ -18,7 +32,7 @@ export function usePresence() {
     setIsInitialized(true)
 
     // Subscribe to presence updates
-    const unsubscribe = presenceManager.subscribe((updatedUsers) => {
+    const unsubscribe = presenceManager.subscribe((updatedUsers: PresenceUser[]) => {
       setUsers(updatedUsers)
     })
 
@@ -28,27 +42,27 @@ export function usePresence() {
     }
   }, [])
 
-  const updateAccount = useCallback((accountId) => {
+  const updateAccount = useCallback((accountId: string | null): void => {
     presenceManager.setAccount(accountId)
   }, [])
 
-  const updateActiveTab = useCallback((tab) => {
+  const updateActiveTab = useCallback((tab: string): void => {
     presenceManager.setActiveTab(tab)
   }, [])
 
-  const updateCursor = useCallback((x, y, element) => {
+  const updateCursor = useCallback((x: number, y: number, element?: string): void => {
     presenceManager.setCursor(x, y, element)
   }, [])
 
-  const updateSelection = useCallback((type, id) => {
+  const updateSelection = useCallback((type: PresenceSelectionType, id: string): void => {
     presenceManager.setSelection(type, id)
   }, [])
 
-  const getUsersForAccount = useCallback((accountId) => {
+  const getUsersForAccount = useCallback((accountId: string): PresenceUser[] => {
     return presenceManager.getUsersForAccount(accountId)
   }, [])
 
-  const getUserCount = useCallback(() => {
+  const getUserCount = useCallback((): number => {
     return presenceManager.getUserCount()
   }, [])
 

@@ -153,6 +153,21 @@ The dashboard supports Ledger signing in Chromium-based browsers through WebUSB/
 - The signing path uses the active Ledger derivation path returned from the device session and attaches the resulting signature to the full envelope before returning XDR.
 - Reject/recovery errors are surfaced in a user-friendly way instead of leaking raw Ledger transport details.
 
+## Smart Contract Interaction Improvements
+
+The dashboard provides auto-generated controls for smart contract interaction when reading the published on-chain spec.
+
+### Key Features
+
+1. **Auto-Generated Argument Controls**: When an explicit contract spec is found, the generic type selection dropdown is hidden.
+2. **Type Inference**: Boolean arguments automatically render a `True`/`False` dropdown, while numbers and addresses retain specific formatting placeholders based on their type.
+3. **Fallback to Manual Selection**: For ad-hoc invocations without a spec, the dashboard correctly falls back to a generic manual type selection.
+
+### Compatibility & Migration Notes
+
+- Compatible with existing `ContractInteraction` components. No migration of user settings is necessary.
+- Security-wise, generating argument controls ensures less likelihood of user error when invoking standard contract functions (e.g. incorrect mapping of manual types to required ABI types).
+
 ## Development
 
 ### Node.js support

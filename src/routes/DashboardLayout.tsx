@@ -68,7 +68,9 @@ const lazyNamedTab = (loader: () => Promise<Record<string, unknown>>, exportName
   ) as unknown as TabComponent;
 
 const Overview = lazyTab(() => import('../components/dashboard/Overview'));
-const TransactionAnalytics = lazy(() => import('../components/dashboard/TransactionAnalyticsDashboard'));
+const TransactionAnalytics = lazy(
+  () => import('../components/dashboard/TransactionAnalyticsDashboard')
+);
 const RefactoringAdvisor = lazyTab(() => import('../components/dashboard/RefactoringAdvisor'));
 
 const TABS: Record<string, TabComponent> = {
@@ -89,7 +91,9 @@ const TABS: Record<string, TabComponent> = {
   contractInteraction: lazyTab(() => import('../components/dashboard/ContractInteraction')),
   contractABI: lazyTab(() => import('../components/dashboard/ContractABI')),
   dex: lazyTab(() => import('../components/dashboard/DEXExplorer')),
-  liquidityPrediction: lazyTab(() => import('../components/dashboard/LiquidityPredictionDashboard')),
+  liquidityPrediction: lazyTab(
+    () => import('../components/dashboard/LiquidityPredictionDashboard')
+  ),
   pathExplorer: lazyTab(() => import('../components/dashboard/PathExplorer')),
   explorers: lazyTab(() => import('../components/dashboard/ExplorerEmbed')),
   realtime: lazyTab(() => import('../components/dashboard/RealTimeLedger')),
@@ -119,6 +123,7 @@ const TABS: Record<string, TabComponent> = {
   dependencyManagement: lazyTab(() => import('../components/dashboard/DependencyManagement')),
   txAnalytics: TransactionAnalytics,
   anomalyViz: lazyTab(() => import('../components/dashboard/AnomalyVisualization')),
+  sandboxAnalytics: lazyTab(() => import('../components/dashboard/SandboxAnalyticsDemo')),
 };
 
 function TabLoadingFallback() {
@@ -263,10 +268,9 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     // v2: full multi-layer cache initialization (warm, prune, SW bridge)
-    initCache(
-      useStore.getState().network,
-      useStore.getState().connectedAddress ?? undefined,
-    ).catch(() => {});
+    initCache(useStore.getState().network, useStore.getState().connectedAddress ?? undefined).catch(
+      () => {}
+    );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -279,7 +283,9 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      updateSignals((current: any) => ({ sessionDurationMinutes: current.sessionDurationMinutes + 1 }));
+      updateSignals((current: any) => ({
+        sessionDurationMinutes: current.sessionDurationMinutes + 1,
+      }));
     }, 60000);
 
     return () => window.clearInterval(timer);
@@ -489,9 +495,7 @@ export default function DashboardLayout() {
         </main>
         <TourLauncher />
         <DevToolbar />
-        <PredictiveFeatureSuggestions
-          onNavigate={(tab: string) => navigate(`/${tab}`)}
-        />
+        <PredictiveFeatureSuggestions onNavigate={(tab: string) => navigate(`/${tab}`)} />
         <NotificationBell
           onClick={() => setNotificationsOpen(true)}
           bottomOffset={isMobile ? 'calc(60px + 16px)' : '20px'}
@@ -505,9 +509,7 @@ export default function DashboardLayout() {
           isOpen={debugAssistantOpen}
           issueCount={debugAssistantIssueCount}
         />
-        {debugAssistantOpen && (
-          <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />
-        )}
+        {debugAssistantOpen && <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />}
 
         {/* Conversational Navigation Button */}
         <button
@@ -551,10 +553,7 @@ export default function DashboardLayout() {
           <span aria-hidden="true">{conversationOpen ? '✕' : '💬'}</span>
         </button>
 
-        <ConversationPanel
-          isOpen={conversationOpen}
-          onClose={() => setConversationOpen(false)}
-        />
+        <ConversationPanel isOpen={conversationOpen} onClose={() => setConversationOpen(false)} />
 
         {isMobile && <MobileNavigation />}
         <TipButton />

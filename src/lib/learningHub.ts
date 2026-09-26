@@ -168,7 +168,8 @@ const pair = Keypair.random();
 
 console.log('Public Key:', pair.publicKey());
 console.log('Secret Key:', pair.secret());`,
-            explanation: 'This code creates a new Stellar keypair. The public key is your account address, and the secret key is used to sign transactions.',
+            explanation:
+              'This code creates a new Stellar keypair. The public key is your account address, and the secret key is used to sign transactions.',
             editable: true,
           },
         ],
@@ -188,7 +189,8 @@ console.log('Secret Key:', pair.secret());`,
               question: 'How long do Stellar transactions typically take to confirm?',
               options: ['10 minutes', '1 minute', '3-5 seconds', '1 hour'],
               correctAnswer: 2,
-              explanation: 'Stellar transactions are confirmed in 3-5 seconds, making it one of the fastest blockchain networks.',
+              explanation:
+                'Stellar transactions are confirmed in 3-5 seconds, making it one of the fastest blockchain networks.',
             },
           ],
         },
@@ -233,7 +235,8 @@ const response = await fetch(
 );
 
 console.log('Account funded:', await response.json());`,
-            explanation: 'Friendbot is a testnet faucet that funds new accounts with 10,000 XLM for testing.',
+            explanation:
+              'Friendbot is a testnet faucet that funds new accounts with 10,000 XLM for testing.',
             editable: true,
           },
         ],
@@ -246,7 +249,8 @@ console.log('Account funded:', await response.json());`,
               question: 'What is the minimum balance required for a Stellar account?',
               options: ['0 XLM', '1 XLM', '2 XLM (base reserve)', '10 XLM'],
               correctAnswer: 2,
-              explanation: 'The base reserve is 1 XLM, and accounts need a minimum of 2 XLM (1 base + 1 per subentry).',
+              explanation:
+                'The base reserve is 1 XLM, and accounts need a minimum of 2 XLM (1 base + 1 per subentry).',
             },
           ],
         },
@@ -329,7 +333,89 @@ console.log('Success!', result);`,
                 'The sequence number is auto-corrected',
               ],
               correctAnswer: 1,
-              explanation: 'Transactions with incorrect sequence numbers are rejected to prevent replay attacks.',
+              explanation:
+                'Transactions with incorrect sequence numbers are rejected to prevent replay attacks.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-4',
+        title: 'Sandbox Analytics Demos',
+        description:
+          'Explore anonymized account and trade datasets for analytics demos without Mainnet credentials',
+        category: 'advanced',
+        difficulty: 'intermediate',
+        duration: 20,
+        content: `
+# Sandbox Analytics Demos
+
+Learn how to simulate and demo portfolio tracking and DEX trade analytics offline using anonymized datasets without exposing real Mainnet credentials or encountering API rate limits.
+
+## Key Principles
+
+1. **Zero Secret Keys**: Sandbox fixtures use deterministic public keys without private keys.
+2. **Anonymized Archetypes**: Multiple account profiles (Retail, Institutional Market Maker, Treasury) represent realistic behaviors.
+3. **Realistic Trade Flows**: Orderbook and liquidity pool trades allow computing volume, VWAP, and spread analytics.
+4. **Environment Isolation**: Live Mainnet safeguards prevent accidental pollution or credential confusion.
+`,
+        codeExamples: [
+          {
+            id: 'ex-sandbox-analytics',
+            title: 'Loading Sandbox Trades & Computing VWAP',
+            language: 'typescript',
+            code: `import { getSandboxTrades, calculateTradeMetrics } from '../lib/sandboxAnalytics';
+
+// 1. Fetch anonymized sandbox trades for XLM/USDC
+const trades = getSandboxTrades({
+  baseAsset: 'XLM',
+  counterAsset: 'USDC',
+  limit: 20,
+});
+
+// 2. Aggregate analytics (volume, VWAP, price change)
+const metrics = calculateTradeMetrics(trades);
+
+console.log('Trade Count:', metrics.tradeCount);
+console.log('Total XLM Volume:', metrics.totalVolumeBase);
+console.log('VWAP (USD):', metrics.vwap);
+console.log('Price Change (%):', metrics.priceChangePercent);`,
+            explanation:
+              'Demonstrates querying anonymized DEX trades and computing volume-weighted average price (VWAP) without network access.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-sandbox-analytics',
+          tutorialId: 'tut-4',
+          questions: [
+            {
+              id: 'q-sbx-1',
+              question:
+                'Why should sandbox demo datasets be used instead of real Mainnet credentials for analytics demos?',
+              options: [
+                'Mainnet transactions cannot be queried by developers',
+                'To prevent exposing sensitive credentials and avoid API rate limits or mock data leakage',
+                'Because Horizon does not support DEX trades',
+                'Sandbox datasets execute faster on the Stellar blockchain',
+              ],
+              correctAnswer: 1,
+              explanation:
+                'Using anonymized datasets protects private keys, removes credential dependency, and avoids rate limits during education sessions.',
+            },
+            {
+              id: 'q-sbx-2',
+              question:
+                'What happens if a developer attempts to load sandbox datasets in a live Mainnet production environment?',
+              options: [
+                'The system converts real XLM into testnet tokens',
+                'The service silently overwrites live user accounts',
+                'The service fails closed with an UNSUPPORTED_ENVIRONMENT error to prevent data spoofing',
+                'The application crashes with a syntax error',
+              ],
+              correctAnswer: 2,
+              explanation:
+                'Environment guards ensure that sandbox datasets cannot be mistakenly rendered as live Mainnet accounts without an explicit override.',
             },
           ],
         },
@@ -596,7 +682,7 @@ impl StakingContract {
     ];
 
     // Add more tutorials dynamically
-    for (let i = 7; i <= 25; i++) {
+    for (let i = 5; i <= 25; i++) {
       this.tutorials.push({
         id: `tut-${i}`,
         title: `Advanced Topic ${i - 3}`,
@@ -622,11 +708,7 @@ impl StakingContract {
     return this.tutorials.find((t) => t.id === id) || null;
   }
 
-  async submitQuiz(
-    userId: string,
-    quizId: string,
-    answers: number[]
-  ): Promise<QuizResult> {
+  async submitQuiz(userId: string, quizId: string, answers: number[]): Promise<QuizResult> {
     const tutorial = this.tutorials.find((t) => t.quiz?.id === quizId);
     if (!tutorial?.quiz) throw new Error('Quiz not found');
 

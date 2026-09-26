@@ -74,7 +74,7 @@ export default function AdvancedTransactionSimulation({ transactionParams: propP
         ...transactionParams,
         currentLedgerLoad: parseFloat(congestion) || 0.55,
         scenarios,
-      } as Parameters<typeof runAdvancedTransactionSimulation>[0])
+      } as unknown as Parameters<typeof runAdvancedTransactionSimulation>[0])
       setResult(output)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Simulation failed')
@@ -178,10 +178,12 @@ export default function AdvancedTransactionSimulation({ transactionParams: propP
 
             <div style={{ marginTop: '16px' }}>
               <FeeStrategyComparisonPanel
-                sourceAccount={transactionParams.sourceAccount || ''}
-                operations={transactionParams.operations || []}
-                baseFee={Number(transactionParams.baseFee) || 100}
-                network={transactionParams.network || network}
+                transactionParams={{
+                  sourceAccount: transactionParams.sourceAccount || '',
+                  operations: transactionParams.operations || [],
+                  baseFee: Number(transactionParams.baseFee) || 100,
+                  network: transactionParams.network || network,
+                }}
               />
             </div>
           </>

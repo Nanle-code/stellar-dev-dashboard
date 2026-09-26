@@ -60,16 +60,6 @@ export default function TransactionSigner() {
     }
   }, [bio, network])
 
-  // Start collecting behavior as soon as user interacts with the XDR textarea
-  const handleXdrChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setXdr(e.target.value);
-      if (bio.enabled && !bio.authStatus.match(/collecting|evaluating/)) {
-        bio.startCollection();
-      }
-    },
-    [bio]
-  );
 
   // networkPassphrase moved up
   const handleSign = async () => {

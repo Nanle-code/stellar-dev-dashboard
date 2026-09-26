@@ -393,7 +393,7 @@ export default function DashboardLayout() {
   return (
     <ErrorBoundary onRetry={handleRetry} maxRetries={3}>
       <SkipLink />
-      <OfflineBanner />
+      <OfflineBanner routeId={routeMatch?.route.id ?? activeTab} />
       <PWAInstallBanner />
       <SWUpdatePrompt />
       <div

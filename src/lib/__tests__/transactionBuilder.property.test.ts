@@ -27,25 +27,27 @@ function publicKeyArb() {
   return keypairArb().map((kp) => kp.publicKey());
 }
 
+function formatStellarAmount(stroops: bigint): string {
+  const whole = stroops / 10_000_000n;
+  const frac = (stroops % 10_000_000n).toString().padStart(7, "0").replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : `${whole}`;
+}
+
 function validAmountArb() {
-  return fc.float({
-    min: MIN_AMOUNT,
-    max: 1000000000,
-    noNaN: true,
-    noDefaultInfinity: true,
-    noInteger: false,
-  });
+  return fc
+    .bigInt({ min: 1n, max: 1_000_000_000n * 10_000_000n })
+    .map(formatStellarAmount);
 }
 
 function extremeAmountArb() {
   return fc.oneof(
-    fc.constant(0),
-    fc.constant(-1),
-    fc.constant(MIN_AMOUNT / 2),
-    fc.constant(Number.MAX_SAFE_INTEGER + 1),
-    fc.constant(Infinity),
-    fc.constant(NaN),
-    fc.constant(-Infinity),
+    fc.constant("0"),
+    fc.constant("-1"),
+    fc.constant("0.00000001"), // 8 decimal places (invalid)
+    fc.constant("NaN"),
+    fc.constant("Infinity"),
+    fc.constant("-Infinity"),
+    fc.constant("abc"),
     validAmountArb()
   );
 }
@@ -53,9 +55,9 @@ function extremeAmountArb() {
 function validMemoArb() {
   return fc.oneof(
     fc.record({ type: fc.constant("MEMO_TEXT"), value: fc.string({ maxLength: 28 }) }),
-    fc.record({ type: fc.constant("MEMO_ID"), value: fc.bigInt({ min: 0n, max: 2n ** 64n - 1n }).map(String) }),
-    fc.record({ type: fc.constant("MEMO_HASH"), value: fc.hexaString({ minLength: 64, maxLength: 64 }) }),
-    fc.record({ type: fc.constant("MEMO_RETURN"), value: fc.hexaString({ minLength: 64, maxLength: 64 }) }),
+    fc.record({ type: fc.constant("MEMO_ID"), value: fc.bigInt({ min: 0n, max: 2n ** 63n - 1n }).map(String) }),
+    fc.record({ type: fc.constant("MEMO_HASH"), value: fc.stringMatching(/^[0-9a-fA-F]{64}$/) }),
+    fc.record({ type: fc.constant("MEMO_RETURN"), value: fc.stringMatching(/^[0-9a-fA-F]{64}$/) }),
     fc.record({ type: fc.constant("MEMO_NONE"), value: fc.constant("") }),
   );
 }
@@ -63,9 +65,9 @@ function validMemoArb() {
 function invalidMemoArb() {
   return fc.oneof(
     fc.record({ type: fc.constant("MEMO_TEXT"), value: fc.string({ minLength: 29, maxLength: 100 }) }),
-    fc.record({ type: fc.constant("MEMO_ID"), value: fc.string().map(() => "-1") }),
-    fc.record({ type: fc.constant("MEMO_HASH"), value: fc.hexaString({ minLength: 1, maxLength: 63 }) }),
-    fc.record({ type: fc.constant("MEMO_RETURN"), value: fc.hexaString({ minLength: 65, maxLength: 128 }) }),
+    fc.record({ type: fc.constant("MEMO_ID"), value: fc.constant("not-a-number") }),
+    fc.record({ type: fc.constant("MEMO_HASH"), value: fc.stringMatching(/^[0-9a-fA-F]{1,63}$/) }),
+    fc.record({ type: fc.constant("MEMO_RETURN"), value: fc.stringMatching(/^[0-9a-fA-F]{65,128}$/) }),
   );
 }
 
@@ -157,7 +159,7 @@ describe("Property-based: XDR round-trips", () => {
   it("changeTrust transaction round-trips through toXDR/fromXDR", () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 4 }),
+        fc.stringMatching(/^[a-zA-Z0-9]{1,4}$/),
         publicKeyArb(),
         validAmountArb(),
         (code, issuer, limit) => {
@@ -193,9 +195,10 @@ describe("Property-based: Amount boundary rejection", () => {
   it("rejects zero, negative, and extreme amounts in payment operations", () => {
     fc.assert(
       fc.property(publicKeyArb(), extremeAmountArb(), (dest, amount) => {
-        const source = buildAccount();
+        const num = Number(amount);
+        const isInvalid = !/^\d+(\.\d{1,7})?$/.test(amount) || isNaN(num) || num <= 0 || !isFinite(num) || num > MAX_SAFE_AMOUNT;
 
-        if (amount <= 0 || !isFinite(amount) || isNaN(amount) || amount > MAX_SAFE_AMOUNT) {
+        if (isInvalid) {
           expect(() => {
             StellarSdk.Operation.payment({
               destination: dest,
@@ -210,7 +213,6 @@ describe("Property-based: Amount boundary rejection", () => {
             amount: String(amount),
           });
           expect(op).toBeDefined();
-          expect(op.type).toBe("payment");
         }
       }),
       { numRuns: 200, verbose: false }

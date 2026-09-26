@@ -120,7 +120,7 @@ main:focus {
   outline: none; /* main gets focus from skip link but shouldn't show ring */
 }
 
-/* ── Touch target minimum size (WCAG 2.5.5) ──────────────────────────────── */
+/* ── Touch target minimum size (WCAG 2.5.5 / WCAG 2.2 2.5.8) ─────────────── */
 button,
 [role="button"],
 a,
@@ -136,4 +136,36 @@ li a,
 span a {
   min-width: unset;
   min-height: unset;
+}
+
+/* ── Focus Not Obscured (WCAG 2.2 AA SC 2.4.11) ─────────────────────────── */
+:focus-visible {
+  scroll-margin-top: 80px;
+  scroll-margin-bottom: 80px;
+}
+
+/* ── Target Size Minimum (WCAG 2.2 AA SC 2.5.8) ─────────────────────────── */
+button,
+[role="button"],
+input,
+select,
+textarea,
+[tabindex="0"] {
+  min-inline-size: 24px;
+  min-block-size: 24px;
+}
+
+/* ── Accessible Authentication (WCAG 2.2 AA SC 3.3.8) ───────────────────── */
+input[type="password"],
+input[autocomplete*="password"],
+input[name*="secret"],
+input[name*="key"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ── Accessible Form Validation (WCAG 3.3.1 / 3.3.2) ────────────────────── */
+[aria-invalid="true"] {
+  border-color: var(--red, #ef4444) !important;
+  box-shadow: 0 0 0 1px var(--red, #ef4444);
 }

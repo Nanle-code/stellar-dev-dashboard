@@ -8,12 +8,15 @@ import {
   fetchAccountCreationDate,
   fetchAccountOffers,
   calculateAccountReserves,
+  isValidPublicKey,
+  fetchAccount,
 } from '../../lib/stellar';
 import { accountRequests, AccountLanes, isCancellation } from '../../lib/requestCancellation';
 import CopyableValue from './CopyableValue';
 import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates';
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
 import AssetTrustStatus from '../assets/AssetTrustStatus';
+import { announceToScreenReader } from '../../utils/accessibility';
 import type { AccountOffer, ReservesInfo, InfoRowProps } from './types';
 
 function formatAsset(assetType: string, assetCode?: string): string {
@@ -84,6 +87,8 @@ function DataSourceBadge({ dataSource, offline }: { dataSource?: string; offline
   if (!offline && (!dataSource || dataSource === 'live')) return null;
   return (
     <span
+      role="status"
+      aria-label={offline ? 'Working offline with cached data' : `Data source: ${dataSource}`}
       style={{
         padding: '2px 8px',
         borderRadius: '4px',
@@ -91,6 +96,9 @@ function DataSourceBadge({ dataSource, offline }: { dataSource?: string; offline
         background: dataSource === 'cache-stale' ? 'var(--amber-glow)' : 'var(--bg-elevated)',
         color: dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--text-muted)',
         border: `1px solid ${dataSource === 'cache-stale' ? 'var(--amber)' : 'var(--border)'}`,
+        minHeight: '24px',
+        display: 'inline-flex',
+        alignItems: 'center',
       }}
     >
       {offline ? 'Offline' : dataSource}
@@ -99,17 +107,26 @@ function DataSourceBadge({ dataSource, offline }: { dataSource?: string; offline
 }
 
 export default function Account() {
-  const { accountData, connectedAddress, network, networkStats } = useStore();
+  const { accountData, setAccountData, connectedAddress, setConnectedAddress, network, networkStats } = useStore() as any;
   const [offers, setOffers] = useState<AccountOffer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<Date | null>(null);
   const [createdAtLoading, setCreatedAtLoading] = useState(false);
+  const [addressInput, setAddressInput] = useState(connectedAddress || '');
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [isLookingUp, setIsLookingUp] = useState(false);
 
   const reserves = useMemo<ReservesInfo | null>(() => {
     if (!accountData) return null;
     return calculateAccountReserves(accountData, networkStats, offers.length);
   }, [accountData, networkStats, offers.length]);
+
+  useEffect(() => {
+    if (connectedAddress) {
+      setAddressInput(connectedAddress);
+    }
+  }, [connectedAddress]);
 
   useEffect(() => {
     if (!connectedAddress) {
@@ -164,12 +181,189 @@ export default function Account() {
     };
   }, [connectedAddress, network]);
 
-  if (!accountData)
+  const handleLookup = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const target = addressInput.trim();
+    if (!target) {
+      setLookupError('Please enter a Stellar account public key or address.');
+      announceToScreenReader('Validation error: Please enter a Stellar account public key or address.');
+      return;
+    }
+    if (!isValidPublicKey(target)) {
+      setLookupError('Invalid Stellar address. Supported formats: G... (Ed25519), M... (muxed), or federated address.');
+      announceToScreenReader('Validation error: Invalid Stellar address format.');
+      return;
+    }
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      setLookupError('Offline: Network is disconnected. Reconnect to look up new accounts.');
+      announceToScreenReader('Error: Network is offline.');
+      return;
+    }
+
+    setIsLookingUp(true);
+    setLookupError(null);
+    try {
+      const data = await fetchAccount(target, network);
+      setConnectedAddress(target);
+      setAccountData(data);
+      announceToScreenReader(`Account ${shortAddress(target)} loaded successfully.`);
+    } catch (err: any) {
+      const msg = err.message || 'Account not found on ' + network;
+      setLookupError(msg);
+      announceToScreenReader(`Error loading account: ${msg}`);
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
+  const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+  const dataSource = 'live';
+  const accountCachedAt: number | null = null;
+
+  if (!accountData) {
     return (
-      <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        No account loaded
+      <div
+        className="animate-in"
+        role="region"
+        aria-label="Account lookup"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          maxWidth: '640px',
+          margin: '40px auto 0',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '24px',
+              fontWeight: 700,
+              margin: '0 0 8px 0',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Account Workflow
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            Inspect account balances, signer keys, reserve thresholds, and claimable offers on the Stellar network.
+          </p>
+        </div>
+
+        {offline && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              padding: '12px 16px',
+              background: 'var(--amber-glow)',
+              border: '1px solid var(--amber)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--amber)',
+              fontSize: '12px',
+            }}
+          >
+            ⚠ Offline mode: Network is disconnected. Reconnect to query live Horizon accounts.
+          </div>
+        )}
+
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+          }}
+        >
+          <form onSubmit={handleLookup} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <label
+              htmlFor="account-address-input"
+              style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.8px',
+              }}
+            >
+              Stellar Account Address
+            </label>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <input
+                id="account-address-input"
+                type="text"
+                value={addressInput}
+                onChange={(e) => {
+                  setAddressInput(e.target.value);
+                  if (lookupError) setLookupError(null);
+                }}
+                placeholder="G... public key, M... muxed, or name*domain"
+                aria-label="Stellar account address to inspect"
+                aria-invalid={lookupError ? 'true' : 'false'}
+                aria-describedby={lookupError ? 'account-lookup-error' : undefined}
+                style={{
+                  flex: 1,
+                  minWidth: '260px',
+                  background: 'var(--bg-elevated)',
+                  border: `1px solid ${lookupError ? 'var(--red)' : 'var(--border-bright)'}`,
+                  borderRadius: 'var(--radius-md)',
+                  padding: '10px 14px',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  minHeight: '40px',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={isLookingUp}
+                aria-label={isLookingUp ? 'Looking up account...' : 'Look up Stellar account'}
+                aria-busy={isLookingUp}
+                style={{
+                  padding: '10px 20px',
+                  background: 'var(--cyan)',
+                  color: 'var(--bg-base)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: isLookingUp ? 'not-allowed' : 'pointer',
+                  minHeight: '40px',
+                  minWidth: '44px',
+                  transition: 'var(--transition)',
+                }}
+              >
+                {isLookingUp ? 'Loading...' : 'Inspect →'}
+              </button>
+            </div>
+
+            {lookupError && (
+              <div
+                id="account-lookup-error"
+                role="alert"
+                aria-live="polite"
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--red)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>✗</span>
+                <span>{lookupError}</span>
+              </div>
+            )}
+          </form>
+        </div>
       </div>
     );
+  }
 
   const xlm = accountData.balances?.find((b: { asset_type: string }) => b.asset_type === 'native');
   const otherAssets =
@@ -189,9 +383,7 @@ export default function Account() {
     refreshKey: accountData,
   });
   const xlmEstimate = xlm ? getEstimate(xlm) : null;
-  const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
-  const dataSource = 'live';
-  const accountCachedAt: number | null = null;
+
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -204,14 +396,94 @@ export default function Account() {
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
           Account Detail
-        </div>
+        </h1>
         <DataSourceBadge dataSource={dataSource} offline={offline} />
+      </div>
+
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '12px 16px',
+        }}
+      >
+        <form onSubmit={handleLookup} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label
+            htmlFor="account-switch-input"
+            style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.8px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Switch Account:
+          </label>
+          <input
+            id="account-switch-input"
+            type="text"
+            value={addressInput}
+            onChange={(e) => {
+              setAddressInput(e.target.value);
+              if (lookupError) setLookupError(null);
+            }}
+            placeholder="G... or M... address"
+            aria-label="Switch to another Stellar account public key"
+            aria-invalid={lookupError ? 'true' : 'false'}
+            aria-describedby={lookupError ? 'account-switch-error' : undefined}
+            style={{
+              flex: 1,
+              minWidth: '220px',
+              background: 'var(--bg-elevated)',
+              border: `1px solid ${lookupError ? 'var(--red)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-sm)',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-primary)',
+              minHeight: '32px',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLookingUp}
+            aria-label={isLookingUp ? 'Loading account...' : 'Switch to entered account'}
+            style={{
+              padding: '6px 14px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-bright)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-primary)',
+              fontSize: '12px',
+              cursor: isLookingUp ? 'not-allowed' : 'pointer',
+              minHeight: '32px',
+              minWidth: '44px',
+            }}
+          >
+            {isLookingUp ? 'Loading...' : 'Go'}
+          </button>
+        </form>
+        {lookupError && (
+          <div
+            id="account-switch-error"
+            role="alert"
+            aria-live="polite"
+            style={{ marginTop: '6px', fontSize: '11px', color: 'var(--red)' }}
+          >
+            ✗ {lookupError}
+          </div>
+        )}
       </div>
 
       {offline && accountData && (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             display: 'flex',
             alignItems: 'flex-start',
@@ -271,12 +543,19 @@ export default function Account() {
           style={{
             padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 600,
-            fontSize: '13px',
           }}
         >
-          Identity
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Identity
+          </h2>
         </div>
         <InfoRow
           label="Public Key"
@@ -302,12 +581,14 @@ export default function Account() {
             href={`https://stellar.expert/explorer/${network}/account/${connectedAddress}`}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={`View account ${connectedAddress} on Stellar Expert (opens in new tab)`}
             style={{
               fontSize: '12px',
               color: 'var(--cyan)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
+              minHeight: '24px',
             }}
           >
             View on Stellar Expert ↗
@@ -328,12 +609,19 @@ export default function Account() {
             style={{
               padding: '14px 18px',
               borderBottom: '1px solid var(--border)',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 600,
-              fontSize: '13px',
             }}
           >
-            Reserve Breakdown
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+              }}
+            >
+              Reserve Breakdown
+            </h2>
           </div>
           <InfoRow label="Base Reserve" value={formatXLM(reserves.baseReserve) + ' XLM'} />
           <InfoRow label="Signer Reserve" value={formatXLM(reserves.signerReserve) + ' XLM'} />
@@ -405,12 +693,14 @@ export default function Account() {
               href="https://developers.stellar.org/docs/glossary/fees/#minimum-balance"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="Learn about Stellar reserves on developer docs (opens in new tab)"
               style={{
                 fontSize: '12px',
                 color: 'var(--cyan)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
+                minHeight: '24px',
               }}
             >
               Learn about Stellar reserves ↗
@@ -431,12 +721,19 @@ export default function Account() {
           style={{
             padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 600,
-            fontSize: '13px',
           }}
         >
-          Asset Balances
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Asset Balances
+          </h2>
         </div>
         {otherAssets.length === 0 ? (
           <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -543,12 +840,19 @@ export default function Account() {
           style={{
             padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 600,
-            fontSize: '13px',
           }}
         >
-          Thresholds
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Thresholds
+          </h2>
         </div>
         <InfoRow label="Low" value={thresholds.low_threshold} />
         <InfoRow label="Medium" value={thresholds.med_threshold} />
@@ -567,12 +871,19 @@ export default function Account() {
           style={{
             padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 600,
-            fontSize: '13px',
           }}
         >
-          Flags
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Flags
+          </h2>
         </div>
         {Object.entries(flags).map(([key, val]) => (
           <div
@@ -623,12 +934,19 @@ export default function Account() {
             style={{
               padding: '14px 18px',
               borderBottom: '1px solid var(--border)',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 600,
-              fontSize: '13px',
             }}
           >
-            Signers ({signers.length})
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+              }}
+            >
+              Signers ({signers.length})
+            </h2>
           </div>
           {signers.map((s: Horizon.AccountSigner, i: number) => (
             <div
@@ -673,19 +991,35 @@ export default function Account() {
           style={{
             padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
-            fontFamily: 'var(--font-display)',
-            fontWeight: 600,
-            fontSize: '13px',
           }}
         >
-          Open Offers
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Open Offers
+          </h2>
         </div>
         {offersLoading ? (
-          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--text-muted)' }}
+          >
             Loading offers...
           </div>
         ) : offersError ? (
-          <div style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--red)' }}>
+          <div
+            role="alert"
+            aria-live="polite"
+            style={{ padding: '16px 18px', fontSize: '12px', color: 'var(--red)' }}
+          >
             Error: {offersError}
           </div>
         ) : offers.length === 0 ? (
@@ -721,7 +1055,8 @@ export default function Account() {
                     href={`https://stellar.expert/explorer/${network}/offer/${offer.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: '11px', color: 'var(--cyan)' }}
+                    aria-label={`View offer ${offer.id} on Stellar Expert (opens in new tab)`}
+                    style={{ fontSize: '11px', color: 'var(--cyan)', minHeight: '24px', display: 'inline-flex', alignItems: 'center' }}
                   >
                     View ↗
                   </a>
@@ -764,22 +1099,24 @@ export default function Account() {
         }}
       >
         <div>
-          <div
+          <h2
             style={{
+              margin: '0 0 4px 0',
               fontFamily: 'var(--font-display)',
               fontWeight: 600,
               fontSize: '13px',
-              marginBottom: '4px',
+              color: 'var(--text-primary)',
             }}
           >
             Claimable Balances
-          </div>
+          </h2>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             View and simulate claiming pending balances
           </div>
         </div>
         <button
           onClick={() => useStore.getState().setActiveTab('claimableBalances')}
+          aria-label="View and claim pending balances"
           style={{
             padding: '8px 14px',
             borderRadius: 'var(--radius-sm)',
@@ -789,6 +1126,8 @@ export default function Account() {
             fontSize: '12px',
             fontFamily: 'var(--font-mono)',
             cursor: 'pointer',
+            minHeight: '36px',
+            minWidth: '44px',
           }}
         >
           View ⊛

@@ -24,7 +24,7 @@
     "build": "vite build && node scripts/check-bundle-budgets.mjs",
     "build:analyze": "ANALYZE=1 vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-inline-style-budget.mjs",
     "lint:fix": "eslint . --fix",
     "plugin:create": "node scripts/create-plugin.mjs",
     "format": "prettier --write package.json pnpm-lock.yaml eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",

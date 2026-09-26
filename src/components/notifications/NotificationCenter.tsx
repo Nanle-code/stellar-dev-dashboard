@@ -9,7 +9,8 @@ const NotificationCenter = () => {
 
   return (
     <div
-      aria-live="assertive"
+      role="region"
+      aria-label="Notifications"
       className="fixed inset-0 flex items-end px-4 py-6 pointer-events-none sm:p-6 sm:items-start z-50 overflow-hidden"
     >
       <div className="w-full h-full flex flex-col items-center sm:items-end gap-y-4">

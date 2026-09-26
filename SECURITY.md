@@ -36,7 +36,7 @@ To add a new endpoint or wallet integration, update the `Content-Security-Policy
 
 ### 2. Automated Guardrails
 - **Dependabot**: Monitors `npm` and `github-actions` ecosystems daily for updates.
-- **CI Security Audit**: Every push and pull request triggers an `npm audit --audit-level=high` check. Failure to meet this threshold blocks the deployment pipeline.
+- **CI Security Audit (#832)**: Every push, pull request, and daily scheduled run audits production dependencies (`pnpm audit --prod`) against remediation SLAs (critical 7 days, high 30 days, moderate 90 days, low 180 days). High and critical advisories fail CI once their SLA elapses and are reported as warnings until then; moderate advisories always warn. Empty or invalid audit output fails the job. Thresholds are configurable via `VULN_FAIL_ON`, `VULN_WARN_ON`, and `VULN_SLA_DAYS` - see [docs/security/dependency-vulnerability-sla.md](docs/security/dependency-vulnerability-sla.md).
 - **Intelligent Dependency Management (#602)**: In-app analysis engine (`src/lib/dependencyManagement.ts`) correlates vulnerability databases / npm audit data, produces risk-scored update recommendations, detects version conflicts, and exposes a dashboard tab (`Dependencies`) plus the Security Dashboard dependency panel.
 
 ## Reporting a Vulnerability

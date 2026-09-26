@@ -11,6 +11,7 @@
   "scripts": {
     "check:node": "node scripts/node-version-policy.mjs",
     "test:node-support": "node --test tests/node-version-policy.test.mjs",
+    "test:dependency-sla": "node --test tests/dependency-vulnerability-sla.node-test.mjs",
     "ml:train": "node src/ml/train.js",
     "ml:train:liquidity": "node src/ml/trainLiquidity.cjs",
     "ml:train:phishing": "node src/ml/train_phishing.cjs",

@@ -21,6 +21,10 @@ permissions:
 
 env:
   NODE_VERSION: '20'
+  # Vulnerability SLA policy (#832) - see docs/security/dependency-vulnerability-sla.md
+  VULN_FAIL_ON: high
+  VULN_WARN_ON: moderate
+  VULN_SLA_DAYS: critical=7,high=30,moderate=90,low=180
 
 jobs:
   npm-audit:
@@ -41,8 +45,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Run pnpm audit (high severity)
-        run: pnpm audit --prod --audit-level=high
+      - name: Test vulnerability SLA gate
+        run: pnpm run test:dependency-sla
+
+      # pnpm exits non-zero whenever advisories exist, so its status is ignored here;
+      # the SLA gate decides pass/warn/fail and fails closed on empty or invalid output.
+      - name: Run pnpm audit (production dependencies)
+        run: pnpm audit --prod --json > audit-prod.json || true
+
+      - name: Enforce vulnerability SLAs
+        run: node scripts/dependency-vulnerability-sla.mjs --input audit-prod.json
 
       - name: Generate full audit report
         if: always()
@@ -53,7 +65,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: npm-audit-report
-          path: audit-report.json
+          path: |
+            audit-report.json
+            audit-prod.json
+          if-no-files-found: warn
           retention-days: 30
 
   outdated-check:

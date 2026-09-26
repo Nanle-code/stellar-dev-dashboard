@@ -3,7 +3,8 @@
  * Uses TensorFlow.js to provide context-aware error explanations and solutions
  */
 
-import * as tf from '@tensorflow/tfjs';
+import type { LayersModel, Tensor } from '@tensorflow/tfjs';
+import { loadTfRuntime, getTfRuntime, requireTfRuntime, type TfjsModule } from '../mlRuntime';
 import { getErrorExplanation, ErrorExplanation } from './errorDatabase';
 
 export interface ErrorContext {
@@ -42,7 +43,7 @@ export interface UserFeedback {
 }
 
 class MLSuggestionEngine {
-  private model: tf.LayersModel | null = null;
+  private model: LayersModel | null = null;
   private feedbackHistory: UserFeedback[] = [];
   private contextPatterns: Map<string, number[]> = new Map();
   private isInitialized = false;
@@ -54,17 +55,26 @@ class MLSuggestionEngine {
     if (this.isInitialized) return;
 
     try {
-      // Try to load existing model from IndexedDB
-      this.model = await tf.loadLayersModel('indexeddb://stellar-error-suggestion-model');
-      this.model.compile({
-        optimizer: 'adam',
-        loss: 'categoricalCrossentropy',
-        metrics: ['accuracy']
-      });
-    } catch {
-      // Create new model if none exists
-      this.model = this.createModel();
-      await this.saveModel();
+      // TensorFlow.js arrives through the lazy `mlRuntime` facade (#969).
+      const tf = await loadTfRuntime();
+
+      try {
+        // Try to load existing model from IndexedDB
+        this.model = await tf.loadLayersModel('indexeddb://stellar-error-suggestion-model');
+        this.model.compile({
+          optimizer: 'adam',
+          loss: 'categoricalCrossentropy',
+          metrics: ['accuracy']
+        });
+      } catch {
+        // Create new model if none exists
+        this.model = this.createModel(tf);
+        await this.saveModel();
+      }
+    } catch (error) {
+      // Runtime unavailable (offline / blocked chunk) — keep rule-based suggestions.
+      this.model = null;
+      console.warn('TensorFlow.js runtime unavailable for the suggestion engine', error);
     }
 
     this.loadFeedbackHistory();
@@ -74,7 +84,7 @@ class MLSuggestionEngine {
   /**
    * Create the suggestion model architecture
    */
-  private createModel(): tf.LayersModel {
+  private createModel(tf: TfjsModule): LayersModel {
     const model = tf.sequential();
     
     // Input layer: error code (one-hot encoded), context features
@@ -219,14 +229,18 @@ class MLSuggestionEngine {
       return this.generateFallbackSuggestion(context);
     }
 
+    const tf = getTfRuntime();
     const features = this.extractFeatures(context);
-    const inputTensor = tf.tensor2d([features]);
+    const inputTensor = tf ? tf.tensor2d([features]) : null;
     
     let priority: 'high' | 'medium' | 'low' = 'medium';
     let confidence = 0.5;
 
     try {
-      const prediction = this.model!.predict(inputTensor) as tf.Tensor;
+      if (!this.model || !inputTensor) {
+        throw new Error('ML suggestion model unavailable');
+      }
+      const prediction = this.model.predict(inputTensor) as Tensor;
       const probabilities = await prediction.data();
       
       const maxIdx = probabilities.indexOf(Math.max(...probabilities));
@@ -240,7 +254,7 @@ class MLSuggestionEngine {
       priority = this.calculateRuleBasedPriority(explanation, context);
     }
 
-    inputTensor.dispose();
+    inputTensor?.dispose();
 
     // Generate context-aware suggestions
     const contextAwareSuggestions = this.enhanceSuggestions(
@@ -489,6 +503,7 @@ class MLSuggestionEngine {
       const trainingData = this.prepareTrainingData();
       
       if (trainingData.features.length > 0) {
+        const tf = requireTfRuntime();
         const xs = tf.tensor2d(trainingData.features);
         const ys = tf.tensor2d(trainingData.labels);
         

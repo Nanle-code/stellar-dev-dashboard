@@ -10,7 +10,11 @@ The interactive version of this guide lives in Storybook: **Design System / Perf
 | Metric                           | Target                               | Enforcement                                |
 | -------------------------------- | ------------------------------------ | ------------------------------------------ |
 | Total bundle (gzipped)           | ≤ 500 KB                             | `scripts/check-bundle-budgets.mjs` in CI   |
+| Entry chunk (`index`, gzipped)   | ≤ 100 KB                             | `scripts/check-bundle-budgets.mjs` in CI   |
 | Route chunk (gzipped)            | ≤ 150 KB                             | `scripts/check-bundle-budgets.mjs` in CI   |
+| ML vendor chunk (`ml-vendor`)    | ≤ 450 KB, lazy only                  | `scripts/check-bundle-budgets.mjs` in CI   |
+| Graph vendor chunk (`graph-vendor`) | ≤ 400 KB, lazy only               | `scripts/check-bundle-budgets.mjs` in CI   |
+| Heavy libs in entry / Overview   | 0 modules                            | `scripts/check-bundle-budgets.mjs` (#969)  |
 | Lighthouse Performance (Desktop) | ≥ 70 (error) / ≥ 80 (warn)           | Lighthouse CI (`lighthouserc.desktop.cjs`) |
 | Lighthouse Performance (Mobile)  | ≥ 65 (error) / ≥ 75 (warn)           | Lighthouse CI (`lighthouserc.mobile.cjs`)  |
 | LCP (Largest Contentful Paint)   | < 2.5s (Desktop) / < 3.5s (Mobile)   | Lighthouse CI (`lighthouserc.cjs`)         |
@@ -133,6 +137,105 @@ Exit codes:
   - Dedicated desktop (`lighthouserc.desktop.cjs`) and mobile (`lighthouserc.mobile.cjs`) configurations.
   - Granular `assertMatrix` defining route-specific budgets.
   - Standard `budgets-desktop.json` and `budgets-mobile.json` files for external Lighthouse tooling compatibility.
+
+---
+
+## Deferred ML & Graph Libraries (#969)
+
+`@tensorflow/tfjs`, `react-force-graph-2d` (which pulls `force-graph`) and
+`d3-force-3d` are heavy and are only needed by a subset of views. They must never
+be reachable from the entry chunk or from the chunk that renders Overview, so
+they are only fetched when the view that needs them is on screen.
+
+### What is deferred, and how
+
+| Library                 | Loaded via                                                        | Chunk            |
+| ----------------------- | ----------------------------------------------------------------- | ---------------- |
+| `@tensorflow/tfjs`      | `loadTfjs()` in `src/lib/mlRuntime.ts` (dynamic `import()`)        | `ml-vendor`      |
+| `react-force-graph-2d`  | `React.lazy(() => import('react-force-graph-2d'))`                 | `graph-vendor`   |
+| `d3-force-3d`           | `import('d3-force-3d')` inside the topology effect                 | `graph-vendor`   |
+
+`vite.config.js` pins those packages into the `ml-vendor` / `graph-vendor` chunks
+through `build.rollupOptions.output.manualChunks`, so the deferred libraries stay
+cacheable and easy to spot.
+
+### Developer rules
+
+1. **Never statically import `@tensorflow/tfjs`.** Use
+   `import type { Tensor } from '@tensorflow/tfjs'` for types (erased at build
+   time) and `await loadTfjs()` for the runtime.
+2. **Show a loading state while the runtime downloads.** The facade tracks
+   `idle | loading | ready | error`; `useMlRuntime()` exposes it to components:
+
+   ```tsx
+   const { isLoading, error } = useMlRuntime();
+
+   <button disabled={isLoading}>{isLoading ? 'Loading ML runtime…' : 'Run analysis'}</button>;
+   ```
+
+   `DigitalTwinPanel` is the reference implementation: it dynamically imports
+   `src/lib/digitalTwin`, labels the button while the runtime is in flight, and
+   surfaces a failed import instead of failing silently.
+3. **Keep graph libraries behind a dynamic import.** Import them inside the
+   component that renders the graph (`React.lazy`, or `import()` inside an effect
+   as `D3VisualizationSuite` does) and render a placeholder while it loads.
+4. **ML work is asynchronous.** The first call that needs the runtime awaits a
+   download, so anything that touches tfjs has to be `async` (for example
+   `AccountDigitalTwin.getFeatures()` is only callable after
+   `await buildModel()`).
+
+### How the budget rule works
+
+`vite build` emits `dist/bundle-modules.json` from the
+`emit-bundle-module-map` plugin in `vite.config.js`. It records, straight from
+Rollup's chunk graph, which module ids landed in which chunk and which chunk is
+the entry.
+
+`scripts/check-bundle-budgets.mjs` (run as part of `pnpm run build`) then:
+
+- enforces the gzipped size budgets in the table above, and
+- fails the build when a heavy library id appears in the entry chunk or in any
+  chunk that contains `src/components/dashboard/Overview.tsx`.
+
+The rule logic lives in `scripts/bundle-budget-rules.cjs` and is covered by
+`tests/ci/bundle-budgets.test.mjs` (primary flow, exact-budget boundary, lazy
+chunk allowed, entry/Overview leak, malformed input).
+
+### Recording mobile LCP before / after
+
+The Overview mobile LCP must be captured on both sides of the change so the
+improvement is measurable rather than assumed:
+
+```bash
+# 1. Check out the base commit, then record "before"
+git stash && pnpm install
+pnpm run test:lighthouse:mobile   # writes reports to .lighthouseci/
+
+# 2. Back on the PR branch, record "after"
+pnpm install
+pnpm run test:lighthouse:mobile
+
+# 3. Compare both runs against the /overview mobile budget
+pnpm run test:lighthouse:enforce -- --device=mobile
+```
+
+Both runs are produced by the same `lighthouserc.mobile.cjs` profile (4x CPU
+slowdown, simulated 4G), so the only difference is the bundle composition. Paste
+the two `/overview` LCP numbers into the pull request description; Lighthouse CI
+re-runs the check on every push, so a regression fails the required check even if
+the number is not recorded manually.
+
+### Compatibility notes
+
+- **No API change for users**: the deferral is a build/loading change. The one
+  behavioural difference is that the first ML action takes as long as the runtime
+  download; subsequent actions reuse the memoized module.
+- **Failure handling**: if the runtime import fails (offline, blocked chunk), the
+  facade records the error, clears the memoized promise so a later interaction can
+  retry, and components render the message from `useMlRuntime().error`.
+- **Testing**: modules that call `loadTfjs()` need the dynamic import to resolve,
+  which works in Vitest/jsdom. `resetMlRuntime()` is available to clear the memo
+  between tests.
 
 ---
 

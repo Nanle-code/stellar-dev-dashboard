@@ -1,4 +1,3 @@
-import * as tf from '@tensorflow/tfjs';
 import { categorizeError, formatErrorMessage } from '../../utils/errorHandler';
 import { detectAnomalies } from '../../utils/metricsCollector';
 import { generateFingerprint, getPatternsByCategory, getSimilarFixes } from './FixHistoryStore';

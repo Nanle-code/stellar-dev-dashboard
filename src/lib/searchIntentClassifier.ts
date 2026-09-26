@@ -12,7 +12,8 @@
  * - Intent transition probability modeling
  */
 
-import * as tf from '@tensorflow/tfjs'
+import type { LayersModel, Tensor } from '@tensorflow/tfjs'
+import { loadTfjs, type TfjsModule } from './mlRuntime'
 import { classifyIntent, type SearchIntent } from './nlpSearchEngine'
 import type { UserContext } from './queryPredictionEngine'
 
@@ -145,7 +146,8 @@ function extractIntentFeatures(
 // ---------------------------------------------------------------------------
 
 export class SearchIntentClassifier {
-  private model: tf.LayersModel | null = null
+  private model: LayersModel | null = null
+  private tf: TfjsModule | null = null
   private intentHistory: IntentPattern[] = []
   private correctionLog: Array<{ query: string; predicted: string; corrected: string }> = []
   private maxHistorySize = 500
@@ -375,39 +377,62 @@ export class SearchIntentClassifier {
   // ML Model
   // -----------------------------------------------------------------------
 
-  /** Initialize the TFJS intent classification model */
+  /**
+   * Initialize the TFJS intent classification model.
+   *
+   * TensorFlow.js is fetched with a dynamic import through the `mlRuntime`
+   * facade (#969) so that merely importing this module — which `useQueryPrediction`
+   * does — does not place the ML runtime in the initial bundle.
+   */
   async initModel(): Promise<void> {
     try {
-      this.model = await tf.loadLayersModel('indexeddb://stellar-intent-classifier-model')
-      this.model.compile({
-        optimizer: 'adam',
-        loss: 'categoricalCrossentropy',
-        metrics: ['accuracy'],
-      })
-    } catch {
-      const numFeatures = 7 + 5 + 5 + 5 // features + baseIntentOH + historyOH + lastIntentOH = 22
-      const intentTypes = 5
+      const tf = await loadTfjs()
+      this.tf = tf
 
-      const model = tf.sequential()
-      model.add(tf.layers.dense({ units: 20, activation: 'relu', inputShape: [numFeatures] }))
-      model.add(tf.layers.dropout({ rate: 0.15 }))
-      model.add(tf.layers.dense({ units: 12, activation: 'relu' }))
-      model.add(tf.layers.dense({ units: intentTypes, activation: 'softmax' }))
+      try {
+        this.model = await tf.loadLayersModel('indexeddb://stellar-intent-classifier-model')
+        this.model.compile({
+          optimizer: 'adam',
+          loss: 'categoricalCrossentropy',
+          metrics: ['accuracy'],
+        })
+      } catch {
+        const numFeatures = 7 + 5 + 5 + 5 // features + baseIntentOH + historyOH + lastIntentOH = 22
+        const intentTypes = 5
 
-      model.compile({
-        optimizer: 'adam',
-        loss: 'categoricalCrossentropy',
-        metrics: ['accuracy'],
-      })
+        const model = tf.sequential()
+        model.add(tf.layers.dense({ units: 20, activation: 'relu', inputShape: [numFeatures] }))
+        model.add(tf.layers.dropout({ rate: 0.15 }))
+        model.add(tf.layers.dense({ units: 12, activation: 'relu' }))
+        model.add(tf.layers.dense({ units: intentTypes, activation: 'softmax' }))
 
-      this.model = model
+        model.compile({
+          optimizer: 'adam',
+          loss: 'categoricalCrossentropy',
+          metrics: ['accuracy'],
+        })
+
+        this.model = model
+      }
+    } catch (error) {
+      // Runtime unavailable (offline / blocked chunk) — stay rule-based. The
+      // facade records the failure so `useMlRuntime()` can surface it.
+      this.tf = null
+      this.model = null
+      console.warn('TensorFlow.js runtime unavailable for the intent classifier', error)
     }
   }
 
   /** Train the intent classifier model */
   async trainModel(): Promise<{ accuracy: number; loss: number }> {
-    if (!this.model) {
+    if (!this.model || !this.tf) {
       await this.initModel()
+    }
+
+    const tf = this.tf
+    const model = this.model
+    if (!tf || !model) {
+      return { accuracy: 0, loss: 0 }
     }
 
     if (this.intentHistory.length < 10) {
@@ -422,7 +447,7 @@ export class SearchIntentClassifier {
     const xs = tf.tensor2d(trainingData.features)
     const ys = tf.tensor2d(trainingData.labels)
 
-    const history = await this.model!.fit(xs, ys, {
+    const history = await model.fit(xs, ys, {
       epochs: 15,
       batchSize: Math.min(16, trainingData.features.length),
       shuffle: true,
@@ -430,7 +455,7 @@ export class SearchIntentClassifier {
     })
 
     try {
-      await this.model!.save('indexeddb://stellar-intent-classifier-model')
+      await model.save('indexeddb://stellar-intent-classifier-model')
     } catch {
       // Ignore save errors in test environments
     }
@@ -479,12 +504,13 @@ export class SearchIntentClassifier {
     context: UserContext,
     baseIntent: SearchIntent
   ): SearchIntent | null {
-    if (!this.model) return null
+    if (!this.model || !this.tf) return null
 
     try {
+      const tf = this.tf
       const features = extractIntentFeatures(query, context, baseIntent, this.intentHistory)
       const tensor = tf.tensor2d([features])
-      const predTensor = this.model.predict(tensor) as tf.Tensor
+      const predTensor = this.model.predict(tensor) as Tensor
       const probs = Array.from(predTensor.dataSync())
 
       tensor.dispose()

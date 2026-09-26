@@ -1,14 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { extent, max } from 'd3-array'
-import {
-  forceCenter,
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceSimulation,
-  forceX,
-  forceY,
-} from 'd3-force-3d'
 import { scaleBand, scaleLinear, scaleOrdinal, scaleSqrt, scaleTime } from 'd3-scale'
 import { interpolateTurbo, schemeTableau10 } from 'd3-scale-chromatic'
 import { select } from 'd3-selection'
@@ -279,9 +270,13 @@ function NetworkTopology({ data, metric, colorMode, svgRef }) {
   const size = useElementSize(wrapperRef, 380)
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedLink, setSelectedLink] = useState(null)
+  const [forceReady, setForceReady] = useState(false)
 
   useEffect(() => {
     if (!localSvgRef.current) return undefined
+
+    let cancelled = false
+    let simulation = null
 
     svgRef.current = localSvgRef.current
     const width = size.width
@@ -340,28 +335,48 @@ function NetworkTopology({ data, metric, colorMode, svgRef }) {
 
     svg.call(zoomBehavior)
 
-    const simulation = forceSimulation(data.nodes.map((node) => ({ ...node })), 2)
-      .force('link', forceLink(data.links.map((link) => ({ ...link }))).id((node) => node.id).distance((link) => 84 + widthScale(metricValue(link, metric)) * 7))
-      .force('charge', forceManyBody().strength(-180))
-      .force('center', forceCenter(width / 2, height / 2))
-      .force('collide', forceCollide((node) => radius(metricValue(node, metric)) + 10))
-      .force('clusterX', forceX((node) => (node.type === 'central' ? width / 2 : width * (0.28 + (clusters.indexOf(node.type) % 3) * 0.22))).strength(0.04))
-      .force('clusterY', forceY((node) => (node.type === 'central' ? height / 2 : height * (0.28 + (clusters.indexOf(node.type) % 2) * 0.3))).strength(0.035))
-      .on('tick', () => {
-        linkSelection
-          .attr('x1', (link) => link.source.x)
-          .attr('y1', (link) => link.source.y)
-          .attr('x2', (link) => link.target.x)
-          .attr('y2', (link) => link.target.y)
-        nodeSelection.attr('cx', (node) => node.x).attr('cy', (node) => node.y)
-        labelSelection.attr('x', (node) => node.x).attr('y', (node) => node.y + radius(metricValue(node, metric)) + 13)
-      })
-
     localSvgRef.current.resetZoom = () => {
       svg.transition().duration(250).call(zoomBehavior.transform, zoomIdentity)
     }
 
-    return () => simulation.stop()
+    // `d3-force-3d` is a heavy, layout-only dependency: the SVG above renders
+    // without it. Load it on demand so it stays out of the initial bundle
+    // (#969); Vite emits it as part of the `graph-vendor` chunk.
+    import('d3-force-3d')
+      .then(({ forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY }) => {
+        if (cancelled) return
+
+        simulation = forceSimulation(data.nodes.map((node) => ({ ...node })), 2)
+          .force('link', forceLink(data.links.map((link) => ({ ...link }))).id((node) => node.id).distance((link) => 84 + widthScale(metricValue(link, metric)) * 7))
+          .force('charge', forceManyBody().strength(-180))
+          .force('center', forceCenter(width / 2, height / 2))
+          .force('collide', forceCollide((node) => radius(metricValue(node, metric)) + 10))
+          .force('clusterX', forceX((node) => (node.type === 'central' ? width / 2 : width * (0.28 + (clusters.indexOf(node.type) % 3) * 0.22))).strength(0.04))
+          .force('clusterY', forceY((node) => (node.type === 'central' ? height / 2 : height * (0.28 + (clusters.indexOf(node.type) % 2) * 0.3))).strength(0.035))
+          .on('tick', () => {
+            linkSelection
+              .attr('x1', (link) => link.source.x)
+              .attr('y1', (link) => link.source.y)
+              .attr('x2', (link) => link.target.x)
+              .attr('y2', (link) => link.target.y)
+            nodeSelection.attr('cx', (node) => node.x).attr('cy', (node) => node.y)
+            labelSelection.attr('x', (node) => node.x).attr('y', (node) => node.y + radius(metricValue(node, metric)) + 13)
+          })
+
+        setForceReady(true)
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setForceReady(false)
+          // Keep the failure visible: the graph is still usable, just static.
+          console.error('Failed to load the force-directed layout engine', error)
+        }
+      })
+
+    return () => {
+      cancelled = true
+      simulation?.stop()
+    }
   }, [colorMode, data, metric, size, svgRef])
 
   const selected = selectedNode || selectedLink
@@ -369,6 +384,20 @@ function NetworkTopology({ data, metric, colorMode, svgRef }) {
   return (
     <div ref={wrapperRef} style={{ minHeight: '380px', position: 'relative' }}>
       <svg ref={localSvgRef} role="img" aria-label="D3 force-directed transaction topology" style={{ display: 'block', height: '380px', width: '100%' }} />
+      {!forceReady && (
+        <span
+          role="status"
+          style={{
+            color: 'var(--text-secondary)',
+            fontSize: '12px',
+            left: 12,
+            position: 'absolute',
+            top: 16,
+          }}
+        >
+          Loading graph engine...
+        </span>
+      )}
       <button
         type="button"
         title="Reset zoom"

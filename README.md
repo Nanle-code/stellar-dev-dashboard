@@ -168,6 +168,42 @@ The dashboard provides auto-generated controls for smart contract interaction wh
 - Compatible with existing `ContractInteraction` components. No migration of user settings is necessary.
 - Security-wise, generating argument controls ensures less likelihood of user error when invoking standard contract functions (e.g. incorrect mapping of manual types to required ABI types).
 
+## WASM Hash History & Authorization Tracking
+
+The dashboard now includes comprehensive visualization tools for tracking contract upgrades, WASM hashes, and authorization requirements.
+
+### Key Features
+
+1. **WASM Hash History**: Automatic tracking of all WASM hashes associated with contract upgrades with filtering, export, and transaction explorer links
+2. **Authorization Requirements Display**: Real-time visualization of authorization status with severity indicators and change history
+3. **Local Storage**: All upgrade data stored locally in browser IndexedDB for privacy and performance
+4. **Network Isolation**: Separate tracking per network (testnet, mainnet, public, custom) to prevent cross-network confusion
+5. **Error Handling**: Comprehensive validation and graceful degradation for unsupported environments
+
+### Integration Points
+
+- **Contracts Panel**: New "📜 WASM History" tab for viewing and managing upgrade history
+- **Contract History Panel**: Recent WASM hashes displayed when filtering by contract ID
+- **Authorization Panel**: Automatic display when contracts are selected with detailed security analysis
+
+### Security Considerations
+
+- **Authorization Severity**: Color-coded severity levels (safe, low, medium, high, critical) for quick security assessment
+- **Change Tracking**: Monitor authorization requirement changes across upgrades to detect security implications
+- **Critical Auth Types**: Admin and owner authorizations are prominently marked as critical severity
+- **Multi-signature Support**: Recognition and display of multisig requirements
+
+### Compatibility & Migration Notes
+
+- **Browser Requirements**: Requires IndexedDB support for local history storage; gracefully degrades to display-only mode if unavailable
+- **Storage Limits**: Large upgrade histories may require periodic cleanup; export functionality available for backup
+- **No Breaking Changes**: Existing contract interactions and history remain unaffected
+- **Data Privacy**: All WASM hash history stored locally; no external transmission of upgrade data
+
+### Documentation
+
+See [WASM_HASH_HISTORY_GUIDE.md](WASM_HASH_HISTORY_GUIDE.md) for detailed usage instructions, API reference, and troubleshooting information.
+
 ## Development
 
 ### Node.js support

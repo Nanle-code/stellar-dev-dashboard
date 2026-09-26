@@ -167,3 +167,57 @@ const returnValue = await invokeContractFunction({
 | `tx_bad_seq` | Stale sequence number | Reload account before building |
 | `FAILED` status with `invokeVmFunction` | Contract logic rejected the call | Check contract-level conditions |
 | No return value | Function returns `()` (unit) | Expected — `returnValue` will be null |
+
+## WASM Hash History & Authorization Tracking
+
+The Stellar Dev Dashboard now provides visualization tools for tracking contract upgrades and authorization requirements:
+
+### WASM Hash History
+
+The dashboard automatically tracks WASM hashes for contract upgrades, allowing you to:
+
+- **View Historical Upgrades**: See all historical WASM hashes associated with a contract
+- **Filter by Contract**: Search and filter by contract ID or WASM hash
+- **Export History**: Export upgrade history as JSON for analysis
+- **Transaction Links**: Direct links to block explorers for each upgrade transaction
+
+Access the WASM hash history by navigating to the **Contracts** panel and selecting the **📜 WASM History** tab.
+
+### Authorization Requirements Visualization
+
+The authorization requirements display shows:
+
+- **Current Authorization Status**: Whether the contract requires public access, admin privileges, owner authorization, or custom auth
+- **Severity Levels**: Color-coded severity indicators (safe, low, medium, high, critical)
+- **Change History**: Track how authorization requirements have changed across upgrades
+- **Network Context**: Authorization requirements per network (testnet, mainnet, etc.)
+
+### Integration with Contract Workflow
+
+When working with contract upgrades:
+
+1. **Before Upgrade**: Review current authorization requirements using the Authorization panel
+2. **During Upgrade**: The dashboard automatically tracks the new WASM hash
+3. **After Upgrade**: Compare authorization changes and verify security implications
+4. **Historical Analysis**: Use the WASM history to audit upgrade patterns
+
+### Security Considerations
+
+- **Authorization Changes**: Pay special attention to authorization requirement changes during upgrades
+- **Critical Auth Types**: Admin and owner authorizations are marked as critical severity
+- **Multi-signature Support**: The system recognizes and displays multisig requirements
+- **Network Isolation**: History is tracked separately per network to prevent cross-network confusion
+
+### Compatibility Notes
+
+- **Browser Support**: Requires IndexedDB support for local history storage
+- **Storage Limits**: Large upgrade histories may require periodic cleanup
+- **Migration**: Existing contract interactions are not affected by the new tracking system
+- **Fallback**: If IndexedDB is unavailable, the UI gracefully degrades to display-only mode
+
+### Data Privacy
+
+- **Local Storage**: All WASM hash history is stored locally in your browser's IndexedDB
+- **No External Transmission**: Upgrade data is never sent to external servers
+- **User Control**: You can clear history at any time using the "Clear History" button
+- **Export Capability**: Full data export available for backup and analysis

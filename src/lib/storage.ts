@@ -19,7 +19,7 @@ import { isQuotaExceededError, selectEvictionCandidates, notifyQuotaExceeded } f
 // ─── DB config ────────────────────────────────────────────────────────────────
 
 const DB_NAME    = 'stellar-dev-dashboard';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 const STORES = {
   APP_STATE:  'app-state',    // Zustand persistence
@@ -27,15 +27,20 @@ const STORES = {
   OFFLINE_Q:  'offline-queue', // Queued writes for when back online
   CONTRACT_HISTORY: 'contract-history', // Contract interactions
   BIOMETRIC_PROFILES: 'biometric-profiles', // Behavioral biometrics profiles
+  WASM_HASH_HISTORY: 'wasm-hash-history', // Historical WASM hashes and upgrade transactions
   META: '__meta__', // Schema metadata and migration tracking
 };
 
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 const MIGRATIONS = {
   4: async (db) => {
     const meta = db.transaction(STORES.META, 'readwrite').objectStore(STORES.META);
     meta.put({ key: 'schemaVersion', value: 5 });
+  },
+  5: async (db) => {
+    const meta = db.transaction(STORES.META, 'readwrite').objectStore(STORES.META);
+    meta.put({ key: 'schemaVersion', value: 6 });
   },
 };
 
@@ -78,6 +83,13 @@ function openDB() {
         const store = db.createObjectStore(STORES.BIOMETRIC_PROFILES, { keyPath: 'userId' });
         store.createIndex('lastUpdated', 'lastUpdated', { unique: false });
         store.createIndex('sampleCount', 'sampleCount', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.WASM_HASH_HISTORY)) {
+        const store = db.createObjectStore(STORES.WASM_HASH_HISTORY, { keyPath: 'id' });
+        store.createIndex('contractId', 'contractId', { unique: false });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+        store.createIndex('wasmHash', 'wasmHash', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.META)) {
@@ -406,6 +418,101 @@ export async function clearContractInteractions() {
   try {
     await tx(STORES.CONTRACT_HISTORY, 'readwrite', (s) => s.clear());
   } catch { /* ignore */ }
+}
+
+// ─── WASM Hash History Store ─────────────────────────────────────────────────────
+/**
+ * Store a WASM hash record for a contract upgrade.
+ * @param {{ id: string, contractId: string, wasmHash: string, transactionHash: string, timestamp: number, authorization: string, network: string }} record
+ */
+export async function addWasmHashRecord(record) {
+  try {
+    // Validate input
+    if (!record || typeof record !== 'object') {
+      throw new Error('Invalid record: must be an object');
+    }
+    if (!record.id || typeof record.id !== 'string') {
+      throw new Error('Invalid record: missing or invalid id');
+    }
+    if (!record.contractId || typeof record.contractId !== 'string') {
+      throw new Error('Invalid record: missing or invalid contractId');
+    }
+    if (!record.wasmHash || typeof record.wasmHash !== 'string') {
+      throw new Error('Invalid record: missing or invalid wasmHash');
+    }
+    if (!record.network || typeof record.network !== 'string') {
+      throw new Error('Invalid record: missing or invalid network');
+    }
+    
+    await tx(STORES.WASM_HASH_HISTORY, 'readwrite', (s) => s.put(record));
+  } catch (error) {
+    console.error('Failed to add WASM hash record:', error);
+    throw error;
+  }
+}
+
+/**
+ * Retrieve WASM hash history for a contract.
+ * @param {{ contractId?: string, wasmHash?: string, network?: string }} filters
+ * @returns {Promise<Array>}
+ */
+export async function getWasmHashHistory(filters = {}) {
+  try {
+    // Validate filters
+    if (filters && typeof filters !== 'object') {
+      throw new Error('Invalid filters: must be an object');
+    }
+    
+    // Check for IndexedDB support
+    if (typeof indexedDB === 'undefined') {
+      console.warn("IndexedDB not supported in this environment");
+      return [];
+    }
+
+    const all = await tx(STORES.WASM_HASH_HISTORY, 'readonly', (s) => s.getAll()) ?? [];
+    let results = all.sort((a, b) => b.timestamp - a.timestamp);
+    
+    if (filters.contractId) {
+      if (typeof filters.contractId !== 'string') {
+        throw new Error('Invalid contractId filter: must be a string');
+      }
+      results = results.filter(r => r.contractId && r.contractId.toLowerCase().includes(filters.contractId.toLowerCase()));
+    }
+    if (filters.wasmHash) {
+      if (typeof filters.wasmHash !== 'string') {
+        throw new Error('Invalid wasmHash filter: must be a string');
+      }
+      results = results.filter(r => r.wasmHash && r.wasmHash.toLowerCase().includes(filters.wasmHash.toLowerCase()));
+    }
+    if (filters.network) {
+      if (typeof filters.network !== 'string') {
+        throw new Error('Invalid network filter: must be a string');
+      }
+      results = results.filter(r => r.network === filters.network);
+    }
+    return results;
+  } catch (error) {
+    console.error('Failed to get WASM hash history:', error);
+    return [];
+  }
+}
+
+/**
+ * Clear all WASM hash history.
+ */
+export async function clearWasmHashHistory() {
+  try {
+    // Check for IndexedDB support
+    if (typeof indexedDB === 'undefined') {
+      console.warn("IndexedDB not supported in this environment");
+      return;
+    }
+    
+    await tx(STORES.WASM_HASH_HISTORY, 'readwrite', (s) => s.clear());
+  } catch (error) {
+    console.error('Failed to clear WASM hash history:', error);
+    throw error;
+  }
 }
 
 // ─── Biometric Profiles Store ─────────────────────────────────────────────────

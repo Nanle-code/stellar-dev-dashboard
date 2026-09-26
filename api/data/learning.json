@@ -5,6 +5,18 @@
       "type": "role_assignment",
       "suggestedRole": "viewer",
       "appliedAt": "2026-08-29T07:19:14.025Z"
+    },
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-09-26T15:43:27.432Z"
+    },
+    {
+      "user": "test-user",
+      "type": "role_assignment",
+      "suggestedRole": "viewer",
+      "appliedAt": "2026-09-26T15:51:49.474Z"
     }
   ]
 }

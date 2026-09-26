@@ -96,7 +96,8 @@ describe("PluginManager", () => {
   it("rejects plugins targeting an unsupported future API version", () => {
     const manager = new PluginManager({ store: createMockStore() });
 
-    expect(() =>
+    let thrown;
+    try {
       manager.register(
         {
           id: "community.future-plugin",
@@ -108,8 +109,13 @@ describe("PluginManager", () => {
           dataSources: [],
         },
         { sourceType: "installed" }
-      )
-    ).toThrow(/apiVersion "9.9.9" is not supported/);
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown?.message).toMatch(/apiVersion "9.9.9" is not supported/);
 
     // The dashboard's own version is still exposed as the supported baseline.
     expect(manager.getPluginRecords().length).toBe(0);
@@ -138,7 +144,8 @@ describe("PluginManager", () => {
   it("treats an invalid apiVersion string as unsupported", () => {
     const manager = new PluginManager({ store: createMockStore() });
 
-    expect(() =>
+    let thrown;
+    try {
       manager.register(
         {
           id: "community.bad-api-version",
@@ -150,8 +157,13 @@ describe("PluginManager", () => {
           dataSources: [],
         },
         { sourceType: "installed" }
-      )
-    ).toThrow(/apiVersion "not-a-version" is not supported/);
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown?.message).toMatch(/apiVersion "not-a-version" is not supported/);
   });
 
   it("still activates plugins targeting the supported API version", async () => {

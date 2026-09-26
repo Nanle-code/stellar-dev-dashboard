@@ -4,46 +4,108 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-function parseArgs(argv) {
+export const ALLOWED_CAPABILITY_SCOPES = Object.freeze([
+  "dashboard:read",
+  "dashboard:write",
+  "data:read",
+  "data:write",
+  "notifications:write",
+  "network:request",
+  "storage:read",
+  "storage:write",
+  "window:open",
+]);
+
+export function parseArgs(argv) {
   const args = {
     name: "",
     id: "",
     output: "",
     runtime: "iframe",
+    capabilities: ["dashboard:read"],
+    help: false,
   };
 
   for (let index = 2; index < argv.length; index += 1) {
     const value = argv[index];
     const next = argv[index + 1];
 
+    if (value === "--help" || value === "-h") {
+      args.help = true;
+      continue;
+    }
+
     if (value === "--name" && next) {
-      args.name = next;
+      args.name = next.trim();
       index += 1;
       continue;
     }
 
     if (value === "--id" && next) {
-      args.id = next;
+      args.id = next.trim();
       index += 1;
       continue;
     }
 
     if (value === "--output" && next) {
-      args.output = next;
+      args.output = next.trim();
       index += 1;
       continue;
     }
 
     if (value === "--runtime" && next) {
-      args.runtime = next === "module" ? "module" : "iframe";
+      args.runtime = next.trim();
       index += 1;
+      continue;
+    }
+
+    if ((value === "--capabilities" || value === "--permissions") && next) {
+      const rawList = next.split(",").map((s) => s.trim()).filter(Boolean);
+      args.capabilities = rawList;
+      index += 1;
+      continue;
     }
   }
 
   return args;
 }
 
-function buildManifest({ id, name, runtime }) {
+export function validateArgs(args) {
+  if (args.help) return null;
+
+  if (!args.name) {
+    return "Missing required option: --name <plugin-name>";
+  }
+
+  if (!args.id) {
+    return "Missing required option: --id <plugin-id>";
+  }
+
+  const idPattern = /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
+  if (!idPattern.test(args.id)) {
+    return `Invalid plugin ID "${args.id}". Plugin IDs must be lowercase, start/end with an alphanumeric character, and contain only alphanumeric characters, dots, or hyphens (e.g., "community.my-plugin").`;
+  }
+
+  if (!args.output) {
+    return "Missing required option: --output <directory-path>";
+  }
+
+  if (args.runtime !== "iframe" && args.runtime !== "module") {
+    return `Unsupported runtime "${args.runtime}". Allowed runtimes are: "iframe", "module".`;
+  }
+
+  for (const capability of args.capabilities) {
+    if (!ALLOWED_CAPABILITY_SCOPES.includes(capability)) {
+      return `Invalid capability scope "${capability}". Allowed capability scopes are:\n  ${ALLOWED_CAPABILITY_SCOPES.join("\n  ")}`;
+    }
+  }
+
+  return null;
+}
+
+export function buildManifest({ id, name, runtime, capabilities }) {
+  const dedupedCapabilities = Array.from(new Set(capabilities));
+
   return {
     id,
     name,
@@ -52,7 +114,7 @@ function buildManifest({ id, name, runtime }) {
     author: {
       name: "Your name",
     },
-    permissions: ["dashboard:read"],
+    permissions: dedupedCapabilities,
     runtime:
       runtime === "module"
         ? {
@@ -76,7 +138,8 @@ function buildManifest({ id, name, runtime }) {
   };
 }
 
-function buildReadme({ name, id, runtime }) {
+export function buildReadme({ name, id, runtime, capabilities }) {
+  const capList = Array.from(new Set(capabilities));
   return `# ${name}
 
 Scaffolded plugin: \`${id}\`
@@ -85,15 +148,28 @@ Scaffolded plugin: \`${id}\`
 
 \`${runtime}\`
 
+## Granted Capabilities (Permissions)
+
+${capList.length > 0 ? capList.map((c) => `- \`${c}\``).join("\n") : "_No capabilities requested._"}
+
+### Capability-Based Security
+
+This plugin runs in the Stellar Dev Dashboard capability sandbox:
+- Third-party plugins execute with least-privilege permissions.
+- Capabilities can be revoked at any time by the user in the Plugin Registry view.
+- When a capability is revoked, any calls requiring that capability fail safely with \`ERR_CAPABILITY_REVOKED\`.
+- Always handle capability errors gracefully without crashing your plugin UI.
+
 ## Next steps
 
-1. Update the manifest and permission scopes.
-2. Implement the widget UI.
-3. Wire the plugin into your local extension host or static iframe server.
+1. Review \`plugin.json\` to verify required capability scopes.
+2. Implement your widget UI in ${runtime === "module" ? "\`src/plugin.ts\`" : "\`src/widget.html\`"}.
+3. Test your plugin against dynamic capability grants and revocations.
 `;
 }
 
-function buildIframeHtml({ name, id }) {
+export function buildIframeHtml({ name, id, capabilities }) {
+  const capList = Array.from(new Set(capabilities));
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -106,12 +182,13 @@ function buildIframeHtml({ name, id }) {
         min-height: 100%;
         background: #0c111b;
         color: #e8edf7;
-        font-family: Inter, system-ui, sans-serif;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
       }
       body {
         display: grid;
         place-items: center;
         padding: 20px;
+        box-sizing: border-box;
       }
       .card {
         max-width: 520px;
@@ -120,6 +197,7 @@ function buildIframeHtml({ name, id }) {
         border: 1px solid rgba(255,255,255,0.12);
         background: rgba(7, 11, 20, 0.9);
         padding: 20px;
+        box-sizing: border-box;
       }
       h1 {
         margin: 0;
@@ -131,35 +209,174 @@ function buildIframeHtml({ name, id }) {
         line-height: 1.6;
         font-size: 13px;
       }
-      code {
-        display: inline-block;
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
         margin-top: 14px;
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.08);
-        color: #7dd3fc;
+      }
+      .chip {
         font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.12);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+      }
+      .chip.revoked {
+        background: rgba(239, 68, 68, 0.12);
+        color: #f87171;
+        border-color: rgba(239, 68, 68, 0.3);
+        text-decoration: line-through;
+      }
+      .status {
+        margin-top: 14px;
+        padding: 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+        font-family: monospace;
       }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>${name}</h1>
-      <p>This scaffold starts as a sandboxed iframe plugin. Replace this content with your own UI.</p>
-      <code>${id}</code>
+      <p>This extension runs inside the capability-based sandbox.</p>
+      
+      <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; margin-top: 12px;">
+        Capabilities:
+      </div>
+      <div class="chips" id="capabilities-list">
+        ${capList.map((c) => `<span class="chip" id="cap-${c}">${c}</span>`).join("\n        ")}
+      </div>
+
+      <div class="status" id="status-output">Connecting to host capability bridge...</div>
     </div>
+
+    <script>
+      (function() {
+        const pluginId = "${id}";
+        const statusEl = document.getElementById("status-output");
+
+        // Listen for capability revocation events broadcast by the host sandbox
+        window.addEventListener("message", function(event) {
+          if (!event.data || typeof event.data !== "object") return;
+
+          if (event.data.type === "PLUGIN_CAPABILITY_REVOKED") {
+            const cap = event.data.capability;
+            const chip = document.getElementById("cap-" + cap);
+            if (chip) {
+              chip.classList.add("revoked");
+              chip.title = "Capability revoked by user";
+            }
+            statusEl.textContent = 'Warning: Capability "' + cap + '" was revoked by user.';
+            statusEl.style.color = "#f87171";
+          }
+        });
+
+        // Request initial state if dashboard:read capability is declared
+        if (${JSON.stringify(capList)}.includes("dashboard:read")) {
+          const reqId = "init-" + Date.now();
+          window.parent.postMessage({
+            type: "PLUGIN_RPC_REQUEST",
+            pluginId: pluginId,
+            requestId: reqId,
+            capability: "dashboard:read",
+            method: "getState",
+            args: []
+          }, "*");
+
+          const onResponse = function(event) {
+            if (event.data && event.data.type === "PLUGIN_RPC_RESPONSE" && event.data.requestId === reqId) {
+              window.removeEventListener("message", onResponse);
+              if (event.data.success) {
+                statusEl.textContent = "Host connected. Network: " + (event.data.result?.network || "ready");
+                statusEl.style.color = "#4ade80";
+              } else {
+                statusEl.textContent = "State query failed: " + (event.data.error?.message || "Denied");
+                statusEl.style.color = "#f87171";
+              }
+            }
+          };
+          window.addEventListener("message", onResponse);
+        } else {
+          statusEl.textContent = "Sandbox ready (no dashboard:read requested).";
+        }
+      })();
+    </script>
   </body>
 </html>`;
 }
 
-async function main() {
-  const args = parseArgs(process.argv);
+export function buildModuleTs({ name, id, capabilities }) {
+  const capList = Array.from(new Set(capabilities));
+  return `import { definePlugin, type PluginDefinition } from "@stellar-dev-dashboard/plugin-sdk";
 
-  if (!args.name || !args.id || !args.output) {
-    console.error(
-      "Usage: node scripts/create-plugin.mjs --name \"My Plugin\" --id \"community.my-plugin\" --output ./my-plugin [--runtime iframe|module]"
-    );
-    process.exit(1);
+export default function createPlugin(): PluginDefinition {
+  let apiRef: any = null;
+
+  return definePlugin({
+    manifest: {
+      id: "${id}",
+      name: "${name}",
+      version: "0.1.0",
+      description: "${name} module extension",
+      permissions: ${JSON.stringify(capList)},
+      runtime: {
+        mode: "module",
+        entry: "./src/plugin.ts",
+      },
+      widgets: [
+        {
+          id: "${id}.main",
+          title: "${name}",
+          placement: "settings",
+          order: 10,
+        },
+      ],
+      dataSources: [],
+    },
+
+    initialize(api) {
+      apiRef = api;
+      api.logger?.info("${name} initialized under capability sandbox.");
+
+      // Example capability-guarded invocation
+      if (api.hasCapability("dashboard:read")) {
+        try {
+          const state = api.getState();
+          api.logger?.info("Current dashboard network:", state.network);
+        } catch (err: any) {
+          // Handled safely if revoked or denied
+          api.logger?.warn("Failed to read state:", err.message);
+        }
+      }
+    },
+
+    getWidgets() {
+      return [
+        {
+          id: "${id}.main",
+          title: "${name}",
+          placement: "settings",
+          kind: "react",
+        },
+      ];
+    },
+
+    getDataSources() {
+      return [];
+    },
+  });
+}
+`;
+}
+
+export async function createPlugin(args) {
+  const validationError = validateArgs(args);
+  if (validationError) {
+    throw new Error(validationError);
   }
 
   const targetDir = path.resolve(process.cwd(), args.output);
@@ -170,10 +387,12 @@ async function main() {
   const manifest = buildManifest(args);
   await fs.writeFile(path.join(targetDir, "plugin.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   await fs.writeFile(path.join(targetDir, "README.md"), `${buildReadme(args)}\n`);
-  await fs.writeFile(
-    path.join(srcDir, "widget.html"),
-    `${buildIframeHtml(args)}\n`
-  );
+
+  if (args.runtime === "module") {
+    await fs.writeFile(path.join(srcDir, "plugin.ts"), `${buildModuleTs(args)}\n`);
+  } else {
+    await fs.writeFile(path.join(srcDir, "widget.html"), `${buildIframeHtml(args)}\n`);
+  }
 
   await fs.writeFile(
     path.join(targetDir, "package.json"),
@@ -182,16 +401,69 @@ async function main() {
         name: args.id,
         private: true,
         version: "0.1.0",
+        type: "module",
       },
       null,
       2
     )}\n`
   );
 
-  console.log(`Created plugin scaffold in ${targetDir}`);
+  return { targetDir, manifest };
 }
 
-main().catch((error) => {
-  console.error(error?.message || String(error));
-  process.exit(1);
-});
+function showUsage() {
+  console.log(`
+Usage:
+  node scripts/create-plugin.mjs --name <name> --id <id> --output <dir> [options]
+
+Required Options:
+  --name <string>          Human-readable plugin name (e.g. "Activity Radar")
+  --id <string>            Unique plugin ID (e.g. "community.activity-radar")
+  --output <path>          Output directory path for scaffolded files
+
+Options:
+  --runtime <mode>         Plugin runtime mode: "iframe" (default) or "module"
+  --capabilities <list>    Comma-separated list of capability scopes to request
+  --permissions <list>     Alias for --capabilities
+  -h, --help               Show this help message
+
+Allowed Capability Scopes:
+  ${ALLOWED_CAPABILITY_SCOPES.map((c) => `- ${c}`).join("\n  ")}
+
+Examples:
+  node scripts/create-plugin.mjs --name "Radar" --id "community.radar" --output ./radar
+  node scripts/create-plugin.mjs --name "Storage Tool" --id "community.storage" --output ./tool --capabilities dashboard:read,storage:read,storage:write
+`);
+}
+
+async function main() {
+  const args = parseArgs(process.argv);
+
+  if (args.help) {
+    showUsage();
+    process.exit(0);
+  }
+
+  const validationError = validateArgs(args);
+  if (validationError) {
+    console.error(`Error: ${validationError}\n`);
+    showUsage();
+    process.exit(1);
+  }
+
+  try {
+    const { targetDir } = await createPlugin(args);
+    console.log(`Created plugin scaffold in ${targetDir}`);
+  } catch (error) {
+    console.error(`Error creating plugin: ${error?.message || String(error)}`);
+    process.exit(1);
+  }
+}
+
+// Only execute CLI if run directly
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"))) {
+  main().catch((error) => {
+    console.error(error?.message || String(error));
+    process.exit(1);
+  });
+}

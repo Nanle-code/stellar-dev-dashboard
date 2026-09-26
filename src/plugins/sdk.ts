@@ -123,3 +123,12 @@ export function comparePluginVersions(a: string, b: string): number {
 
   return 0;
 }
+
+export {
+  CapabilityError,
+  CAPABILITY_ERROR_CODES,
+  createSandboxClient,
+  type SandboxClient,
+  type CapabilityScope,
+} from "./capabilitySandbox";
+

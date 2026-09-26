@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
+import * as StellarSdk from '@stellar/stellar-sdk';
 import { useStore } from '../../lib/store';
-import { signTransactionWithFreighter } from '../../lib/wallet/freighter';
-import {
-  signXdrWithLedger,
-  isLedgerSupported,
-  getActiveLedgerSession,
-} from '../../lib/wallet/ledger';
+import { getWalletAdapter } from '../../lib/wallet/adapters';
 import { NETWORKS } from '../../lib/stellar';
 import { measureAsync } from '../../lib/performanceMonitoring';
 import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences';
@@ -18,6 +14,13 @@ import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics';
 import { inspectEnvelope } from '../../utils/feeBumpInspector';
 import type { EnvelopeInfo } from '../../utils/feeBumpInspector';
 
+interface MainnetReviewItem {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  mono?: boolean;
+}
+
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore();
   const [xdr, setXdr] = useState('');
@@ -27,6 +30,7 @@ export default function TransactionSigner() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [ledgerPrompt, setLedgerPrompt] = useState(false);
+  const [showMainnetReview, setShowMainnetReview] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showBiometricOverlay, setShowBiometricOverlay] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
@@ -35,6 +39,7 @@ export default function TransactionSigner() {
   const bio = useBehavioralBiometrics(walletPublicKey);
 
   const [accountInfo, setAccountInfo] = useState<any>(null);
+  const networkPassphrase = NETWORKS[network].passphrase;
 
   useEffect(() => {
     async function fetchPreferences() {
@@ -175,21 +180,13 @@ export default function TransactionSigner() {
     setSignedXdr(null);
 
     try {
-      let result: string | null = null;
-
-      if (walletType === 'freighter') {
-        const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET';
-        result = await measureAsync(
-          'TRANSACTION_SIGNING_DURATION',
-          () => signTransactionWithFreighter(xdr.trim(), networkName),
-          { network, walletType: 'freighter' }
-        );
-      } else if (walletType === 'ledger') {
-        await _signWithLedger();
-        return;
-      } else {
-        throw new Error('No wallet connected. Connect a wallet first.');
-      }
+      if (!walletType) throw new Error('No wallet connected. Connect a wallet first.');
+      setLedgerPrompt(walletType === 'ledger');
+      const result = await measureAsync(
+        'TRANSACTION_SIGNING_DURATION',
+        () => getWalletAdapter(walletType).signTransaction(xdr.trim(), network),
+        { network, walletType }
+      );
 
       setSignedXdr(result);
       // Record this successful sign to the behavioral profile
@@ -199,6 +196,7 @@ export default function TransactionSigner() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setLedgerPrompt(false);
       setSigning(false);
     }
   };
@@ -227,54 +225,6 @@ export default function TransactionSigner() {
   const handleBiometricDismiss = async () => {
     setShowBiometricOverlay(false);
     await _proceedToSign();
-  };
-
-  const _signWithLedger = async () => {
-    const supported = await isLedgerSupported();
-    if (!supported) {
-      setError(
-        'WebUSB/WebHID is not supported in this browser. ' +
-          'Please use Chrome or a Chromium-based browser to sign with Ledger.'
-      );
-      setSigning(false);
-      return;
-    }
-
-    const { stellarApp, publicKey, derivationPath } = getActiveLedgerSession();
-    if (!stellarApp) {
-      setError(
-        'Ledger session not found. Please connect your Ledger in the Wallet tab first, ' +
-          'then return here to sign.'
-      );
-      setSigning(false);
-      return;
-    }
-
-    try {
-      setLedgerPrompt(true);
-      const signed = await measureAsync(
-        'TRANSACTION_SIGNING_DURATION',
-        () =>
-          signXdrWithLedger(
-            xdr.trim(),
-            networkPassphrase,
-            stellarApp,
-            publicKey || walletPublicKey,
-            derivationPath
-          ),
-        { network, walletType: 'ledger' }
-      );
-      setSignedXdr(signed as string);
-      // Record this successful sign to the behavioral profile
-      if (bio.enabled) {
-        bio.recordSuccessfulSign().catch(() => {});
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLedgerPrompt(false);
-      setSigning(false);
-    }
   };
 
   const handleCopy = () => {

@@ -18,6 +18,22 @@ pnpm run check:package-manager
 - Unsupported: npm or yarn installs, and Node.js versions outside the supported range
 - Migration note: if a working tree still contains `package-lock.json`, remove it before installing or this repo will reject the environment as unsupported
 
+## Demo Mode (#875)
+
+New visitors land on the connect screen, so the first impression of the dashboard
+shows no value. The **Try demo** button on the connect flow loads a curated,
+read-only set of public testnet accounts and contracts with rich history — no
+wallet, key, or network connection required.
+
+- Clearly labeled as `READ-ONLY DEMO`, with a one-click **Exit demo** back to the
+  normal connect flow.
+- Fixture data is bundled at `src/fixtures/demo-fixtures.generated.json` and
+  validated by `src/lib/demoMode.ts`.
+- Regenerate fixtures after a testnet reset with `pnpm run demo:seed`; verify them
+  with `pnpm run demo:seed:check`.
+- Full maintainer and user guidance, including security and compatibility notes,
+  lives in [docs/DEMO_MODE.md](docs/DEMO_MODE.md).
+
 ## AI-Enhanced Transaction Fee Prediction (Feature #535)
 
 The fee prediction system uses machine learning to provide optimal transaction fee recommendations.
@@ -136,6 +152,21 @@ The dashboard supports Ledger signing in Chromium-based browsers through WebUSB/
 - The app validates that the XDR is parseable and the network passphrase is set before attempting a device interaction.
 - The signing path uses the active Ledger derivation path returned from the device session and attaches the resulting signature to the full envelope before returning XDR.
 - Reject/recovery errors are surfaced in a user-friendly way instead of leaking raw Ledger transport details.
+
+## Smart Contract Interaction Improvements
+
+The dashboard provides auto-generated controls for smart contract interaction when reading the published on-chain spec.
+
+### Key Features
+
+1. **Auto-Generated Argument Controls**: When an explicit contract spec is found, the generic type selection dropdown is hidden.
+2. **Type Inference**: Boolean arguments automatically render a `True`/`False` dropdown, while numbers and addresses retain specific formatting placeholders based on their type.
+3. **Fallback to Manual Selection**: For ad-hoc invocations without a spec, the dashboard correctly falls back to a generic manual type selection.
+
+### Compatibility & Migration Notes
+
+- Compatible with existing `ContractInteraction` components. No migration of user settings is necessary.
+- Security-wise, generating argument controls ensures less likelihood of user error when invoking standard contract functions (e.g. incorrect mapping of manual types to required ABI types).
 
 ## Development
 

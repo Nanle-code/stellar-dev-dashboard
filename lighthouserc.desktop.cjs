@@ -1,10 +1,7 @@
 /**
- * Lighthouse CI Master Configuration
+ * Lighthouse CI Desktop Configuration
  *
- * Supports dynamic device resolution ('desktop' by default, or 'mobile' via
- * LHCI_PRESET or LIGHTHOUSE_DEVICE).
- *
- * Enforces route-level budgets for LCP, CLS, and TBT on key dashboard routes.
+ * Enforces desktop performance budgets (LCP, CLS, TBT) on key routes.
  *
  * @type {import('@lhci/cli').LHCI.ServerCommand.Options}
  */
@@ -17,13 +14,7 @@ const {
   getDeviceBudgets,
 } = require('./scripts/lighthouse-budgets.cjs');
 
-const device = (
-  process.env.LHCI_PRESET ||
-  process.env.LIGHTHOUSE_DEVICE ||
-  'desktop'
-).toLowerCase();
-const deviceProfile = getDeviceBudgets(device);
-const isMobile = device === 'mobile';
+const deviceProfile = getDeviceBudgets('desktop');
 
 module.exports = {
   ci: {
@@ -40,7 +31,7 @@ module.exports = {
         'http://localhost/network',
       ],
       settings: {
-        preset: isMobile ? undefined : 'desktop',
+        preset: 'desktop',
         formFactor: deviceProfile.formFactor,
         screenEmulation: deviceProfile.screenEmulation,
         throttling: deviceProfile.throttling,
@@ -51,7 +42,7 @@ module.exports = {
     },
     assert: {
       includePassedAssertions: true,
-      assertMatrix: generateAssertMatrix(device),
+      assertMatrix: generateAssertMatrix('desktop'),
     },
     upload: {
       target: 'temporary-public-storage',

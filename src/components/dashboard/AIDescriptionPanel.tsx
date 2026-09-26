@@ -124,7 +124,7 @@ export default function AIDescriptionPanel() {
           textAlign: 'center',
           minWidth: '180px'
         }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', tracking: '0.05em' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             System Accuracy Rate
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold', color: metrics.accuracyPercentage >= 85 ? 'var(--green)' : 'var(--cyan)', margin: '4px 0' }}>

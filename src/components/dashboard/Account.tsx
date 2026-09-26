@@ -190,7 +190,7 @@ export default function Account() {
   });
   const xlmEstimate = xlm ? getEstimate(xlm) : null;
   const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
-  const dataSource = 'live';
+  const dataSource: 'live' | 'cache' | 'cache-stale' | 'offline' = 'live';
   const accountCachedAt: number | null = null;
 
   return (

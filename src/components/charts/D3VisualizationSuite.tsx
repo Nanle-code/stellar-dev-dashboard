@@ -255,7 +255,7 @@ function ToolbarButton({
 }: {
   active?: boolean;
   children: React.ReactNode;
-  icon?: React.ComponentType<{ size?: number; 'aria-hidden'?: string }>;
+  icon?: any;
   onClick?: () => void;
   title?: string;
 }) {

@@ -467,3 +467,14 @@ export async function predictLiquidityFlow(
     updatedAt: new Date().toLocaleTimeString(),
   };
 }
+
+export function getModelMetrics() {
+  const metrics = calculateLiquidityMetrics();
+  const accuracy = evaluateModelAccuracy(metrics);
+  return {
+    accuracy,
+    metrics,
+    lastTrained: new Date().toISOString(),
+    status: 'healthy',
+  };
+}

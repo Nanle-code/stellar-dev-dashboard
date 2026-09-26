@@ -76,7 +76,7 @@ export const requireRole = (...requiredRoles: string[]) => (req: Request, res: R
   return next();
 };
 
-export const requireSelfOrAdmin = (userIdSelector: (req: Request) => string | undefined = (req) => req.params.userId || (req.query?.userId as string) || (req.body?.userId as string) || (req.headers['x-user-id'] as string)) => (req: Request, res: Response, next: NextFunction): Response | void => {
+export const requireSelfOrAdmin = (userIdSelector: (_req: Request) => string | undefined = (_req) => _req.params.userId || (_req.query?.userId as string) || (_req.body?.userId as string) || (_req.headers['x-user-id'] as string)) => (req: Request, res: Response, next: NextFunction): Response | void => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
   }

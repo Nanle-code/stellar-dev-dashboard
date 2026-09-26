@@ -25,6 +25,6 @@ describe('Accessibility Audit', () => {
       </Wrapper>
     );
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    (expect(results) as any).toHaveNoViolations();
   });
 });

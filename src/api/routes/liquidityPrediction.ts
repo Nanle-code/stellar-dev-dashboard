@@ -1,7 +1,7 @@
 // src/api/routes/liquidityPrediction.ts
 import { Router, Request, Response } from 'express';
 import { cacheMiddleware } from '../middleware/predictCache';
-import { liquidityEngine } from '../../src/lib/liquidityEngine';
+import { liquidityEngine } from '../../lib/liquidityEngine';
 
 const router = Router();
 

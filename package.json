@@ -146,5 +146,10 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint",
     "*.{json,md,css,html,yml,yaml}": "prettier --check"
+  },
+  "pnpm": {
+    "overrides": {
+      "image-size": ">=2.0.3"
+    }
   }
 }

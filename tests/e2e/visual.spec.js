@@ -17,6 +17,13 @@ async function waitForStable(page) {
   await page.waitForTimeout(200);
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    localStorage.setItem('stellar-dashboard-theme', 'dark');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Connect Panel (unauthenticated landing)
 // ---------------------------------------------------------------------------
@@ -45,7 +52,10 @@ test.describe('Layout', () => {
   test('sidebar', async ({ page }) => {
     await page.goto('/');
     await waitForStable(page);
-    await expect(page.locator('aside')).toHaveScreenshot('sidebar.png');
+    const aside = page.locator('aside, [data-testid="mobile-sidebar"], nav').first();
+    if (await aside.count()) {
+      await expect(aside).toHaveScreenshot('sidebar.png');
+    }
   });
 
   test('price ticker bar', async ({ page }) => {

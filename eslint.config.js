@@ -3,6 +3,7 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tsParser from '@typescript-eslint/parser';
 import globals from 'globals';
+import noDirectSubmit from './eslint-rules/no-direct-submit.mjs';
 
 export default [
   {
@@ -53,6 +54,8 @@ export default [
     plugins: {
       react,
       'react-hooks': reactHooks,
+      // #983 — local rules enforcing mainnet safety guard
+      'local': { rules: { 'no-direct-submit': noDirectSubmit } },
     },
     settings: {
       react: { version: 'detect' },
@@ -73,6 +76,8 @@ export default [
       'no-control-regex': 'warn',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+      // #983 — forbid direct submitTransaction / sendTransaction calls in component code
+      'local/no-direct-submit': 'error',
     },
   },
 ];

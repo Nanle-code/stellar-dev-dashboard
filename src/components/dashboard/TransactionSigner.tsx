@@ -14,7 +14,9 @@ import type { UserPreferences } from '../../lib/userPreferences';
 import Card from './Card';
 import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation';
 import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay';
+import MainnetConfirmDialog from '../security/MainnetConfirmDialog';
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics';
+import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { inspectEnvelope } from '../../utils/feeBumpInspector';
 import type { EnvelopeInfo } from '../../utils/feeBumpInspector';
 
@@ -28,6 +30,9 @@ export default function TransactionSigner() {
   const [copied, setCopied] = useState(false);
   const [ledgerPrompt, setLedgerPrompt] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // #983 — mainnet write guard
+  const { guard, isReadOnlyLocked, dialogProps } = useWriteGuard();
   const [showBiometricOverlay, setShowBiometricOverlay] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
 
@@ -73,8 +78,12 @@ export default function TransactionSigner() {
       setError('Please enter a transaction XDR to sign');
       return;
     }
+    // #983 — route through central write guard; it handles mainnet confirmation
+    // and session read-only lock before proceeding to the biometric/confirmation flow.
+    guard({ action: 'sign & submit transaction', onConfirm: _runSignFlow });
+  };
 
-    // Run biometric check if enabled
+  const _runSignFlow = async () => {
     if (bio.enabled && bio.isEstablished) {
       const result = await bio.evaluateAndRecord();
       if (result) {
@@ -322,6 +331,24 @@ export default function TransactionSigner() {
 
   return (
     <>
+      {/* #983 — mainnet write guard dialog */}
+      <MainnetConfirmDialog {...dialogProps} />
+      {isReadOnlyLocked && (
+        <div style={{
+          background: 'rgba(255,23,68,0.08)',
+          border: '1px solid var(--red)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '12px',
+          fontSize: '12px',
+          color: 'var(--red)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          🔒 Mainnet read-only lock is active — signing is blocked this session.
+        </div>
+      )}
       <Card title="Transaction Signer" subtitle={`Signing with ${walletType}`}>
         <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div

@@ -29,6 +29,8 @@ import { TourLauncher } from '../components/tutorial';
 import GlobalSearch from '../components/search/GlobalSearch';
 import UserPreferences from '../components/preferences/UserPreferences';
 import NetworkIndicator from '../components/layout/NetworkIndicator';
+import NetworkSafetyBadge from '../components/layout/NetworkSafetyBadge';
+import { useWriteGuard } from '../hooks/useWriteGuard';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import KeyboardNavigation from '../components/accessibility/KeyboardNavigation';
 import SkipLink from '../components/accessibility/SkipLink';
@@ -262,6 +264,9 @@ export default function DashboardLayout() {
   const [conversationOpen, setConversationOpen] = useState<boolean>(false);
   const preferencesTriggerRef = React.useRef<HTMLButtonElement>(null);
 
+  // #983 — mainnet write guard (shared across child tabs via context or prop-drilling)
+  const { isReadOnlyLocked, lockReadOnly, unlockReadOnly } = useWriteGuard();
+
   useRouteFocus(activeTab);
   useStorageQuotaAlerts();
   useWalletSessionListeners();
@@ -441,7 +446,13 @@ export default function DashboardLayout() {
             </div>
             <ThemeToggle />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <NetworkIndicator />
+              {/* #983 – NetworkSafetyBadge replaces NetworkIndicator; amber chrome on mainnet */}
+              <NetworkSafetyBadge
+                isReadOnlyLocked={isReadOnlyLocked}
+                onLockToggle={isReadOnlyLocked ? unlockReadOnly : lockReadOnly}
+              />
+              {/* Keep the compact dot indicator for quick reference in dense layouts */}
+              <NetworkIndicator compact />
             </div>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <ExpertiseBadge

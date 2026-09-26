@@ -78,9 +78,31 @@ Async. Builds and validates a transaction without submitting it.
 }
 ```
 
-## `signAndSubmitTransaction(transaction, secretKey, network?)`
+## `signAndSubmitTransaction(transaction, secretKey, network?, options?)`
 
 Sign a built transaction with a secret key and submit it to the network.
+
+The transaction is reviewed against the [`riskRules.js`](./riskRules.md) ruleset
+**before** the secret key is used. When anything is flagged as
+acknowledgement-worthy, the caller must present the summary and obtain explicit
+consent — signing is refused otherwise. This function cannot render UI, so
+consent is delegated to `options.onReview`.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `transaction` | `Transaction` | ✓ | The parsed transaction to sign. |
+| `secretKey` | `string` | ✓ | Ed25519 secret seed. |
+| `network` | `string` | — | Network name (default: `'testnet'`). |
+| `options.onReview` | `Function` | — | `async (summary) => boolean`. Must resolve `true` to allow a flagged transaction to be signed. |
+| `options.knownContracts` | `string[]` | — | Allowlisted Soroban contract addresses (default: `[]`). |
+| `options.account` | `object` | — | Source account snapshot, enabling balance-relative rules. |
+
+**Throws:** `Signing cancelled: high-risk operations were not acknowledged.` when
+`onReview` resolves falsy for a flagged transaction, and `This transaction
+contains high-risk operations that must be acknowledged before signing.` when no
+`onReview` was supplied at all.
 
 **Returns:**
 ```js

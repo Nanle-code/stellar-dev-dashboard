@@ -14,6 +14,8 @@ This directory documents the public JavaScript modules exposed by the dashboard.
 | [priceFeed.js](./priceFeed.md) | XLM and asset price feeds |
 | [transactionBuilder.js](./transactionBuilder.md) | Multi-operation transaction builder and simulator |
 | [transactionTemplates.js](./transactionTemplates.md) | Pre-built transaction templates |
+| [riskRules.js](./riskRules.md) | Declarative pre-sign risk ruleset with plain-language descriptions |
+| [riskSummary.js](./riskSummary.md) | Assembles the ruleset into a per-transaction pre-sign risk summary |
 | [import.js / export.js](./dataExport.md) | Dashboard backup, export, and import utilities |
 
 ## Quick Start

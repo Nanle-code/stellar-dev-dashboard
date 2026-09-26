@@ -1,5 +1,6 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { getServer, NETWORKS, isValidPublicKey } from "./stellar";
+import { computeRiskSummary } from "./riskSummary";
 
 export const OPERATION_TYPES = [
   { value: "payment", label: "Payment" },
@@ -336,13 +337,57 @@ export function feeBump({
   }
 }
 
+/**
+ * Sign and submit a transaction with a local secret key (#982).
+ *
+ * Before the key is used, the transaction is run through the shared risk
+ * ruleset in `src/lib/riskRules.js`. If anything is flagged, the caller must
+ * present the summary to the user and obtain explicit acknowledgement — signing
+ * is refused otherwise. This function cannot render UI, so acknowledgement is
+ * delegated to `options.onReview`, which receives the `RiskSummary` and must
+ * resolve to `true` to allow signing to continue.
+ *
+ * @param {object} transaction
+ * @param {string} secretKey
+ * @param {string} [network]
+ * @param {object} [options]
+ * @param {Function} [options.onReview] — async; receives the RiskSummary
+ * @param {string[]} [options.knownContracts] — allowlisted Soroban contracts
+ * @param {object}  [options.account] — source account snapshot for balance-relative rules
+ */
 export async function signAndSubmitTransaction(
   transaction,
   secretKey,
   network = "testnet",
+  options = {},
 ) {
   if (!StellarSdk.StrKey.isValidEd25519SecretSeed(secretKey)) {
     throw new Error("Invalid secret key");
+  }
+
+  const { onReview, knownContracts = [], account = null } = options;
+
+  // #982 — pre-sign risk review. Fail closed: if we cannot compute a summary
+  // we still must not sign blindly.
+  const summary = computeRiskSummary(transaction, {
+    network,
+    account,
+    sourceAccount: transaction?.source ?? transaction?.innerTransaction?.source ?? null,
+    knownContracts,
+  });
+
+  if (summary.requiresAcknowledgement) {
+    if (typeof onReview !== "function") {
+      throw new Error(
+        "This transaction contains high-risk operations that must be acknowledged before signing.",
+      );
+    }
+    const approved = await onReview(summary);
+    if (!approved) {
+      throw new Error("Signing cancelled: high-risk operations were not acknowledged.");
+    }
+  } else if (typeof onReview === "function") {
+    await onReview(summary);
   }
 
   const keypair = StellarSdk.Keypair.fromSecret(secretKey);

@@ -1,8 +1,14 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useStore } from '../../lib/store'
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter'
 import { signXdrWithLedger, isLedgerSupported, getActiveLedgerSession } from '../../lib/wallet/ledger'
 import { NETWORKS } from '../../lib/stellar'
+import {
+  usePreSignRiskSummary,
+  REVIEW_SHOWN,
+  REVIEW_ERROR,
+} from '../../hooks/usePreSignRiskSummary'
+import RiskSummaryPanel from '../security/RiskSummaryPanel'
 import Card from './Card'
 
 export default function TransactionSigner() {
@@ -14,6 +20,26 @@ export default function TransactionSigner() {
   const [copied, setCopied] = useState(false)
   const [ledgerPrompt, setLedgerPrompt] = useState(false)
 
+  // The envelope that was actually summarised. Held in a ref rather than read
+  // back from `xdr`, because the field stays editable while the review panel is
+  // open and signing whatever it holds then would slip past the review.
+  const reviewedXdrRef = useRef(null)
+
+  // #982 — pre-sign risk review. Every envelope this component signs goes
+  // through the declarative ruleset in `src/lib/riskRules.js` first, including
+  // XDR pasted from outside the dashboard, so an operation that merges the
+  // account or disables the master key cannot reach the wallet prompt
+  // unannounced.
+  const {
+    summary: riskSummary,
+    reviewing: riskReviewing,
+    reviewError: riskReviewError,
+    beginReview,
+    cancelReview,
+    onAcknowledged,
+    onTrustContract,
+  } = usePreSignRiskSummary()
+
   const networkPassphrase = NETWORKS[network]?.passphrase || NETWORKS.testnet.passphrase
 
   const handleSign = async () => {
@@ -22,6 +48,25 @@ export default function TransactionSigner() {
       return
     }
 
+    setError(null)
+    setSignedXdr(null)
+
+    // #982 — the summary must be shown before the wallet prompt, so the signing
+    // call is deferred into `performSign` and only invoked once the user has
+    // acknowledged the flagged operations. An envelope that cannot be decoded
+    // is refused outright rather than passed to the wallet unreviewed.
+    reviewedXdrRef.current = xdr.trim()
+    const review = await beginReview(reviewedXdrRef.current)
+    if (review === REVIEW_SHOWN) return
+    if (review === REVIEW_ERROR) {
+      reviewedXdrRef.current = null
+      return
+    }
+
+    await performSign(reviewedXdrRef.current)
+  }
+
+  const performSign = async (reviewedXdr) => {
     setSigning(true)
     setError(null)
     setSignedXdr(null)
@@ -31,9 +76,9 @@ export default function TransactionSigner() {
 
       if (walletType === 'freighter') {
         const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET'
-        result = await signTransactionWithFreighter(xdr.trim(), networkName)
+        result = await signTransactionWithFreighter(reviewedXdr, networkName)
       } else if (walletType === 'ledger') {
-        await _signWithLedger()
+        await _signWithLedger(reviewedXdr)
         return // _signWithLedger manages its own state
       } else {
         throw new Error('No wallet connected. Connect a wallet first.')
@@ -47,7 +92,7 @@ export default function TransactionSigner() {
     }
   }
 
-  const _signWithLedger = async () => {
+  const _signWithLedger = async (reviewedXdr) => {
     // Check browser support first
     const supported = await isLedgerSupported()
     if (!supported) {
@@ -74,7 +119,7 @@ export default function TransactionSigner() {
     try {
       setLedgerPrompt(true)
       const signed = await signXdrWithLedger(
-        xdr.trim(),
+        reviewedXdr,
         networkPassphrase,
         stellarApp,
         publicKey || walletPublicKey
@@ -179,7 +224,7 @@ export default function TransactionSigner() {
         {/* Sign button */}
         <button
           onClick={handleSign}
-          disabled={signing || !xdr.trim()}
+          disabled={signing || riskReviewing || !xdr.trim()}
           style={{
             padding: '12px 20px',
             background: signing ? 'transparent' : 'var(--cyan-glow)',
@@ -195,15 +240,52 @@ export default function TransactionSigner() {
             opacity: !xdr.trim() ? 0.5 : 1,
           }}
         >
-          {signing ? (
+          {signing || riskReviewing ? (
             <>
               <div className="spinner" />
-              {ledgerPrompt ? 'Waiting for Ledger…' : 'Signing…'}
+              {riskReviewing && !signing
+                ? 'Checking risks…'
+                : ledgerPrompt
+                ? 'Waiting for Ledger…'
+                : 'Signing…'}
             </>
           ) : (
             'Sign Transaction'
           )}
         </button>
+
+        {/* #982 — the risk panel. `onAcknowledged` is the only path to
+            `performSign`, so a flagged transaction cannot reach the wallet
+            without an explicit confirmation. */}
+        {riskSummary && (
+          <RiskSummaryPanel
+            summary={riskSummary}
+            proceedLabel="Sign Transaction"
+            sourceLabel={
+              walletPublicKey
+                ? `signer ${walletPublicKey.slice(0, 6)}…${walletPublicKey.slice(-6)}`
+                : undefined
+            }
+            onAcknowledged={() => onAcknowledged(() => performSign(reviewedXdrRef.current))}
+            onCancel={cancelReview}
+            onTrustContract={onTrustContract}
+          />
+        )}
+
+        {/* The envelope could not be decoded, so it is never shown to the wallet. */}
+        {riskReviewError && (
+          <div style={{
+            padding: '12px',
+            background: 'var(--red-glow)',
+            border: '1px solid var(--red)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '12px',
+            color: 'var(--red)',
+            lineHeight: 1.5,
+          }}>
+            {riskReviewError}
+          </div>
+        )}
 
         {/* Error */}
         {error && (

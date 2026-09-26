@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useStore } from '../../lib/store';
 import {
   addSignatureToSession,
@@ -7,6 +7,12 @@ import {
   isValidPublicKey,
 } from '../../lib/multisig';
 import { useNotifications } from '../../hooks/useNotifications';
+import {
+  usePreSignRiskSummary,
+  REVIEW_SHOWN,
+  REVIEW_ERROR,
+} from '../../hooks/usePreSignRiskSummary';
+import RiskSummaryPanel from '../security/RiskSummaryPanel';
 import SignatureStatus from './SignatureStatus';
 
 const inputStyle = {
@@ -47,6 +53,24 @@ export default function SignatureCollector({ session, onSessionUpdate }) {
   const [signing, setSigning] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
+  // The session envelope that was actually summarised, so a co-signer always
+  // signs exactly what the review panel showed them.
+  const reviewedXdrRef = useRef(null);
+
+  // #982 — a multisig signature is still a signature. The session's XDR is
+  // reviewed against the same ruleset before the secret key is used, so a
+  // co-signer cannot be talked into signing an account merge or a master-key
+  // disable they never read.
+  const {
+    summary: riskSummary,
+    reviewing: riskReviewing,
+    reviewError: riskReviewError,
+    beginReview,
+    cancelReview,
+    onAcknowledged,
+    onTrustContract,
+  } = usePreSignRiskSummary();
+
   const alreadySigned = session.collectedSignatures.some((s) => s.signerKey === signerKey);
   const isAuthorized = !signerKey || session.requiredSigners.some((s) => s.key === signerKey);
   const keyValid = !signerKey || isValidPublicKey(signerKey);
@@ -69,9 +93,23 @@ export default function SignatureCollector({ session, onSessionUpdate }) {
       return;
     }
 
+    // #982 — review first; only sign once the user has acknowledged. A session
+    // XDR that cannot be decoded is refused rather than signed unreviewed.
+    reviewedXdrRef.current = session.txXdr;
+    const review = await beginReview(reviewedXdrRef.current);
+    if (review === REVIEW_SHOWN) return;
+    if (review === REVIEW_ERROR) {
+      reviewedXdrRef.current = null;
+      return;
+    }
+
+    await performSign(reviewedXdrRef.current);
+  };
+
+  const performSign = async (reviewedXdr = reviewedXdrRef.current) => {
     setSigning(true);
     try {
-      const signedXdr = addSignatureToXdr(session.txXdr, signerSecret, network);
+      const signedXdr = addSignatureToXdr(reviewedXdr, signerSecret, network);
       const updated = addSignatureToSession(session.id, signerKey, signedXdr);
       if (updated) {
         success('Signature Added', `${signerKey.slice(0, 8)}… signed successfully`);
@@ -156,14 +194,40 @@ export default function SignatureCollector({ session, onSessionUpdate }) {
             </label>
 
             <button
-              style={btnStyle('primary', signing || alreadySigned || !signerKey || !signerSecret)}
+              style={btnStyle('primary', signing || riskReviewing || alreadySigned || !signerKey || !signerSecret)}
               onClick={handleSign}
-              disabled={signing || alreadySigned || !signerKey || !signerSecret}
+              disabled={signing || riskReviewing || alreadySigned || !signerKey || !signerSecret}
             >
-              {signing ? 'Signing…' : 'Sign Transaction'}
+              {riskReviewing ? 'Checking risks…' : signing ? 'Signing…' : 'Sign Transaction'}
             </button>
+
+            {riskReviewError && (
+              <div style={{
+                padding: '12px',
+                background: 'var(--red-glow)',
+                border: '1px solid var(--red)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '12px',
+                color: 'var(--red)',
+                lineHeight: 1.5,
+              }}>
+                {riskReviewError}
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* #982 — pre-sign risk summary for the session's XDR. */}
+      {riskSummary && (
+        <RiskSummaryPanel
+          summary={riskSummary}
+          proceedLabel="Add My Signature"
+          sourceLabel={`co-signer ${signerKey.slice(0, 6)}…${signerKey.slice(-6)}`}
+          onAcknowledged={() => onAcknowledged(() => performSign(reviewedXdrRef.current))}
+          onCancel={cancelReview}
+          onTrustContract={onTrustContract}
+        />
       )}
 
       {/* XDR export */}

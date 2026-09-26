@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -18,6 +18,12 @@ import {
 import anchorService from '../../lib/anchors.js';
 import auditTrail from '../../lib/auditTrail.js';
 import { connectFreighter, signTransactionWithFreighter } from '../../lib/wallet/freighter.js';
+import {
+  usePreSignRiskSummary,
+  REVIEW_PASS,
+  REVIEW_ERROR,
+} from '../../hooks/usePreSignRiskSummary.js';
+import RiskSummaryPanel from '../security/RiskSummaryPanel.jsx';
 
 const METHOD_ICONS = {
   bank_transfer: BanknoteIcon,
@@ -158,6 +164,19 @@ export default function AnchorIntegration() {
     loadAnchorSession();
   }, [selectedAnchor]);
 
+  // #982 — pre-sign risk review for the SEP-10 challenge transaction.
+  const {
+    summary: riskSummary,
+    beginReview,
+    cancelReview,
+    onAcknowledged,
+    onTrustContract,
+  } = usePreSignRiskSummary();
+
+  // Holds the in-flight SEP-10 challenge (wallet account + XDR) so that
+  // acknowledging the review can resume exactly the same attempt.
+  const pendingChallengeRef = useRef(null);
+
   const handleConnectToAnchor = async () => {
     if (!selectedAnchor) return;
 
@@ -173,6 +192,37 @@ export default function AnchorIntegration() {
         account.network
       );
 
+      pendingChallengeRef.current = { account, challengeResponse };
+
+      // #982 — the SEP-10 challenge is a transaction the user signs with their
+      // own key, so it gets the same review as any other signing flow. A
+      // well-formed challenge flags nothing; anything the ruleset flags has to
+      // be acknowledged first. An undecodable challenge is refused rather than
+      // signed unreviewed.
+      const review = await beginReview(challengeResponse.transaction, account.network);
+      if (review !== REVIEW_PASS) {
+        pendingChallengeRef.current = null;
+        setAuthStatus(review === REVIEW_ERROR ? 'error' : 'idle');
+        setIsAnchorAuthLoading(false);
+        return;
+      }
+
+      await performAnchorConnect(account, challengeResponse);
+    } catch (error) {
+      setAuthError(error.message);
+      setAuthStatus('error');
+      setIsAnchorAuthLoading(false);
+      auditTrail.logError(error, { operation: 'connectToAnchor', anchorId: selectedAnchor.id });
+    }
+  };
+
+  const performAnchorConnect = async (account, challengeResponse) => {
+    setIsAnchorAuthLoading(true);
+    setAuthStatus('loading');
+
+    try {
+      // `challengeResponse` is the exact challenge the pre-sign review parsed
+      // and described, so the wallet signs what the user was shown.
       const signedXdr = await signTransactionWithFreighter(challengeResponse.transaction, account.network);
       const token = await anchorService.submitChallengeTransaction(selectedAnchor.id, signedXdr, account.network);
 
@@ -599,6 +649,28 @@ export default function AnchorIntegration() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* #982 — pre-sign risk summary for the SEP-10 challenge. */}
+      {riskSummary && (
+        <RiskSummaryPanel
+          summary={riskSummary}
+          proceedLabel="Sign Challenge"
+          sourceLabel={`anchor challenge for ${selectedAnchor?.name ?? 'anchor'}`}
+          onAcknowledged={() =>
+            onAcknowledged(() => {
+              const pending = pendingChallengeRef.current;
+              pendingChallengeRef.current = null;
+              if (pending) return performAnchorConnect(pending.account, pending.challengeResponse);
+              return undefined;
+            })
+          }
+          onCancel={() => {
+            pendingChallengeRef.current = null;
+            cancelReview();
+          }}
+          onTrustContract={onTrustContract}
+        />
       )}
     </div>
   );

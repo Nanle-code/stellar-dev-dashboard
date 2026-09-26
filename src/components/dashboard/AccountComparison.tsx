@@ -147,7 +147,7 @@ function buildComparison(accounts: (AccountDetails | null)[]): ComparisonData {
     values: homeDomains.map(d => d || '—'),
   });
 
-  const hasThresholds = accounts.map(a => (a?.thresholds?.low_weight && a?.thresholds?.med_weight && a?.thresholds?.high_weight) ? true : false);
+  const hasThresholds = accounts.map(a => (((a?.thresholds as any)?.low_weight || (a?.thresholds as any)?.low_threshold) && ((a?.thresholds as any)?.med_weight || (a?.thresholds as any)?.med_threshold) && ((a?.thresholds as any)?.high_weight || (a?.thresholds as any)?.high_threshold)) ? true : false);
   rows.push({
     label: 'Thresholds Set',
     values: hasThresholds.map(t => t ? '✓' : '✗'),
@@ -170,12 +170,14 @@ function buildComparison(accounts: (AccountDetails | null)[]): ComparisonData {
 }
 
 export default function AccountComparison() {
-  const { comparisonSlots, addComparisonSlot, removeComparisonSlot, updateComparisonSlot, network } = useStore();
+  const store = useStore() as any;
+  const { comparisonSlots, addComparisonSlot, removeComparisonSlot, setComparisonKey, network } = store;
+  const updateComparisonSlot = store.updateComparisonSlot || ((_id: any, _data: any) => {});
   const [accounts, setAccounts] = useState<(AccountDetails | null)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
-  const currentSlots = comparisonSlots || [];
+  const currentSlots: any[] = comparisonSlots || [];
 
   useEffect(() => {
     if (currentSlots.length === 0) {
@@ -191,8 +193,9 @@ export default function AccountComparison() {
 
       for (const slot of currentSlots) {
         if (cancelled) break;
+        const addr = slot.address || slot.key || '';
         try {
-          const details = await fetchAccountDetails(slot.address);
+          const details = await fetchAccountDetails(addr);
           results.push(details);
         } catch {
           results.push(null);
@@ -208,27 +211,35 @@ export default function AccountComparison() {
     loadAccounts();
 
     return () => { cancelled = true; };
-  }, [currentSlots.map((s: ComparisonSlot) => s.address).join(',')]);
+  }, [currentSlots.map((s: any) => s.address || s.key || '').join(',')]);
 
   const comparison = useMemo(() => buildComparison(accounts), [accounts]);
 
   const handleAddAccount = () => {
     const address = inputValue.trim();
     if (!address || !isPublicKey(address)) return;
-    addComparisonSlot({ id: `slot-${Date.now()}`, address, label: shortAddress(address, 6) });
+    if (typeof addComparisonSlot === 'function') {
+      addComparisonSlot({ id: `slot-${Date.now()}`, address, label: shortAddress(address, 6) });
+    }
     setInputValue('');
   };
 
   const handleAccountChange = (index: number, e: ChangeEvent<HTMLInputElement>) => {
     const slot = currentSlots[index];
     if (slot) {
-      updateComparisonSlot(slot.id, { ...slot, address: e.target.value });
+      if (typeof updateComparisonSlot === 'function') {
+        updateComparisonSlot(slot.id, { ...slot, address: e.target.value });
+      } else if (typeof setComparisonKey === 'function') {
+        setComparisonKey(index, e.target.value);
+      }
     }
   };
 
   const handleRemoveAccount = (index: number) => {
     const slot = currentSlots[index];
-    if (slot) removeComparisonSlot(slot.id);
+    if (slot && typeof removeComparisonSlot === 'function') {
+      removeComparisonSlot(slot.id ?? index);
+    }
   };
 
   const allLoaded = accounts.length > 0 && accounts.every(a => a !== null);

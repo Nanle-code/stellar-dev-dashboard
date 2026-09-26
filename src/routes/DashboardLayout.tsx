@@ -1,13 +1,8 @@
-import React, {
-  lazy,
-  Suspense,
-  useEffect,
-  useState,
-  useCallback,
-  type ComponentType,
-  type CSSProperties,
-} from 'react';
+import React, { lazy, Suspense, useEffect, useState, useCallback, type CSSProperties } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { matchRoute, buildPath, getDocumentTitle, type TabComponent } from './routes';
+import { getRouteComponent } from './routeComponents';
+import NotFound from './NotFound';
 import Sidebar from '../components/layout/Sidebar';
 import MobileHeader from '../components/layout/MobileHeader';
 import MobileSidebar from '../components/layout/MobileSidebar';
@@ -60,76 +55,7 @@ interface SearchResult {
   type?: string;
 }
 
-type TabComponent = ComponentType<Record<string, unknown>>;
-
-const lazyTab = (loader: () => Promise<{ default: TabComponent }>) =>
-  lazy(loader) as unknown as TabComponent;
-
-const lazyNamedTab = (loader: () => Promise<Record<string, unknown>>, exportName: string) =>
-  lazy(() =>
-    loader().then((module) => ({
-      default: module[exportName] as TabComponent,
-    }))
-  ) as unknown as TabComponent;
-
-const Overview = lazyTab(() => import('../components/dashboard/Overview'));
-const TransactionAnalytics = lazy(
-  () => import('../components/dashboard/TransactionAnalyticsDashboard')
-);
-const RefactoringAdvisor = lazyTab(() => import('../components/dashboard/RefactoringAdvisor'));
-
-const TABS: Record<string, TabComponent> = {
-  overview: Overview,
-  account: lazyTab(() => import('../components/dashboard/Account')),
-  transactions: lazyTab(() => import('../components/dashboard/Transactions')),
-  contracts: lazyTab(() => import('../components/dashboard/Contracts')),
-  network: lazyTab(() => import('../components/dashboard/NetworkStats')),
-  builder: lazyTab(() => import('../components/dashboard/Builder')),
-  sorobanDebug: lazyTab(() => import('../components/dashboard/SorobanDebugTutorial')),
-  learningHub: lazyNamedTab(() => import('../components/dashboard/LearningHub'), 'LearningHub'),
-  faucet: lazyTab(() => import('../components/dashboard/Faucet')),
-  compare: lazyTab(() => import('../components/dashboard/AccountComparison')),
-  wallet: lazyTab(() => import('../components/dashboard/WalletConnect')),
-  signer: lazyTab(() => import('../components/dashboard/TransactionSigner')),
-  portfolio: lazyTab(() => import('../components/dashboard/PortfolioValue')),
-  txBuilder: lazyTab(() => import('../components/dashboard/TransactionBuilder')),
-  contractInteraction: lazyTab(() => import('../components/dashboard/ContractInteraction')),
-  contractABI: lazyTab(() => import('../components/dashboard/ContractABI')),
-  dex: lazyTab(() => import('../components/dashboard/DEXExplorer')),
-  liquidityPrediction: lazyTab(
-    () => import('../components/dashboard/LiquidityPredictionDashboard')
-  ),
-  pathExplorer: lazyTab(() => import('../components/dashboard/PathExplorer')),
-  explorers: lazyTab(() => import('../components/dashboard/ExplorerEmbed')),
-  realtime: lazyTab(() => import('../components/dashboard/RealTimeLedger')),
-  charts: lazyTab(() => import('../components/dashboard/ChartsTab')),
-  assets: lazyNamedTab(() => import('../components/assets'), 'AssetDiscovery'),
-  multisig: lazyNamedTab(() => import('../components/multisig'), 'MultisigManager'),
-  analytics: lazyTab(() => import('../components/dashboard/Analytics')),
-  designSystem: lazyTab(() => import('../components/dashboard/DesignSystem')),
-  featureFlags: lazyTab(() => import('../components/dashboard/FeatureFlags')),
-  systemHealth: lazyTab(() => import('../components/dashboard/SystemHealth')),
-  performance: lazyTab(() => import('../components/dashboard/PerformanceMonitor')),
-  logAnalyzer: lazyTab(() => import('../components/dashboard/LogAnalyzer')),
-  settings: lazyTab(() => import('../components/dashboard/Settings')),
-  collaboration: lazyTab(() => import('../components/dashboard/CollaborationTab')),
-  audit: lazyTab(() => import('../components/dashboard/AuditLog')),
-  anchors: lazyNamedTab(() => import('../components/anchors'), 'AnchorIntegration'),
-  search: lazyTab(() => import('../components/dashboard/AdvancedSearch')),
-  cacheStats: lazyTab(() => import('../components/dashboard/CacheStats')),
-  liveActivity: lazyTab(() => import('../components/dashboard/LiveActivityFeed')),
-  claimableBalances: lazyTab(() => import('../components/dashboard/ClaimableBalances')),
-  dataExport: lazyTab(() => import('../components/dashboard/DataExport')),
-  governance: lazyTab(() => import('../components/dashboard/Governance')),
-  monitoringDashboards: lazyTab(() => import('../components/dashboard/MonitoringDashboards')),
-  devToolbar: lazyTab(() => import('../components/dashboard/DevToolbar')),
-  compliance: lazyTab(() => import('../components/dashboard/ComplianceDashboard')),
-  security: lazyTab(() => import('../components/dashboard/SecurityDashboard')),
-  dependencyManagement: lazyTab(() => import('../components/dashboard/DependencyManagement')),
-  txAnalytics: TransactionAnalytics,
-  anomalyViz: lazyTab(() => import('../components/dashboard/AnomalyVisualization')),
-  sandboxAnalytics: lazyTab(() => import('../components/dashboard/SandboxAnalyticsDemo')),
-};
+const TransactionDetail = lazy(() => import('../components/dashboard/TransactionDetail'));
 
 function TabLoadingFallback() {
   return (
@@ -161,31 +87,6 @@ function TabLoadingFallback() {
       />
     </div>
   );
-}
-
-function RouterSync() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { connectedAddress, activeTab, setActiveTab } = useStore();
-
-  const pathTab = location.pathname === '/' ? 'overview' : location.pathname.slice(1);
-
-  useEffect(() => {
-    if (pathTab === 'connect') return;
-    if (TABS[pathTab] && pathTab !== activeTab) {
-      setActiveTab(pathTab);
-    }
-  }, [pathTab, activeTab, setActiveTab]);
-
-  useEffect(() => {
-    if (!connectedAddress && pathTab !== 'connect') {
-      navigate('/connect', { replace: true });
-    } else if (connectedAddress && pathTab === 'connect') {
-      navigate(`/${activeTab}`, { replace: true });
-    }
-  }, [connectedAddress, pathTab, activeTab, navigate]);
-
-  return null;
 }
 
 function NotificationBell({
@@ -254,6 +155,9 @@ export default function DashboardLayout() {
     isMobileMenuOpen,
     setMobileMenuOpen,
     setActiveTab,
+    setConnectedAddress,
+    setContractId,
+    setSelectedTxHash,
     preferencesOpen,
     setPreferencesOpen,
     debugAssistantOpen,
@@ -268,6 +172,70 @@ export default function DashboardLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
   const [conversationOpen, setConversationOpen] = useState<boolean>(false);
   const preferencesTriggerRef = React.useRef<HTMLButtonElement>(null);
+
+  // ── URL ↔ view synchronisation (driven by the route registry, #959) ────────
+  const location = useLocation();
+  const routeMatch = React.useMemo(() => matchRoute(location.pathname), [location.pathname]);
+  const activeRoute = routeMatch?.route ?? null;
+  const isConnectRoute = location.pathname === '/connect';
+  const lastSyncedPath = React.useRef<string | null>(null);
+
+  // URL → store: sync the active tab and any entity path param when the URL changes.
+  useEffect(() => {
+    if (!routeMatch) {
+      lastSyncedPath.current = location.pathname;
+      return;
+    }
+    if (lastSyncedPath.current === location.pathname) return;
+    lastSyncedPath.current = location.pathname;
+
+    if (routeMatch.route.id !== useStore.getState().activeTab) {
+      setActiveTab(routeMatch.route.id);
+    }
+
+    const param = routeMatch.route.param;
+    const raw = param ? routeMatch.params[param.name] : undefined;
+    if (param?.store && raw) {
+      const state = useStore.getState() as any;
+      if (param.store === 'connectedAddress' && raw !== state.connectedAddress) {
+        setConnectedAddress(raw);
+      } else if (param.store === 'contractId' && raw !== state.contractId) {
+        setContractId(raw);
+      } else if (param.store === 'selectedTxHash' && raw !== state.selectedTxHash) {
+        setSelectedTxHash(raw);
+      }
+    }
+  }, [routeMatch, location.pathname, setActiveTab, setConnectedAddress, setContractId, setSelectedTxHash]);
+
+  // Store → URL: direct `setActiveTab` calls elsewhere still update the address bar.
+  useEffect(() => {
+    if (!routeMatch) return;
+    const current = useStore.getState().activeTab;
+    if (routeMatch.route.id !== current) {
+      navigate(buildPath(current), { replace: true });
+    }
+  }, [activeTab, routeMatch, navigate]);
+
+  // Connection gating based on the resolved route rather than the raw pathname.
+  useEffect(() => {
+    const address = useStore.getState().connectedAddress;
+    const addressParam =
+      routeMatch?.route.param?.store === 'connectedAddress'
+        ? routeMatch.params[routeMatch.route.param.name]
+        : undefined;
+
+    if (!address && !isConnectRoute && !addressParam) {
+      navigate('/connect', { replace: true });
+    } else if (address && isConnectRoute) {
+      const target = routeMatch?.route.id ?? useStore.getState().activeTab;
+      navigate(buildPath(target), { replace: true });
+    }
+  }, [routeMatch, isConnectRoute, navigate, connectedAddress]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.title = getDocumentTitle(activeRoute);
+  }, [activeRoute]);
 
   useRouteFocus(activeTab);
   useStorageQuotaAlerts();
@@ -354,8 +322,11 @@ export default function DashboardLayout() {
     });
   }, [activeTab]);
 
-  const ActiveComponent: TabComponent = TABS[activeTab] || Overview;
-  const demoSummary = isDemoMode ? getDemoFixtureSummarySafe() : null;
+  const ActiveComponent: TabComponent | null = activeRoute
+    ? getRouteComponent(activeRoute.id)
+    : null;
+  const txHash = activeRoute?.id === 'transactions' ? routeMatch?.params.hash : undefined;
+  const isNotFound = Boolean(connectedAddress) && !routeMatch && !isConnectRoute;
 
   const getMainStyles = (): CSSProperties => {
     const baseStyles: CSSProperties = {
@@ -560,10 +531,18 @@ export default function DashboardLayout() {
           <ErrorBoundary onRetry={handleRetry} maxRetries={2}>
             {!connectedAddress ? (
               <ConnectPanel />
-            ) : (
+            ) : isConnectRoute ? null : isNotFound ? (
+              <NotFound />
+            ) : txHash ? (
+              <Suspense fallback={<TabLoadingFallback />}>
+                <TransactionDetail txHash={txHash} onClose={() => navigate('/transactions')} />
+              </Suspense>
+            ) : ActiveComponent ? (
               <Suspense fallback={<TabLoadingFallback />}>
                 <ActiveComponent />
               </Suspense>
+            ) : (
+              <NotFound />
             )}
           </ErrorBoundary>
         </main>

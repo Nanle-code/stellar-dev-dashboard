@@ -182,6 +182,10 @@ export interface StoreState {
   activeTab: string
   setActiveTab: (tab: string) => void
 
+  /** Transaction hash selected via a deep link (`/transactions/:hash`). */
+  selectedTxHash: string | null
+  setSelectedTxHash: (hash: string | null) => void
+
   faucetLoading: boolean
   faucetResult: unknown
   setFaucetLoading: (v: boolean) => void
@@ -529,6 +533,9 @@ export const useStore = create<StoreState>((set) => ({
 
   activeTab: 'overview',
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  selectedTxHash: null,
+  setSelectedTxHash: (hash) => set({ selectedTxHash: hash }),
 
   faucetLoading: false,
   faucetResult: null,

@@ -10,6 +10,7 @@ import {
 } from '../../lib/stellar';
 import { getActiveProfile } from '../../lib/userPreferences';
 import { preloadTab } from '../../hooks/usePreload';
+import { getNavGroups, isRouteVisible, type AppRoute } from '../../routes/routes';
 import { useAdaptiveComponents } from '../../hooks/useAdaptiveComponents';
 import { useExpertiseTracking } from '../../hooks/useExpertiseTracking';
 import { useSidebarArrowNav } from '../../hooks/useSidebarArrowNav';
@@ -18,81 +19,9 @@ import ExpertiseProgressPanel from '../expertise/ExpertiseProgressPanel';
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
 
-interface NavItem {
-  id?: string;
-  type?: 'header' | 'link';
-  label: string;
-  icon?: string;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { type: 'header', label: 'ANALYTICS' },
-  { id: 'overview', label: 'Overview', icon: '◈' },
-  { id: 'account', label: 'Account', icon: '◉' },
-  { id: 'claimableBalances', label: 'Claimable', icon: '⊛' },
-  { id: 'compare', label: 'Compare', icon: '◫' },
-  { id: 'transactions', label: 'Transactions', icon: '⇄' },
-  { id: 'contracts', label: 'Contracts', icon: '◻' },
-  { id: 'assets', label: 'Assets', icon: '💎' },
-  { id: 'anchors', label: 'Anchors', icon: '⚓' },
-  { id: 'search', label: 'Search', icon: '🔍' },
-
-  { type: 'header', label: 'NETWORK' },
-  { id: 'network', label: 'Network Info', icon: '◎' },
-  { id: 'validatorPredictor', label: 'Validator AI', icon: '🛡️' },
-  { id: 'realtime', label: 'Real-Time', icon: '◉' },
-  { id: 'liveActivity', label: 'Live Activity', icon: '⚡' },
-  { id: 'cacheStats', label: 'Cache Stats', icon: '⊞' },
-
-  { id: 'performance', label: 'Performance', icon: 'P' },
-
-  { type: 'header', label: 'BUILD' },
-  { id: 'builder', label: 'Builder', icon: '⚒' },
-  { id: 'txSimulator', label: 'Simulator', icon: '▷' },
-  { id: 'advancedSim', label: 'Advanced Sim', icon: '⚡' },
-  { id: 'sorobanDebug', label: 'Soroban Debugging', icon: '🐞' },
-  { id: 'learningHub', label: 'Learning Hub', icon: '🎓' },
-  { id: 'faucet', label: 'Faucet', icon: '⬡' },
-
-  { type: 'header', label: 'EXPLORE' },
-  { id: 'dex', label: 'DEX', icon: '⇌' },
-  { id: 'liquidityPrediction', label: 'Liquidity AI', icon: '🧠' },
-  { id: 'pathExplorer', label: 'Path Explorer', icon: '⇢' },
-  { id: 'explorers', label: 'Explorer Links', icon: '⊞' },
-
-  { type: 'header', label: 'PAYMENTS' },
-  { id: 'paymentChannels', label: 'Pay Channels', icon: '⇶' },
-
-  { type: 'header', label: 'TOOLS' },
-  { id: 'wallet', label: 'Wallet', icon: '⊡' },
-  { id: 'signer', label: 'Signer', icon: '✎' },
-  { id: 'multisig', label: 'Multisig', icon: '⊕' },
-  { id: 'did', label: 'DID', icon: '🆔' },
-  { id: 'alertRules', label: 'Alerts', icon: '🔔' },
-  { id: 'portfolio', label: 'Portfolio', icon: '◐' },
-  { id: 'portfolioAnalytics', label: 'Portfolio Analytics', icon: '📊' },
-  { id: 'sandboxAnalytics', label: 'Sandbox Demos', icon: '🧪' },
-  { id: 'autonomousTrading', label: 'Trading Agent', icon: '🤖' },
-  { id: 'charts', label: 'Charts', icon: '▤' },
-  { id: 'dataStorytelling', label: 'Data Stories', icon: '📖' },
-  { id: 'analytics', label: 'Analytics', icon: '◍' },
-  { id: 'designSystem', label: 'Design System', icon: '◈' },
-  { id: 'featureFlags', label: 'Flags', icon: '🚩' },
-  { id: 'codeReview', label: 'Code Review', icon: '🔍' },
-  { id: 'txPatterns', label: 'AI Patterns', icon: '🧠' },
-  { id: 'anomalyViz', label: 'Anomaly Viz', icon: '◉' },
-  { id: 'systemHealth', label: 'Health', icon: '⚕' },
-  { id: 'monitoringDashboards', label: 'Monitoring', icon: '📊' },
-  { id: 'throughputForecast', label: 'Forecast', icon: '📈' },
-  { id: 'dataExport', label: 'Export', icon: '⬇' },
-  { id: 'collaboration', label: 'Collaboration', icon: '◌' },
-  { id: 'governance', label: 'Governance', icon: '🗳' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-  { id: 'audit', label: 'Audit', icon: '⊟' },
-  { id: 'personalization', label: 'AI Personalization', icon: '🧠' },
-  { id: 'security', label: 'Security', icon: '🛡️' },
-  { id: 'dependencyManagement', label: 'Dependencies', icon: '📦' },
-];
+type SidebarNavItem =
+  | { type: 'header'; label: string }
+  | { type: 'link'; route: AppRoute };
 
 export interface SidebarProps {
   isMobile?: boolean;
@@ -122,6 +51,20 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   const { getAdaptation, sidebarAdaptation, isNovice, isExpert } = useAdaptiveComponents();
   const { trackFeatureInteraction } = useExpertiseTracking({ enabled: true });
   const [showExpertisePanel, setShowExpertisePanel] = useState(false);
+
+  const expertiseLevel = isExpert ? 'expert' : isNovice ? 'novice' : 'intermediate';
+  const navItems = React.useMemo<SidebarNavItem[]>(() => {
+    const items: SidebarNavItem[] = [];
+    for (const group of getNavGroups()) {
+      items.push({ type: 'header', label: group.label });
+      for (const route of group.routes) {
+        if (isRouteVisible(route, { expertiseLevel })) {
+          items.push({ type: 'link', route });
+        }
+      }
+    }
+    return items;
+  }, [expertiseLevel]);
 
   const [customProfiles, setCustomProfiles] = useState<CustomProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
@@ -425,7 +368,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
           style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}
         >
           <ul role="list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {NAV_ITEMS.map((item, i) => {
+            {navItems.map((item, i) => {
               if (item.type === 'header') {
                 return (
                   <li key={`header-${i}`} role="presentation">
@@ -447,19 +390,20 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                 );
               }
 
-              const isActive = activeTab === item.id;
-              const isDisabled = item.id === 'faucet' && network === 'mainnet';
+              const route = item.route;
+              const isActive = activeTab === route.id;
+              const isDisabled = route.id === 'faucet' && network === 'mainnet';
 
               return (
-                <li key={item.id}>
+                <li key={route.id}>
                   <button
                     type="button"
-                    onClick={() => !isDisabled && item.id && handleNavClick(item.id)}
+                    onClick={() => !isDisabled && handleNavClick(route.id)}
                     disabled={isDisabled}
                     className="touch-target"
                     aria-current={isActive ? 'page' : undefined}
                     aria-disabled={isDisabled ? 'true' : undefined}
-                    aria-label={`${item.label}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
+                    aria-label={`${route.title}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -487,7 +431,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                         e.currentTarget.style.background = 'var(--bg-hover)';
                         e.currentTarget.style.color = 'var(--text-primary)';
                       }
-                      if (item.id) preloadTab(item.id);
+                      preloadTab(route.id);
                     }}
                     onMouseLeave={(e) => {
                       if (!isActive && !isDisabled) {
@@ -497,9 +441,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                     }}
                   >
                     <span aria-hidden="true" style={{ fontSize: '15px', opacity: 0.9 }}>
-                      {item.icon}
+                      {route.icon}
                     </span>
-                    {item.label}
+                    {route.title}
                     {isActive && (
                       <span
                         aria-hidden="true"

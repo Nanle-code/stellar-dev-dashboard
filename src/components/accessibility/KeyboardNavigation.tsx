@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useStore } from "../../lib/store";
+import { getNavRoutes, buildPath } from "../../routes/routes";
 import {
   registerShortcut,
   getRecentAccounts,
@@ -17,7 +19,8 @@ function CommandPalette({ isOpen, onClose }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
   const triggerRef = useRef(document.activeElement);
-  const { setConnectedAddress, setActiveTab, setSelectedTemplateId } = useStore();
+  const navigate = useNavigate();
+  const { setConnectedAddress, setSelectedTemplateId } = useStore();
 
   useEffect(() => {
     if (isOpen) {
@@ -28,20 +31,18 @@ function CommandPalette({ isOpen, onClose }) {
   }, [isOpen]);
 
   const commands = [
-    // Navigation
-    { id: "nav-dashboard", label: "Go to Dashboard", category: "Navigation", action: () => setActiveTab("overview") },
-    { id: "nav-account", label: "Go to Account", category: "Navigation", action: () => setActiveTab("account") },
-    { id: "nav-transactions", label: "Go to Transactions", category: "Navigation", action: () => setActiveTab("transactions") },
-    { id: "nav-contracts", label: "Go to Contracts", category: "Navigation", action: () => setActiveTab("contracts") },
-    { id: "nav-assets", label: "Go to Asset Discovery", category: "Navigation", action: () => setActiveTab("assets") },
-    { id: "nav-dex", label: "Go to DEX Explorer", category: "Navigation", action: () => setActiveTab("dex") },
-    { id: "nav-analytics", label: "Go to Analytics", category: "Navigation", action: () => setActiveTab("analytics") },
-    { id: "nav-settings", label: "Go to Settings", category: "Navigation", action: () => setActiveTab("settings") },
+    // Navigation — generated from the route registry (#959)
+    ...getNavRoutes().map((route) => ({
+      id: `nav-${route.id}`,
+      label: `Go to ${route.title}`,
+      category: "Navigation",
+      action: () => navigate(buildPath(route.id)),
+    })),
 
     // Quick Actions
-    { id: "action-builder", label: "Open Transaction Builder", category: "Actions", action: () => setActiveTab("txBuilder") },
-    { id: "action-faucet", label: "Request Testnet Funds", category: "Actions", action: () => setActiveTab("faucet") },
-    { id: "action-compare", label: "Compare Accounts", category: "Actions", action: () => setActiveTab("compare") },
+    { id: "action-builder", label: "Open Transaction Builder", category: "Actions", action: () => navigate(buildPath("txBuilder")) },
+    { id: "action-faucet", label: "Request Testnet Funds", category: "Actions", action: () => navigate(buildPath("faucet")) },
+    { id: "action-compare", label: "Compare Accounts", category: "Actions", action: () => navigate(buildPath("compare")) },
 
     // Recent Accounts
     ...getRecentAccounts().map((acc) => ({
@@ -51,7 +52,7 @@ function CommandPalette({ isOpen, onClose }) {
       action: () => {
         setConnectedAddress(acc.publicKey);
         addRecentAccount(acc.publicKey);
-        setActiveTab("account");
+        navigate(buildPath("account", { address: acc.publicKey }));
         onClose();
       },
     })),
@@ -63,7 +64,7 @@ function CommandPalette({ isOpen, onClose }) {
       category: "Templates",
       action: () => {
         setSelectedTemplateId(template.id);
-        setActiveTab("txBuilder");
+        navigate(buildPath("txBuilder"));
         onClose();
       },
     })),

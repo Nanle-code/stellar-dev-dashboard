@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { keyboardManager, Shortcut } from '../../lib/keyboard/shortcuts';
+import { getNavRoutes, buildPath } from '../../routes/routes';
 
 interface Command {
   id: string;
@@ -37,29 +38,36 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   const loadCommands = useCallback(() => {
     const shortcuts = keyboardManager.getAllShortcuts();
-    const commandList: Command[] = shortcuts.map(shortcut => ({
-      id: shortcut.id,
-      label: shortcut.description,
-      description: shortcut.keys.join(', '),
-      category: shortcut.category,
-      action: shortcut.action,
+
+    // Navigation commands are generated from the route registry (#959).
+    const navCommands: Command[] = getNavRoutes().map((route) => ({
+      id: `nav.${route.id}`,
+      label: `Go to ${route.title}`,
+      description: route.path,
+      category: 'Navigation',
+      icon: route.icon,
+      action: () =>
+        window.dispatchEvent(
+          new CustomEvent('keyboard-navigate', { detail: { path: buildPath(route.id) } })
+        ),
     }));
 
-    // Add additional commands
-    commandList.push(
-      {
-        id: 'nav.settings',
-        label: 'Open Settings',
-        category: 'Navigation',
-        action: () => window.dispatchEvent(new CustomEvent('keyboard-navigate', { detail: { path: '/settings' } })),
-      },
+    const commandList: Command[] = [
+      ...navCommands,
+      ...shortcuts.map(shortcut => ({
+        id: shortcut.id,
+        label: shortcut.description,
+        description: shortcut.keys.join(', '),
+        category: shortcut.category,
+        action: shortcut.action,
+      })),
       {
         id: 'view.help',
         label: 'Show Help',
         category: 'View',
         action: () => window.dispatchEvent(new CustomEvent('keyboard-action', { detail: { action: 'show-help' } })),
-      }
-    );
+      },
+    ];
 
     setCommands(commandList);
   }, []);

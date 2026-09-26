@@ -1,0 +1,47 @@
+# CODEOWNERS — designated reviewers for security-sensitive paths (#910).
+#
+# GitHub requests a review from the listed owners automatically, and with
+# "Require review from Code Owners" enabled in branch protection, a PR that
+# touches these paths cannot merge without an owner's approval.
+#
+# Rules are evaluated top to bottom; the LAST matching rule wins. Keep broad
+# rules first and narrow overrides below them. Never add a pattern without an
+# owner here: a bare pattern REMOVES ownership from matching files.
+#
+# Coverage is enforced by `pnpm run governance:check`
+# (scripts/validate-governance.mjs, SECURITY_SENSITIVE_PATHS). When you add a
+# new wallet, auth, or crypto module outside the paths below, add it both here
+# and to that list. See docs/contributing.md#code-owners.
+
+# ── Wallet connectors, signing, and session handling ────────────────────────
+/src/lib/wallet/                             @Nanle-code
+/src/components/dashboard/WalletConnect.tsx  @Nanle-code
+/src/hooks/useWalletSessionListeners.ts      @Nanle-code
+/src/lib/transactionSigningAuditLog.ts       @Nanle-code
+/src/lib/multisig.ts                         @Nanle-code
+/src/lib/multisig/                           @Nanle-code
+/src/components/multisig/                    @Nanle-code
+/src/components/security/                    @Nanle-code
+
+# ── Authentication, identity, and access control ────────────────────────────
+/src/lib/biometricAuth.ts                    @Nanle-code
+/src/lib/behavioralBiometrics/               @Nanle-code
+/src/components/biometrics/                  @Nanle-code
+/src/lib/didAuth.ts                          @Nanle-code
+/src/lib/did.ts                              @Nanle-code
+/src/lib/verifiableCredentials.ts            @Nanle-code
+/src/accessControl/                          @Nanle-code
+/src/lib/approvalSystem.ts                   @Nanle-code
+
+# ── Cryptography and trust boundaries ───────────────────────────────────────
+/src/lib/encryption.ts                       @Nanle-code
+/src/lib/endpointAllowlist.ts                @Nanle-code
+/src/lib/phishingDetector.ts                 @Nanle-code
+/src/lib/securityEvents.ts                   @Nanle-code
+
+# ── Security policy, response headers, and pipeline integrity ───────────────
+/SECURITY.md                                 @Nanle-code
+/docs/security/                              @Nanle-code
+/nginx.conf                                  @Nanle-code
+/.github/workflows/                          @Nanle-code
+/.github/CODEOWNERS                          @Nanle-code

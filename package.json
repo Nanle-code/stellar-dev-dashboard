@@ -55,6 +55,7 @@
     "ci:testing": "pnpm run test:coverage && pnpm run test:coverage:check && pnpm run ci:workflows",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "governance:check": "node scripts/validate-governance.mjs",
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
     "check:package-manager": "node scripts/validate-package-manager.mjs",

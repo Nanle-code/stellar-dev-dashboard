@@ -19,6 +19,7 @@ import {
   readSecurityAuditLog,
   getSessionSecurityPosture,
 } from '../../lib/wallet/security'
+import { IDLE_TIMEOUT_OPTIONS, isIdleTimeoutSupported } from '../../lib/wallet/idleTimeout'
 import Card from './Card'
 
 interface WalletDef {
@@ -299,6 +300,51 @@ function SocialRecoveryPanel() {
   )
 }
 
+function IdleTimeoutSetting({ minutes, onChange }: { minutes: number; onChange: (minutes: number) => void }) {
+  const supported = isIdleTimeoutSupported()
+  const options = IDLE_TIMEOUT_OPTIONS.some((option) => option.minutes === minutes)
+    ? IDLE_TIMEOUT_OPTIONS
+    : [...IDLE_TIMEOUT_OPTIONS, { minutes, label: `${minutes} minutes` }]
+
+  return (
+    <div>
+      <label
+        htmlFor="wallet-idle-timeout"
+        style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}
+      >
+        Auto-disconnect when idle
+      </label>
+      <select
+        id="wallet-idle-timeout"
+        value={minutes}
+        disabled={!supported}
+        onChange={(event) => onChange(Number(event.target.value))}
+        style={{
+          width: '100%',
+          padding: '8px 10px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-primary)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '12px',
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.minutes} value={option.minutes}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.5 }}>
+        {supported
+          ? 'You will be asked to confirm before the wallet is disconnected. Recommended on shared computers.'
+          : 'Idle detection is not available in this environment, so the wallet will not auto-disconnect.'}
+      </div>
+    </div>
+  )
+}
+
 export default function WalletConnect() {
   const {
     network,
@@ -311,6 +357,8 @@ export default function WalletConnect() {
     setAccountData,
     setAccountLoading,
     setAccountError,
+    walletIdleTimeoutMinutes,
+    setWalletIdleTimeoutMinutes,
   } = useStore()
 
   const [connecting, setConnecting] = useState(false)
@@ -538,6 +586,11 @@ export default function WalletConnect() {
               {JSON.stringify(confirmationSummary, null, 2)}
             </pre>
           </div>
+
+          <IdleTimeoutSetting
+            minutes={walletIdleTimeoutMinutes}
+            onChange={setWalletIdleTimeoutMinutes}
+          />
 
           <button
             onClick={handleDisconnect}

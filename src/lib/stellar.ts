@@ -5,6 +5,7 @@ import auditTrail from './auditTrail.js';
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker';
 import { validateMemo } from './validation';
 import { requireAllowedEndpoint } from './endpointAllowlist';
+import { compareFeeStrategiesDryRun } from './feeStrategyDryRun';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 

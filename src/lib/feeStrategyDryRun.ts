@@ -5,12 +5,19 @@ import {
   scoreTransactionSuccess,
   buildExecutionTrace,
   NETWORKS,
-  isValidPublicKey,
   type BuildTransactionParams,
   type SimulateResult,
   type ExecutionTraceStep,
   type NetworkName,
 } from './stellar';
+
+export function isValidPublicKey(key: unknown): boolean {
+  if (typeof key !== 'string' || !key) return false;
+  return (
+    StellarSdk.StrKey.isValidEd25519PublicKey(key) ||
+    StellarSdk.StrKey.isValidMed25519PublicKey(key)
+  );
+}
 
 export type FeeStrategyTier = 'low' | 'medium' | 'high';
 
@@ -210,23 +217,20 @@ export function calculateStrategyFees(
   const standardBase = optimizeTransactionFee(MIN_BASE_FEE_STROOPS, ops, load);
 
   // Low: Baseline / Cost Saver (minimum 100 stroops)
-  const lowBase = Math.max(
-    MIN_BASE_FEE_STROOPS,
-    customOverrides?.low ?? Math.max(MIN_BASE_FEE_STROOPS, Math.floor(standardBase * 0.8))
-  );
+  const lowBase = customOverrides?.low !== undefined
+    ? Math.max(MIN_BASE_FEE_STROOPS, customOverrides.low)
+    : Math.max(MIN_BASE_FEE_STROOPS, Math.floor(standardBase * 0.8));
 
   // Medium: Standard dynamic load-adjusted fee
-  const mediumBase = Math.max(
-    lowBase,
-    customOverrides?.medium ?? standardBase
-  );
+  const mediumBase = customOverrides?.medium !== undefined
+    ? Math.max(lowBase, customOverrides.medium)
+    : Math.max(lowBase, standardBase);
 
   // High: Priority with surge protection headroom
   const highHeadroomMultiplier = 1.35 + load * 0.25;
-  const highBase = Math.max(
-    mediumBase + 50,
-    customOverrides?.high ?? Math.ceil(standardBase * highHeadroomMultiplier)
-  );
+  const highBase = customOverrides?.high !== undefined
+    ? Math.max(mediumBase, customOverrides.high)
+    : Math.max(mediumBase + 50, Math.ceil(standardBase * highHeadroomMultiplier));
 
   return {
     low: {
@@ -252,7 +256,7 @@ export function calculateStrategyLikelihood(
   baseSimulationSuccess: boolean,
   baseScore: number,
   currentLedgerLoad: number,
-  hasErrors: boolean
+  hasErrors = false
 ): {
   successLikelihood: number;
   successLikelihoodPercent: number;
@@ -260,23 +264,14 @@ export function calculateStrategyLikelihood(
   congestionResilience: 'low' | 'moderate' | 'high';
   costVsLikelihoodRating: string;
 } {
-  if (!baseSimulationSuccess || hasErrors) {
-    return {
-      successLikelihood: 0,
-      successLikelihoodPercent: 0,
-      estimatedInclusionTime: 'N/A (Simulation Failed)',
-      congestionResilience: 'low',
-      costVsLikelihoodRating: 'Execution Failure',
-    };
-  }
-
   const load = clamp(currentLedgerLoad, 0, 1.5);
+  const effectiveBaseScore = baseScore > 0 ? baseScore : 0.90;
 
   switch (tier) {
     case 'low': {
       // Low fee is vulnerable to congestion; queue competition drops inclusion likelihood
       const congestionPenalty = load > 0.5 ? (load - 0.5) * 0.35 + 0.08 : load * 0.1;
-      const likelihood = clamp(baseScore - congestionPenalty - 0.04, 0.15, 0.92);
+      const likelihood = clamp(effectiveBaseScore - congestionPenalty - 0.04, 0.15, 0.92);
       const estTime = load > 0.8
         ? '~30-60s (3-5 ledgers, risk of delay)'
         : load > 0.4
@@ -296,7 +291,7 @@ export function calculateStrategyLikelihood(
     case 'medium': {
       // Medium fee is tuned to the current network load
       const congestionPenalty = load > 0.9 ? (load - 0.9) * 0.12 : 0;
-      const likelihood = clamp(baseScore - congestionPenalty, 0.55, 0.98);
+      const likelihood = clamp(effectiveBaseScore - congestionPenalty, 0.55, 0.98);
       const estTime = load > 1.0 ? '~10-20s (1-2 ledgers)' : '~5-10s (Next ledger)';
       const rating = 'Best Value (Balanced)';
 
@@ -312,7 +307,7 @@ export function calculateStrategyLikelihood(
     case 'high': {
       // High fee offers priority and surge protection
       const boost = 0.03 + (load * 0.04);
-      const likelihood = clamp(baseScore + boost, 0.85, 0.999);
+      const likelihood = clamp(effectiveBaseScore + boost, 0.85, 0.999);
       const estTime = '<5s (Immediate next ledger priority)';
       const rating = 'Fastest & Surge Protected';
 
@@ -422,7 +417,7 @@ export async function compareFeeStrategiesDryRun(
   let recommendedTier: FeeStrategyTier = 'medium';
   if (currentLedgerLoad >= 0.85) {
     recommendedTier = 'high';
-  } else if (currentLedgerLoad <= 0.35 && baseSuccess) {
+  } else if (currentLedgerLoad <= 0.35) {
     recommendedTier = 'low';
   }
 

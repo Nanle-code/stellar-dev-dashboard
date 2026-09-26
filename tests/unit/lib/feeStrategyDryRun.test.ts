@@ -10,7 +10,7 @@ import {
 } from '../../../src/lib/feeStrategyDryRun';
 
 const VALID_SOURCE_ACCOUNT = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
-const VALID_DESTINATION = 'GA2C5RFPE6GCKMY3US5PAB6UZLKIGAHWKXX2G6EXO2Z6EBVEW5UJTBES';
+const VALID_DESTINATION = 'GDH6EUBJPPBUWCTBTHGJSYOIFBWVHI5YQSPUQ6QKVTO6OZ22MLAK2PAV';
 
 describe('Fee Strategy Dry-Run Comparison', () => {
   describe('Utility functions', () => {
@@ -203,7 +203,7 @@ describe('Fee Strategy Dry-Run Comparison', () => {
           },
         ],
         network: 'testnet',
-        accountBalance: 50, // 50 stroops (less than minimum 100 stroops fee)
+        accountBalance: '50 stroops', // 50 stroops (less than minimum 100 stroops fee)
       });
 
       expect(report.strategies.low.canCoverFee).toBe(false);

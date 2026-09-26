@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import FeeStrategyComparisonPanel from '../../../src/components/dashboard/FeeStrategyComparisonPanel';
 
 const VALID_SOURCE_ACCOUNT = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
-const VALID_DESTINATION = 'GA2C5RFPE6GCKMY3US5PAB6UZLKIGAHWKXX2G6EXO2Z6EBVEW5UJTBES';
+const VALID_DESTINATION = 'GDH6EUBJPPBUWCTBTHGJSYOIFBWVHI5YQSPUQ6QKVTO6OZ22MLAK2PAV';
 
 describe('FeeStrategyComparisonPanel UI Component', () => {
   const defaultParams = {
@@ -31,9 +31,9 @@ describe('FeeStrategyComparisonPanel UI Component', () => {
       expect(screen.getByTestId('strategy-card-high')).toBeDefined();
     });
 
-    expect(screen.getByText('Low (Economy)')).toBeDefined();
-    expect(screen.getByText('Medium (Standard)')).toBeDefined();
-    expect(screen.getByText('High (Priority)')).toBeDefined();
+    expect(screen.getAllByText('Low (Economy)')[0]).toBeDefined();
+    expect(screen.getAllByText('Medium (Standard)')[0]).toBeDefined();
+    expect(screen.getAllByText('High (Priority)')[0]).toBeDefined();
   });
 
   it('allows user to select and apply a strategy via callback', async () => {

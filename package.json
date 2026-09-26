@@ -59,7 +59,8 @@
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
     "check:package-manager": "node scripts/validate-package-manager.mjs",
     "sbom:generate": "node scripts/generate-sbom.mjs",
-    "api:start": "node api/server.js"
+    "api:start": "node api/server.js",
+    "canary:probe": "node scripts/canary-health-probe.mjs"
   },
   "dependencies": {
     "@axe-core/react": "^4.11.3",

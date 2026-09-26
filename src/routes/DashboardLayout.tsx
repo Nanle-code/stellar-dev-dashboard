@@ -50,6 +50,11 @@ import ExpertiseBadge from '../components/expertise/ExpertiseBadge';
 import PredictiveFeatureSuggestions from '../components/dashboard/PredictiveFeatureSuggestions';
 import TipButton from '../components/ai/TipButton';
 import { useWalletSessionListeners } from '../hooks/useWalletSessionListeners';
+import {
+  DEMO_MODE_LABEL,
+  DEMO_MODE_BADGE,
+  getDemoFixtureSummarySafe,
+} from '../lib/demoMode';
 
 interface SearchResult {
   type?: string;
@@ -254,6 +259,8 @@ export default function DashboardLayout() {
     debugAssistantOpen,
     debugAssistantIssueCount,
     toggleDebugAssistant,
+    isDemoMode,
+    exitDemoMode,
   } = useStore() as any;
   const { isMobile, isTablet } = useResponsive();
   const { level, isNovice, setLevel, updateSignals } = useExpertise();
@@ -348,6 +355,7 @@ export default function DashboardLayout() {
   }, [activeTab]);
 
   const ActiveComponent: TabComponent = TABS[activeTab] || Overview;
+  const demoSummary = isDemoMode ? getDemoFixtureSummarySafe() : null;
 
   const getMainStyles = (): CSSProperties => {
     const baseStyles: CSSProperties = {
@@ -483,6 +491,72 @@ export default function DashboardLayout() {
           <div style={{ marginBottom: '16px' }}>
             <PriceTicker />
           </div>
+          {isDemoMode && (
+            <div
+              data-testid="demo-mode-banner"
+              role="status"
+              aria-label={`${DEMO_MODE_LABEL}: read-only testnet portfolio`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+                marginBottom: '16px',
+                padding: '10px 14px',
+                background: 'var(--amber-glow)',
+                border: '1px solid var(--amber)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '12px',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    border: '1px solid var(--amber)',
+                    color: 'var(--amber)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10px',
+                    letterSpacing: '1px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {DEMO_MODE_BADGE}
+                </span>
+                <strong>{DEMO_MODE_LABEL}</strong>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {demoSummary
+                    ? `${demoSummary.accountCount} testnet accounts, ${demoSummary.contractCount} contracts. No wallet connected.`
+                    : 'Read-only testnet portfolio. No wallet connected.'}
+                </span>
+              </div>
+              <button
+                type="button"
+                data-testid="exit-demo-button"
+                onClick={() => {
+                  exitDemoMode();
+                  addBreadcrumb('Exited demo mode', 'user_action');
+                  navigate('/connect', { replace: true });
+                }}
+                style={{
+                  padding: '7px 14px',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-bright)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Exit demo
+              </button>
+            </div>
+          )}
           <ErrorBoundary onRetry={handleRetry} maxRetries={2}>
             {!connectedAddress ? (
               <ConnectPanel />

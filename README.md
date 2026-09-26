@@ -18,6 +18,22 @@ pnpm run check:package-manager
 - Unsupported: npm or yarn installs, and Node.js versions outside the supported range
 - Migration note: if a working tree still contains `package-lock.json`, remove it before installing or this repo will reject the environment as unsupported
 
+## Demo Mode (#875)
+
+New visitors land on the connect screen, so the first impression of the dashboard
+shows no value. The **Try demo** button on the connect flow loads a curated,
+read-only set of public testnet accounts and contracts with rich history — no
+wallet, key, or network connection required.
+
+- Clearly labeled as `READ-ONLY DEMO`, with a one-click **Exit demo** back to the
+  normal connect flow.
+- Fixture data is bundled at `src/fixtures/demo-fixtures.generated.json` and
+  validated by `src/lib/demoMode.ts`.
+- Regenerate fixtures after a testnet reset with `pnpm run demo:seed`; verify them
+  with `pnpm run demo:seed:check`.
+- Full maintainer and user guidance, including security and compatibility notes,
+  lives in [docs/DEMO_MODE.md](docs/DEMO_MODE.md).
+
 ## AI-Enhanced Transaction Fee Prediction (Feature #535)
 
 The fee prediction system uses machine learning to provide optimal transaction fee recommendations.

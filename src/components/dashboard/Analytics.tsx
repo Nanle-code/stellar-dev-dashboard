@@ -1,9 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import AnalyticsChart from "../charts/AnalyticsChart";
 import CorrelationGraph from "../charts/CorrelationGraph";
 import { StatCard } from "./Card";
 import CustomReports from "./CustomReports";
+import ContextScopeNotice from "../layout/ContextScopeNotice";
+import { useDashboardContext } from "../../context/DashboardContext";
+import {
+  TIME_RANGE_LABELS,
+  TIME_RANGE_PRESETS,
+  type TimeRangePreset,
+} from "../../lib/context/url-context";
 import type { AlertEntry } from "./types";
 
 function RiskItem({ signal }: { signal: AlertEntry }) {
@@ -37,10 +44,64 @@ export default function Analytics() {
   const network = analytics?.network || {};
   const risks: AlertEntry[] = analytics?.risks || [];
 
+  // Global network/time-range context (#987). Analytics follows it by default;
+  // picking a value here is a view-scoped override and is flagged below.
+  const { range } = useDashboardContext();
+  const [localRange, setLocalRange] = useState<TimeRangePreset | "">("");
+  const localOverrideLabel =
+    localRange && localRange !== range.value ? TIME_RANGE_LABELS[localRange] : null;
+
   return (
     <div className="animate-in" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700 }}>
         Analytics
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+        }}
+      >
+        <ContextScopeNotice
+          localOverride={localOverrideLabel}
+          onUseGlobal={() => setLocalRange("")}
+        />
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "11px",
+            color: "var(--text-muted)",
+          }}
+        >
+          View range
+          <select
+            aria-label="View time-range override"
+            value={localRange}
+            onChange={(event) => setLocalRange(event.target.value as TimeRangePreset | "")}
+            style={{
+              fontSize: "11px",
+              fontFamily: "var(--font-mono)",
+              padding: "4px 8px",
+              background: "var(--bg-elevated)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <option value="">Follow global</option>
+            {TIME_RANGE_PRESETS.map((preset) => (
+              <option key={preset} value={preset}>
+                {TIME_RANGE_LABELS[preset]}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px" }}>

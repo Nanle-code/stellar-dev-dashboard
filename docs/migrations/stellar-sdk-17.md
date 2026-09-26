@@ -23,3 +23,7 @@
 - Network `sorobanUrl` config keys
 
 ## Verify
+pnpm install
+pnpm run type-check
+pnpm test
+No remaining `SorobanRpc` in `src/`.

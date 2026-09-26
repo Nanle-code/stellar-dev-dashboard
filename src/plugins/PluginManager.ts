@@ -245,7 +245,14 @@ function createRecord({
 }
 
 export class PluginManager {
-  constructor({ store = useStore } = {}) {
+  store: any;
+  plugins: Map<string, any>;
+  listeners: Set<any>;
+  initializing: any;
+  marketplace: Map<string, any>;
+  hydrated: boolean;
+
+  constructor({ store = useStore }: any = {}) {
     this.store = store && typeof store.getState === "function" ? store : useStore;
     this.plugins = new Map();
     this.listeners = new Set();

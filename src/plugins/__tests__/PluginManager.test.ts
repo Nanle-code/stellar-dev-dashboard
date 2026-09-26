@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { PluginManager, PLUGIN_STATUSES } from "../PluginManager";
 
 function createMockStore() {
-  const listeners = new Set();
+  const listeners = new Set<(s: any) => void>();
   let state = {
     network: "testnet",
     theme: "dark",
@@ -12,11 +12,11 @@ function createMockStore() {
 
   return {
     getState: () => state,
-    setState: (nextState) => {
+    setState: (nextState: any) => {
       state = { ...state, ...nextState };
       listeners.forEach((listener) => listener(state));
     },
-    subscribe: (listener) => {
+    subscribe: (listener: any) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },

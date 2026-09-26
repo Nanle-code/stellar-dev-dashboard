@@ -239,6 +239,7 @@ export async function buildTransaction({
   timeout = 180,
   timeBounds,
   preconditions,
+  sorobanData,
   network = "testnet",
 }) {
   if (!operations || operations.length === 0) {
@@ -273,6 +274,10 @@ export async function buildTransaction({
     fee: baseFee.toString(),
     networkPassphrase: NETWORKS[network].passphrase,
   });
+
+  if (sorobanData) {
+    txBuilder.setSorobanData(sorobanData);
+  }
 
   if (timeBounds?.minTime || timeBounds?.maxTime) {
     const maxTime = timeBounds.maxTime ? parseInt(String(timeBounds.maxTime), 10) : 0;

@@ -246,7 +246,19 @@ function useVisualizationData(metric, density) {
   }, [accountData, connectedAddress, density, metric, operations, transactions])
 }
 
-function ToolbarButton({ active, children, icon: Icon, onClick, title }) {
+function ToolbarButton({
+  active = false,
+  children,
+  icon: Icon,
+  onClick,
+  title,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+  icon?: React.ComponentType<{ size?: number; 'aria-hidden'?: string }>;
+  onClick?: () => void;
+  title?: string;
+}) {
   return (
     <button
       type="button"

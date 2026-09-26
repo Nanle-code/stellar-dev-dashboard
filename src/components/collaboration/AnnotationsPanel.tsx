@@ -4,7 +4,8 @@
  * Displays and manages collaborative annotations for accounts, transactions, and contracts.
  */
 
-import { useAnnotations } from '../../hooks/usePresence'
+import React, { useState } from 'react'
+import { useAnnotations } from '../../hooks/useAnnotations'
 import { MessageSquare, X, Check, Trash2 } from 'lucide-react'
 
 export function AnnotationsPanel({ type, targetId, onClose }) {
@@ -121,7 +122,7 @@ function AnnotationItem({ annotation, onResolve, onDelete }) {
   const formatDate = (timestamp) => {
     const date = new Date(timestamp)
     const now = new Date()
-    const diffMs = now - date
+    const diffMs = now.getTime() - date.getTime()
     const diffMins = Math.floor(diffMs / 60000)
     const diffHours = Math.floor(diffMs / 3600000)
     const diffDays = Math.floor(diffMs / 86400000)

@@ -281,11 +281,12 @@ export default function AccountComparison() {
     <MetricCard
       title="Subentries"
       accounts={accounts}
-      format={(a) => a?.num_subentries?.toString() ?? '—'}
+      format={(a) => ((a as any)?.subentry_count ?? (a as any)?.num_subentries)?.toString() ?? '—'}
       highlight={(a) => {
-        if (!a?.num_subentries) return false;
-        const max = Math.max(...accounts.filter(Boolean).map(acc => acc!.num_subentries || 0));
-        return a.num_subentries === max && max > 0;
+        if (!a) return false;
+        const count = (a as any)?.subentry_count ?? (a as any)?.num_subentries ?? 0;
+        const max = Math.max(...accounts.filter(Boolean).map(acc => (acc as any)?.subentry_count ?? (acc as any)?.num_subentries ?? 0));
+        return count === max && max > 0;
       }}
     />
   );
@@ -348,8 +349,8 @@ export default function AccountComparison() {
 
         {currentSlots.length > 0 && (
           <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {currentSlots.map((slot: ComparisonSlot, index: number) => (
-              <div key={slot.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {currentSlots.map((slot: any, index: number) => (
+              <div key={slot.id ?? index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <span style={{
                   width: '22px',
                   height: '22px',
@@ -367,7 +368,7 @@ export default function AccountComparison() {
                 </span>
                 <input
                   type="text"
-                  value={slot.address}
+                  value={slot.address || slot.key || ''}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => handleAccountChange(index, e)}
                   style={{
                     flex: 1,

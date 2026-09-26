@@ -505,20 +505,23 @@ export default function AdvancedSearch() {
           <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px' }}>
             <button
               onClick={() => setShowHistory(!showHistory)}
-              style={{ ...iconButtonStyle, title: 'Search History' }}
+              title="Search History"
+              style={iconButtonStyle}
             >
               <History size={14} />
             </button>
             <button
               onClick={saveSearch}
-              style={{ ...iconButtonStyle, title: 'Save Search' }}
+              title="Save Search"
+              style={iconButtonStyle}
             >
               <Save size={14} />
             </button>
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={loading}
-              style={{ ...iconButtonStyle, background: 'var(--cyan)', color: 'white', title: 'Search' }}
+              title="Search"
+              style={{ ...iconButtonStyle, background: 'var(--cyan)', color: 'white' }}
             >
               {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
             </button>

@@ -7,7 +7,8 @@
  * insight strings that the UI can render directly.
  */
 
-import * as tf from '@tensorflow/tfjs'
+import type { LayersModel, Tensor } from '@tensorflow/tfjs'
+import { loadTfRuntime, requireTfRuntime } from './mlRuntime'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1331,11 +1332,14 @@ export function extractTrainingData(
 }
 
 // ---- Model Training Pipeline ----
-let mlModel: tf.LayersModel | null = null
+let mlModel: LayersModel | null = null
 let isModelTraining = false
 
-export async function initOrLoadModel(inputDim = 6, numClasses = 11): Promise<tf.LayersModel> {
+export async function initOrLoadModel(inputDim = 6, numClasses = 11): Promise<LayersModel> {
   if (mlModel) return mlModel
+
+  // TensorFlow.js is loaded on demand through the `mlRuntime` facade (#969).
+  const tf = await loadTfRuntime()
 
   try {
     mlModel = await tf.loadLayersModel('indexeddb://stellar-tx-pattern-model')
@@ -1392,6 +1396,7 @@ export async function trainMLModel(
 
   try {
     const model = await initOrLoadModel(6, 11)
+    const tf = requireTfRuntime()
     const { features, labels } = extractTrainingData(transactions, operations, feedback)
 
     if (features.length === 0) {
@@ -1502,8 +1507,9 @@ export async function scoreTransaction(
 
   try {
     const model = await initOrLoadModel(6, 11)
+    const tf = requireTfRuntime()
     const inputTensor = tf.tensor2d([x])
-    const predTensor = model.predict(inputTensor) as tf.Tensor
+    const predTensor = model.predict(inputTensor) as Tensor
     const probabilities = await predTensor.data()
 
     inputTensor.dispose()

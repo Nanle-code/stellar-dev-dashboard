@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { AccountDigitalTwin, SimulationEngine, type SimulationScenario, type SimulationResult } from '../../lib/digitalTwin';
+import type { SimulationScenario, SimulationResult } from '../../lib/digitalTwin';
+import { useMlRuntime } from '../../hooks/useMlRuntime';
 
 interface Props {
   accountAddress: string;
@@ -9,11 +10,18 @@ export const DigitalTwinPanel: React.FC<Props> = ({ accountAddress }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { isLoading: mlRuntimeLoading, error: mlRuntimeError } = useMlRuntime();
 
   const runSimulation = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // `src/lib/digitalTwin` pulls in TensorFlow.js through `mlRuntime`, so it is
+      // imported on demand (#969). The dynamic import keeps the ML runtime out of
+      // the initial bundle; `useMlRuntime` surfaces the download as a loading
+      // state while `AccountDigitalTwin.buildModel()` fetches the runtime.
+      const { AccountDigitalTwin, SimulationEngine } = await import('../../lib/digitalTwin');
+
       const twin = new AccountDigitalTwin({
         address: accountAddress,
         averageBalance: 5000,
@@ -45,6 +53,12 @@ export const DigitalTwinPanel: React.FC<Props> = ({ accountAddress }) => {
     }
   }, [accountAddress]);
 
+  const buttonLabel = mlRuntimeLoading
+    ? 'Loading ML runtime...'
+    : loading
+      ? 'Running Simulation...'
+      : 'Run Simulation';
+
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0a0a] p-6">
       <h2 className="text-lg font-semibold text-white mb-4">Digital Twin Simulation</h2>
@@ -54,12 +68,12 @@ export const DigitalTwinPanel: React.FC<Props> = ({ accountAddress }) => {
         disabled={loading}
         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition"
       >
-        {loading ? 'Running Simulation...' : 'Run Simulation'}
+        {buttonLabel}
       </button>
 
-      {error && (
+      {(error || mlRuntimeError) && (
         <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-          {error}
+          {error || mlRuntimeError?.message}
         </div>
       )}
 

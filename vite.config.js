@@ -23,6 +23,30 @@ export default defineConfig({
         // sw.js lives in /public and is emitted by Vite's publicDir handling.
       },
     },
+    // Emit a machine-readable map of which source modules landed in which output
+    // chunk. `scripts/check-bundle-budgets.mjs` reads it to prove that heavy ML
+    // and graph libraries stay out of the entry/Overview chunks (#969).
+    {
+      name: 'emit-bundle-module-map',
+      apply: 'build',
+      generateBundle(_outputOptions, bundle) {
+        const chunks = {}
+        for (const [fileName, output] of Object.entries(bundle)) {
+          if (output.type !== 'chunk') continue
+          chunks[fileName] = {
+            name: output.name,
+            isEntry: Boolean(output.isEntry),
+            isDynamicEntry: Boolean(output.isDynamicEntry),
+            moduleIds: Object.keys(output.modules).map((id) => id.replace(/\\/g, '/')),
+          }
+        }
+        this.emitFile({
+          type: 'asset',
+          fileName: 'bundle-modules.json',
+          source: JSON.stringify({ generatedAt: new Date().toISOString(), chunks }, null, 2),
+        })
+      },
+    },
   ],
 
   build: {
@@ -67,6 +91,14 @@ export default defineConfig({
 
           if (normalizedId.includes('@stellar/stellar-sdk')) return 'stellar-sdk'
           if (normalizedId.includes('recharts')) return 'charts-vendor'
+          if (normalizedId.includes('@tensorflow/')) return 'ml-vendor'
+          if (
+            normalizedId.includes('react-force-graph') ||
+            normalizedId.includes('force-graph') ||
+            normalizedId.includes('d3-force-3d')
+          ) {
+            return 'graph-vendor'
+          }
           if (normalizedId.includes('lucide-react')) return 'icons-vendor'
           if (normalizedId.includes('i18next')) return 'i18n'
           if (normalizedId.includes('date-fns')) return 'date-vendor'

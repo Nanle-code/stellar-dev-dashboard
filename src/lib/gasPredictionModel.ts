@@ -1,4 +1,5 @@
-import * as tf from '@tensorflow/tfjs';
+import type { Sequential } from '@tensorflow/tfjs';
+import { loadTfRuntime, requireTfRuntime } from './mlRuntime';
 
 export interface GasPredictionFeatures {
   argCount: number
@@ -110,11 +111,12 @@ export class GasPredictionModel {
   private residualStd: number = 1
   private trainingCount: number = 0
   private historicalAccuracy: number = 0.95
-  private tfModel: tf.Sequential | null = null
+  private tfModel: Sequential | null = null
   private predictionHistory: GasPredictionFeedback[] = []
 
   async initialize(): Promise<void> {
     try {
+      const tf = await loadTfRuntime()
       this.tfModel = tf.sequential()
       this.tfModel.add(tf.layers.dense({ units: 16, activation: 'relu', inputShape: [FEATURE_KEYS.length] }))
       this.tfModel.add(tf.layers.dropout({ rate: 0.2 }))
@@ -141,6 +143,7 @@ export class GasPredictionModel {
 
     if (this.tfModel && features.length >= 50) {
       try {
+        const tf = requireTfRuntime()
         const tensorX = tf.tensor2d(X)
         const tensorY = tf.tensor2d(y.map(v => [v, 0]))
         await this.tfModel.fit(tensorX, tensorY, { epochs: 10, batchSize: 32, shuffle: true })

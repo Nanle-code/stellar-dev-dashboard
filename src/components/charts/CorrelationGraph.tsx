@@ -1,6 +1,19 @@
-import React, { useRef, useState, useEffect } from "react";
-import ForceGraph2D from "react-force-graph-2d";
+import React, { useRef, useState, useEffect, Suspense, lazy } from "react";
 import { useCorrelation } from "../../hooks/useCorrelation";
+
+// `react-force-graph-2d` drags in `force-graph` + `d3-force-3d` (~400 KB
+// uncompressed). It is only useful once the correlation graph is actually on
+// screen, so it is code-split with `React.lazy` and never lands in the initial
+// bundle (#969). Vite emits it as the `graph-vendor` chunk.
+const ForceGraph2D = lazy(() => import("react-force-graph-2d"));
+
+function GraphLoadingFallback() {
+  return (
+    <div style={{ padding: "20px", textAlign: "center" }}>
+      Loading graph engine...
+    </div>
+  );
+}
 
 export default function CorrelationGraph() {
   const { data, loading, error } = useCorrelation();
@@ -54,20 +67,22 @@ export default function CorrelationGraph() {
       
       <div style={{ display: "flex", flexDirection: "row" }}>
         <div style={{ flex: 1, borderRight: selectedLink ? "1px solid var(--border)" : "none" }}>
-          <ForceGraph2D
-            ref={graphRef}
-            width={selectedLink ? dimensions.width * 0.6 : dimensions.width}
-            height={dimensions.height}
-            graphData={data}
-            nodeLabel="label"
-            nodeColor={() => "var(--cyan)"}
-            nodeRelSize={6}
-            linkColor={(link) => (link.value > 0 ? "rgba(0, 255, 128, 0.6)" : "rgba(255, 64, 64, 0.6)")}
-            linkWidth={(link) => Math.abs(link.value) * 5}
-            onLinkClick={(link) => setSelectedLink(link)}
-            enableNodeDrag={true}
-            enableZoomPanInteraction={true}
-          />
+          <Suspense fallback={<GraphLoadingFallback />}>
+            <ForceGraph2D
+              ref={graphRef}
+              width={selectedLink ? dimensions.width * 0.6 : dimensions.width}
+              height={dimensions.height}
+              graphData={data}
+              nodeLabel="label"
+              nodeColor={() => "var(--cyan)"}
+              nodeRelSize={6}
+              linkColor={(link) => (link.value > 0 ? "rgba(0, 255, 128, 0.6)" : "rgba(255, 64, 64, 0.6)")}
+              linkWidth={(link) => Math.abs(link.value) * 5}
+              onLinkClick={(link) => setSelectedLink(link)}
+              enableNodeDrag={true}
+              enableZoomPanInteraction={true}
+            />
+          </Suspense>
         </div>
 
         {selectedLink && (

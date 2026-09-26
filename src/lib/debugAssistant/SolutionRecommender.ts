@@ -1,4 +1,5 @@
-import * as tf from '@tensorflow/tfjs';
+import type { LayersModel, Tensor, Tensor2D } from '@tensorflow/tfjs';
+import { loadTfRuntime, requireTfRuntime } from '../mlRuntime';
 import { getSimilarFixes, recordFix, updateFixHelpful, type FixRecord } from './FixHistoryStore';
 import { formatErrorMessage } from '../../utils/errorHandler';
 
@@ -187,11 +188,14 @@ const SOLUTION_TEMPLATES: SolutionTemplate[] = [
   },
 ];
 
-let model: tf.LayersModel | null = null;
+let model: LayersModel | null = null;
 
-async function loadRecommendationModel(): Promise<tf.LayersModel | null> {
+async function loadRecommendationModel(): Promise<LayersModel | null> {
   if (model) return model;
   try {
+    // TensorFlow.js is loaded on demand (#969); if it (or the saved model) is
+    // unavailable, callers fall back to the template/history recommendations.
+    const tf = await loadTfRuntime();
     model = await tf.loadLayersModel('indexeddb://stellar-debug-model');
     return model;
   } catch {
@@ -199,7 +203,7 @@ async function loadRecommendationModel(): Promise<tf.LayersModel | null> {
   }
 }
 
-function extractFeatures(errorMessage: string, category: string): tf.Tensor2D {
+function extractFeatures(errorMessage: string, category: string): Tensor2D {
   const features: number[] = [];
   const categories = ['network', 'validation', 'stellar', 'authentication', 'permission', 'rate_limit', 'unknown'];
   const categoryOneHot = categories.map((c) => (c === category ? 1 : 0));
@@ -212,6 +216,7 @@ function extractFeatures(errorMessage: string, category: string): tf.Tensor2D {
   features.push(errorMessage.length / 500);
   features.push(errorMessage.split(' ').length / 50);
 
+  const tf = requireTfRuntime();
   return tf.tensor2d([features]);
 }
 
@@ -309,7 +314,7 @@ async function getMlRecommendations(
 
   try {
     const features = extractFeatures(errorMessage, category);
-    const prediction = mlModel.predict(features) as tf.Tensor;
+    const prediction = mlModel.predict(features) as Tensor;
     const values = await prediction.data();
     features.dispose();
     prediction.dispose();
@@ -379,6 +384,7 @@ async function trainModel(
   _solution: string,
 ): Promise<void> {
   try {
+    const tf = await loadTfRuntime();
     const fixes = await getSimilarFixes(_errorMessage, _category, 50);
     const helpful = fixes.filter((f) => f.wasHelpful === true);
     if (helpful.length < 10) return;

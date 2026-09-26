@@ -1,0 +1,45 @@
+name: Starter issue (maintainers)
+description: Propose a well-scoped issue for first-time contributors. See docs/community/issue-labels.md.
+title: '[Starter] '
+labels: ['good first issue', 'difficulty: beginner']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Starter issues must meet every item in the checklist below. If one does not apply,
+        use a normal issue with a `difficulty:` label instead of `good first issue`.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What needs to change
+      description: One focused outcome. Link the files a newcomer should start from.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete, checkable results, including the test that proves them.
+    validations:
+      required: true
+  - type: input
+    id: mentor
+    attributes:
+      label: Mentor
+      description: GitHub handle of the maintainer who will answer questions and review.
+      placeholder: '@handle'
+    validations:
+      required: true
+  - type: checkboxes
+    id: starter-checklist
+    attributes:
+      label: Starter checklist
+      options:
+        - label: Touches at most 3 files and needs no design decisions.
+          required: true
+        - label: Does not touch a path listed in .github/CODEOWNERS (wallet, auth, crypto, CI).
+          required: true
+        - label: Can be built and tested locally without mainnet funds, secrets, or hardware wallets.
+          required: true
+        - label: Links the relevant docs or code entry points above.
+          required: true

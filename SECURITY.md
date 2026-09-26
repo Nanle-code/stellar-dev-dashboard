@@ -7,6 +7,18 @@ to the originating home domain and configured trusted domains. See
 [`docs/security/endpoint-allowlist.md`](docs/security/endpoint-allowlist.md)
 for compatibility and migration guidance.
 
+## Wallet session idle timeout
+
+Connected wallets are disconnected after a configurable idle period (default
+15 minutes) with a confirmation prompt first. See
+[`docs/security/wallet-idle-timeout.md`](docs/security/wallet-idle-timeout.md).
+
+## Code owners for security-sensitive paths
+
+Wallet, authentication, cryptography, and CI paths require review from the
+owners listed in [`.github/CODEOWNERS`](.github/CODEOWNERS). Coverage is
+enforced in CI; see [`docs/contributing.md`](docs/contributing.md#code-owners).
+
 ## Overview
 This document outlines the security architecture and threat model for the `stellar-dev-dashboard`. Our security strategy focuses on frontend hardening, automated dependency management, and restrictive communication policies.
 

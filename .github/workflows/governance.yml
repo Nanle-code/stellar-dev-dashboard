@@ -1,0 +1,59 @@
+name: Governance
+
+# Enforces contributor policy files (#902, #909, #910) and publishes the label
+# catalogue. See docs/contributing.md#merge-requirements.
+
+on:
+  pull_request:
+    branches: [master, main, develop]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    # Required status check — renaming this job requires updating branch protection.
+    name: Governance Policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # Dependency-free: validates CODEOWNERS coverage of security-sensitive
+      # paths, labels.json, issue forms, and the merge-policy text.
+      - name: Validate governance files
+        run: node scripts/validate-governance.mjs
+
+  sync-labels:
+    name: Sync issue labels
+    needs: policy
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Creates or updates labels from .github/labels.json. Never deletes labels.
+      - name: Create or update labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            name=$(jq -r '.name' <<<"$label")
+            color=$(jq -r '.color' <<<"$label")
+            description=$(jq -r '.description' <<<"$label")
+            gh label create "$name" --repo "$GITHUB_REPOSITORY" \
+              --color "$color" --description "$description" --force
+          done

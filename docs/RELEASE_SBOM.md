@@ -30,7 +30,7 @@ Operators can also run the workflow manually from GitHub Actions and supply a ta
 ## Local generation
 
 ```bash
-npm ci
+pnpm install
 node scripts/generate-sbom.mjs --output dist/sbom.cyclonedx.json --format cyclonedx
 ```
 
@@ -46,7 +46,7 @@ node scripts/generate-sbom.mjs --output dist/sbom.spdx.json --format spdx
 
 | Condition | Behaviour |
 |-----------|-----------|
-| Missing `package-lock.json` | Script exits with code `3` and prints guidance to run `npm ci` |
+| Missing lockfile (`pnpm-lock.yaml`) | Script exits with code `3` and prints guidance to run `pnpm install` |
 | npm < 9 (no `npm sbom`) | Script exits with code `2` — unsupported environment |
 | Invalid CLI flags | Script exits with code `1` |
 | Release tag missing on manual dispatch | Workflow input validation prevents empty tags |
@@ -56,7 +56,7 @@ node scripts/generate-sbom.mjs --output dist/sbom.spdx.json --format spdx
 
 ## Security notes
 
-- SBOMs list **direct and transitive** npm dependencies resolved from `package-lock.json`.
+- SBOMs list **direct and transitive** dependencies resolved from `pnpm-lock.yaml`.
 - Treat SBOM files as public supply-chain metadata; they do not contain secrets.
 - Compare SBOMs across releases to detect unexpected dependency changes during upgrades.
 

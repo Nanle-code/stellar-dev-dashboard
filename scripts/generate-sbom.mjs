@@ -88,8 +88,8 @@ function main() {
     process.exit(1);
   }
 
-  if (!existsSync('package-lock.json')) {
-    console.error('[sbom] package-lock.json is required. Run npm ci before generating an SBOM.');
+  if (!existsSync('pnpm-lock.yaml')) {
+    console.error('[sbom] pnpm-lock.yaml is required. Run pnpm install before generating an SBOM.');
     process.exit(3);
   }
 

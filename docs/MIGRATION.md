@@ -123,6 +123,28 @@ full guide (compatibility, security, migration).
 
 ---
 
+## Single pnpm Lockfile Enforcement (#962)
+
+The repository standardizes strictly on `pnpm` (`>=9.0.0`) and `pnpm-lock.yaml`. Redundant `package-lock.json` and alternative lockfiles (`yarn.lock`, `bun.lockb`, `npm-shrinkwrap.json`) have been removed and are forbidden.
+
+**What changed & Migration steps:**
+
+1. **Delete local `package-lock.json` / `yarn.lock`**:
+   If your working tree contains a stale `package-lock.json` or `yarn.lock`, delete it before running builds or tests:
+   ```bash
+   rm -f package-lock.json yarn.lock
+   ```
+2. **Install using pnpm**:
+   ```bash
+   pnpm install --frozen-lockfile
+   ```
+3. **CI Enforcement**:
+   CI fails if non-pnpm lockfiles are committed (`pnpm run check:package-manager`).
+4. **Security & Reproducibility**:
+   Having a single lockfile prevents dependency resolution discrepancies between contributors, automated vulnerability scanners (Dependabot), and CI release pipelines.
+
+---
+
 ## Adding a Breaking Change (for maintainers)
 
 1. Add to `docs/api/CHANGELOG.md` under `## Breaking Changes` for the next version.
@@ -130,3 +152,4 @@ full guide (compatibility, security, migration).
 3. If automatable, provide a codemod: `npx codemod <package-name>`.
 4. Keep legacy aliases active for at least one minor version before removing them.
 5. Update this document.
+

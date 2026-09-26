@@ -14,17 +14,17 @@ import "../../styles/accessibility.css";
 /**
  * Command Palette Component
  */
-function CommandPalette({ isOpen, onClose }) {
+function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef(null);
-  const triggerRef = useRef(document.activeElement);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
-  const { setConnectedAddress, setSelectedTemplateId } = useStore();
+  const { setConnectedAddress, setSelectedTemplateId } = useStore() as any;
 
   useEffect(() => {
     if (isOpen) {
-      triggerRef.current = document.activeElement;
+      triggerRef.current = document.activeElement as HTMLElement | null;
     } else if (triggerRef.current instanceof HTMLElement) {
       triggerRef.current.focus();
     }
@@ -45,7 +45,7 @@ function CommandPalette({ isOpen, onClose }) {
     { id: "action-compare", label: "Compare Accounts", category: "Actions", action: () => navigate(buildPath("compare")) },
 
     // Recent Accounts
-    ...getRecentAccounts().map((acc) => ({
+    ...getRecentAccounts().map((acc: any) => ({
       id: `account-${acc.publicKey}`,
       label: `Switch to ${acc.publicKey.slice(0, 8)}...${acc.publicKey.slice(-4)}`,
       category: "Recent Accounts",
@@ -58,7 +58,7 @@ function CommandPalette({ isOpen, onClose }) {
     })),
 
     // Templates
-    ...Object.values(getTransactionTemplates()).map((template) => ({
+    ...Object.values(getTransactionTemplates() as Record<string, any>).map((template: any) => ({
       id: `template-${template.id}`,
       label: `Load Template: ${template.label || template.name || template.id}`,
       category: "Templates",
@@ -78,7 +78,7 @@ function CommandPalette({ isOpen, onClose }) {
       )
     : commands;
 
-  const groupedCommands = filteredCommands.reduce((acc, cmd) => {
+  const groupedCommands: Record<string, any[]> = filteredCommands.reduce((acc: Record<string, any[]>, cmd) => {
     if (!acc[cmd.category]) acc[cmd.category] = [];
     acc[cmd.category].push(cmd);
     return acc;
@@ -94,7 +94,7 @@ function CommandPalette({ isOpen, onClose }) {
     setSelectedIndex(0);
   }, [query]);
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((prev) =>
@@ -135,7 +135,7 @@ function CommandPalette({ isOpen, onClose }) {
       }}
       onClick={onClose}
     >
-      <FocusManager trapFocus restoreFocusOnUnmount returnFocusElement={triggerRef.current}>
+      <FocusManager trapFocus restoreFocusOnUnmount returnFocusElement={triggerRef.current as HTMLElement | null}>
         <div
           role="dialog"
           aria-modal="true"
@@ -188,7 +188,7 @@ function CommandPalette({ isOpen, onClose }) {
           </div>
 
         <div style={{ maxHeight: "calc(70vh - 130px)", overflowY: "auto" }}>
-          {Object.entries(groupedCommands).map(([category, cmds]) => (
+          {Object.entries(groupedCommands).map(([category, cmds]: [string, any[]]) => (
             <div key={category}>
               <div
                 style={{

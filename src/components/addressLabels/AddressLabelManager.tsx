@@ -35,7 +35,7 @@ export default function AddressLabelManager({ onClose }) {
   const searchRef = useRef(null)
 
   useEffect(() => {
-    getAllTags().then(setAllKnownTags)
+    getAllTags().then((tags) => setAllKnownTags(tags as string[]))
   }, [labels])
 
   useEffect(() => {

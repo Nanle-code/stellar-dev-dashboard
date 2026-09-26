@@ -86,11 +86,11 @@ export function PerformanceModeSelector({
     ready,
     setPerformanceMode,
     submitFeedback,
-    locked,
     unlockAdaptation,
     refresh,
   } = useAdaptivePerformance('PerformanceModeSelector')
 
+  const locked = (snapshot?.locks as (keyof any)[]) ?? []
   const activeMode = snapshot?.mode ?? 'auto'
   const tier = snapshot?.adaptation.tier ?? 'balanced'
   const accuracy = snapshot?.accuracy
@@ -114,7 +114,7 @@ export function PerformanceModeSelector({
     setPerformanceMode('quality')
     // The "revert to a richer tier" path counts as a negative signal
     // for whatever tier was previously active.
-    void submitFeedback(0, 'user-override', { tierOverride: snapshot?.adaptation.tier })
+    void submitFeedback(0, 'user-override')
   }
 
   return (

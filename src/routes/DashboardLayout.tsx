@@ -12,6 +12,7 @@ import RealTimeNotificationCenter from '../components/notifications/RealTimeNoti
 import { useRealTimeNotifications } from '../hooks/useRealTimeNotifications';
 import { initCache } from '../lib/cacheInit';
 import ErrorBoundary from '../components/ErrorBoundary';
+import RouteErrorBoundary from '../components/routes/RouteErrorBoundary';
 import { useStore } from '../lib/store';
 import { useResponsive } from '../hooks/useResponsive';
 import { initializeErrorReporting, addBreadcrumb } from '../lib/errorReporting';
@@ -538,9 +539,17 @@ export default function DashboardLayout() {
                 <TransactionDetail txHash={txHash} onClose={() => navigate('/transactions')} />
               </Suspense>
             ) : ActiveComponent ? (
-              <Suspense fallback={<TabLoadingFallback />}>
-                <ActiveComponent />
-              </Suspense>
+              <RouteErrorBoundary
+                routeName={activeRoute?.title || activeTab}
+                routePath={location.pathname}
+                onRetry={handleRetry}
+                onNavigateHome={() => navigate('/overview')}
+                maxRetries={2}
+              >
+                <Suspense fallback={<TabLoadingFallback />}>
+                  <ActiveComponent />
+                </Suspense>
+              </RouteErrorBoundary>
             ) : (
               <NotFound />
             )}

@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const { scoreTransaction, loadModels } = require('./scoringEngine.cjs');
+const { logger } = require('../lib/logging/logger.js');
 
 const app = express();
 app.use(bodyParser.json());
@@ -34,5 +35,5 @@ app.post('/feedback', (req, res) => {
 
 const port = process.env.PORT || 4001;
 app.listen(port, () => {
-  console.log('ML scoring server running on port', port);
+  logger.info(`ML scoring server running on port ${port}`);
 });

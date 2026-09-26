@@ -328,7 +328,7 @@ export const reportPerformance = (metric: string, value: number, context: Record
     timestamp: new Date().toISOString()
   };
 
-  console.info(`[Error Reporting Service - Performance] ${metric}: ${value}`, performanceReport);
+  logger.info(`[Error Reporting Service - Performance] ${metric}: ${value}`, { performanceReport });
 };
 
 export const initializeErrorReporting = (config: Partial<ErrorReportingConfig> = {}): void => {
@@ -356,7 +356,7 @@ export const initializeErrorReporting = (config: Partial<ErrorReportingConfig> =
     });
   });
 
-  console.log('[Error Reporting Service] Initialized with config:', ERROR_REPORTING_CONFIG);
+  logger.info('Initialized with config', { config: ERROR_REPORTING_CONFIG });
 };
 
 export const getErrorStats = () => {

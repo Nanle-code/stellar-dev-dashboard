@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const tf = require('@tensorflow/tfjs-node');
 const { extractTimeSeriesFeatures } = require('./liquidityPredictionModel.js');
+const { logger } = require('../lib/logging/logger.js');
 
 // Directory for optional real snapshots – not used in this synthetic version
 const DATA_DIR = path.resolve(__dirname, 'data', 'liquidity');
@@ -44,7 +45,7 @@ function generateSyntheticSamples(count = 800) {
 async function loadDataset() {
   // For simplicity we always generate synthetic data.
   if (!fs.existsSync(DATA_DIR)) {
-    console.warn('Data directory not found – using synthetic data');
+    logger.warn('Data directory not found – using synthetic data');
   }
   return generateSyntheticSamples(800);
 }
@@ -60,18 +61,18 @@ async function train() {
   model.compile({ optimizer: tf.train.adam(0.001), loss: 'meanSquaredError' });
 
   const Xseq = X.reshape([X.shape[0], X.shape[1], 1]);
-  console.log('Training LSTM on', samples.length, 'synthetic samples');
+  logger.info(`Training LSTM on ${samples.length} synthetic samples`);
   await model.fit(Xseq, y, { epochs: 3, batchSize: 32, verbose: 1 });
 
   const modelDir = path.resolve(__dirname, '..', '..', 'model', 'liquidity');
   fs.mkdirSync(modelDir, { recursive: true });
   await model.save('file://' + modelDir);
-  console.log('Model saved to', modelDir);
+  logger.info(`Model saved to ${modelDir}`);
 }
 
 if (require.main === module) {
   train().catch(err => {
-    console.error('Training error:', err);
+    logger.error('Training error:', undefined, undefined, err);
     process.exit(1);
   });
 }

@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { logger } from '../logging/logger';
 
 export interface StateSnapshot {
   id: string;
@@ -127,7 +128,7 @@ export const useTimeTravel = create<TimeTravelState>((set, get) => ({
     if (currentIndex >= 0) {
       const snapshot = { ...history[currentIndex], id: `snapshot-${Date.now()}` };
       // In a real implementation, this would persist to IndexedDB
-      console.log('Saved snapshot:', name, snapshot);
+      logger.info('Saved snapshot', { name, snapshot });
     }
   },
 

@@ -7,6 +7,7 @@ import { scoreCommit } from './riskScorer.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from '../../lib/logging/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -73,5 +74,5 @@ app.get('/health', (req, res) => {
 
 const port = process.env.BUILD_ML_PORT || 4002;
 app.listen(port, () => {
-  console.log('Build prediction server running on port', port);
+  logger.info(`Build prediction server running on port ${port}`);
 });

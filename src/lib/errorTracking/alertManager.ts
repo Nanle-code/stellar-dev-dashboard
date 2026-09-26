@@ -3,6 +3,8 @@
  * Integrates with Slack, Email, and PagerDuty for alerting
  */
 
+import { logger } from '../logging/logger';
+
 export interface AlertConfig {
   slack?: {
     enabled: boolean;
@@ -178,7 +180,7 @@ export class AlertManager {
   private async sendEmailAlert(alert: Alert): Promise<void> {
     // Email sending would typically be done via a backend service
     // This is a placeholder for the implementation
-    console.log('[Email Alert]', alert);
+    logger.info('[Email Alert]', { alert });
     
     // In a real implementation, you would:
     // 1. Call your backend API endpoint that handles email sending

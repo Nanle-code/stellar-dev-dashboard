@@ -1,5 +1,4 @@
-// Lightweight client-side performance monitoring and profiling
-// Tracks page load metrics, Core Web Vitals (LCP, CLS, FID) and enforces simple performance budgets.
+import { logger } from './logging';
 
 type PerfConfig = {
   rumEndpoint?: string; // optional endpoint to send RUM events
@@ -21,9 +20,8 @@ const defaultConfig: PerfConfig = {
 
 function sendEvent(endpoint: string | undefined, payload: any) {
   if (!endpoint) {
-    // Fallback: console.debug for local dev
-    // eslint-disable-next-line no-console
-    console.debug('[RUM]', payload);
+    // Fallback: debug log for local dev
+    logger.debug('[RUM]', payload);
     return;
   }
 
@@ -32,8 +30,7 @@ function sendEvent(endpoint: string | undefined, payload: any) {
       ? navigator.sendBeacon(endpoint, JSON.stringify(payload))
       : void fetch(endpoint, { method: 'POST', body: JSON.stringify(payload), keepalive: true });
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('RUM send failed', e);
+    logger.warn('RUM send failed', { error: e });
   }
 }
 

@@ -34,7 +34,7 @@ export default [
     },
   },
   {
-    files: ['**/*.{js,jsx,ts,tsx}'],
+    files: ['**/*.{js,jsx,ts,tsx,cjs,mjs}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -72,7 +72,18 @@ export default [
       'no-empty': 'warn',
       'no-control-regex': 'warn',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+      'no-console': ['error', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: [
+      '**/*.test.{js,jsx,ts,tsx,cjs,mjs}',
+      '**/*.spec.{js,jsx,ts,tsx,cjs,mjs}',
+      'tests/**',
+      'scripts/**',
+    ],
+    rules: {
+      'no-console': 'off',
     },
   },
 ];

@@ -1,3 +1,5 @@
+import { logger } from '../../lib/logging';
+
 export class TestGenerator {
     private mlModelPath: string;
 
@@ -5,8 +7,8 @@ export class TestGenerator {
         this.mlModelPath = mlModelPath;
     }
 
-    public async generateTests(targetCode: string): Promise<string> {
-        console.log(`Analyzing code and generating tests using ML model at ${this.mlModelPath}...`);
+    public async generateTests(_targetCode: string): Promise<string> {
+        logger.info(`Analyzing code and generating tests using ML model at ${this.mlModelPath}...`);
         
         // Simulating ML test generation
         return `

@@ -28,6 +28,7 @@ import type {
 } from '../../lib/refactoring/types';
 import { toJSON, toMarkdown } from '../../lib/refactoring/reportGenerator';
 import { recommend } from '../../lib/refactoring/recommender';
+import { logger } from '../../lib/logging';
 
 const PALETTE = ['#06b6d4', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#fb7185', '#60a5fa', '#facc15'];
 
@@ -817,7 +818,7 @@ export function evaluateRisk(profile, holder, asset) {
     if (asset?.spread > 0.1) score += 10;
   }
   if (asset?.issuer && !asset.issuer.trusted) score += 15;
-  console.info('evaluating risk', score);
+  logger.debug('evaluating risk', { score });
   return { score, reasons };
 }
 

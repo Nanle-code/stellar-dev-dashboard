@@ -5,6 +5,7 @@ export * from './executionReporter';
 import { TestGenerator } from './testGenerator';
 import { EdgeCaseDiscovery } from './edgeCaseDiscovery';
 import { ExecutionReporter } from './executionReporter';
+import { logger } from '../../lib/logging';
 
 export class AITestSystem {
     private testGenerator: TestGenerator;
@@ -18,17 +19,17 @@ export class AITestSystem {
     }
 
     public async runIntelligentTestGeneration(targetCode: string): Promise<string> {
-        console.log('Starting Intelligent Test Case Generation System...');
+        logger.info('Starting Intelligent Test Case Generation System...');
         
         const edgeCases = this.edgeCaseDiscovery.discoverEdgeCases(targetCode);
-        console.log('Discovered edge cases:', edgeCases);
+        logger.info('Discovered edge cases', { edgeCases });
 
         const testSuite = await this.testGenerator.generateTests(targetCode);
-        console.log('Generated test suite successfully.');
+        logger.info('Generated test suite successfully.');
 
         const report = await this.executionReporter.executeTests(testSuite);
         const reportString = this.executionReporter.generateReport(report);
-        console.log(reportString);
+        logger.info(reportString);
 
         return reportString;
     }

@@ -80,7 +80,7 @@ export async function registerServiceWorker() {
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',
     });
-    logger.info('Service Worker registered with scope:', registration.scope);
+    logger.info(`Service Worker registered with scope: ${registration.scope}`);
 
     // Initialise background sync if supported
     if ('sync' in registration) {

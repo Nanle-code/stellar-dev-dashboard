@@ -8,6 +8,7 @@
 const path = require('path');
 const fs = require('fs');
 const tf = require('@tensorflow/tfjs-node');
+const { logger } = require('../../lib/logging/logger');
 
 function extractBackupFeatures(event) {
   return [
@@ -25,7 +26,7 @@ async function train() {
   const modelsDir = path.resolve(__dirname, '..', '..', '..', 'ml_models', 'backup');
 
   if (!fs.existsSync(dataPath)) {
-    console.warn('No training data found at', dataPath);
+    logger.warn(`No training data found at ${dataPath}`);
     return;
   }
 
@@ -52,11 +53,11 @@ async function train() {
 
   await model.fit(xs, ys, { epochs: 20, batchSize: 32, verbose: 1 });
   await model.save('file://' + path.join(modelsDir, 'tfjs_model'));
-  console.log('Backup optimization model saved to', modelsDir);
+  logger.info(`Backup optimization model saved to ${modelsDir}`);
 }
 
 if (require.main === module) {
-  train().catch(err => { console.error(err); process.exit(1); });
+  train().catch(err => { logger.error(err.message, undefined, undefined, err); process.exit(1); });
 }
 
 module.exports = { train };

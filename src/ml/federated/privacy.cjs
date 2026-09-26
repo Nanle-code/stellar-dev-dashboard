@@ -1,6 +1,7 @@
 // Privacy-Preserving Data Collection System
 const crypto = require('crypto');
 const { extractFeatures } = require('../feature_extraction.cjs');
+const { logger } = require('../../lib/logging/logger.js');
 
 class PrivacyPreservingCollector {
   constructor(config = {}) {
@@ -197,7 +198,7 @@ class PrivacyPreservingCollector {
     };
     
     // In production, this would go to a secure audit log
-    console.log('Privacy operation:', JSON.stringify(logEntry));
+    logger.info('Privacy operation', { logEntry });
     
     return logEntry;
   }

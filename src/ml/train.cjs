@@ -4,11 +4,12 @@ const path = require('path');
 const tf = require('@tensorflow/tfjs-node');
 const { extractFeatures } = require('./feature_extraction.cjs');
 const { IsolationForest } = require('./isolation_forest.cjs');
+const { logger } = require('../lib/logging/logger.js');
 
 async function train() {
   const dataPath = path.resolve(__dirname, 'data', 'train.json');
   if (!fs.existsSync(dataPath)) {
-    console.warn('No training data found at', dataPath);
+    logger.warn(`No training data found at ${dataPath}`);
     return;
   }
   const raw = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
@@ -21,7 +22,7 @@ async function train() {
   const modelsDir = path.resolve(__dirname, '..', '..', 'ml_models');
   fs.mkdirSync(modelsDir, { recursive: true });
   iforest.save(path.join(modelsDir, 'isolation_forest.json'));
-  console.log('Isolation Forest saved.');
+  logger.info('Isolation Forest saved.');
 
   // Train a simple TFJS classifier for pattern recognition (optional)
   const xs = tf.tensor2d(X);
@@ -33,11 +34,14 @@ async function train() {
   model.compile({ optimizer: tf.train.adam(0.001), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
   await model.fit(xs, ys, { epochs: 15, batchSize: 32, verbose: 1 });
   await model.save('file://' + path.join(modelsDir, 'tfjs_model'));
-  console.log('TFJS model saved.');
+  logger.info('TFJS model saved.');
 }
 
 if (require.main === module) {
-  train().catch(err => { console.error(err); process.exit(1); });
+  train().catch(err => {
+    logger.error(err.message, undefined, undefined, err);
+    process.exit(1);
+  });
 }
 
 module.exports = { train };

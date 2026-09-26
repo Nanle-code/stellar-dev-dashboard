@@ -9,6 +9,7 @@
  */
 
 import { alertCenter } from './alerts'
+import { logger } from './logging'
 
 // ─── Channel types ────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ export async function dispatchToChannels(
         break
       case 'email':
         // Email delivery is a stub — integrate your email provider here
-        console.info('[alertChannels] Email stub for:', ch.emailAddress, payload.title)
+        logger.info(`[alertChannels] Email stub for: ${ch.emailAddress} - ${payload.title}`)
         break
     }
   }

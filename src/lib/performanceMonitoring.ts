@@ -1,4 +1,5 @@
 import { evaluateAlertRules, alertCenter } from './alerts.js'
+import { logger } from './logging/logger.js'
 
 /**
  * PERFORMANCE MONITORING SYSTEM — LOAD BALANCING FEEDBACK LOOP
@@ -535,18 +536,18 @@ function collectBudgetViolation(summary, metric) {
 function reportMetrics() {
   const summary = getMetricsSummary();
 
-  console.group("Performance Report");
-  console.log("Web Vitals:", summary.webVitals);
-  console.log("Custom Metrics:", summary.customMetrics);
-  console.log("Resources:", summary.resources);
+  logger.info("Performance Report Summary", {
+    webVitals: summary.webVitals,
+    customMetrics: summary.customMetrics,
+    resources: summary.resources,
+  });
 
   if (summary.budgetViolations.length > 0) {
-    console.warn("Budget Violations:", summary.budgetViolations);
+    logger.warn("Budget Violations", { budgetViolations: summary.budgetViolations });
   } else {
-    console.log("All performance budgets met");
+    logger.info("All performance budgets met");
   }
 
-  console.groupEnd();
   sendToMonitoringService(summary);
 }
 

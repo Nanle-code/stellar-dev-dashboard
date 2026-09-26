@@ -32,6 +32,7 @@ import ThemeToggle from '../components/layout/ThemeToggle';
 import OfflineBanner from '../components/layout/OfflineBanner';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import SWUpdatePrompt from '../components/SWUpdatePrompt';
+import WalletIdlePrompt from '../components/security/WalletIdlePrompt';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import DevToolbar from '../components/dashboard/DevToolbar';
 import DebugAssistantButton from '../components/debug/DebugAssistantButton';
@@ -396,6 +397,7 @@ export default function DashboardLayout() {
       <OfflineBanner />
       <PWAInstallBanner />
       <SWUpdatePrompt />
+      <WalletIdlePrompt />
       <div
         style={{
           display: 'flex',

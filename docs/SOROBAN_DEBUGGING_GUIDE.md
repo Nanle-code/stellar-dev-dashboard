@@ -713,3 +713,11 @@ Before production deployment:
 - [Soroban CLI Documentation](https://developers.stellar.org/docs/build/tools/stellar-cli)
 - [Rust Debugging Guide](https://docs.rust-embedded.org/book/debugging/)
 - [Stellar Expert Contract Viewer](https://stellar.expert/explorer/contract)
+
+### Resource Limits and Fees
+When simulating a contract invocation, the simulation results now display detailed resource consumption including CPU instructions, memory bytes, ledger read/write entries and bytes, and event size.
+Each resource is shown alongside the current network limit, so developers can see how close their invocation comes to failing.
+The fee is broken down into the base inclusion fee, the non-refundable resource fee, and the refundable rent/events fee.
+
+If your resource usage hits >=80% of the network limit, the UI will issue a warning. 
+You should optimize your contract code to reduce execution overhead. See the [Optimization Docs](https://developers.stellar.org/docs/smart-contracts/getting-started/optimization) for best practices.

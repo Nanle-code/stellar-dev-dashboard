@@ -34,6 +34,24 @@ wallet, key, or network connection required.
 - Full maintainer and user guidance, including security and compatibility notes,
   lives in [docs/DEMO_MODE.md](docs/DEMO_MODE.md).
 
+## Global Network & Time-Range Context (#987)
+
+Analytics and chart views now share one global **network + time-range** context,
+persisted in the URL so links are shareable and browser back/forward restores
+your selection.
+
+- A context bar in the dashboard header selects the network and a time range
+  (presets such as `24h`/`7d`/`30d`/`all`, or a custom `from`/`to` window).
+- The context is stored in query params (`?network=…&range=…`, with `from`/`to`
+  for custom ranges), so a copied link reproduces exactly what you saw.
+- Views follow the global context by default; a view-level change is shown as a
+  clearly labelled **local override** with a one-click **Use global** reset.
+- Invalid hand-edited links never break the page: an unknown network or an
+  invalid range falls back to the default and shows an inline explanation.
+
+Full URL contract, validation rules, and developer guidance:
+[docs/CONTEXT_BAR.md](docs/CONTEXT_BAR.md).
+
 ## AI-Enhanced Transaction Fee Prediction (Feature #535)
 
 The fee prediction system uses machine learning to provide optimal transaction fee recommendations.

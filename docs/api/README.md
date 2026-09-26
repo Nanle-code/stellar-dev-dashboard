@@ -423,9 +423,9 @@ Common pitfalls:
 **Where this lives in the repo**
 
 - Implementation connectors: [src/lib/stellar.ts](../../src/lib/stellar.ts) (Horizon + network config)
-- Soroban helpers: [src/lib/contractInvoker.js](../../src/lib/contractInvoker.js)
-- Price feed: [src/lib/priceFeed.js](../../src/lib/priceFeed.js)
-- Streaming: [src/lib/streaming.js](../../src/lib/streaming.js)
+- Soroban helpers: [src/lib/contractInvoker.ts](../../src/lib/contractInvoker.ts)
+- Price feed: [src/lib/priceFeed.ts](../../src/lib/priceFeed.ts)
+- Streaming: [src/lib/streaming.ts](../../src/lib/streaming.ts)
 
 Replace the line numbers above with actual references if needed.
 

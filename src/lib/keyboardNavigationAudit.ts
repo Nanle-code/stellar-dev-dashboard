@@ -3,6 +3,8 @@
  * Validates focus order, detect traps, and reports unsupported environments.
  */
 
+import { ROUTES } from '../routes/routes';
+
 export interface FocusableElementInfo {
   tagName: string;
   id: string;
@@ -46,54 +48,14 @@ export interface KeyboardAuditSummary {
   passed: boolean;
 }
 
-/** Dashboard routes that must support keyboard-only navigation. */
-export const DASHBOARD_ROUTES = [
-  'connect',
-  'overview',
-  'account',
-  'transactions',
-  'contracts',
-  'network',
-  'builder',
-  'faucet',
-  'compare',
-  'wallet',
-  'signer',
-  'portfolio',
-  'txBuilder',
-  'contractInteraction',
-  'contractABI',
-  'dex',
-  'liquidityPrediction',
-  'pathExplorer',
-  'explorers',
-  'realtime',
-  'charts',
-  'assets',
-  'multisig',
-  'analytics',
-  'designSystem',
-  'featureFlags',
-  'systemHealth',
-  'performance',
-  'logAnalyzer',
-  'settings',
-  'collaboration',
-  'audit',
-  'anchors',
-  'search',
-  'cacheStats',
-  'liveActivity',
-  'claimableBalances',
-  'dataExport',
-  'governance',
-  'monitoringDashboards',
-  'compliance',
-  'security',
-  'dependencyManagement',
-  'txAnalytics',
-  'anomalyViz',
-] as const;
+/**
+ * Dashboard routes that must support keyboard-only navigation.
+ *
+ * Derived from the route registry (#959) so the audit list can never drift
+ * from the views that actually render. `connect` is not a registry view, so it
+ * is prepended explicitly.
+ */
+export const DASHBOARD_ROUTES = ['connect', ...ROUTES.map((route) => route.id)] as const;
 
 export type DashboardRoute = (typeof DASHBOARD_ROUTES)[number];
 
@@ -111,10 +73,17 @@ export function isKeyboardNavigationSupported(): { supported: boolean; reason?: 
 }
 
 function isElementVisible(el: HTMLElement): boolean {
-  if (!el.getClientRects().length) return false;
   const style = window.getComputedStyle(el);
   if (style.visibility === 'hidden' || style.display === 'none') return false;
   if (parseFloat(style.opacity) === 0) return false;
+
+  // Layout-less environments (jsdom, SSR) report no client rects even for
+  // visible elements, so an empty rect list is only meaningful when the DOM
+  // exposes `checkVisibility`, which signals a real layout engine.
+  const element = el as HTMLElement & { checkVisibility?: () => boolean };
+  if (typeof element.checkVisibility === 'function') {
+    return element.checkVisibility();
+  }
   return true;
 }
 

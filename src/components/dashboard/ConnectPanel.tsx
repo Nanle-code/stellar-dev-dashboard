@@ -1,4 +1,5 @@
 import React, { useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { announceToScreenReader } from '../../utils/accessibility'
 import { useStore } from '../../lib/store'
 import {
@@ -13,6 +14,7 @@ import { stellarCacheManager } from '../../lib/cacheManager'
 import { getOnlineStatus } from '../../utils/offline'
 import { useResponsive } from '../../hooks/useResponsive'
 import { ResponsiveGrid } from '../layout/ResponsiveContainer'
+import { DEMO_MODE_LABEL, getDemoFixtureSummarySafe } from '../../lib/demoMode'
 
 interface FeatureTile {
   icon: string
@@ -35,8 +37,10 @@ interface AddressInfo {
 export default function ConnectPanel() {
   const [input, setInput] = useState<string>('')
   const [error, setError] = useState<string>('')
+  const [demoError, setDemoError] = useState<string>('')
   const [addressInfo, setAddressInfo] = useState<AddressInfo | null>(null)
   const { isMobile, isTablet } = useResponsive()
+  const navigate = useNavigate()
   const {
     network,
     setConnectedAddress,
@@ -51,7 +55,27 @@ export default function ConnectPanel() {
     setTxHasMore,
     setOpsNextCursor,
     setOpsHasMore,
+    enterDemoMode,
   } = useStore()
+
+  const demoSummary = getDemoFixtureSummarySafe()
+
+  function handleTryDemo(): void {
+    try {
+      enterDemoMode()
+      setDemoError('')
+      announceToScreenReader(
+        `${DEMO_MODE_LABEL} loaded. Showing a read-only testnet demo portfolio.`
+      )
+      // Move off the connect route so the demo dashboard is the visible page and
+      // exiting returns the visitor to a stable connect URL.
+      navigate('/overview')
+    } catch (err) {
+      // The bundled fixtures failed validation — surface a recoverable error
+      // instead of leaving the visitor on a blank screen.
+      setDemoError((err as Error)?.message || 'Unable to load the demo portfolio.')
+    }
+  }
 
   async function handleConnect(): Promise<void> {
     const addr = input.trim()
@@ -344,6 +368,89 @@ export default function ConnectPanel() {
             }}
           >
             ✗ {error}
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: '16px',
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: 'center',
+            gap: '12px',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: isMobile ? '12px' : '11px',
+              color: 'var(--text-muted)',
+              textAlign: isMobile ? 'center' : 'left',
+              lineHeight: 1.5,
+            }}
+          >
+            No wallet? Preview the dashboard with a curated, read-only testnet portfolio.
+          </div>
+          <button
+            type="button"
+            data-testid="try-demo-button"
+            onClick={handleTryDemo}
+            aria-label="Try demo mode with a read-only testnet portfolio"
+            style={{
+              padding: isMobile ? '12px 20px' : '9px 18px',
+              background: 'transparent',
+              color: 'var(--cyan)',
+              border: '1px solid var(--cyan)',
+              borderRadius: 'var(--radius-md)',
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              fontSize: isMobile ? '14px' : '13px',
+              cursor: 'pointer',
+              letterSpacing: '0.5px',
+              whiteSpace: 'nowrap',
+              width: isMobile ? '100%' : 'auto',
+              minHeight: isMobile ? 'var(--touch-target)' : 'auto',
+              transition: 'var(--transition)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--cyan-glow)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+            }}
+          >
+            ▶ TRY DEMO
+          </button>
+        </div>
+        {demoError && (
+          <div
+            role="alert"
+            aria-live="polite"
+            style={{
+              marginTop: '8px',
+              fontSize: '12px',
+              color: 'var(--red)',
+              paddingLeft: '4px',
+              textAlign: isMobile ? 'center' : 'left',
+            }}
+          >
+            ✗ {demoError}
+          </div>
+        )}
+        {!demoError && demoSummary && (
+          <div
+            data-testid="demo-fixture-summary"
+            style={{
+              marginTop: '8px',
+              fontSize: '11px',
+              color: 'var(--text-muted)',
+              textAlign: isMobile ? 'center' : 'left',
+            }}
+          >
+            {`Includes ${demoSummary.accountCount} accounts, `}
+            {`${demoSummary.contractCount} contracts and full transaction history.`}
           </div>
         )}
         {addressInfo && (

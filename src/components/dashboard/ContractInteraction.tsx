@@ -834,32 +834,45 @@ export default function ContractInteraction() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "140px 1fr auto",
+                    gridTemplateColumns: hasSpecName ? "1fr auto" : "140px 1fr auto",
                     gap: "10px",
                     alignItems: "center",
                   }}
                 >
-                  <select
-                    value={arg.type}
-                    onChange={(e) => updateArgument(index, "type", e.target.value)}
-                    style={textInputStyle()}
-                    disabled={hasSpecName}
-                  >
-                    {ARGUMENT_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
+                  {!hasSpecName && (
+                    <select
+                      value={arg.type}
+                      onChange={(e) => updateArgument(index, "type", e.target.value)}
+                      style={textInputStyle()}
+                    >
+                      {ARGUMENT_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
 
-                  <input
-                    value={arg.value}
-                    onChange={(e) => updateArgument(index, "value", e.target.value)}
-                    placeholder={
-                      arg.type === "bool" ? "true or false" : hasSpecName ? `Enter ${paramName}` : "Argument value"
-                    }
-                    style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
-                  />
+                  {hasSpecName && arg.type === "bool" ? (
+                    <select
+                      value={arg.value}
+                      onChange={(e) => updateArgument(index, "value", e.target.value)}
+                      style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                    >
+                      <option value="">Select boolean...</option>
+                      <option value="true">True</option>
+                      <option value="false">False</option>
+                    </select>
+                  ) : (
+                    <input
+                      value={arg.value}
+                      onChange={(e) => updateArgument(index, "value", e.target.value)}
+                      placeholder={
+                        arg.type === "bool" ? "true or false" : hasSpecName ? `Enter ${paramName}` : "Argument value"
+                      }
+                      style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                    />
+                  )}
 
                   <ActionButton
                     label="Remove"

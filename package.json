@@ -60,7 +60,9 @@
     "check:package-manager": "node scripts/validate-package-manager.mjs",
     "sbom:generate": "node scripts/generate-sbom.mjs",
     "api:start": "node api/server.js",
-    "canary:probe": "node scripts/canary-health-probe.mjs"
+    "canary:probe": "node scripts/canary-health-probe.mjs",
+    "demo:seed": "node scripts/seed-demo-fixtures.mjs",
+    "demo:seed:check": "node scripts/seed-demo-fixtures.mjs --check"
   },
   "dependencies": {
     "@axe-core/react": "^4.11.3",

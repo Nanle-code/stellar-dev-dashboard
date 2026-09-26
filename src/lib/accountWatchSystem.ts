@@ -29,6 +29,7 @@ import type {
 } from '../types/accountWatch'
 
 import { AnomalyDetectionPipeline } from './anomalyDetectionPipeline';
+import { registerSubscription } from './subscriptionRegistry'
 export const anomalyPipeline = new AnomalyDetectionPipeline();
 
 const STORAGE_KEY = 'stellar:account-watch:v1'
@@ -285,6 +286,7 @@ export class AccountWatchSystem {
   private lastSnapshots = new Map<string, AccountSnapshot>()
   private listeners = new Set<Listener>()
   private timer: ReturnType<typeof setInterval> | null = null
+  private timerCleanup: (() => void) | null = null
   private refreshing = false
   private adaptiveControllers = new Map<string, AdaptiveThresholdController>()
 
@@ -364,6 +366,7 @@ export class AccountWatchSystem {
     this.timer = setInterval(() => {
       void this.refresh()
     }, this.pollIntervalMs)
+    this.timerCleanup = registerSubscription('interval', `account-watch:${this.network}`)
   }
 
   stop(): void {
@@ -371,6 +374,8 @@ export class AccountWatchSystem {
       clearInterval(this.timer)
       this.timer = null
     }
+    this.timerCleanup?.()
+    this.timerCleanup = null
   }
 
   /** Fetch every watched account once, aggregate, evaluate rules and emit. */

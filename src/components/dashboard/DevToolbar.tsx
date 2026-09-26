@@ -7,6 +7,7 @@ import {
   registerQuickAction, getQuickActions, type DevPanel,
 } from '../../utils/devExperience'
 import { toggleToolbar } from '../../utils/devExperience'
+import { getActiveSubscriptions, getSubscriptionCounts, subscribeToRegistry } from '../../lib/subscriptionRegistry'
 
 function Panel({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>{children}</div>
@@ -119,11 +120,32 @@ function QuickActionsPanel() {
   )
 }
 
+function SubscriptionsPanel() {
+  const [records, setRecords] = useState(getActiveSubscriptions())
+  useEffect(() => subscribeToRegistry(() => setRecords(getActiveSubscriptions())), [])
+  const counts = getSubscriptionCounts()
+  return (
+    <Panel>
+      <SectionTitle label="Live subscriptions" />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {Object.entries(counts).map(([kind, count]) => <span key={kind} style={{ padding: '4px 7px', borderRadius: 4, background: 'var(--bg-elevated)', fontSize: 11 }}>{kind}: {count}</span>)}
+      </div>
+      {records.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>No active subscriptions.</div> : records.map((record) => (
+        <div key={record.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+          <span>{record.kind} · {record.label}</span>
+          <span style={{ color: 'var(--text-muted)' }}>{new Date(record.openedAt).toLocaleTimeString()}</span>
+        </div>
+      ))}
+    </Panel>
+  )
+}
+
 const PANELS: { id: DevPanel; label: string; emoji: string }[] = [
   { id: 'profiler', label: 'Profiler', emoji: '⚡' },
   { id: 'memory', label: 'Memory', emoji: '🧠' },
   { id: 'shortcuts', label: 'Shortcuts', emoji: '⌨️' },
   { id: 'state', label: 'Quick Actions', emoji: '🚀' },
+  { id: 'subscriptions', label: 'Subscriptions', emoji: '🔌' },
 ]
 
 export default function DevToolbar() {
@@ -187,6 +209,7 @@ export default function DevToolbar() {
         {state.activePanel === 'memory' && <MemoryPanel />}
         {state.activePanel === 'shortcuts' && <ShortcutsPanel />}
         {state.activePanel === 'state' && <QuickActionsPanel />}
+        {state.activePanel === 'subscriptions' && <SubscriptionsPanel />}
       </div>
     </div>
   )

@@ -266,3 +266,15 @@ npm run build:analyze
 # Vitest coverage
 npm run test:coverage
 ```
+## Subscription leak audit
+
+The development toolbar includes a **Subscriptions** panel that reports active
+SSE, polling, interval, and listener resources while switching dashboard views.
+Each long-lived resource must register with `src/lib/subscriptionRegistry.ts`
+and call the returned idempotent cleanup function when it is stopped. Use the
+panel while repeatedly entering and leaving a view; active counts should return
+to their baseline after every switch.
+
+For a deeper investigation, capture a browser heap snapshot before and after
+repeating the switch sequence. Compare retained `EventSource`, timer, and
+listener objects, and verify that their count does not grow between cycles.

@@ -78,6 +78,12 @@ export function getSessionSecurityPosture({ walletType, mode, phishingSafe }) {
     factors.push('Hardware wallet (watch-only, external signing)')
   }
 
+  // Passkey smart wallet — strong trust (key never leaves the authenticator)
+  if (walletType === 'passkey') {
+    score += 28
+    factors.push('WebAuthn passkey — P-256 key bound to platform authenticator')
+  }
+
   // Software wallets — medium trust
   if (walletType === 'freighter') {
     score += 15

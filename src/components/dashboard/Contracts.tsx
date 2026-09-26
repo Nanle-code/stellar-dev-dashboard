@@ -31,16 +31,20 @@ const ARGUMENT_TYPES = [
   { value: 'bool', label: 'Bool' },
 ]
 
-function Panel({ title, subtitle, children }) {
+function Panel({ title, subtitle, children, id }: { title: string; subtitle?: string; children: React.ReactNode; id?: string }) {
   return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-lg)',
-      overflow: 'hidden',
-    }}>
+    <section
+      id={id}
+      aria-label={title}
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+      }}
+    >
       <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px' }}>{title}</div>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', margin: 0, color: 'var(--text-primary)' }}>{title}</h2>
         {subtitle && (
           <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
             {subtitle}
@@ -50,18 +54,18 @@ function Panel({ title, subtitle, children }) {
       <div style={{ padding: '18px' }}>
         {children}
       </div>
-    </div>
+    </section>
   )
 }
 
-function LabeledField({ label, children }) {
+function LabeledField({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <label htmlFor={id} style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', cursor: id ? 'pointer' : 'default' }}>
         {label}
-      </span>
+      </label>
       {children}
-    </label>
+    </div>
   )
 }
 
@@ -77,11 +81,25 @@ function textInputStyle(hasError = false) {
     fontFamily: 'var(--font-mono)',
     outline: 'none',
     transition: 'var(--transition)',
-    boxSizing: 'border-box',
+    boxSizing: 'border-box' as const,
   }
 }
 
-function ActionButton({ label, onClick, disabled, tone = 'primary' }) {
+function ActionButton({
+  label,
+  onClick,
+  disabled,
+  tone = 'primary',
+  ariaLabel,
+  type = 'button',
+}: {
+  label: React.ReactNode
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
+  disabled?: boolean
+  tone?: 'primary' | 'secondary'
+  ariaLabel?: string
+  type?: 'button' | 'submit' | 'reset'
+}) {
   const palette = tone === 'secondary'
     ? {
         background: 'var(--bg-elevated)',
@@ -96,10 +114,17 @@ function ActionButton({ label, onClick, disabled, tone = 'primary' }) {
 
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel || (typeof label === 'string' ? label : undefined)}
       style={{
         padding: '10px 16px',
+        minHeight: '36px',
+        minWidth: '44px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         background: disabled ? 'var(--bg-elevated)' : palette.background,
         color: disabled ? 'var(--text-muted)' : palette.color,
         border: disabled ? '1px solid var(--border)' : palette.border,
@@ -116,26 +141,30 @@ function ActionButton({ label, onClick, disabled, tone = 'primary' }) {
   )
 }
 
-function ResultBlock({ label, data }) {
+function ResultBlock({ label, data }: { label: string; data: any }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <div role="region" aria-label={label} tabIndex={0} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
         {label}
       </div>
-      <pre style={{
-        margin: 0,
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        padding: '14px',
-        fontSize: '11px',
-        color: 'var(--text-secondary)',
-        overflowX: 'auto',
-        lineHeight: 1.6,
-        fontFamily: 'var(--font-mono)',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-      }}>
+      <pre
+        tabIndex={0}
+        aria-label={`${label} JSON output`}
+        style={{
+          margin: 0,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '14px',
+          fontSize: '11px',
+          color: 'var(--text-secondary)',
+          overflowX: 'auto',
+          lineHeight: 1.6,
+          fontFamily: 'var(--font-mono)',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}
+      >
         {JSON.stringify(data, null, 2)}
       </pre>
     </div>
@@ -180,8 +209,20 @@ export default function Contracts() {
   const [showMainnetReview, setShowMainnetReview] = useState(false)
 
   const isMainnet = network === 'mainnet'
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
   const inspectInputError = inspectInput.trim() !== '' && !isValidContractId(inspectInput.trim())
   const invokeContractError = invokeForm.contractId.trim() !== '' && !isValidContractId(invokeForm.contractId.trim())
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     if (!invokeForm.contractId || !isValidContractId(invokeForm.contractId.trim())) {
@@ -475,379 +516,510 @@ export default function Contracts() {
   return (
     <>
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Soroban Contracts</div>
-      <div style={{ display: 'flex', gap: '8px' }}>
-        {['inspect', 'deploy', 'templates'].map((m) => (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+          Soroban Contracts
+        </h1>
+      </div>
+
+      {!isOnline && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: '12px 16px',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid var(--red-dim)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--red)',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>Offline Mode: Soroban RPC endpoints are unreachable. Contract inspection, simulation, and submission require an active network connection.</span>
+        </div>
+      )}
+
+      <div role="tablist" aria-label="Contract development modes" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {[
+          { id: 'inspect', label: 'Inspect & Invoke' },
+          { id: 'deploy', label: 'Deploy' },
+          { id: 'templates', label: '📚 Templates' },
+        ].map((m) => (
           <button
-            key={m}
-            onClick={() => setMode(m)}
+            key={m.id}
+            role="tab"
+            id={`tab-contract-${m.id}`}
+            aria-selected={mode === m.id}
+            aria-controls={`panel-contract-${m.id}`}
+            tabIndex={mode === m.id ? 0 : -1}
+            onClick={() => setMode(m.id)}
             style={{
               padding: '7px 14px',
-              background: mode === m ? 'var(--cyan-glow)' : 'transparent',
-              border: `1px solid ${mode === m ? 'var(--cyan-dim)' : 'var(--border)'}`,
+              minHeight: '36px',
+              minWidth: '44px',
+              background: mode === m.id ? 'var(--cyan-glow)' : 'transparent',
+              border: `1px solid ${mode === m.id ? 'var(--cyan-dim)' : 'var(--border)'}`,
               borderRadius: 'var(--radius-sm)',
-              color: mode === m ? 'var(--cyan)' : 'var(--text-secondary)',
+              color: mode === m.id ? 'var(--cyan)' : 'var(--text-secondary)',
               fontSize: '12px',
               fontFamily: 'var(--font-mono)',
               cursor: 'pointer',
               textTransform: 'capitalize',
+              transition: 'var(--transition)',
             }}
           >
-            {m === 'inspect' ? 'Inspect & Invoke' : m === 'deploy' ? 'Deploy' : '📚 Templates'}
+            {m.label}
           </button>
         ))}
       </div>
-      {mode === 'deploy' && <ContractDeployerView />}
-      {mode === 'templates' && <TemplateLibrary />}
 
-      <Panel
-        title="Test Runner"
-        subtitle="Upload .rs test files, run Soroban contract tests, and view coverage reports."
-      >
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          {contractTemplates.map((template) => (
-            <button
-              key={template.id}
-              onClick={() => handleLoadTemplate(template.id)}
-              style={{
-                textAlign: 'left',
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-md)',
-                border: `1px solid ${templateId === template.id ? 'var(--cyan)' : 'var(--border)'}`,
-                background: templateId === template.id ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}
-            >
-              {template.name}
-            </button>
-          ))}
+      {mode === 'deploy' && (
+        <div role="tabpanel" id="panel-contract-deploy" aria-labelledby="tab-contract-deploy">
+          <ContractDeployerView />
         </div>
-
-        <TestRunner
-          sourceCode={sourceEditor}
-          testCode={testEditor}
-          onSourceChange={setSourceEditor}
-          onTestCodeChange={setTestEditor}
-        />
-      </Panel>
-
-      <Panel
-        title="Deploy Plan"
-        subtitle="Generate a deployment plan for your contract."
-      >
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <ActionButton label="Debug" tone="secondary" onClick={handleStartDebug} />
-          <ActionButton label="Generate Deploy Plan" tone="secondary" onClick={handleGenerateDeployPlan} />
-        </div>
-
-        {deployPlan && (
-          <ResultBlock
-            label="Deployment Plan"
-            data={deployPlan}
-          />
-        )}
-      </Panel>
-
-      <Panel
-        title="Inspect Contract"
-        subtitle={`Read deployed contract data from ${NETWORKS[network].name}.`}
-      >
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <input
-            value={inspectInput}
-            onChange={(event) => setInspectInput(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && handleFetch()}
-            placeholder="C... contract address"
-            style={{ ...textInputStyle(inspectInputError), flex: 1, minWidth: '280px' }}
-          />
-          <ActionButton
-            label={contractLoading ? 'Loading...' : 'Inspect'}
-            onClick={handleFetch}
-            disabled={contractLoading}
-          />
-        </div>
-        {contractError && (
-          <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--red)' }}>
-            {contractError}
-          </div>
-        )}
-      </Panel>
-
-      {contractData && (
-        <ResultBlock label="Contract Data" data={contractData} />
       )}
 
-      <Panel
-        title="Invoke Contract"
-        subtitle="Build a contract call, simulate it through Soroban RPC, and optionally submit it on Testnet using a secret key."
-      >
-        {anomalies.filter(a => a.type === 'sequence_anomaly').map((anomaly, ai) => (
-          <div
-            key={ai}
-            style={{
-              marginBottom: "14px",
-              padding: "10px 14px",
-              background: "rgba(245, 158, 11, 0.1)",
-              border: "1px solid var(--amber-dim)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--amber)",
-              fontSize: "12px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
+      {mode === 'templates' && (
+        <div role="tabpanel" id="panel-contract-templates" aria-labelledby="tab-contract-templates">
+          <TemplateLibrary />
+        </div>
+      )}
+
+      {mode === 'inspect' && (
+        <div
+          role="tabpanel"
+          id="panel-contract-inspect"
+          aria-labelledby="tab-contract-inspect"
+          style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
+        >
+          <Panel
+            title="Test Runner"
+            subtitle="Upload .rs test files, run Soroban contract tests, and view coverage reports."
+            id="contract-test-runner-panel"
           >
-            <AlertTriangle size={15} />
-            <span>{anomaly.message}</span>
-          </div>
-        ))}
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '18px' }}>
-          <LabeledField label="Contract ID">
-            <input
-              value={invokeForm.contractId}
-              onChange={(event) => updateField('contractId', event.target.value)}
-              placeholder="C... contract address"
-              style={textInputStyle(invokeContractError)}
-            />
-          </LabeledField>
-
-          <LabeledField label="Function">
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <input
-                value={invokeForm.functionName}
-                onChange={(event) => updateField('functionName', event.target.value)}
-                placeholder="increment"
-                style={textInputStyle()}
-              />
-              {recommendations.length > 0 && (
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
-                  <span style={{ fontSize: "10px", color: "var(--text-muted)", alignSelf: "center" }}>AI Suggested:</span>
-                  {recommendations.slice(0, 3).map((rec) => (
-                    <button
-                      key={rec.functionName}
-                      onClick={() => updateField('functionName', rec.functionName)}
-                      style={{
-                        padding: "2px 6px",
-                        background: "var(--bg-elevated)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "4px",
-                        color: "var(--cyan)",
-                        fontSize: "10px",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "3px"
-                      }}
-                      title={rec.explanation}
-                    >
-                      <Sparkles size={8} /> {rec.functionName}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+              {contractTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => handleLoadTemplate(template.id)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    minHeight: '36px',
+                    borderRadius: 'var(--radius-md)',
+                    border: `1px solid ${templateId === template.id ? 'var(--cyan)' : 'var(--border)'}`,
+                    background: templateId === template.id ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {template.name}
+                </button>
+              ))}
             </div>
-          </LabeledField>
 
-          <LabeledField label="Source Account">
-            <input
-              value={invokeForm.sourceAccount}
-              onChange={(event) => updateField('sourceAccount', event.target.value)}
-              placeholder={connectedAddress || 'G... source account'}
-              style={textInputStyle()}
+            <TestRunner
+              sourceCode={sourceEditor}
+              testCode={testEditor}
+              onSourceChange={setSourceEditor}
+              onTestCodeChange={setTestEditor}
             />
-          </LabeledField>
-        </div>
+          </Panel>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.8px',
-            display: "flex",
-            alignItems: "center",
-            gap: "6px"
-          }}>
-            <span>Typed Arguments</span>
-            {Object.keys(suggestions).length > 0 && (
-              <button
-                onClick={applyAllSuggestions}
-                style={{
-                  background: "var(--cyan-glow)",
-                  border: "1px solid var(--cyan-dim)",
-                  borderRadius: "4px",
-                  color: "var(--cyan)",
-                  fontSize: "9px",
-                  padding: "2px 6px",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  fontWeight: 600
-                }}
-              >
-                <Sparkles size={9} /> Autofill AI Suggestions
-              </button>
+          <Panel
+            title="Deploy Plan"
+            subtitle="Generate a deployment plan for your contract."
+            id="contract-deploy-plan-panel"
+          >
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <ActionButton label="Debug" tone="secondary" onClick={handleStartDebug} />
+              <ActionButton label="Generate Deploy Plan" tone="secondary" onClick={handleGenerateDeployPlan} />
+            </div>
+
+            {deployPlan && (
+              <ResultBlock
+                label="Deployment Plan"
+                data={deployPlan}
+              />
             )}
-          </div>
-          <ActionButton label="Add Argument" onClick={addArgument} tone="secondary" />
-        </div>
+          </Panel>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
-          {invokeForm.args.map((arg, index) => {
-            const paramName = parameterDefinitions[index]?.name
-            const paramType = parameterDefinitions[index]?.type
-            const hasSpecName = !!paramName
+          <Panel
+            title="Inspect Contract"
+            subtitle={`Read deployed contract data from ${NETWORKS[network].name}.`}
+            id="contract-inspect-panel"
+          >
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                handleFetch()
+              }}
+              style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}
+            >
+              <label htmlFor="inspect-contract-input" className="sr-only">
+                Soroban Contract Address
+              </label>
+              <input
+                id="inspect-contract-input"
+                value={inspectInput}
+                onChange={(event) => setInspectInput(event.target.value)}
+                placeholder="C... contract address"
+                aria-invalid={inspectInputError || !!contractError}
+                aria-describedby={
+                  contractError
+                    ? "contract-inspect-error"
+                    : inspectInputError
+                    ? "contract-inspect-format-error"
+                    : undefined
+                }
+                style={{ ...textInputStyle(inspectInputError || !!contractError), flex: 1, minWidth: '280px' }}
+              />
+              <ActionButton
+                type="submit"
+                label={contractLoading ? 'Loading...' : 'Inspect'}
+                disabled={contractLoading}
+              />
+            </form>
+            {inspectInputError && (
+              <div id="contract-inspect-format-error" role="alert" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--red)' }}>
+                Contract ID must be a valid 56-character C-prefixed Soroban address.
+              </div>
+            )}
+            {contractError && (
+              <div id="contract-inspect-error" role="alert" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--red)' }}>
+                {contractError}
+              </div>
+            )}
+          </Panel>
 
-            const fieldAnomalies = anomalies.filter(a => a.parameterName === (paramName || `arg${index}`))
-            const fieldSuggestion = suggestions[paramName]
+          {contractData && (
+            <ResultBlock label="Contract Data" data={contractData} />
+          )}
 
-            return (
+          <Panel
+            title="Invoke Contract"
+            subtitle="Build a contract call, simulate it through Soroban RPC, and optionally submit it on Testnet using a secret key."
+            id="contract-invoke-panel"
+          >
+            {anomalies.filter(a => a.type === 'sequence_anomaly').map((anomaly, ai) => (
               <div
-                key={index}
+                key={ai}
+                role="status"
+                aria-live="polite"
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                  padding: "10px",
-                  background: "var(--bg-elevated)",
+                  marginBottom: "14px",
+                  padding: "10px 14px",
+                  background: "rgba(245, 158, 11, 0.1)",
+                  border: "1px solid var(--amber-dim)",
                   borderRadius: "var(--radius-md)",
-                  border: fieldAnomalies.some(a => a.severity === 'error') ? "1px solid var(--red-dim)" : "1px solid var(--border)",
+                  color: "var(--amber)",
+                  fontSize: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
               >
-                {hasSpecName && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--text-primary)" }}>
-                      {paramName} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>({paramType})</span>
-                    </span>
-                    {fieldSuggestion && fieldSuggestion.confidence > 0 && arg.value !== fieldSuggestion.value && (
-                      <button
-                        onClick={() => applySingleSuggestion(index, fieldSuggestion.value)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "var(--cyan)",
-                          fontSize: "10px",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px"
-                        }}
-                        title={fieldSuggestion.explanation}
-                      >
-                        <Sparkles size={10} /> Fill: "{fieldSuggestion.value}"
-                      </button>
-                    )}
-                  </div>
+                <AlertTriangle size={15} aria-hidden="true" />
+                <span>{anomaly.message}</span>
+              </div>
+            ))}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '18px' }}>
+              <LabeledField id="invoke-contract-id" label="Contract ID">
+                <input
+                  id="invoke-contract-id"
+                  value={invokeForm.contractId}
+                  onChange={(event) => updateField('contractId', event.target.value)}
+                  placeholder="C... contract address"
+                  aria-invalid={invokeContractError}
+                  aria-describedby={invokeContractError ? "invoke-contract-id-error" : undefined}
+                  style={textInputStyle(invokeContractError)}
+                />
+                {invokeContractError && (
+                  <span id="invoke-contract-id-error" role="alert" style={{ fontSize: '11px', color: 'var(--red)', marginTop: '4px' }}>
+                    Invalid Soroban contract address format
+                  </span>
                 )}
+              </LabeledField>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: '10px', alignItems: 'center' }}>
-                  <select
-                    value={arg.type}
-                    onChange={(event) => updateArgument(index, 'type', event.target.value)}
-                    style={textInputStyle()}
-                    disabled={hasSpecName}
-                  >
-                    {ARGUMENT_TYPES.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-
+              <LabeledField id="invoke-function-name" label="Function">
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <input
-                    value={arg.value}
-                    onChange={(event) => updateArgument(index, 'value', event.target.value)}
-                    placeholder={arg.type === 'bool' ? 'true or false' : hasSpecName ? `Enter ${paramName}` : 'Argument value'}
-                    style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                    id="invoke-function-name"
+                    value={invokeForm.functionName}
+                    onChange={(event) => updateField('functionName', event.target.value)}
+                    placeholder="increment"
+                    style={textInputStyle()}
                   />
-
-                  <ActionButton
-                    label="Remove"
-                    onClick={() => removeArgument(index)}
-                    disabled={invokeForm.args.length === 1 || hasSpecName}
-                    tone="secondary"
-                  />
+                  {recommendations.length > 0 && (
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                      <span style={{ fontSize: "10px", color: "var(--text-muted)", alignSelf: "center" }}>AI Suggested:</span>
+                      {recommendations.slice(0, 3).map((rec) => (
+                        <button
+                          key={rec.functionName}
+                          type="button"
+                          onClick={() => updateField('functionName', rec.functionName)}
+                          aria-label={`Select recommended function ${rec.functionName}`}
+                          style={{
+                            padding: "4px 8px",
+                            minHeight: "24px",
+                            minWidth: "24px",
+                            background: "var(--bg-elevated)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "4px",
+                            color: "var(--cyan)",
+                            fontSize: "10px",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px"
+                          }}
+                          title={rec.explanation}
+                        >
+                          <Sparkles size={8} aria-hidden="true" /> {rec.functionName}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              </LabeledField>
 
-                {fieldSuggestion && fieldSuggestion.confidence > 0 && (
-                  <div style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "10px", color: "var(--text-muted)", marginLeft: "4px" }}>
-                    <Sparkles size={10} style={{ color: "var(--cyan)" }} />
-                    <span>AI Suggested: <strong>{fieldSuggestion.value}</strong> — {fieldSuggestion.explanation}</span>
-                  </div>
-                )}
+              <LabeledField id="invoke-source-account" label="Source Account">
+                <input
+                  id="invoke-source-account"
+                  value={invokeForm.sourceAccount}
+                  onChange={(event) => updateField('sourceAccount', event.target.value)}
+                  placeholder={connectedAddress || 'G... source account'}
+                  style={textInputStyle()}
+                />
+              </LabeledField>
+            </div>
 
-                {fieldAnomalies.map((anomaly, ai) => (
-                  <div
-                    key={ai}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.8px',
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}>
+                <span>Typed Arguments</span>
+                {Object.keys(suggestions).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={applyAllSuggestions}
+                    aria-label="Autofill all parameters with AI suggestions"
                     style={{
-                      display: "flex",
+                      background: "var(--cyan-glow)",
+                      border: "1px solid var(--cyan-dim)",
+                      borderRadius: "4px",
+                      color: "var(--cyan)",
+                      fontSize: "9px",
+                      padding: "4px 8px",
+                      minHeight: "24px",
+                      cursor: "pointer",
+                      display: "inline-flex",
                       alignItems: "center",
-                      gap: "6px",
-                      fontSize: "11px",
-                      color: anomaly.severity === "error" ? "var(--red)" : "var(--amber)",
-                      marginLeft: "4px",
-                      marginTop: "2px"
+                      gap: "4px",
+                      fontWeight: 600
                     }}
                   >
-                    <AlertCircle size={12} />
-                    <span>{anomaly.message}</span>
-                  </div>
-                ))}
+                    <Sparkles size={9} aria-hidden="true" /> Autofill AI Suggestions
+                  </button>
+                )}
               </div>
-            )
-          })}
+              <ActionButton label="Add Argument" onClick={addArgument} tone="secondary" />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
+              {invokeForm.args.map((arg, index) => {
+                const paramName = parameterDefinitions[index]?.name
+                const paramType = parameterDefinitions[index]?.type
+                const hasSpecName = !!paramName
+
+                const fieldAnomalies = anomalies.filter(a => a.parameterName === (paramName || `arg${index}`))
+                const fieldSuggestion = suggestions[paramName]
+
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      padding: "10px",
+                      background: "var(--bg-elevated)",
+                      borderRadius: "var(--radius-md)",
+                      border: fieldAnomalies.some(a => a.severity === 'error') ? "1px solid var(--red-dim)" : "1px solid var(--border)",
+                    }}
+                  >
+                    {hasSpecName && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--text-primary)" }}>
+                          {paramName} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>({paramType})</span>
+                        </span>
+                        {fieldSuggestion && fieldSuggestion.confidence > 0 && arg.value !== fieldSuggestion.value && (
+                          <button
+                            type="button"
+                            onClick={() => applySingleSuggestion(index, fieldSuggestion.value)}
+                            aria-label={`Fill parameter ${paramName} with value ${fieldSuggestion.value}`}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "var(--cyan)",
+                              fontSize: "10px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              minHeight: "24px",
+                              minWidth: "24px",
+                            }}
+                            title={fieldSuggestion.explanation}
+                          >
+                            <Sparkles size={10} aria-hidden="true" /> Fill: "{fieldSuggestion.value}"
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: '10px', alignItems: 'center' }}>
+                      <label htmlFor={`arg-type-${index}`} className="sr-only">
+                        Argument {index + 1} type
+                      </label>
+                      <select
+                        id={`arg-type-${index}`}
+                        value={arg.type}
+                        onChange={(event) => updateArgument(index, 'type', event.target.value)}
+                        style={textInputStyle()}
+                        disabled={hasSpecName}
+                        aria-label={`Argument ${index + 1} type`}
+                      >
+                        {ARGUMENT_TYPES.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+
+                      <label htmlFor={`arg-value-${index}`} className="sr-only">
+                        {hasSpecName ? `${paramName} value` : `Argument ${index + 1} value`}
+                      </label>
+                      <input
+                        id={`arg-value-${index}`}
+                        value={arg.value}
+                        onChange={(event) => updateArgument(index, 'value', event.target.value)}
+                        placeholder={arg.type === 'bool' ? 'true or false' : hasSpecName ? `Enter ${paramName}` : 'Argument value'}
+                        aria-label={hasSpecName ? `${paramName} value` : `Argument ${index + 1} value`}
+                        aria-invalid={fieldAnomalies.some(a => a.severity === 'error')}
+                        style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                      />
+
+                      <ActionButton
+                        label="Remove"
+                        ariaLabel={`Remove argument ${index + 1}`}
+                        onClick={() => removeArgument(index)}
+                        disabled={invokeForm.args.length === 1 || hasSpecName}
+                        tone="secondary"
+                      />
+                    </div>
+
+                    {fieldSuggestion && fieldSuggestion.confidence > 0 && (
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "10px", color: "var(--text-muted)", marginLeft: "4px" }}>
+                        <Sparkles size={10} style={{ color: "var(--cyan)" }} aria-hidden="true" />
+                        <span>AI Suggested: <strong>{fieldSuggestion.value}</strong> — {fieldSuggestion.explanation}</span>
+                      </div>
+                    )}
+
+                    {fieldAnomalies.map((anomaly, ai) => (
+                      <div
+                        key={ai}
+                        role="alert"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "11px",
+                          color: anomaly.severity === "error" ? "var(--red)" : "var(--amber)",
+                          marginLeft: "4px",
+                          marginTop: "2px"
+                        }}
+                      >
+                        <AlertCircle size={12} aria-hidden="true" />
+                        <span>{anomaly.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{
+              marginBottom: '18px',
+              padding: '14px',
+              borderRadius: 'var(--radius-md)',
+              border: `1px solid ${isMainnet ? 'var(--amber)' : 'var(--border)'}`,
+              background: isMainnet ? 'rgba(255, 184, 0, 0.08)' : 'var(--bg-elevated)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}>
+              <div style={{ fontSize: '12px', color: isMainnet ? 'var(--amber)' : 'var(--text-secondary)', lineHeight: 1.6 }}>
+                {isMainnet
+                  ? 'Mainnet mode: Simulation always available. Submitting on Mainnet requires an explicit review step.'
+                  : 'Submission is available on Testnet only. Your secret key is used locally to sign the prepared transaction before it is sent to Soroban RPC.'}
+              </div>
+
+              <LabeledField id="invoke-secret-key" label="Secret Key For Submit">
+                <input
+                  id="invoke-secret-key"
+                  type="password"
+                  autoComplete="current-password"
+                  value={invokeForm.secretKey}
+                  onChange={(event) => updateField('secretKey', event.target.value)}
+                  placeholder="S... testnet secret key"
+                  aria-describedby="invoke-secret-key-hint"
+                  style={textInputStyle()}
+                />
+                <span id="invoke-secret-key-hint" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Pasting is supported and recommended for secure entry (WCAG 3.3.8 Accessible Authentication).
+                </span>
+              </LabeledField>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <ActionButton
+                label={simulateLoading ? 'Simulating...' : 'Simulate'}
+                onClick={handleSimulate}
+                disabled={simulateLoading || submitLoading || anomalies.some(a => a.severity === 'error')}
+              />
+              <ActionButton
+                label={submitLoading ? 'Submitting...' : isMainnet ? 'Submit on Mainnet…' : 'Submit'}
+                onClick={handleSubmit}
+                disabled={submitLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
+                tone="secondary"
+              />
+            </div>
+
+            {invokeError && (
+              <div
+                id="invoke-error-alert"
+                role="alert"
+                aria-live="assertive"
+                style={{ marginTop: '14px', fontSize: '12px', color: 'var(--red)', lineHeight: 1.5 }}
+              >
+                {invokeError}
+              </div>
+            )}
+          </Panel>
         </div>
-
-        <div style={{
-          marginBottom: '18px',
-          padding: '14px',
-          borderRadius: 'var(--radius-md)',
-          border: `1px solid ${isMainnet ? 'var(--amber)' : 'var(--border)'}`,
-          background: isMainnet ? 'rgba(255, 184, 0, 0.08)' : 'var(--bg-elevated)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-        }}>
-          <div style={{ fontSize: '12px', color: isMainnet ? 'var(--amber)' : 'var(--text-secondary)', lineHeight: 1.6 }}>
-            {isMainnet
-              ? 'Mainnet mode: Simulation always available. Submitting on Mainnet requires an explicit review step.'
-              : 'Submission is available on Testnet only. Your secret key is used locally to sign the prepared transaction before it is sent to Soroban RPC.'}
-          </div>
-
-          <LabeledField label="Secret Key For Submit">
-            <input
-              type="password"
-              value={invokeForm.secretKey}
-              onChange={(event) => updateField('secretKey', event.target.value)}
-              placeholder="S... testnet secret key"
-              style={textInputStyle()}
-            />
-          </LabeledField>
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <ActionButton
-            label={simulateLoading ? 'Simulating...' : 'Simulate'}
-            onClick={handleSimulate}
-            disabled={simulateLoading || submitLoading || anomalies.some(a => a.severity === 'error')}
-          />
-          <ActionButton
-            label={submitLoading ? 'Submitting...' : isMainnet ? 'Submit on Mainnet…' : 'Submit'}
-            onClick={handleSubmit}
-            disabled={submitLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
-            tone="secondary"
-          />
-        </div>
-
-        {invokeError && (
-          <div style={{ marginTop: '14px', fontSize: '12px', color: 'var(--red)', lineHeight: 1.5 }}>
-            {invokeError}
-          </div>
-        )}
-      </Panel>
+      )}
 
       {simulationResult && (
         <div style={{ display: 'grid', gap: '16px' }}>

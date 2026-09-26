@@ -141,3 +141,4 @@ If you add a new dashboard tab:
 | `src/hooks/useRouteFocus.ts` | Post-navigation focus |
 | `src/hooks/useSidebarArrowNav.ts` | Sidebar arrow-key nav |
 | `tests/e2e/keyboard-navigation.spec.ts` | Playwright keyboard tests |
+| `docs/WCAG_22_AA_GUIDE.md` | WCAG 2.2 AA developer workflow compliance |

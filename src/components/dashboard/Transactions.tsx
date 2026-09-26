@@ -34,12 +34,15 @@ function PriorityBadge({ tx, onUpdate }) {
           e.stopPropagation()
           setIsOpen(!isOpen)
         }}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-label={`Priority ${details.level}, score ${details.score}. Click to adjust manually`}
         title="Click to adjust priority manually"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '6px',
-          padding: '2px 8px',
+          padding: '4px 8px',
           borderRadius: '12px',
           fontSize: '10px',
           fontWeight: 600,
@@ -48,7 +51,9 @@ function PriorityBadge({ tx, onUpdate }) {
           border: `1px solid ${border}`,
           cursor: 'pointer',
           fontFamily: 'var(--font-mono)',
-          transition: 'var(--transition)'
+          transition: 'var(--transition)',
+          minHeight: '24px',
+          minWidth: '24px',
         }}
       >
         <span>{details.level}</span>
@@ -67,7 +72,10 @@ function PriorityBadge({ tx, onUpdate }) {
             }} 
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} 
           />
-          <div style={{
+          <div
+            role="menu"
+            aria-label="Set priority level"
+            style={{
             position: 'absolute',
             top: '100%',
             left: 0,
@@ -87,6 +95,7 @@ function PriorityBadge({ tx, onUpdate }) {
             {(['Low', 'Medium', 'High'] as const).map((lvl) => (
               <button
                 key={lvl}
+                role="menuitem"
                 onClick={(e) => {
                   e.stopPropagation()
                   priorityScoringService.updatePriority(tx, lvl)
@@ -104,6 +113,7 @@ function PriorityBadge({ tx, onUpdate }) {
                   fontFamily: 'var(--font-mono)',
                   borderRadius: 'var(--radius-xs)',
                   width: '100%',
+                  minHeight: '24px',
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = details.level === lvl ? 'var(--bg-hover)' : 'transparent'}
@@ -117,6 +127,7 @@ function PriorityBadge({ tx, onUpdate }) {
     </div>
   )
 }
+
 import TransactionFilterPanel from '../filters/TransactionFilterPanel'
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge'
 import { useAddressLabels } from '../../hooks/useAddressLabels'
@@ -383,8 +394,13 @@ export default function Transactions() {
     )
   }
 
-  const Tab = ({ id, label }) => (
+  const Tab = ({ id, label }: { id: string; label: string }) => (
     <button
+      role="tab"
+      id={`tab-${id}`}
+      aria-selected={view === id}
+      aria-controls={`panel-${id}`}
+      tabIndex={view === id ? 0 : -1}
       onClick={() => setView(id)}
       style={{
         padding: '7px 16px',
@@ -396,6 +412,8 @@ export default function Transactions() {
         fontFamily: 'var(--font-mono)',
         cursor: 'pointer',
         transition: 'var(--transition)',
+        minHeight: '36px',
+        minWidth: '44px',
       }}
     >
       {label}
@@ -406,6 +424,12 @@ export default function Transactions() {
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+          Transactions & Operations
+        </h1>
+      </div>
+
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '300px' }}>
@@ -419,13 +443,19 @@ export default function Transactions() {
             borderRadius: 'var(--radius-md)',
             padding: '8px 10px',
             flex: 1,
+            minHeight: '38px',
           }}>
-            <Search size={15} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+            <Search size={15} color="var(--text-muted)" style={{ flexShrink: 0 }} aria-hidden="true" />
+            <label htmlFor="tx-search-input" className="sr-only">
+              Search transaction history
+            </label>
             <input
+              id="tx-search-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search by account name, address, hash, memo, or operation"
               aria-label="Search transaction history"
+              aria-describedby="tx-search-status"
               style={{
                 flex: 1,
                 border: 'none',
@@ -437,6 +467,9 @@ export default function Transactions() {
                 minWidth: 0,
               }}
             />
+            <div id="tx-search-status" role="status" aria-live="polite" className="sr-only">
+              Showing {visibleRows.length} filtered {view === 'transactions' ? 'transaction' : 'operation'}{visibleRows.length !== 1 ? 's' : ''}
+            </div>
             {query && (
               <button
                 onClick={() => setQuery('')}
@@ -449,15 +482,20 @@ export default function Transactions() {
                   display: 'flex',
                   alignItems: 'center',
                   padding: 0,
+                  minWidth: '24px',
+                  minHeight: '24px',
                 }}
               >
-                <X size={13} />
+                <X size={13} aria-hidden="true" />
               </button>
             )}
           </div>
 
           <button
             onClick={() => setShowFilters(!showFilters)}
+            aria-expanded={showFilters}
+            aria-controls="transaction-filters-panel"
+            aria-label={showFilters ? 'Hide transaction filters' : 'Show transaction filters'}
             style={{
               padding: '8px 14px',
               background: showFilters ? 'var(--cyan-glow)' : 'var(--bg-elevated)',
@@ -471,9 +509,10 @@ export default function Transactions() {
               gap: '8px',
               transition: 'var(--transition)',
               height: '38px',
+              minWidth: '44px',
             }}
           >
-            <Filter size={14} />
+            <Filter size={14} aria-hidden="true" />
             <span>Filters</span>
             {hasActiveFilters && (
               <span style={{
@@ -482,12 +521,13 @@ export default function Transactions() {
                 borderRadius: '50%',
                 background: 'var(--cyan)',
                 boxShadow: '0 0 8px var(--cyan)',
-              }} />
+              }} aria-hidden="true" />
             )}
           </button>
 
           <button
             onClick={handleExportCsv}
+            aria-label={`Export filtered ${view === 'transactions' ? 'transactions' : 'operations'} as CSV`}
             style={{
               padding: '8px 14px',
               background: 'var(--bg-elevated)',
@@ -501,15 +541,16 @@ export default function Transactions() {
               gap: '8px',
               transition: 'var(--transition)',
               height: '38px',
+              minWidth: '44px',
             }}
           >
-            <Download size={14} />
+            <Download size={14} aria-hidden="true" />
             <span>CSV</span>
           </button>
           </>)}
         </div>
 
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div role="tablist" aria-label="Transaction and operation views" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <Tab id="transactions" label="Transactions" />
           <Tab id="priority-queue" label="Priority Queue" />
           <Tab id="operations" label="Operations" />
@@ -521,8 +562,11 @@ export default function Transactions() {
       </div>
 
       {showFilters && (
-        <TransactionFilterPanel view={view} />
+        <div id="transaction-filters-panel">
+          <TransactionFilterPanel view={view} />
+        </div>
       )}
+
 
       <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
         {view === 'graph' ? (
@@ -539,16 +583,23 @@ export default function Transactions() {
       </div>
 
       {view === 'transactions' && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div
+          role="tabpanel"
+          id="panel-transactions"
+          aria-labelledby="tab-transactions"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}
+        >
           {/* Column headers */}
-          <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            <span>Hash</span>
-            <span>Ops / Time</span>
+          <div role="row" style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <span role="columnheader">Hash</span>
+            <span role="columnheader">Ops / Time</span>
           </div>
 
           {/* Initial loading skeleton */}
           {txLoading ? (
-            <LoadingRows count={8} height={TX_ROW_HEIGHT} />
+            <div role="status" aria-live="polite" aria-busy="true">
+              <LoadingRows count={8} height={TX_ROW_HEIGHT} />
+            </div>
           ) : filteredTransactions.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
               {transactions.length === 0 ? 'No transactions found' : 'No transactions match your filters'}
@@ -581,7 +632,11 @@ export default function Transactions() {
                 >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: tx.successful ? 'var(--green)' : 'var(--red)', flexShrink: 0, display: 'inline-block' }} />
+                      <span
+                        style={{ width: '7px', height: '7px', borderRadius: '50%', background: tx.successful ? 'var(--green)' : 'var(--red)', flexShrink: 0, display: 'inline-block' }}
+                        aria-hidden="true"
+                      />
+                      <span className="sr-only">{tx.successful ? 'Successful transaction' : 'Failed transaction'}</span>
                       <PriorityBadge tx={tx} onUpdate={() => setPriorityUpdateCount(c => c + 1)} />
                       <CopyableValue
                         value={tx.hash}
@@ -595,9 +650,10 @@ export default function Transactions() {
                         href={`https://stellar.expert/explorer/${network}/tx/${tx.hash}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0 }}
+                        aria-label={`View transaction ${tx.hash} on Stellar Expert (opens in new tab)`}
+                        style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0, minHeight: '24px', display: 'inline-flex', alignItems: 'center' }}
                       >
-                        Open
+                        Open ↗
                       </a>
                     </div>
                     {tx.memo && (
@@ -640,7 +696,12 @@ export default function Transactions() {
       )}
 
       {view === 'priority-queue' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div
+          role="tabpanel"
+          id="panel-priority-queue"
+          aria-labelledby="tab-priority-queue"
+          style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+        >
           {/* Metrics & Weights Info Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
             {/* Queue Metrics Card */}
@@ -655,7 +716,7 @@ export default function Transactions() {
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <Sparkles size={16} color="var(--cyan)" />
+                  <Sparkles size={16} color="var(--cyan)" aria-hidden="true" />
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>QUEUE SUMMARY</span>
                 </div>
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
@@ -694,7 +755,7 @@ export default function Transactions() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Cpu size={16} color="var(--cyan)" />
+                  <Cpu size={16} color="var(--cyan)" aria-hidden="true" />
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>AI ENGINE PARAMETERS</span>
                 </div>
                 <button
@@ -702,6 +763,7 @@ export default function Transactions() {
                     priorityScoringService.resetModel();
                     setPriorityUpdateCount(c => c + 1);
                   }}
+                  aria-label="Reset learning weights to defaults"
                   title="Reset learning weights to defaults"
                   style={{
                     background: 'transparent',
@@ -713,9 +775,11 @@ export default function Transactions() {
                     gap: '4px',
                     fontSize: '10px',
                     fontFamily: 'var(--font-mono)',
+                    minHeight: '24px',
+                    minWidth: '24px',
                   }}
                 >
-                  <RefreshCw size={10} />
+                  <RefreshCw size={10} aria-hidden="true" />
                   Reset
                 </button>
               </div>
@@ -742,9 +806,9 @@ export default function Transactions() {
 
           {/* Sorted Priority Queue Table */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              <span>Priority Rank & Hash</span>
-              <span>Ops / Score</span>
+            <div role="row" style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <span role="columnheader">Priority Rank & Hash</span>
+              <span role="columnheader">Ops / Score</span>
             </div>
 
             {prioritySortedQueue.length === 0 ? (
@@ -791,11 +855,13 @@ export default function Transactions() {
                           href={`https://stellar.expert/explorer/${network}/tx/${tx.hash}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0 }}
+                          aria-label={`View transaction ${tx.hash} on Stellar Expert (opens in new tab)`}
+                          style={{ fontSize: '11px', color: 'var(--cyan)', flexShrink: 0, minHeight: '24px', display: 'inline-flex', alignItems: 'center' }}
                         >
-                          Open
+                          Open ↗
                         </a>
                       </div>
+
                       {tx.memo && (
                         <div style={{ fontSize: '11px', color: 'var(--amber)', marginLeft: '32px' }}>
                           memo: {tx.memo}
@@ -832,14 +898,21 @@ export default function Transactions() {
 
       {/* Operations panel */}
       {view === 'operations' && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            <span>Type / Details</span>
-            <span>Time</span>
+        <div
+          role="tabpanel"
+          id="panel-operations"
+          aria-labelledby="tab-operations"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}
+        >
+          <div role="row" style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <span role="columnheader">Type / Details</span>
+            <span role="columnheader">Time</span>
           </div>
 
           {opsLoading ? (
-            <LoadingRows count={8} height={OP_ROW_HEIGHT} />
+            <div role="status" aria-live="polite" aria-busy="true">
+              <LoadingRows count={8} height={OP_ROW_HEIGHT} />
+            </div>
           ) : filteredOperations.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
               {operations.length === 0 ? 'No operations found' : 'No operations match your filters'}
@@ -924,7 +997,12 @@ export default function Transactions() {
       )}
 
       {view === 'graph' && (
-        <div style={{ height: '500px', minHeight: '500px' }}>
+        <div
+          role="tabpanel"
+          id="panel-graph"
+          aria-labelledby="tab-graph"
+          style={{ height: '500px', minHeight: '500px' }}
+        >
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '12px', background: '#0a0e17', borderRadius: '8px' }}>
               Loading graph...
@@ -936,17 +1014,28 @@ export default function Transactions() {
       )}
 
       {view === 'time' && (
-        <Suspense fallback={
-          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-            Loading time analysis...
-          </div>
-        }>
-          <TimeAnalysis />
-        </Suspense>
+        <div
+          role="tabpanel"
+          id="panel-time"
+          aria-labelledby="tab-time"
+        >
+          <Suspense fallback={
+            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+              Loading time analysis...
+            </div>
+          }>
+            <TimeAnalysis />
+          </Suspense>
+        </div>
       )}
 
       {view === 'networks' && (
-        <div style={{ background: '#0d1520', border: '1px solid #1a2332', borderRadius: '8px', overflow: 'hidden', maxWidth: '420px' }}>
+        <div
+          role="tabpanel"
+          id="panel-networks"
+          aria-labelledby="tab-networks"
+          style={{ background: '#0d1520', border: '1px solid #1a2332', borderRadius: '8px', overflow: 'hidden', maxWidth: '420px' }}
+        >
           <Suspense fallback={
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
               Loading network status...
@@ -958,7 +1047,12 @@ export default function Transactions() {
       )}
 
       {view === 'clusters' && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', padding: '16px' }}>
+        <div
+          role="tabpanel"
+          id="panel-clusters"
+          aria-labelledby="tab-clusters"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', padding: '16px' }}
+        >
           <Suspense fallback={
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
               Loading clusters...

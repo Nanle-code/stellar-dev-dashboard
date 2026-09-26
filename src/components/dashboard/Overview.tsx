@@ -19,6 +19,7 @@ import AccountStatsWidget from '../layout/widgets/AccountStatsWidget';
 import QuickActionsWidget from '../layout/widgets/QuickActionsWidget';
 import PriceTickerWidget from '../layout/widgets/PriceTickerWidget';
 import DataInsightsWidget from '../layout/widgets/DataInsightsWidget';
+import WatchlistSummaryWidget from './WatchlistSummaryWidget';
 import LedgerStatsWidget from './LedgerStatsWidget';
 import { PresenceIndicator } from '../collaboration/PresenceIndicator';
 import { LayoutTemplate, ChevronDown } from 'lucide-react';
@@ -40,12 +41,14 @@ const getWidgetComponent = (type: string): React.ComponentType<Record<string, un
     priceTicker: PriceTickerWidget,
     ledgerStats: LedgerStatsWidget as React.ComponentType<Record<string, unknown>>,
     dataInsights: DataInsightsWidget as React.ComponentType<Record<string, unknown>>,
+    watchlistSummary: WatchlistSummaryWidget as React.ComponentType<Record<string, unknown>>,
   };
   return components[type] || BalanceWidget;
 };
 
 const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: 'insights-default', type: 'dataInsights', height: 300, span: 2 },
+  { id: 'watchlistSummary-default', type: 'watchlistSummary', height: 300, span: 2 },
   { id: 'balance-default', type: 'balance', height: 260, span: 1 },
   { id: 'assets-default', type: 'assets', height: 320, span: 1 },
   { id: 'transactions-default', type: 'transactions', height: 360, span: 2 },

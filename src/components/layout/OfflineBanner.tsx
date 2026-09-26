@@ -7,13 +7,15 @@
  *  - Dismisses automatically when back online
  */
 
-import React, { useEffect, useState, type CSSProperties } from 'react'
-import { WifiOff, X, AlertTriangle } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { WifiOff, X, AlertTriangle, FileText } from 'lucide-react'
 import { subscribeToOnlineStatus, getOnlineStatus, getPendingCount } from '../../utils/offline'
+import { subscribeToDraftSync, type DraftSyncSummary } from '../../lib/offlineDrafts'
 
 export default function OfflineBanner() {
   const [offline, setOffline]       = useState<boolean>(!getOnlineStatus())
   const [queueSize, setQueueSize]   = useState<number>(0)
+  const [pendingDrafts, setPendingDrafts] = useState<number>(0)
   const [dismissed, setDismissed]   = useState<boolean>(false)
 
   // Track online / offline transitions
@@ -37,6 +39,14 @@ export default function OfflineBanner() {
     return () => clearInterval(interval);
   }, []);
 
+  // Track offline transaction drafts count
+  useEffect(() => {
+    const unsub = subscribeToDraftSync((summary: DraftSyncSummary) => {
+      setPendingDrafts(summary.offlineCount);
+    });
+    return unsub;
+  }, []);
+
   if (!offline || dismissed) return null
 
   return (
@@ -52,17 +62,28 @@ export default function OfflineBanner() {
       <div className="flex-1 min-w-0">
         <h4 className="text-white font-bold text-sm tracking-tight">Offline Mode Active</h4>
         <p className="text-gray-400 text-xs mt-1 leading-relaxed">
-          Showing cached data. Modifications will be queued and replayed automatically when you're back online.
+          Showing cached data. Modifications and transaction drafts will be queued and synced automatically when you&apos;re back online.
         </p>
         
-        {queueSize > 0 && (
-          <div className="flex items-center gap-2 mt-3 bg-red-500/10 border border-red-500/10 rounded-lg px-2.5 py-1.5 w-fit">
-            <AlertTriangle size={12} className="text-red-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-red-400">
-              {queueSize} Operation{queueSize !== 1 ? 's' : ''} Pending
-            </span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {queueSize > 0 && (
+            <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/10 rounded-lg px-2.5 py-1.5 w-fit">
+              <AlertTriangle size={12} className="text-red-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+                {queueSize} Operation{queueSize !== 1 ? 's' : ''} Pending
+              </span>
+            </div>
+          )}
+
+          {pendingDrafts > 0 && (
+            <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 w-fit">
+              <FileText size={12} className="text-amber-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                {pendingDrafts} Draft{pendingDrafts !== 1 ? 's' : ''} Queued
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <button

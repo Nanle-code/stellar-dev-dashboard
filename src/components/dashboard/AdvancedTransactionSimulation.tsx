@@ -5,6 +5,7 @@ import {
 import type { AdvancedSimulationReport } from '../../lib/stellar'
 import { useStore } from '../../lib/store'
 import { getErrorMessage } from '../../lib/errorHandling/ErrorMessages'
+import FeeStrategyComparisonPanel from './FeeStrategyComparisonPanel'
 
 interface PanelProps {
   title: string
@@ -172,6 +173,12 @@ export default function AdvancedTransactionSimulation({ transactionParams: propP
                     {step.step}: {step.detail}
                   </div>
                 ))}
+              </div>
+              <div style={{ marginTop: '12px' }}>
+                <FeeStrategyComparisonPanel
+                  transactionParams={transactionParams}
+                  initialCongestion={parseFloat(congestion) || 0.55}
+                />
               </div>
             </div>
           </>

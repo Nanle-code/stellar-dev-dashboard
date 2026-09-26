@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useStore } from '../../lib/store';
 import { simulateTransaction, type BuildTransactionParams } from '../../lib/transactionBuilder';
+import FeeStrategyComparisonPanel from './FeeStrategyComparisonPanel';
 import { Play, AlertCircle, CheckCircle, ChevronDown, ChevronRight, Zap, Activity } from 'lucide-react';
 
 interface SimulationStep {
@@ -292,6 +293,23 @@ export default function TransactionSimulatorAdvanced() {
               {resourceUsage.fee} stroops
             </div>
           </div>
+        </div>
+      {connectedAddress && (
+        <div style={{ marginBottom: '24px' }}>
+          <FeeStrategyComparisonPanel
+            transactionParams={{
+              sourceAccount: connectedAddress,
+              operations: [
+                {
+                  type: 'payment',
+                  destination: connectedAddress,
+                  amount: '1',
+                  assetType: 'native',
+                },
+              ],
+              network,
+            }}
+          />
         </div>
       )}
 

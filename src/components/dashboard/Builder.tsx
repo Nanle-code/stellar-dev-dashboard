@@ -3,6 +3,7 @@ import { useStore } from '../../lib/store'
 import { buildTransaction, simulateTransaction, exportTransactionXDR } from '../../lib/stellar'
 import { predictTransactionFailure } from '../../lib/transactionFailurePrediction'
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
+import FeeStrategyComparisonPanel from './FeeStrategyComparisonPanel'
 import { StatCard } from './Card'
 import { Plus, Trash2, Play, Copy, AlertCircle, CheckCircle } from 'lucide-react'
 
@@ -570,6 +571,11 @@ export default function Builder() {
           </div>
         </div>
       )}
+
+      <FeeStrategyComparisonPanel
+        transactionParams={transactionParams}
+        onApplyFee={(appliedFee) => setBaseFee(appliedFee.toString())}
+      />
 
       <AdvancedTransactionSimulation transactionParams={transactionParams} />
     </div>

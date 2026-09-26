@@ -3,6 +3,7 @@ import { simulateTransaction } from "../../lib/stellar";
 import type { SimulateResult } from "../../lib/stellar";
 import { useStore } from "../../lib/store";
 import { getErrorMessage } from "../../lib/errorHandling/ErrorMessages";
+import FeeStrategyComparisonPanel from "./FeeStrategyComparisonPanel";
 
 interface PanelProps {
   title: string
@@ -323,6 +324,15 @@ export default function TransactionSimulator({
               {result.xdr && (
                 <ResultBlock label="Transaction XDR" data={result.xdr} />
               )}
+
+              <div style={{ marginTop: '16px' }}>
+                <FeeStrategyComparisonPanel
+                  transactionParams={transactionParams}
+                  onApplyFee={(appliedFee) => {
+                    transactionParams.baseFee = appliedFee;
+                  }}
+                />
+              </div>
             </>
           )}
 

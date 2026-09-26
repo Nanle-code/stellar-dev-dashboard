@@ -1833,6 +1833,8 @@ export async function exportTransactionXDR(params: BuildTransactionParams): Prom
   return transaction.toXDR();
 }
 
+export * from './feeStrategyDryRun';
+
 // ─── Path payments ────────────────────────────────────────────────────────────
 
 export type PathPaymentMode = 'strict-send' | 'strict-receive';
@@ -2708,6 +2710,7 @@ export default {
   buildTransaction,
   simulateTransaction,
   runAdvancedTransactionSimulation,
+  compareFeeStrategiesDryRun,
   exportTransactionXDR,
   fetchPaymentPaths,
   fetchLiquidityPools,

@@ -62,7 +62,10 @@
     "api:start": "node api/server.js",
     "canary:probe": "node scripts/canary-health-probe.mjs",
     "demo:seed": "node scripts/seed-demo-fixtures.mjs",
-    "demo:seed:check": "node scripts/seed-demo-fixtures.mjs --check"
+    "demo:seed:check": "node scripts/seed-demo-fixtures.mjs --check",
+    "test:quarantine": "node scripts/flaky-test-quarantine.mjs",
+    "test:quarantine:check": "node scripts/flaky-test-quarantine.mjs --check",
+    "test:quarantine:report": "node scripts/flaky-test-quarantine.mjs --report"
   },
   "dependencies": {
     "@axe-core/react": "^4.11.3",

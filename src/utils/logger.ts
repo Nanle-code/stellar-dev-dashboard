@@ -1,3 +1,5 @@
+import { redactError, redactString, redactValue } from '../lib/observability/redact';
+
 export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
@@ -65,18 +67,19 @@ function formatLogEntry(
     timestamp,
     level: LogLevelNames[level],
     levelValue: level,
-    message,
-    context,
+    message: redactString(message),
+    context: redactValue<Record<string, unknown>>(context),
     sessionId,
-    url: typeof window !== 'undefined' ? window.location.href : null,
+    url: typeof window !== 'undefined' ? redactString(window.location.href) : null,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
   };
 
   if (error) {
+    const info = redactError(error);
     entry.error = {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
+      name: info.name,
+      message: info.message,
+      stack: info.stack ?? undefined,
     };
   }
 
@@ -93,11 +96,11 @@ function log(
 
   const entry = formatLogEntry(level, message, context, error);
 
-  // Console output in development
+  // Console output in development (entry is already redacted)
   const consoleFn = (['debug', 'info', 'warn', 'error', 'error'] as const)[level];
   if (typeof console !== 'undefined' && console[consoleFn]) {
-    console[consoleFn](`[${entry.level}] ${message}`, context);
-    if (error) console.error(error);
+    console[consoleFn](`[${entry.level}] ${entry.message}`, entry.context);
+    if (entry.error) console.error(entry.error);
   }
 
   // Call registered handlers

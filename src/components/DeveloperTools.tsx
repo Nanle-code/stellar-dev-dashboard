@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CommandPalette } from './keyboard/CommandPalette';
 import { ShortcutCheatSheet } from './keyboard/ShortcutCheatSheet';
 import { LogMonitor } from '../lib/logging/logMonitor';
@@ -13,6 +14,7 @@ import { logger } from '../lib/logging/logger';
 import { useStore } from '../lib/store';
 
 export function DeveloperTools() {
+  const navigate = useNavigate();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false);
   const [logMonitorOpen, setLogMonitorOpen] = useState(false);
@@ -68,11 +70,14 @@ export function DeveloperTools() {
     };
   }, []);
 
-  // Listen for keyboard navigation
+  // Listen for keyboard navigation (command palette / global shortcuts)
   useEffect(() => {
     const handleKeyboardNavigate = (e: CustomEvent) => {
-      const { path } = e.detail;
-      // Navigation logic would go here
+      const { path } = e.detail || {};
+      if (typeof path === 'string' && path) {
+        navigate(path);
+        setCommandPaletteOpen(false);
+      }
       logger.info('Keyboard navigation triggered', { path });
     };
 
@@ -80,7 +85,7 @@ export function DeveloperTools() {
     return () => {
       window.removeEventListener('keyboard-navigate', handleKeyboardNavigate as EventListener);
     };
-  }, []);
+  }, [navigate]);
 
   // Register custom keyboard shortcuts for developer tools
   useEffect(() => {

@@ -5,6 +5,18 @@
  */
 
 import { getStoredValue, setStoredValue, removeStoredValue } from './storage'
+import {
+  getScopedValue,
+  setScopedValue,
+  removeScopedValue,
+  validateScope,
+  createScope,
+  StorageScope,
+  isSensitiveKey,
+  validatePreferenceValue,
+  ScopedStorageError,
+  safeScopedOperation,
+} from './scopedStorage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -383,6 +395,58 @@ export async function loadPreferences(): Promise<UserPreferences> {
   }
 }
 
+/**
+ * Load preferences with network/account scope for sensitive keys
+ * @param scope - The storage scope (network and optional account ID)
+ * @returns User preferences with sensitive keys scoped
+ */
+export async function loadScopedPreferences(scope: StorageScope): Promise<UserPreferences> {
+  const validation = validateScope(scope)
+  if (!validation.valid) {
+    throw new Error(`Invalid scope: ${validation.error}`)
+  }
+
+  try {
+    // Load global preferences first
+    const globalPrefs = await loadPreferences()
+    
+    // Load scoped sensitive keys
+    const scopedSensitivePrefs: Partial<UserPreferences> = {}
+    
+    // Transaction confirmation settings are sensitive
+    const confirmationEmail = await getScopedValue(
+      'transactionConfirmation.confirmationEmail',
+      scope,
+      getStoredValue
+    )
+    if (confirmationEmail !== null) {
+      if (!scopedSensitivePrefs.transactionConfirmation) {
+        scopedSensitivePrefs.transactionConfirmation = { ...globalPrefs.transactionConfirmation }
+      }
+      (scopedSensitivePrefs.transactionConfirmation as any).confirmationEmail = confirmationEmail
+    }
+    
+    const requireEmailConfirmation = await getScopedValue(
+      'transactionConfirmation.requireEmailConfirmation',
+      scope,
+      getStoredValue
+    )
+    if (requireEmailConfirmation !== null) {
+      if (!scopedSensitivePrefs.transactionConfirmation) {
+        scopedSensitivePrefs.transactionConfirmation = { ...globalPrefs.transactionConfirmation }
+      }
+      (scopedSensitivePrefs.transactionConfirmation as any).requireEmailConfirmation = requireEmailConfirmation
+    }
+    
+    // Merge scoped preferences with global preferences
+    return migratePreferences(deepMerge(globalPrefs, scopedSensitivePrefs))
+  } catch (error) {
+    // On error, fall back to global preferences
+    console.warn('Failed to load scoped preferences, using global:', error)
+    return loadPreferences()
+  }
+}
+
 export async function savePreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences> {
   const current = await loadPreferences()
   const next = migratePreferences(deepMerge(current, prefs))
@@ -393,6 +457,105 @@ export async function savePreferences(prefs: Partial<UserPreferences>): Promise<
   }
   await setStoredValue(PREFS_KEY, next)
   return next
+}
+
+/**
+ * Save preferences with network/account scope for sensitive keys
+ * @param prefs - Preferences to save
+ * @param scope - The storage scope (network and optional account ID)
+ * @returns User preferences with sensitive keys scoped
+ */
+export async function saveScopedPreferences(
+  prefs: Partial<UserPreferences>,
+  scope: StorageScope
+): Promise<UserPreferences> {
+  const validation = validateScope(scope)
+  if (!validation.valid) {
+    throw new ScopedStorageError(
+      `Invalid scope: ${validation.error}`,
+      'INVALID_SCOPE'
+    )
+  }
+
+  return safeScopedOperation(
+    async () => {
+      // Load current scoped preferences
+      const current = await loadScopedPreferences(scope)
+      
+      // Separate sensitive and non-sensitive preferences
+      const nonSensitivePrefs: Partial<UserPreferences> = {}
+      const sensitivePrefs: Record<string, any> = {}
+      
+      // Check for sensitive transaction confirmation settings
+      if (prefs.transactionConfirmation) {
+        if (prefs.transactionConfirmation.confirmationEmail !== undefined) {
+          const emailValidation = validatePreferenceValue(
+            'transactionConfirmation.confirmationEmail',
+            prefs.transactionConfirmation.confirmationEmail
+          )
+          if (!emailValidation.valid) {
+            throw new ScopedStorageError(
+              emailValidation.error || 'Invalid email value',
+              'VALIDATION_ERROR'
+            )
+          }
+          sensitivePrefs['transactionConfirmation.confirmationEmail'] = 
+            prefs.transactionConfirmation.confirmationEmail
+        }
+        if (prefs.transactionConfirmation.requireEmailConfirmation !== undefined) {
+          const boolValidation = validatePreferenceValue(
+            'transactionConfirmation.requireEmailConfirmation',
+            prefs.transactionConfirmation.requireEmailConfirmation
+          )
+          if (!boolValidation.valid) {
+            throw new ScopedStorageError(
+              boolValidation.error || 'Invalid boolean value',
+              'VALIDATION_ERROR'
+            )
+          }
+          sensitivePrefs['transactionConfirmation.requireEmailConfirmation'] = 
+            prefs.transactionConfirmation.requireEmailConfirmation
+        }
+        
+        // Copy non-sensitive transaction confirmation settings
+        const tcCopy = { ...prefs.transactionConfirmation }
+        delete (tcCopy as any).confirmationEmail
+        delete (tcCopy as any).requireEmailConfirmation
+        
+        if (Object.keys(tcCopy).length > 0) {
+          nonSensitivePrefs.transactionConfirmation = tcCopy
+        }
+      }
+      
+      // Copy all other non-sensitive preferences
+      for (const [key, value] of Object.entries(prefs)) {
+        if (key === 'transactionConfirmation') continue // Already handled
+        if (!isSensitiveKey(key)) {
+          (nonSensitivePrefs as any)[key] = value
+        }
+      }
+      
+      // Save non-sensitive preferences globally
+      let next = current
+      if (Object.keys(nonSensitivePrefs).length > 0) {
+        next = await savePreferences(nonSensitivePrefs)
+      }
+      
+      // Save sensitive preferences with scoping
+      for (const [key, value] of Object.entries(sensitivePrefs)) {
+        await setScopedValue(key, value, scope, setStoredValue, { required: true })
+      }
+      
+      // Return the merged scoped preferences
+      return await loadScopedPreferences(scope)
+    },
+    async () => {
+      // Fallback to global save
+      console.warn('Scoped storage failed, falling back to global storage')
+      return savePreferences(prefs)
+    },
+    'saveScopedPreferences'
+  )
 }
 
 export async function updatePreference<K extends keyof UserPreferences>(

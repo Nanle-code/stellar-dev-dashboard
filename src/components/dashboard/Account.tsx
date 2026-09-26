@@ -12,8 +12,10 @@ import {
 import { accountRequests, AccountLanes, isCancellation } from '../../lib/requestCancellation';
 import CopyableValue from './CopyableValue';
 import useAssetUsdEstimates, { formatEstimatedUsd } from '../../hooks/useAssetUsdEstimates';
+import { useResponsive } from '../../hooks/useResponsive';
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
 import AssetTrustStatus from '../assets/AssetTrustStatus';
+import MobileAccountOverview from './MobileAccountOverview';
 import type { AccountOffer, ReservesInfo, InfoRowProps } from './types';
 
 function formatAsset(assetType: string, assetCode?: string): string {
@@ -100,11 +102,13 @@ function DataSourceBadge({ dataSource, offline }: { dataSource?: string; offline
 
 export default function Account() {
   const { accountData, connectedAddress, network, networkStats } = useStore();
+  const { isMobile } = useResponsive();
   const [offers, setOffers] = useState<AccountOffer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<Date | null>(null);
   const [createdAtLoading, setCreatedAtLoading] = useState(false);
+  const [forceViewMode, setForceViewMode] = useState<'auto' | 'mobile' | 'desktop'>('auto');
 
   const reserves = useMemo<ReservesInfo | null>(() => {
     if (!accountData) return null;
@@ -164,12 +168,55 @@ export default function Account() {
     };
   }, [connectedAddress, network]);
 
+  const { getEstimate } = useAssetUsdEstimates({
+    balances: accountData?.balances || [],
+    connectedAddress,
+    network,
+    refreshKey: accountData,
+  });
+
   if (!accountData)
     return (
       <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
         No account loaded
       </div>
     );
+
+  const showMobileLayout = forceViewMode === 'mobile' || (forceViewMode === 'auto' && isMobile);
+
+  if (showMobileLayout && connectedAddress) {
+    return (
+      <div className="animate-in">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <button
+            onClick={() => setForceViewMode(forceViewMode === 'desktop' ? 'auto' : 'desktop')}
+            style={{
+              fontSize: '11px',
+              padding: '2px 8px',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+            }}
+          >
+            Switch to Desktop View
+          </button>
+        </div>
+        <MobileAccountOverview
+          accountData={accountData}
+          connectedAddress={connectedAddress}
+          network={network}
+          networkStats={networkStats}
+          offers={offers}
+          offersLoading={offersLoading}
+          offersError={offersError}
+          createdAt={createdAt}
+          createdAtLoading={createdAtLoading}
+        />
+      </div>
+    );
+  }
 
   const xlm = accountData.balances?.find((b: { asset_type: string }) => b.asset_type === 'native');
   const otherAssets =
@@ -182,12 +229,6 @@ export default function Account() {
     : createdAt
       ? format(new Date(createdAt), 'MMM d, yyyy')
       : 'Unknown';
-  const { getEstimate } = useAssetUsdEstimates({
-    balances: accountData?.balances || [],
-    connectedAddress,
-    network,
-    refreshKey: accountData,
-  });
   const xlmEstimate = xlm ? getEstimate(xlm) : null;
   const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
   const dataSource = 'live';

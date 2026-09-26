@@ -405,7 +405,7 @@ export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.S
   if (network === 'custom' && !config.sorobanUrl) {
     throw new Error('Custom Soroban RPC URL not configured');
   }
-  return new StellarSdk.SorobanRpc.Server(
+  return new StellarSdk.rpc.Server(
     config.sorobanUrl || NETWORKS.testnet.sorobanUrl!,
     getServerOptions(network)
   );
@@ -1028,13 +1028,13 @@ export async function fundTestnetAccount(publicKey: string): Promise<unknown> {
 export async function fetchContractInfo(
   contractId: string,
   network: NetworkName = 'testnet'
-): Promise<StellarSdk.SorobanRpc.Api.LedgerEntryResult> {
+): Promise<StellarSdk.rpc.Api.LedgerEntryResult> {
   const server = getSorobanServer(network);
   try {
     const instance = await server.getContractData(
       contractId,
       StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
-      StellarSdk.SorobanRpc.Durability.Persistent
+      StellarSdk.rpc.Durability.Persistent
     );
     return instance;
   } catch (e) {
@@ -1046,7 +1046,7 @@ export async function fetchContractData(
   contractId: string,
   key: StellarSdk.xdr.ScVal | string,
   network: NetworkName = 'testnet',
-  durability: StellarSdk.SorobanRpc.Durability = StellarSdk.SorobanRpc.Durability.Persistent
+  durability: StellarSdk.rpc.Durability = StellarSdk.SorobanRpc.Durability.Persistent
 ): Promise<any> {
   const server = getSorobanServer(network);
 
@@ -1097,7 +1097,7 @@ export interface SerializedContractEvent {
 export interface ContractSimulationResult {
   xdr: string;
   latestLedger: number;
-  cost?: StellarSdk.SorobanRpc.Api.Cost;
+  cost?: StellarSdk.rpc.Api.Cost;
   result: unknown;
   events: SerializedContractEvent[];
   footprint: {
@@ -1109,7 +1109,7 @@ export interface ContractSimulationResult {
 
 export interface ContractSubmitResult {
   hash: string;
-  status: StellarSdk.SorobanRpc.Api.SendTransactionStatus;
+  status: StellarSdk.rpc.Api.SendTransactionStatus;
   errorResult: string | null;
   diagnosticEvents: string[];
 }
@@ -1239,8 +1239,8 @@ export async function simulateContractCall(
   }
 
   const successfulSimulation = simulation as Exclude<
-    StellarSdk.SorobanRpc.Api.SimulateTransactionResponse,
-    StellarSdk.SorobanRpc.Api.SimulateTransactionErrorResponse
+    StellarSdk.rpc.Api.SimulateTransactionResponse,
+    StellarSdk.rpc.Api.SimulateTransactionErrorResponse
   >;
 
   const footprint = successfulSimulation.transactionData

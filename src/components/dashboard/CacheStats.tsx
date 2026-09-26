@@ -185,7 +185,11 @@ export default function CacheStats() {
       try {
         const { storageStats } = await import('../../lib/storage');
         const s = await storageStats();
-        setStorage(s);
+        setStorage({
+          appState: Number(s.appState) || 0,
+          apiCache: Number(s.apiCache) || 0,
+          offlineQueue: Number(s.offlineQueue) || 0,
+        });
       } catch { /* ignore */ }
     }
     fetchStorage();

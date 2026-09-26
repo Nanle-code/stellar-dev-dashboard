@@ -35,6 +35,7 @@ export default function Builder() {
   const [isSimulating, setIsSimulating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
   const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null })
   const memoValidation = useMemo(() => validateMemo(memo, 'text'), [memo])
   const primaryDestination = useMemo(
@@ -396,10 +397,12 @@ export default function Builder() {
 
       {/* Fee Strategy Dry-Run Comparison */}
       <FeeStrategyComparisonPanel
-        sourceAccount={sourceAccount}
-        operations={operations}
-        baseFee={Number(baseFee) || 100}
-        network={network}
+        transactionParams={{
+          sourceAccount,
+          operations,
+          baseFee: Number(baseFee) || 100,
+          network,
+        }}
         onSelectStrategy={(strategy) => setBaseFee(String(strategy.baseFee))}
       />
 

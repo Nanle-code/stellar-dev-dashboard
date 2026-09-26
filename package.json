@@ -11,6 +11,8 @@
   "scripts": {
     "check:node": "node scripts/node-version-policy.mjs",
     "test:node-support": "node --test tests/node-version-policy.test.mjs",
+    "bootstrap:docker": "node scripts/docker-compose-bootstrap.mjs",
+    "test:docker-bootstrap": "node --test tests/ci/docker-compose-bootstrap.test.mjs",
     "ml:train": "node src/ml/train.js",
     "ml:train:liquidity": "node src/ml/trainLiquidity.cjs",
     "ml:train:phishing": "node src/ml/train_phishing.cjs",

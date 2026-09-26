@@ -82,4 +82,32 @@ describe("PluginManager", () => {
     await secondManager.hydrateInstalledPlugins();
     expect(secondManager.getPluginRecords()).toHaveLength(0);
   });
+
+  it("manages capability controllers and dynamic grant/revocation per plugin", async () => {
+    const manager = new PluginManager({ store: createMockStore() });
+    await manager.installPlugin(iframeManifest);
+
+    const controller = manager.getCapabilityController(iframeManifest.id);
+    expect(controller).toBeDefined();
+    expect(manager.hasCapability(iframeManifest.id, "dashboard:read")).toBe(true);
+    expect(manager.hasCapability(iframeManifest.id, "storage:write")).toBe(false);
+    expect(manager.getGrantedCapabilities(iframeManifest.id)).toEqual(["dashboard:read"]);
+
+    // Dynamically grant capability
+    manager.grantCapability(iframeManifest.id, "storage:write");
+    expect(manager.hasCapability(iframeManifest.id, "storage:write")).toBe(true);
+    expect(manager.getGrantedCapabilities(iframeManifest.id)).toContain("storage:write");
+
+    // Revoke individual capability
+    manager.revokeCapability(iframeManifest.id, "dashboard:read");
+    expect(manager.hasCapability(iframeManifest.id, "dashboard:read")).toBe(false);
+
+    // Revoke all capabilities
+    manager.revokeAllCapabilities(iframeManifest.id);
+    expect(manager.getGrantedCapabilities(iframeManifest.id)).toEqual([]);
+
+    // Uninstalling cleans up controller
+    await manager.uninstallPlugin(iframeManifest.id);
+    expect(manager.getCapabilityController(iframeManifest.id)).toBeUndefined();
+  });
 });

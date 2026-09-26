@@ -104,6 +104,7 @@ export function removeInstalledPlugin(pluginId) {
     installed,
     permissionGrants,
   });
+  clearPluginIsolatedStorage(pluginId);
   return installed;
 }
 
@@ -125,3 +126,54 @@ export function getPluginMetadata(pluginId) {
   const current = readState();
   return current.metadata[pluginId] || null;
 }
+
+const PLUGIN_DATA_STORAGE_PREFIX = "stellar-dashboard:plugin-data:";
+
+export function getPluginIsolatedStorage(pluginId) {
+  if (!isBrowser() || !pluginId) return {};
+  try {
+    const raw = localStorage.getItem(`${PLUGIN_DATA_STORAGE_PREFIX}${pluginId}`);
+    const parsed = readJson(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setPluginIsolatedItem(pluginId, key, value) {
+  if (!isBrowser() || !pluginId || !key) return;
+  const current = getPluginIsolatedStorage(pluginId);
+  current[key] = value;
+  try {
+    localStorage.setItem(`${PLUGIN_DATA_STORAGE_PREFIX}${pluginId}`, JSON.stringify(current));
+  } catch {
+    // Storage quota or security error
+  }
+}
+
+export function getPluginIsolatedItem(pluginId, key) {
+  if (!isBrowser() || !pluginId || !key) return undefined;
+  const current = getPluginIsolatedStorage(pluginId);
+  return current[key];
+}
+
+export function removePluginIsolatedItem(pluginId, key) {
+  if (!isBrowser() || !pluginId || !key) return;
+  const current = getPluginIsolatedStorage(pluginId);
+  delete current[key];
+  try {
+    localStorage.setItem(`${PLUGIN_DATA_STORAGE_PREFIX}${pluginId}`, JSON.stringify(current));
+  } catch {
+    // Storage quota or security error
+  }
+}
+
+export function clearPluginIsolatedStorage(pluginId) {
+  if (!isBrowser() || !pluginId) return;
+  try {
+    localStorage.removeItem(`${PLUGIN_DATA_STORAGE_PREFIX}${pluginId}`);
+  } catch {
+    // Storage error
+  }
+}
+

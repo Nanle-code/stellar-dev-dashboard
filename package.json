@@ -68,7 +68,7 @@
     "@axe-core/react": "^4.11.3",
     "@sentry/browser": "8.54.0",
     "@sentry/react": "8.54.0",
-    "@stellar/stellar-sdk": "^12.3.0",
+    "@stellar/stellar-sdk": "^17.1.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-node": "4.22.0",
     "d3-array": "^3.2.4",

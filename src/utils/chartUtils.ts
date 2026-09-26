@@ -105,7 +105,7 @@ export function exportSvg(container, prefix = 'chart') {
  * @param {string} prefix - filename prefix
  * @param {{ scale?: number, background?: string }} [opts]
  */
-export async function exportPng(container, prefix = 'chart', opts = {}) {
+export async function exportPng(container: any, prefix = 'chart', opts: { scale?: number; background?: string } = {}) {
   if (typeof document === 'undefined') return false;
   const svg = findSvg(container);
   if (!svg) return false;

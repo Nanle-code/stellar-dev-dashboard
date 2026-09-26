@@ -232,7 +232,7 @@ export function getAuditEntries({
   environment,
   source,
   correlationId,
-} = {}) {
+}: any = {}) {
   let entries = _ring.slice();
 
   if (category) entries = entries.filter((e) => e.category === category);
@@ -321,7 +321,7 @@ export async function bulkRecordAudit(entries) {
 // ─── Enhanced stats with compliance breakdown ────────────────────────────────
 
 export function getAuditStats({ includeComplianceBreakdown = false } = {}) {
-  const stats = {
+  const stats: Record<string, any> = {
     total: _ring.length,
     bySeverity: {},
     byCategory: {},

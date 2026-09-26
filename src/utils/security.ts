@@ -64,7 +64,7 @@ const SECRET_KEY_PATTERN = /\bS[A-Z2-7]{55}\b/g
 const SENSITIVE_FIELD_REGEX = /(secret|secretkey|privatekey|seed|mnemonic|password|passphrase|token|apikey|authorization|headers)/i
 const AUTH_TOKEN_PATTERN = /\b(Bearer|Token)\s+[A-Za-z0-9\-._~+/]+=*\b/gi
 
-export function redactSensitive(value, key) {
+export function redactSensitive(value: any, key?: any): any {
   if (value == null) return value
 
   if (typeof value === 'string') {

@@ -177,6 +177,14 @@ export function validateOperation(
     case "endSponsoringFutureReserves": return validateEndSponsoring();
     case "feeBump": return validateFeeBump(params);
     case "clawback": return validateClawback(params);
+    case "extendFootprintTtl": {
+      const extendTo = parseInt(String(params.extendTo), 10);
+      if (!Number.isFinite(extendTo) || extendTo < 0) {
+        return [{ field: "extendTo", message: "Target ledger must be a non-negative integer." }];
+      }
+      return [];
+    }
+    case "restoreFootprint": return [];
     default: return [];
   }
 }

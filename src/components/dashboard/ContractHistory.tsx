@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { getContractInteractions, clearContractInteractions } from "../../lib/storage";
+import { getContractInteractions, clearContractInteractions, getWasmHashHistory } from "../../lib/storage";
+import { Hash, ExternalLink } from "lucide-react";
 
 function textInputStyle() {
   return {
@@ -60,6 +61,8 @@ function ActionButton({ label, onClick, disabled, tone = "primary" }) {
 export default function ContractHistory({ onReplay }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [wasmHistory, setWasmHistory] = useState([]);
+  const [wasmLoading, setWasmLoading] = useState(false);
   const [filters, setFilters] = useState({
     contractId: "",
     functionName: "",
@@ -70,6 +73,7 @@ export default function ContractHistory({ onReplay }) {
   const ITEMS_PER_PAGE = 50;
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
+  const [showWasmHistory, setShowWasmHistory] = useState(false);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -79,9 +83,25 @@ export default function ContractHistory({ onReplay }) {
     setPage(1); // reset pagination when filters change
   }, [filters]);
 
+  const loadWasmHistory = useCallback(async () => {
+    setWasmLoading(true);
+    try {
+      const data = await getWasmHashHistory({ contractId: filters.contractId });
+      setWasmHistory(data);
+    } catch (error) {
+      console.error("Failed to load WASM history:", error);
+      setWasmHistory([]);
+    } finally {
+      setWasmLoading(false);
+    }
+  }, [filters.contractId]);
+
   useEffect(() => {
     loadHistory();
-  }, [loadHistory]);
+    if (filters.contractId) {
+      loadWasmHistory();
+    }
+  }, [loadHistory, loadWasmHistory, filters.contractId]);
 
   const handleClear = async () => {
     if (confirm("Are you sure you want to clear the entire contract interaction history?")) {
@@ -191,6 +211,96 @@ export default function ContractHistory({ onReplay }) {
           </select>
         </div>
       </div>
+
+      {wasmHistory.length > 0 && (
+        <div style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          padding: "16px",
+        }}>
+          <div style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center",
+            marginBottom: "12px" 
+          }}>
+            <div style={{ 
+              fontFamily: "var(--font-display)", 
+              fontWeight: 600, 
+              fontSize: "13px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}>
+              <Hash size={14} />
+              Recent WASM Hashes
+            </div>
+            <button
+              onClick={() => setShowWasmHistory(!showWasmHistory)}
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                padding: "6px 12px",
+                color: "var(--text-primary)",
+                fontSize: "11px",
+                cursor: "pointer",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              {showWasmHistory ? "Hide" : "Show"}
+            </button>
+          </div>
+          
+          {showWasmHistory && (
+            <div style={{ 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: "8px",
+              maxHeight: "200px",
+              overflowY: "auto"
+            }}>
+              {wasmHistory.slice(0, 5).map((record) => (
+                <div key={record.id} style={{
+                  padding: "10px",
+                  background: "var(--bg-elevated)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  fontSize: "11px"
+                }}>
+                  <Hash size={12} style={{ color: "var(--cyan)" }} />
+                  <div style={{ flex: 1, fontFamily: "var(--font-mono)" }}>
+                    {record.wasmHash.slice(0, 16)}...
+                  </div>
+                  <div style={{ color: "var(--text-muted)" }}>
+                    {new Date(record.timestamp).toLocaleDateString()}
+                  </div>
+                  {record.transactionHash && (
+                    <a
+                      href={`https://stellar.expert/explorer/${record.network}/tx/${record.transactionHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: "var(--cyan)",
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}
+                    >
+                      <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{
         background: "var(--bg-card)",

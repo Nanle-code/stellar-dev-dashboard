@@ -216,8 +216,8 @@ const iconBtn = {
   fontFamily: 'var(--font-mono)',
 }
 
-const dropdownStyle = {
-  position: 'absolute',
+const dropdownStyle: React.CSSProperties = {
+  position: 'absolute' as const,
   top: '32px',
   right: 0,
   background: 'var(--bg-card)',
@@ -229,7 +229,15 @@ const dropdownStyle = {
   zIndex: 50,
 }
 
-function DropdownItem({ children, onClick, disabled }) {
+function DropdownItem({
+  children,
+  onClick,
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={disabled ? undefined : onClick}

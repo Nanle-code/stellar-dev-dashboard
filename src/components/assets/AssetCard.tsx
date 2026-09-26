@@ -5,6 +5,7 @@ import { fetchIssuerInfo, fetchAssetMarketData, formatXLM, shortAddress } from '
 import { getAssetTrustlineStatus } from '../../lib/assetTrustlineValidation';
 import CopyableValue from '../dashboard/CopyableValue';
 import AssetTrustStatus from './AssetTrustStatus';
+import SacInspector from './SacInspector';
 
 export default function AssetCard({ asset, network, onClick }) {
   const [issuerInfo, setIssuerInfo] = useState(null);
@@ -397,6 +398,8 @@ export default function AssetCard({ asset, network, onClick }) {
               </div>
             )}
           </div>
+
+          <SacInspector asset={asset} network={network} />
         </div>
       )}
 

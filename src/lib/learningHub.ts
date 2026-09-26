@@ -1,0 +1,848 @@
+/**
+ * Learning Hub System
+ * Manages tutorials, quizzes, certifications, and progress tracking
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+
+export interface Tutorial {
+  id: string;
+  title: string;
+  description: string;
+  category: 'basics' | 'advanced' | 'soroban' | 'assets' | 'payments';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  duration: number; // in minutes
+  videoUrl?: string;
+  content: string;
+  codeExamples: CodeExample[];
+  quiz?: Quiz;
+  completed?: boolean;
+  progress?: number;
+}
+
+export interface CodeExample {
+  id: string;
+  title: string;
+  language: 'javascript' | 'typescript' | 'rust' | 'python';
+  code: string;
+  explanation: string;
+  editable: boolean;
+}
+
+export interface Quiz {
+  id: string;
+  tutorialId: string;
+  questions: QuizQuestion[];
+}
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+}
+
+export interface QuizResult {
+  id: string;
+  quizId: string;
+  userId: string;
+  score: number;
+  totalQuestions: number;
+  answers: number[];
+  timestamp: string;
+  passed: boolean;
+}
+
+export interface Certificate {
+  id: string;
+  userId: string;
+  title: string;
+  category: string;
+  issuedAt: string;
+  expiresAt?: string;
+  verificationCode: string;
+}
+
+export interface UserProgress {
+  userId: string;
+  completedTutorials: string[];
+  quizResults: QuizResult[];
+  certificates: Certificate[];
+  totalPoints: number;
+  level: number;
+}
+
+const LEARNING_DB_NAME = 'stellar-dev-dashboard-learning';
+const LEARNING_DB_VERSION = 1;
+const PASSING_SCORE = 0.7; // 70%
+
+class LearningHubManager {
+  private db: IDBDatabase | null = null;
+  private tutorials: Tutorial[] = [];
+
+  constructor() {
+    this.initializeTutorials();
+  }
+
+  async initialize(): Promise<void> {
+    await this.initializeDatabase();
+    if (this.tutorials.length === 0) {
+      this.initializeTutorials();
+    }
+  }
+
+  private async initializeDatabase(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(LEARNING_DB_NAME, LEARNING_DB_VERSION);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve();
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+
+        if (!db.objectStoreNames.contains('progress')) {
+          const progressStore = db.createObjectStore('progress', { keyPath: 'userId' });
+          progressStore.createIndex('level', 'level', { unique: false });
+          progressStore.createIndex('totalPoints', 'totalPoints', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('quizResults')) {
+          const quizStore = db.createObjectStore('quizResults', { keyPath: 'id' });
+          quizStore.createIndex('userId', 'userId', { unique: false });
+          quizStore.createIndex('quizId', 'quizId', { unique: false });
+          quizStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('certificates')) {
+          const certStore = db.createObjectStore('certificates', { keyPath: 'id' });
+          certStore.createIndex('userId', 'userId', { unique: false });
+          certStore.createIndex('verificationCode', 'verificationCode', { unique: true });
+        }
+      };
+    });
+  }
+
+  private initializeTutorials(): void {
+    this.tutorials = [
+      {
+        id: 'tut-1',
+        title: 'Introduction to Stellar',
+        description: 'Learn the basics of the Stellar network, accounts, and assets',
+        category: 'basics',
+        difficulty: 'beginner',
+        duration: 15,
+        videoUrl: 'https://example.com/videos/intro-stellar',
+        content: `
+# Introduction to Stellar
+
+Stellar is a decentralized, fast, scalable, and uniquely sustainable network for financial products and services.
+
+## Key Concepts
+
+1. **Accounts**: Every entity on Stellar has an account identified by a public key
+2. **Assets**: Stellar supports multiple assets including XLM (native) and custom tokens
+3. **Operations**: Transactions contain one or more operations that modify the ledger
+4. **Consensus**: Stellar uses the Stellar Consensus Protocol (SCP)
+
+## Why Stellar?
+
+- Fast: 3-5 second confirmation times
+- Low cost: Fractions of a penny per transaction
+- Scalable: Thousands of operations per second
+- Sustainable: Energy-efficient consensus mechanism
+        `,
+        codeExamples: [
+          {
+            id: 'ex-1',
+            title: 'Creating a Keypair',
+            language: 'javascript',
+            code: `import { Keypair } from '@stellar/stellar-sdk';
+
+// Generate a new random keypair
+const pair = Keypair.random();
+
+console.log('Public Key:', pair.publicKey());
+console.log('Secret Key:', pair.secret());`,
+            explanation:
+              'This code creates a new Stellar keypair. The public key is your account address, and the secret key is used to sign transactions.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-1',
+          tutorialId: 'tut-1',
+          questions: [
+            {
+              id: 'q-1',
+              question: 'What is the native asset on Stellar?',
+              options: ['BTC', 'ETH', 'XLM', 'USD'],
+              correctAnswer: 2,
+              explanation: 'XLM (Lumens) is the native cryptocurrency of the Stellar network.',
+            },
+            {
+              id: 'q-2',
+              question: 'How long do Stellar transactions typically take to confirm?',
+              options: ['10 minutes', '1 minute', '3-5 seconds', '1 hour'],
+              correctAnswer: 2,
+              explanation:
+                'Stellar transactions are confirmed in 3-5 seconds, making it one of the fastest blockchain networks.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-2',
+        title: 'Working with Accounts',
+        description: 'Learn how to create, fund, and manage Stellar accounts',
+        category: 'basics',
+        difficulty: 'beginner',
+        duration: 20,
+        content: `
+# Working with Accounts
+
+Learn how to create and manage Stellar accounts programmatically.
+
+## Account Creation
+
+An account is created when it receives its first payment. On testnet, you can use Friendbot to fund new accounts.
+
+## Account Properties
+
+- Sequence number
+- Balances (XLM and other assets)
+- Signers
+- Thresholds
+- Flags
+        `,
+        codeExamples: [
+          {
+            id: 'ex-2',
+            title: 'Funding a Testnet Account',
+            language: 'javascript',
+            code: `import { Keypair, SorobanRpc } from '@stellar/stellar-sdk';
+
+const pair = Keypair.random();
+const publicKey = pair.publicKey();
+
+// Fund account on testnet
+const response = await fetch(
+  \`https://friendbot.stellar.org?addr=\${publicKey}\`
+);
+
+console.log('Account funded:', await response.json());`,
+            explanation:
+              'Friendbot is a testnet faucet that funds new accounts with 10,000 XLM for testing.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-2',
+          tutorialId: 'tut-2',
+          questions: [
+            {
+              id: 'q-3',
+              question: 'What is the minimum balance required for a Stellar account?',
+              options: ['0 XLM', '1 XLM', '2 XLM (base reserve)', '10 XLM'],
+              correctAnswer: 2,
+              explanation:
+                'The base reserve is 1 XLM, and accounts need a minimum of 2 XLM (1 base + 1 per subentry).',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-3',
+        title: 'Sending Payments',
+        description: 'Learn how to send payments on the Stellar network',
+        category: 'payments',
+        difficulty: 'intermediate',
+        duration: 25,
+        content: `
+# Sending Payments
+
+Learn how to create and submit payment transactions on Stellar.
+
+## Transaction Structure
+
+1. Source account
+2. Sequence number
+3. Operations (payment in this case)
+4. Memo (optional)
+5. Signatures
+        `,
+        codeExamples: [
+          {
+            id: 'ex-3',
+            title: 'Sending XLM Payment',
+            language: 'javascript',
+            code: `import { 
+  Keypair, 
+  Server, 
+  TransactionBuilder, 
+  Networks, 
+  Operation, 
+  Asset 
+} from '@stellar/stellar-sdk';
+
+const server = new Server('https://horizon-testnet.stellar.org');
+const sourceKeys = Keypair.fromSecret('SECRET_KEY');
+const destination = 'DESTINATION_PUBLIC_KEY';
+
+// Load source account
+const account = await server.loadAccount(sourceKeys.publicKey());
+
+// Build transaction
+const transaction = new TransactionBuilder(account, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    Operation.payment({
+      destination,
+      asset: Asset.native(),
+      amount: '10',
+    })
+  )
+  .setTimeout(30)
+  .build();
+
+// Sign and submit
+transaction.sign(sourceKeys);
+const result = await server.submitTransaction(transaction);
+console.log('Success!', result);`,
+            explanation: 'This code sends 10 XLM from one account to another on the testnet.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-3',
+          tutorialId: 'tut-3',
+          questions: [
+            {
+              id: 'q-4',
+              question: 'What happens if you submit a transaction with the wrong sequence number?',
+              options: [
+                'The transaction succeeds',
+                'The transaction is rejected',
+                'The transaction is queued',
+                'The sequence number is auto-corrected',
+              ],
+              correctAnswer: 1,
+              explanation:
+                'Transactions with incorrect sequence numbers are rejected to prevent replay attacks.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-4',
+        title: 'Sandbox Analytics Demos',
+        description:
+          'Explore anonymized account and trade datasets for analytics demos without Mainnet credentials',
+        category: 'advanced',
+        difficulty: 'intermediate',
+        duration: 20,
+        content: `
+# Sandbox Analytics Demos
+
+Learn how to simulate and demo portfolio tracking and DEX trade analytics offline using anonymized datasets without exposing real Mainnet credentials or encountering API rate limits.
+
+## Key Principles
+
+1. **Zero Secret Keys**: Sandbox fixtures use deterministic public keys without private keys.
+2. **Anonymized Archetypes**: Multiple account profiles (Retail, Institutional Market Maker, Treasury) represent realistic behaviors.
+3. **Realistic Trade Flows**: Orderbook and liquidity pool trades allow computing volume, VWAP, and spread analytics.
+4. **Environment Isolation**: Live Mainnet safeguards prevent accidental pollution or credential confusion.
+`,
+        codeExamples: [
+          {
+            id: 'ex-sandbox-analytics',
+            title: 'Loading Sandbox Trades & Computing VWAP',
+            language: 'typescript',
+            code: `import { getSandboxTrades, calculateTradeMetrics } from '../lib/sandboxAnalytics';
+
+// 1. Fetch anonymized sandbox trades for XLM/USDC
+const trades = getSandboxTrades({
+  baseAsset: 'XLM',
+  counterAsset: 'USDC',
+  limit: 20,
+});
+
+// 2. Aggregate analytics (volume, VWAP, price change)
+const metrics = calculateTradeMetrics(trades);
+
+console.log('Trade Count:', metrics.tradeCount);
+console.log('Total XLM Volume:', metrics.totalVolumeBase);
+console.log('VWAP (USD):', metrics.vwap);
+console.log('Price Change (%):', metrics.priceChangePercent);`,
+            explanation:
+              'Demonstrates querying anonymized DEX trades and computing volume-weighted average price (VWAP) without network access.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-sandbox-analytics',
+          tutorialId: 'tut-4',
+          questions: [
+            {
+              id: 'q-sbx-1',
+              question:
+                'Why should sandbox demo datasets be used instead of real Mainnet credentials for analytics demos?',
+              options: [
+                'Mainnet transactions cannot be queried by developers',
+                'To prevent exposing sensitive credentials and avoid API rate limits or mock data leakage',
+                'Because Horizon does not support DEX trades',
+                'Sandbox datasets execute faster on the Stellar blockchain',
+              ],
+              correctAnswer: 1,
+              explanation:
+                'Using anonymized datasets protects private keys, removes credential dependency, and avoids rate limits during education sessions.',
+            },
+            {
+              id: 'q-sbx-2',
+              question:
+                'What happens if a developer attempts to load sandbox datasets in a live Mainnet production environment?',
+              options: [
+                'The system converts real XLM into testnet tokens',
+                'The service silently overwrites live user accounts',
+                'The service fails closed with an UNSUPPORTED_ENVIRONMENT error to prevent data spoofing',
+                'The application crashes with a syntax error',
+              ],
+              correctAnswer: 2,
+              explanation:
+                'Environment guards ensure that sandbox datasets cannot be mistakenly rendered as live Mainnet accounts without an explicit override.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-4',
+        title: 'Soroban Debugging: Simulation Errors & Host Traps',
+        description: 'Diagnose pre-flight simulation errors, WASM traps, integer overflows, and CPU budget exhaustion.',
+        category: 'soroban',
+        difficulty: 'beginner',
+        duration: 20,
+        content: `
+# Soroban Debugging: Simulation Errors & Host Execution Traps
+
+In Soroban, all transactions must undergo pre-flight simulation via the RPC \`simulateTransaction\` endpoint before submission. This simulation evaluates contract execution, computes resource fees, and generates the required ledger footprint.
+
+## 1. Understanding HostFunctionError & WASM Traps
+
+When contract execution violates runtime constraints, the Soroban host halts execution and returns a trapped result code:
+
+- **Integer Overflow/Underflow**: Rust operations like \`+\`, \`-\`, or \`*\` on primitive integers without checked arithmetic trigger panic traps.
+- **Division by Zero**: Any division with divisor zero triggers an \`unreachable\` WASM opcode.
+- **Missing Storage Unwraps**: Calling \`.unwrap()\` on uninitialized storage keys panics the host.
+
+## 2. Budget Exhaustion (CPU & Memory Limits)
+
+Every Soroban transaction has strict resource caps (default 100M CPU instructions). Unbounded loops or excessive memory copies cause \`HostBudgetExceeded\` errors during simulation.
+
+## 3. Best Practices for Defensive Execution
+
+1. Always use checked arithmetic: \`.checked_add()\`, \`.checked_mul()\`, and \`.checked_div()\`.
+2. Bound array sizes and batch processing loops with explicit maximum constants.
+3. Use \`.unwrap_or()\` or pattern match \`Option<T>\` instead of blind unwraps.
+        `,
+        codeExamples: [
+          {
+            id: 'ex-soroban-sim-1',
+            title: 'Fixing Arithmetic Overflows in Rust',
+            language: 'rust',
+            code: `use soroban_sdk::{contracterror, Env};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Error {
+    DivisionByZero = 1,
+    ArithmeticOverflow = 2,
+}
+
+pub fn calculate_reward(env: Env, base_amount: u64, multiplier: u64, divisor: u64) -> Result<u64, Error> {
+    if divisor == 0 {
+        return Err(Error::DivisionByZero);
+    }
+    base_amount
+        .checked_mul(multiplier)
+        .and_then(|val| val.checked_div(divisor))
+        .ok_or(Error::ArithmeticOverflow)
+}`,
+            explanation: 'Checked operations prevent VM traps by returning typed contract errors that clients can gracefully handle.',
+            editable: true,
+          },
+          {
+            id: 'ex-soroban-sim-2',
+            title: 'Pre-flight Simulation with JavaScript SDK',
+            language: 'javascript',
+            code: `import { rpc, TransactionBuilder } from '@stellar/stellar-sdk';
+
+const server = new rpc.Server('https://soroban-testnet.stellar.org');
+const simResult = await server.simulateTransaction(builtTx);
+
+if (rpc.Api.isSimulationError(simResult)) {
+    console.error('Simulation Failed:', simResult.error);
+} else {
+    console.log('CPU Instructions:', simResult.cost.cpuInsns);
+    console.log('Footprint Read/Write:', simResult.transactionData.build().resources().footprint());
+}`,
+            explanation: 'Simulating transactions locally inspects resource costs and ensures the transaction will succeed before committing fees.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-tut-4',
+          tutorialId: 'tut-4',
+          questions: [
+            {
+              id: 'q-sim-1',
+              question: 'What error occurs when a contract triggers an unhandled panic in Soroban?',
+              options: [
+                'InvokeHostFunctionResultCodeTrapped',
+                'TxSuccessWithWarning',
+                'BadSequenceNumber',
+                'MalformedXdrError',
+              ],
+              correctAnswer: 0,
+              explanation: 'Unhandled panics compile to WASM unreachable instructions, resulting in InvokeHostFunctionResultCodeTrapped.',
+            },
+            {
+              id: 'q-sim-2',
+              question: 'Why is pre-flight simulation mandatory in Soroban before submitting a transaction?',
+              options: [
+                'To mine testnet tokens',
+                'To discover ledger footprint keys, measure CPU/memory consumption, and verify execution without risk',
+                'To register your public key with the validator quorum',
+                'To compile the Rust contract into WebAssembly bytecode',
+              ],
+              correctAnswer: 1,
+              explanation: 'Simulation computes the exact ledger footprint and resource limits required for inclusion in a Stellar transaction.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-5',
+        title: 'Soroban Debugging: Declarative Authorization & Auth Trees',
+        description: 'Master debugging InvokeHostFunctionResultCodeAuthorizationError, caller verification, and sub-contract authorization trees.',
+        category: 'soroban',
+        difficulty: 'intermediate',
+        duration: 25,
+        content: `
+# Soroban Debugging: Declarative Authorization & Auth Trees
+
+Soroban enforces a decentralized, explicit authorization framework. Contract code cannot assume caller identity or spend user funds without cryptographic proof of authorization.
+
+## 1. The Address::require_auth() Model
+
+Contracts call \`address.require_auth()\` to assert that the owner of \`address\` approved the current invocation. If the required signature or authorization credential is missing, the host rejects execution with:
+\`InvokeHostFunctionResultCode::InvokeHostFunctionResultCodeAuthorizationError\`
+
+## 2. Scoped Authorization with require_auth_for_args()
+
+For maximum security against replay attacks and parameter tampering, contracts use \`require_auth_for_args(args)\`. This guarantees that the caller authorized the *exact arguments* being executed, not just generic invocation.
+
+## 3. Sub-Contract Calls and Auth Trees
+
+When Contract A invokes Contract B to perform a transfer on behalf of Alice, Contract B requires Alice's authorization. Soroban uses **Authorization Trees** where users sign tree structures explicitly granting sub-contract invocation privileges.
+        `,
+        codeExamples: [
+          {
+            id: 'ex-soroban-auth-1',
+            title: 'Requiring Caller Authorization in Rust',
+            language: 'rust',
+            code: `use soroban_sdk::{contractimpl, Address, Env};
+
+pub struct VaultContract;
+
+#[contractimpl]
+impl VaultContract {
+    pub fn withdraw(env: Env, from: Address, to: Address, amount: i128) {
+        // Enforce that 'from' authorized this debit
+        from.require_auth();
+
+        let mut bal: i128 = env.storage().persistent().get(&from).unwrap_or(0);
+        assert!(bal >= amount, "Insufficient vault balance");
+        
+        env.storage().persistent().set(&from, &(bal - amount));
+        transfer_asset(&env, &to, amount);
+    }
+}`,
+            explanation: 'Adding from.require_auth() guarantees that no third party can initiate withdrawals from accounts they do not control.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-tut-5',
+          tutorialId: 'tut-5',
+          questions: [
+            {
+              id: 'q-auth-1',
+              question: 'Which Soroban SDK method verifies that an address approved an operation with specific arguments?',
+              options: [
+                'address.verify_signature()',
+                'address.require_auth_for_args(args)',
+                'env.storage().check_auth()',
+                'address.assert_owner()',
+              ],
+              correctAnswer: 1,
+              explanation: 'require_auth_for_args binds the signature directly to specific function argument values.',
+            },
+          ],
+        },
+      },
+      {
+        id: 'tut-6',
+        title: 'Soroban Debugging: Ledger Footprints & Storage Isolation',
+        description: 'Learn how to diagnose read-only footprint mutation conflicts, state archival/TTL expiration, and storage tier isolation.',
+        category: 'soroban',
+        difficulty: 'advanced',
+        duration: 30,
+        content: `
+# Soroban Debugging: Ledger Footprints & Storage Isolation
+
+Stellar executes Soroban smart contracts concurrently. To enable parallel validation without race conditions, transactions declare an explicit **Ledger Footprint** containing all keys read or modified.
+
+## 1. Footprint Conflict Errors
+
+Every key in the footprint is categorized as either:
+- **readOnly**: The contract may inspect but NOT write to this key.
+- **readWrite**: The contract may both inspect and mutate this key.
+
+If a contract modifies a key marked as \`readOnly\`, the host aborts with \`FootprintConflictError\`.
+
+## 2. State Expiration and TTL Management
+
+Soroban entries have a Time-To-Live (TTL). When TTL reaches zero:
+- **Temporary storage**: The entry is permanently deleted and CANNOT be restored.
+- **Persistent storage**: The entry is archived and requires a \`RestoreFootprintOp\` before access.
+
+Contracts should periodically invoke \`extend_ttl()\` to protect vital accounts and state.
+        `,
+        codeExamples: [
+          {
+            id: 'ex-soroban-foot-1',
+            title: 'Extending Persistent Storage TTL in Rust',
+            language: 'rust',
+            code: `use soroban_sdk::{contractimpl, Address, Env};
+
+pub struct StakingContract;
+
+#[contractimpl]
+impl StakingContract {
+    pub fn touch_stake(env: Env, user: Address) {
+        user.require_auth();
+        let key = user.clone();
+        
+        // Ensure entry remains active for at least 50,000 ledgers
+        // Threshold: 10,000 ledgers; Target extension: 100,000 ledgers
+        env.storage().persistent().extend_ttl(&key, 10_000, 100_000);
+    }
+}`,
+            explanation: 'Calling extend_ttl prevents key archival and guarantees continuous contract functionality.',
+            editable: true,
+          },
+        ],
+        quiz: {
+          id: 'quiz-tut-6',
+          tutorialId: 'tut-6',
+          questions: [
+            {
+              id: 'q-foot-1',
+              question: 'What happens when a contract tries to modify a storage key declared in readOnly footprint?',
+              options: [
+                'The write is silently discarded',
+                'The host terminates with FootprintConflictError',
+                'The network dynamically converts the transaction to readWrite',
+                'The contract balance is deducted as penalty',
+              ],
+              correctAnswer: 1,
+              explanation: 'Writing to a key marked as readOnly violates declarative concurrency guarantees, immediately halting execution.',
+            },
+            {
+              id: 'q-foot-2',
+              question: 'Which storage tier should be used for user token balances that must never be lost?',
+              options: [
+                'Temporary storage',
+                'Persistent storage',
+                'Ephemeral stack memory',
+                'Horizon log entries',
+              ],
+              correctAnswer: 1,
+              explanation: 'Persistent storage preserves balances and supports archival restoration if needed, whereas Temporary storage is unrecoverable when expired.',
+            },
+          ],
+        },
+      },
+    ];
+
+    // Add more tutorials dynamically
+    for (let i = 5; i <= 25; i++) {
+      this.tutorials.push({
+        id: `tut-${i}`,
+        title: `Advanced Topic ${i - 3}`,
+        description: `Learn advanced Stellar concepts and techniques - Part ${i - 3}`,
+        category: i % 2 === 0 ? 'advanced' : 'soroban',
+        difficulty: 'advanced',
+        duration: 30 + (i % 10),
+        content: `# Advanced Topic ${i - 3}\n\nDetailed content for advanced tutorial ${i - 3}...`,
+        codeExamples: [],
+      });
+    }
+  }
+
+  async getAllTutorials(): Promise<Tutorial[]> {
+    return this.tutorials;
+  }
+
+  async getTutorialsByCategory(category: string): Promise<Tutorial[]> {
+    return this.tutorials.filter((t) => t.category === category);
+  }
+
+  async getTutorial(id: string): Promise<Tutorial | null> {
+    return this.tutorials.find((t) => t.id === id) || null;
+  }
+
+  async submitQuiz(userId: string, quizId: string, answers: number[]): Promise<QuizResult> {
+    const tutorial = this.tutorials.find((t) => t.quiz?.id === quizId);
+    if (!tutorial?.quiz) throw new Error('Quiz not found');
+
+    const { questions } = tutorial.quiz;
+    let correctCount = 0;
+
+    questions.forEach((question, index) => {
+      if (answers[index] === question.correctAnswer) {
+        correctCount++;
+      }
+    });
+
+    const score = correctCount / questions.length;
+    const passed = score >= PASSING_SCORE;
+
+    const result: QuizResult = {
+      id: uuidv4(),
+      quizId,
+      userId,
+      score,
+      totalQuestions: questions.length,
+      answers,
+      timestamp: new Date().toISOString(),
+      passed,
+    };
+
+    await this.saveQuizResult(result);
+
+    if (passed) {
+      await this.markTutorialComplete(userId, tutorial.id);
+    }
+
+    return result;
+  }
+
+  private async saveQuizResult(result: QuizResult): Promise<void> {
+    if (!this.db) await this.initialize();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['quizResults'], 'readwrite');
+      const store = transaction.objectStore('quizResults');
+      const request = store.add(result);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async markTutorialComplete(userId: string, tutorialId: string): Promise<void> {
+    const progress = await this.getUserProgress(userId);
+    if (!progress.completedTutorials.includes(tutorialId)) {
+      progress.completedTutorials.push(tutorialId);
+      progress.totalPoints += 100;
+      progress.level = Math.floor(progress.totalPoints / 500) + 1;
+      await this.saveUserProgress(progress);
+    }
+  }
+
+  async getUserProgress(userId: string): Promise<UserProgress> {
+    if (!this.db) await this.initialize();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['progress'], 'readonly');
+      const store = transaction.objectStore('progress');
+      const request = store.get(userId);
+
+      request.onsuccess = () => {
+        resolve(
+          request.result || {
+            userId,
+            completedTutorials: [],
+            quizResults: [],
+            certificates: [],
+            totalPoints: 0,
+            level: 1,
+          }
+        );
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private async saveUserProgress(progress: UserProgress): Promise<void> {
+    if (!this.db) await this.initialize();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['progress'], 'readwrite');
+      const store = transaction.objectStore('progress');
+      const request = store.put(progress);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async issueCertificate(userId: string, category: string): Promise<Certificate> {
+    const cert: Certificate = {
+      id: uuidv4(),
+      userId,
+      title: `Stellar ${category.charAt(0).toUpperCase() + category.slice(1)} Certification`,
+      category,
+      issuedAt: new Date().toISOString(),
+      verificationCode: this.generateVerificationCode(),
+    };
+
+    if (!this.db) await this.initialize();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['certificates'], 'readwrite');
+      const store = transaction.objectStore('certificates');
+      const request = store.add(cert);
+
+      request.onsuccess = () => resolve(cert);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getCertificates(userId: string): Promise<Certificate[]> {
+    if (!this.db) await this.initialize();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['certificates'], 'readonly');
+      const store = transaction.objectStore('certificates');
+      const index = store.index('userId');
+      const request = index.getAll(userId);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private generateVerificationCode(): string {
+    return `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  }
+}
+
+export const learningHub = new LearningHubManager();

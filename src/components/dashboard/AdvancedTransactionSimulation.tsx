@@ -174,12 +174,15 @@ export default function AdvancedTransactionSimulation({ transactionParams: propP
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: '12px' }}>
-                <FeeStrategyComparisonPanel
-                  transactionParams={transactionParams}
-                  initialCongestion={parseFloat(congestion) || 0.55}
-                />
-              </div>
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <FeeStrategyComparisonPanel
+                sourceAccount={transactionParams.sourceAccount || ''}
+                operations={transactionParams.operations || []}
+                baseFee={Number(transactionParams.baseFee) || 100}
+                network={transactionParams.network || network}
+              />
             </div>
           </>
         )}

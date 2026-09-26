@@ -394,6 +394,15 @@ export default function Builder() {
         </div>
       </div>
 
+      {/* Fee Strategy Dry-Run Comparison */}
+      <FeeStrategyComparisonPanel
+        sourceAccount={sourceAccount}
+        operations={operations}
+        baseFee={Number(baseFee) || 100}
+        network={network}
+        onSelectStrategy={(strategy) => setBaseFee(String(strategy.baseFee))}
+      />
+
       {/* Time Bounds */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px' }}>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '13px', marginBottom: '12px' }}>
@@ -858,11 +867,6 @@ export default function Builder() {
           </div>
         </div>
       )}
-
-      <FeeStrategyComparisonPanel
-        transactionParams={transactionParams}
-        onApplyFee={(appliedFee) => setBaseFee(appliedFee.toString())}
-      />
 
       <AdvancedTransactionSimulation transactionParams={transactionParams} />
     </div>

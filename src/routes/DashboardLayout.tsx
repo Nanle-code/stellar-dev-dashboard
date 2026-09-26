@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState, useCallback, type CSSProperties } from 'react';
+import React, { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { matchRoute, buildPath, getDocumentTitle, type TabComponent } from './routes';
 import { getRouteComponent } from './routeComponents';
@@ -50,6 +50,8 @@ import {
   DEMO_MODE_BADGE,
   getDemoFixtureSummarySafe,
 } from '../lib/demoMode';
+import { Badge, Card, Skeleton, Stack } from '../design-system/components';
+import './DashboardLayout.css';
 
 interface SearchResult {
   type?: string;
@@ -59,42 +61,22 @@ const TransactionDetail = lazy(() => import('../components/dashboard/Transaction
 
 function TabLoadingFallback() {
   return (
-    <div
-      aria-busy="true"
-      aria-live="polite"
-      style={{
-        minHeight: '420px',
-        display: 'grid',
-        gap: '16px',
-        gridTemplateRows: '32px 120px 1fr',
-      }}
-    >
-      <div
-        style={{
-          width: '180px',
-          height: '24px',
-          borderRadius: '6px',
-          background: 'var(--bg-elevated)',
-        }}
-      />
-      <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)' }} />
-      <div
-        style={{
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          background: 'var(--bg-card)',
-        }}
-      />
-    </div>
+    <Card className="dashboard-loading-card" aria-busy="true" aria-live="polite">
+      <Stack gap="md">
+        <Skeleton shape="heading" />
+        <Skeleton shape="panel" />
+        <Skeleton shape="panel" />
+      </Stack>
+    </Card>
   );
 }
 
 function NotificationBell({
   onClick,
-  bottomOffset = '20px',
+  mobile = false,
 }: {
   onClick: () => void;
-  bottomOffset?: string;
+  mobile?: boolean;
 }) {
   const { unreadCount } = useRealTimeNotifications();
   return (
@@ -102,45 +84,17 @@ function NotificationBell({
       type="button"
       onClick={onClick}
       aria-label={`Open notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
-      style={{
-        position: 'fixed',
-        right: '20px',
-        bottom: bottomOffset,
-        width: '48px',
-        height: '48px',
-        borderRadius: '50%',
-        border: '1px solid var(--border)',
-        background: 'var(--bg-card)',
-        color: 'var(--text-primary)',
-        cursor: 'pointer',
-        boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
-        zIndex: 1050,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '18px',
-      }}
+      className={`dashboard-notification-bell${mobile ? ' dashboard-notification-bell--mobile' : ''}`}
     >
       <span aria-hidden="true">🔔</span>
       {unreadCount > 0 && (
-        <span
+        <Badge
           aria-hidden="true"
-          style={{
-            position: 'absolute',
-            top: '-4px',
-            right: '-4px',
-            background: 'var(--cyan, #06b6d4)',
-            color: '#0a0a0a',
-            borderRadius: '999px',
-            fontSize: '10px',
-            fontWeight: 700,
-            padding: '2px 6px',
-            minWidth: '18px',
-            textAlign: 'center',
-          }}
+          className="dashboard-notification-count"
+          tone="info"
         >
           {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
+        </Badge>
       )}
     </button>
   );
@@ -328,42 +282,6 @@ export default function DashboardLayout() {
   const txHash = activeRoute?.id === 'transactions' ? routeMatch?.params.hash : undefined;
   const isNotFound = Boolean(connectedAddress) && !routeMatch && !isConnectRoute;
 
-  const getMainStyles = (): CSSProperties => {
-    const baseStyles: CSSProperties = {
-      flex: 1,
-      width: '100%',
-      transition: 'margin-left var(--transition), padding var(--transition)',
-    };
-
-    if (isMobile) {
-      return {
-        ...baseStyles,
-        marginLeft: 0,
-        padding: 'var(--content-padding-mobile)',
-        paddingTop: 'calc(var(--header-height) + var(--content-padding-mobile) + 16px)',
-        maxWidth: '100%',
-      };
-    }
-
-    if (isTablet) {
-      return {
-        ...baseStyles,
-        marginLeft: 'var(--sidebar-width)',
-        padding: 'var(--content-padding-tablet)',
-        paddingTop: 'calc(var(--content-padding-tablet) + 16px)',
-        maxWidth: '1100px',
-      };
-    }
-
-    return {
-      ...baseStyles,
-      marginLeft: 'var(--sidebar-width)',
-      padding: 'var(--content-padding)',
-      paddingTop: 'calc(var(--content-padding) + 16px)',
-      maxWidth: '1100px',
-    };
-  };
-
   const handleRetry = async (): Promise<void> => {
     addBreadcrumb('App-level retry attempted', 'user_action');
     window.location.reload();
@@ -396,33 +314,26 @@ export default function DashboardLayout() {
       <OfflineBanner />
       <PWAInstallBanner />
       <SWUpdatePrompt />
-      <div
-        style={{
-          display: 'flex',
-          minHeight: '100vh',
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
+      <div className="dashboard-layout-root">
         {isMobile && <MobileHeader />}
         {isMobile ? <MobileSidebar /> : <Sidebar />}
         <main
           id="main-content"
           tabIndex={-1}
           aria-label="Dashboard content"
-          style={getMainStyles()}
+          className={`dashboard-main${isMobile ? ' dashboard-main--mobile' : isTablet ? ' dashboard-main--tablet' : ''}`}
           ref={isMobile ? swipeAreaRef : null}
         >
           <KeyboardNavigation />
-          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ flex: 1 }}>
+          <Stack direction="row" gap="sm" align="center" className="dashboard-toolbar">
+            <div className="dashboard-toolbar__search">
               <GlobalSearch onSelectResult={handleSearchResult} />
             </div>
             <ThemeToggle />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="dashboard-toolbar__network">
               <NetworkIndicator />
             </div>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <div className="dashboard-toolbar__expertise">
               <ExpertiseBadge
                 onLevelChange={() => {
                   trackFeatureInteraction('expertise-badge');
@@ -440,26 +351,12 @@ export default function DashboardLayout() {
               aria-haspopup="dialog"
               aria-expanded={preferencesOpen}
               title="User Preferences"
-              style={{
-                width: '36px',
-                height: '36px',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                flexShrink: 0,
-                transition: 'var(--transition)',
-              }}
+              className="dashboard-preferences-trigger"
             >
               ⚙
             </button>
-          </div>
-          <div style={{ marginBottom: '16px' }}>
+          </Stack>
+          <div className="dashboard-price-section">
             <PriceTicker />
           </div>
           {isDemoMode && (
@@ -467,43 +364,19 @@ export default function DashboardLayout() {
               data-testid="demo-mode-banner"
               role="status"
               aria-label={`${DEMO_MODE_LABEL}: read-only testnet portfolio`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap',
-                marginBottom: '16px',
-                padding: '10px 14px',
-                background: 'var(--amber-glow)',
-                border: '1px solid var(--amber)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '12px',
-                color: 'var(--text-primary)',
-              }}
+              className="dashboard-demo-banner"
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                    border: '1px solid var(--amber)',
-                    color: 'var(--amber)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '10px',
-                    letterSpacing: '1px',
-                    fontWeight: 700,
-                  }}
-                >
+              <Stack direction="row" gap="sm" align="center" wrap className="dashboard-demo-banner__content">
+                <Badge tone="warning" className="dashboard-demo-banner__badge">
                   {DEMO_MODE_BADGE}
-                </span>
+                </Badge>
                 <strong>{DEMO_MODE_LABEL}</strong>
-                <span style={{ color: 'var(--text-secondary)' }}>
+                <span className="dashboard-demo-banner__description">
                   {demoSummary
                     ? `${demoSummary.accountCount} testnet accounts, ${demoSummary.contractCount} contracts. No wallet connected.`
                     : 'Read-only testnet portfolio. No wallet connected.'}
                 </span>
-              </div>
+              </Stack>
               <button
                 type="button"
                 data-testid="exit-demo-button"
@@ -512,17 +385,7 @@ export default function DashboardLayout() {
                   addBreadcrumb('Exited demo mode', 'user_action');
                   navigate('/connect', { replace: true });
                 }}
-                style={{
-                  padding: '7px 14px',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-bright)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
+                className="dashboard-demo-banner__exit"
               >
                 Exit demo
               </button>
@@ -551,7 +414,7 @@ export default function DashboardLayout() {
         <PredictiveFeatureSuggestions onNavigate={(tab: string) => navigate(`/${tab}`)} />
         <NotificationBell
           onClick={() => setNotificationsOpen(true)}
-          bottomOffset={isMobile ? 'calc(60px + 16px)' : '20px'}
+          mobile={isMobile}
         />
         <RealTimeNotificationCenter
           open={notificationsOpen}
@@ -569,39 +432,7 @@ export default function DashboardLayout() {
           type="button"
           onClick={() => setConversationOpen(!conversationOpen)}
           aria-label={conversationOpen ? 'Close navigation assistant' : 'Open navigation assistant'}
-          style={{
-            position: 'fixed',
-            right: '20px',
-            bottom: isMobile ? 'calc(60px + 78px)' : '78px',
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            border: `2px solid ${conversationOpen ? 'var(--cyan)' : 'var(--border)'}`,
-            background: conversationOpen ? 'var(--cyan-glow)' : 'var(--bg-card)',
-            color: conversationOpen ? 'var(--cyan)' : 'var(--text-primary)',
-            cursor: 'pointer',
-            boxShadow: conversationOpen
-              ? '0 0 20px var(--cyan-glow)'
-              : '0 6px 18px rgba(0, 0, 0, 0.25)',
-            zIndex: 1061,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            transition: 'all 180ms ease',
-          }}
-          onMouseEnter={(e) => {
-            if (!conversationOpen) {
-              e.currentTarget.style.borderColor = 'var(--cyan-dim)';
-              e.currentTarget.style.boxShadow = '0 0 12px var(--cyan-glow)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!conversationOpen) {
-              e.currentTarget.style.borderColor = 'var(--border)';
-              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.25)';
-            }
-          }}
+          className={`dashboard-conversation-trigger${conversationOpen ? ' dashboard-conversation-trigger--open' : ''}${isMobile ? ' dashboard-conversation-trigger--mobile' : ''}`}
         >
           <span aria-hidden="true">{conversationOpen ? '✕' : '💬'}</span>
         </button>
@@ -613,17 +444,7 @@ export default function DashboardLayout() {
         {preferencesOpen && (
           <div
             role="presentation"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              backdropFilter: 'blur(4px)',
-              zIndex: 1100,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px',
-            }}
+            className="dashboard-preferences-overlay"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setPreferencesOpen(false);

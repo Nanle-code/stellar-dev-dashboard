@@ -152,11 +152,11 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Docusaurus dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --shamefully-hoist
         working-directory: docs-site
 
       - name: Build Docusaurus site
-        run: pnpm run build
+        run: pnpm exec docusaurus build
         working-directory: docs-site
         env:
           NODE_ENV: production

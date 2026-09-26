@@ -53,16 +53,6 @@ export default function AnchorIntegration() {
   const [anchorSession, setAnchorSession] = useState(null);
   const [isAnchorAuthLoading, setIsAnchorAuthLoading] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedAsset && amount && transactionType) {
-      loadComparison();
-    }
-  }, [selectedAsset, amount, transactionType, loadComparison]);
-
   const loadData = async () => {
     try {
       const availableAnchors = anchorService.getAvailableAnchors({ status: 'active' });
@@ -110,6 +100,16 @@ export default function AnchorIntegration() {
       setLoading(false);
     }
   }, [selectedAsset, amount, transactionType]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedAsset && amount && transactionType) {
+      loadComparison();
+    }
+  }, [selectedAsset, amount, transactionType, loadComparison]);
 
   const handleAnchorSelect = (anchor) => {
     setSelectedAnchor(anchor);
@@ -176,7 +176,7 @@ export default function AnchorIntegration() {
       );
 
       const signedXdr = await signTransactionWithFreighter(challengeResponse.transaction, account.network);
-      const token = await anchorService.submitChallengeTransaction(selectedAnchor.id, signedXdr, account.network);
+      const token = await anchorService.submitChallengeTransaction(selectedAnchor.id, signedXdr);
 
       await anchorService.saveAnchorAuthSession(
         selectedAnchor.id,

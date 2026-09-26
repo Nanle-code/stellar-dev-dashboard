@@ -84,13 +84,13 @@ export function PerformanceModeSelector({
   const {
     snapshot,
     ready,
+    locked,
     setPerformanceMode,
     submitFeedback,
     unlockAdaptation,
     refresh,
   } = useAdaptivePerformance('PerformanceModeSelector')
 
-  const locked = (snapshot?.locks as (keyof any)[]) ?? []
   const activeMode = snapshot?.mode ?? 'auto'
   const tier = snapshot?.adaptation.tier ?? 'balanced'
   const accuracy = snapshot?.accuracy
@@ -298,7 +298,7 @@ export function PerformanceModeSelector({
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {locked.map((key) => (
                   <li
-                    key={key}
+                    key={String(key)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -306,7 +306,7 @@ export function PerformanceModeSelector({
                       padding: '2px 0',
                     }}
                   >
-                    <span>{key}</span>
+                    <span>{String(key)}</span>
                     <button
                       type="button"
                       onClick={() => unlockAdaptation(key)}

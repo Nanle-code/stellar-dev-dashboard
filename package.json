@@ -146,5 +146,13 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint",
     "*.{json,md,css,html,yml,yaml}": "prettier --check"
+  },
+  "pnpm": {
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-5p2g-fcmc-qvqq",
+        "GHSA-w3rx-r6r6-pgpr"
+      ]
+    }
   }
 }

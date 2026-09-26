@@ -83,7 +83,7 @@ export default function AssetCard({ asset, network, onClick }) {
 
   const verification = getVerificationBadge();
 
-  const cardStyles = {
+  const cardStyles: React.CSSProperties = {
     background: 'var(--bg-card)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-lg)',

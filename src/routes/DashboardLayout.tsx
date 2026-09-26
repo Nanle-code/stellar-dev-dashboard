@@ -165,6 +165,7 @@ export default function DashboardLayout() {
     toggleDebugAssistant,
     isDemoMode,
     exitDemoMode,
+    demoSummary,
   } = useStore() as any;
   const { isMobile, isTablet } = useResponsive();
   const { level, isNovice, setLevel, updateSignals } = useExpertise();

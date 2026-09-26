@@ -56,7 +56,7 @@ let globalKeyboardListener = null;
  * @param {object} options - Options like description, category
  * @returns {function} Unregister function
  */
-export const registerShortcut = (key, handler, options = {}) => {
+export const registerShortcut = (key: string, handler: any, options: any = {}) => {
   const normalizedKey = normalizeShortcut(key);
 
   if (!shortcutHandlers.has(normalizedKey)) {
@@ -242,7 +242,7 @@ export const clearAllShortcuts = () => {
  * @returns {object} Templates keyed by id
  */
 export const getTransactionTemplates = () => {
-  const builtIns = TRANSACTION_TEMPLATES.map((t) => ({
+  const builtIns = TRANSACTION_TEMPLATES.map((t: any) => ({
     ...t,
     label: t.label || t.name,
   }));

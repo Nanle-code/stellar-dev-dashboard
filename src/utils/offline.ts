@@ -80,7 +80,7 @@ export async function registerServiceWorker() {
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',
     });
-    logger.info({ scope: registration.scope }, 'Service Worker registered with scope:');
+    logger.info(`Service Worker registered with scope: ${registration.scope}`);
 
     // Initialise background sync if supported
     if ('sync' in registration) {
@@ -239,12 +239,12 @@ export async function showTestNotification() {
 
   if ('serviceWorker' in navigator) {
     const reg = await navigator.serviceWorker.ready;
-    reg.showNotification('Stellar Dev Dashboard', {
+    await (reg as any).showNotification('Stellar Dev Dashboard', {
       body: 'Notifications are working! 🚀',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-72.png',
       tag: 'test-notification',
-      vibrate: [100, 50, 100] as any,
+      vibrate: [100, 50, 100],
       data: {
         url: window.location.origin
       }

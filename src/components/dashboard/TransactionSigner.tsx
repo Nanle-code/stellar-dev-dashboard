@@ -17,6 +17,7 @@ import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay';
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics';
 import { inspectEnvelope } from '../../utils/feeBumpInspector';
 import type { EnvelopeInfo } from '../../utils/feeBumpInspector';
+import { setCriticalSigningActive } from '../../utils/offline';
 
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore();
@@ -173,6 +174,9 @@ export default function TransactionSigner() {
     setSigning(true);
     setError(null);
     setSignedXdr(null);
+    // #886 — Protect the signing flow from service-worker activation/reload:
+    // deferred SW updates wait until the flow finishes (finally block below).
+    setCriticalSigningActive(true);
 
     try {
       let result: string | null = null;
@@ -200,6 +204,9 @@ export default function TransactionSigner() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSigning(false);
+      // #886 — Signing is over: a service-worker update deferred during the
+      // flow is now safe to activate (and reload) again.
+      setCriticalSigningActive(false);
     }
   };
 

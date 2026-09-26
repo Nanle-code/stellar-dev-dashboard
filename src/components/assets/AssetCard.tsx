@@ -6,7 +6,15 @@ import { getAssetTrustlineStatus } from '../../lib/assetTrustlineValidation';
 import CopyableValue from '../dashboard/CopyableValue';
 import AssetTrustStatus from './AssetTrustStatus';
 
-export default function AssetCard({ asset, network, onClick }) {
+export default function AssetCard({
+  asset,
+  network,
+  onClick,
+}: {
+  asset: any;
+  network: any;
+  onClick?: (e?: any) => void;
+}) {
   const [issuerInfo, setIssuerInfo] = useState(null);
   const [marketData, setMarketData] = useState(null);
   const [loading, setLoading] = useState(true);

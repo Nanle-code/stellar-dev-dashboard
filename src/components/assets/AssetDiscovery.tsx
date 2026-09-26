@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../lib/store';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
-import { searchAssets, fetchAssets, POPULAR_ASSETS } from '../../lib/stellar';
+import { searchAssets, fetchAssets, POPULAR_ASSETS, type AssetSearchFilters } from '../../lib/stellar';
 import { addBreadcrumb } from '../../lib/errorReporting';
 import AssetList from './AssetList';
 import AssetSearch from './AssetSearch';

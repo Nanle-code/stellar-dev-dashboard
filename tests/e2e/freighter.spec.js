@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-test.describe('Freighter Wallet Flows', () => {
+test.describe('Wallet Adapter Flows', () => {
   const freighterMockPath = path.resolve(__dirname, 'fixtures', 'freighter-mock.js');
 
   test.beforeEach(async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe('Freighter Wallet Flows', () => {
       await route.fulfill({
         status: 200,
         json: {
-          account_id: 'GA1234567890MOCKFREIGHTERPUBLICKEY1234567890',
+          account_id: 'GA1234567890MOCKWALLETPUBLICKEY1234567890',
           balances: [{ asset_type: 'native', balance: '10000.0000000' }],
           sequence: '1'
         }
@@ -57,7 +57,7 @@ test.describe('Freighter Wallet Flows', () => {
     await connectFreighterBtn.click();
     
     // Wait for the success state showing the mock public key
-    await expect(page.getByText('GA1234567890MOCKFREIGHTERPUBLICKEY1234567890')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('GA1234567890MOCKWALLETPUBLICKEY1234567890')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/Freighter Connected/i)).toBeVisible();
   });
 
@@ -66,7 +66,7 @@ test.describe('Freighter Wallet Flows', () => {
     
     // Set the mock to reject next connection
     await page.evaluate(() => {
-      window.mockFreighter.rejectNextConnect();
+      window.mockWalletAdapter.rejectNextConnect();
     });
 
     const connectFreighterBtn = page.getByRole('button', { name: /Freighter/i });
@@ -81,7 +81,7 @@ test.describe('Freighter Wallet Flows', () => {
     
     // Lock the mock
     await page.evaluate(() => {
-      window.mockFreighter.simulateLock();
+      window.mockWalletAdapter.simulateLock();
     });
 
     const connectFreighterBtn = page.getByRole('button', { name: /Freighter/i });
@@ -95,11 +95,11 @@ test.describe('Freighter Wallet Flows', () => {
     
     const connectFreighterBtn = page.getByRole('button', { name: /Freighter/i });
     await connectFreighterBtn.click();
-    await expect(page.getByText('GA1234567890MOCKFREIGHTERPUBLICKEY1234567890')).toBeVisible();
+    await expect(page.getByText('GA1234567890MOCKWALLETPUBLICKEY1234567890')).toBeVisible();
 
     // Trigger network change
     await page.evaluate(() => {
-      window.mockFreighter.simulateNetworkChange('PUBLIC');
+      window.mockWalletAdapter.simulateNetworkChange('PUBLIC');
     });
 
     // In a real app we might expect the UI to show PUBLIC. 
@@ -117,7 +117,7 @@ test.describe('Freighter Wallet Flows', () => {
     
     // Trigger account change
     await page.evaluate(() => {
-      window.mockFreighter.simulateAccountChange('GBNEWACCOUNTMOCKKEY9999999999999999999999');
+      window.mockWalletAdapter.simulateAccountChange('GBNEWACCOUNTMOCKKEY9999999999999999999999');
     });
 
     const address = await page.evaluate(() => window.freighterApi.getAddress());

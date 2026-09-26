@@ -1,17 +1,13 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../../lib/store'
 import { fetchAccount } from '../../lib/stellar'
-import { isFreighterInstalled, connectFreighter } from '../../lib/wallet/freighter'
-import { disconnectLedger } from '../../lib/wallet/ledger'
 import {
   HARDWARE_WALLET_DEVICES,
   LEDGER_DERIVATION_PATHS,
   connectHardwareWallet,
 } from '../../lib/wallet/devices'
-import { connectWalletConnect, disconnectWalletConnect } from '../../lib/wallet/walletconnect'
-import { isXBullInstalled, connectXBull } from '../../lib/wallet/xbull'
-import { connectLobstr, buildSocialRecoveryConfig } from '../../lib/wallet/lobstr'
-import { isSolarInstalled, connectSolar } from '../../lib/wallet/solar'
+import { buildSocialRecoveryConfig } from '../../lib/wallet/lobstr'
+import { connectWalletAdapter, getWalletAdapter, walletAdapters } from '../../lib/wallet/adapters'
 import {
   appendSecurityAuditLog,
   buildTransactionConfirmationSummary,
@@ -53,9 +49,11 @@ interface ConnectOptions {
 }
 
 interface SocialRecoveryConfig {
+  signers: Array<{ publicKey: string; weight: number; type: string }>
+  thresholds: { low: number; med: number; high: number }
+  recoveryMode: string
+  guardianCount: number
   threshold: number
-  guardians: string[]
-  [key: string]: unknown
 }
 
 const SOFTWARE_WALLETS: WalletDef[] = [
@@ -74,11 +72,25 @@ const SOFTWARE_WALLETS: WalletDef[] = [
     type: 'extension',
   },
   {
+    id: 'albedo',
+    name: 'Albedo',
+    icon: '◈',
+    description: 'Web-based Stellar wallet',
+    type: 'web',
+  },
+  {
     id: 'lobstr',
     name: 'LOBSTR',
     icon: '🌟',
     description: 'Mobile wallet with social recovery (SEP-0007)',
     type: 'mobile',
+  },
+  {
+    id: 'hana',
+    name: 'Hana',
+    icon: '✿',
+    description: 'Stellar browser wallet',
+    type: 'extension',
   },
   {
     id: 'solar',
@@ -138,11 +150,12 @@ function SecurityBadge({ posture }: { posture: SecurityPosture }) {
   )
 }
 
-function WalletButton({ wallet, onClick, connecting, activeId }: {
+function WalletButton({ wallet, onClick, connecting, activeId, available }: {
   wallet: WalletDef
   onClick: (id: string) => void
   connecting: boolean
   activeId: string | null
+  available: boolean | undefined
 }) {
   const isActive = activeId === wallet.id
   return (
@@ -180,6 +193,11 @@ function WalletButton({ wallet, onClick, connecting, activeId }: {
       {connecting && isActive && (
         <div className="spinner" style={{ marginLeft: 'auto', flexShrink: 0 }} />
       )}
+      {!connecting && (
+        <span style={{ fontSize: '10px', color: available ? 'var(--green)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+          {wallet.id === 'walletconnect' ? 'Available' : available ? 'Installed' : 'Not detected'}
+        </span>
+      )}
     </button>
   )
 }
@@ -199,7 +217,7 @@ function SocialRecoveryPanel() {
         .map((k) => k.trim())
         .filter(Boolean)
       const config = buildSocialRecoveryConfig(keys, Number(threshold))
-      setResult(config as SocialRecoveryConfig)
+      setResult(config)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -315,8 +333,8 @@ export default function WalletConnect() {
 
   const [connecting, setConnecting] = useState(false)
   const [connectingId, setConnectingId] = useState<string | null>(null)
+  const [walletAvailability, setWalletAvailability] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
-  const [ledgerTransport, setLedgerTransport] = useState<unknown>(null)
   const [manualHardwareKey, setManualHardwareKey] = useState('')
   const [selectedDerivationPath, setSelectedDerivationPath] = useState(LEDGER_DERIVATION_PATHS[0].path)
   const [safetyInput, setSafetyInput] = useState('https://stellar.org')
@@ -324,6 +342,19 @@ export default function WalletConnect() {
   const [showSocialRecovery, setShowSocialRecovery] = useState(false)
 
   const phishingState: PhishingState = useMemo(() => detectPhishingRisk(safetyInput), [safetyInput])
+
+  useEffect(() => {
+    let active = true
+    Promise.all(
+      [
+        ...SOFTWARE_WALLETS.map(({ id }) => [id, getWalletAdapter(id).isAvailable()] as const),
+        ['ledger', getWalletAdapter('ledger').isAvailable()] as const,
+      ].map(async ([id, availability]) => [id, await availability] as const)
+    ).then((availability) => {
+      if (active) setWalletAvailability(Object.fromEntries(availability))
+    })
+    return () => { active = false }
+  }, [])
 
   const posture: SecurityPosture = useMemo(
     () =>
@@ -372,46 +403,11 @@ export default function WalletConnect() {
     setError(null)
 
     try {
-      switch (walletId) {
-        case 'freighter': {
-          const installed = await isFreighterInstalled()
-          if (!installed) {
-            throw new Error('Freighter is not installed. Get it at https://freighter.app')
-          }
-          const result = await connectFreighter()
-          await connectCommon('freighter', result.publicKey)
-          break
-        }
-
-        case 'xbull': {
-          const result = await connectXBull()
-          await connectCommon('xbull', result.publicKey, {
-            mode: isXBullInstalled() ? 'extension' : 'connector',
-          })
-          break
-        }
-
-        case 'lobstr': {
-          const result = await connectLobstr()
-          await connectCommon('lobstr', result.publicKey, { mode: result.mode })
-          break
-        }
-
-        case 'solar': {
-          const result = await connectSolar()
-          await connectCommon('solar', result.publicKey, { mode: result.mode })
-          break
-        }
-
-        case 'walletconnect': {
-          const result = await connectWalletConnect(network)
-          await connectCommon('walletconnect', result.publicKey, { mode: 'walletconnect-v2' })
-          break
-        }
-
-        default:
-          throw new Error(`Unknown wallet type: ${walletId}`)
+      const result = await connectWalletAdapter(walletId, network)
+      if (result.network && result.network !== network) {
+        throw new Error(`Network mismatch: ${walletId} is connected to ${result.network}, but the dashboard is on ${network}.`)
       }
+      await connectCommon(walletId, result.publicKey, { mode: result.mode })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       setError(message)
@@ -432,14 +428,9 @@ export default function WalletConnect() {
     setError(null)
 
     try {
-      const result = await connectHardwareWallet(walletId, {
-        manualPublicKey: manualHardwareKey,
-        derivationPath: walletId === 'ledger' ? selectedDerivationPath : undefined,
-      })
-
-      if (walletId === 'ledger' && result.transport) {
-        setLedgerTransport(result.transport)
-      }
+      const result = walletId === 'ledger'
+        ? await connectWalletAdapter('ledger', network, { derivationPath: selectedDerivationPath })
+        : await connectHardwareWallet(walletId, { manualPublicKey: manualHardwareKey })
 
       await connectCommon(walletId, result.publicKey, { mode: result.mode })
     } catch (err: unknown) {
@@ -457,16 +448,8 @@ export default function WalletConnect() {
   }
 
   const handleDisconnect = async () => {
-    if (walletType === 'ledger' && ledgerTransport) {
-      disconnectLedger(ledgerTransport)
-      setLedgerTransport(null)
-    }
-    if (walletType === 'walletconnect') {
-      try {
-        await disconnectWalletConnect()
-      } catch {
-        // Already disconnected
-      }
+    if (walletType && walletType in walletAdapters) {
+      await getWalletAdapter(walletType).disconnect()
     }
 
     refreshAudit({
@@ -573,6 +556,7 @@ export default function WalletConnect() {
               onClick={handleSoftwareConnect}
               connecting={connecting}
               activeId={connectingId}
+              available={walletAvailability[wallet.id]}
             />
           ))}
         </div>
@@ -661,6 +645,11 @@ export default function WalletConnect() {
               </div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                 {device.features.join(' · ')}
+              </div>
+              <div style={{ fontSize: '10px', color: device.id === 'ledger' && walletAvailability.ledger ? 'var(--green)' : 'var(--text-muted)' }}>
+                {device.id === 'ledger'
+                  ? walletAvailability.ledger ? 'Available in this browser' : 'WebUSB/WebHID unavailable'
+                  : 'Watch-only connection'}
               </div>
               {connecting && connectingId === device.id && (
                 <div

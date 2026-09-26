@@ -195,3 +195,7 @@ The API service includes automated canary deployment health probes and auto-abor
 - **Critical Route Health Probing**: `pnpm run canary:probe` exercises critical API routes (`/health`, `/health/deep`, `/api/docs`, accounts, transactions, gas prediction) across configurable test iterations.
 - **Error Budget Auto-Abort**: Automatically halts rollouts and executes rollback commands when error budget (default: 5%) or p95 latency thresholds (default: 2000ms) are breached.
 - **Full Guide**: See [docs/CANARY_DEPLOYMENT.md](docs/CANARY_DEPLOYMENT.md) for full architecture, CLI flags, Docker Compose setup, and deployment workflow details.
+
+### SEP-38 Integration
+- **Quotes**: Added support for SEP-38 Quotes API. Now discovers ANCHOR_QUOTE_SERVER and can retrieve /info, /prices, /price and request authenticated /quote.
+- **Security**: Authentication leverages SEP-10 tokens for quotes. Be aware that tokens can expire, and quotes have an expiration window handled gracefully with a countdown timer.

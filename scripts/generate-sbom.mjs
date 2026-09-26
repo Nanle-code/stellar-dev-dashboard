@@ -1,5 +1,5 @@
 /**
- * Generate a CycloneDX SBOM for npm dependencies.
+ * Generate a CycloneDX or SPDX SBOM for the pnpm dependency tree.
  *
  * Usage:
  *   node scripts/generate-sbom.mjs [--output path] [--format cyclonedx|spdx]
@@ -7,15 +7,16 @@
  * Exit codes:
  *   0 — SBOM written successfully
  *   1 — invalid CLI input
- *   2 — unsupported environment (npm sbom unavailable)
+ *   2 — unsupported environment (pnpm-lock.yaml missing or unreadable)
  *   3 — generation failed
  */
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
+const LOCKFILE = 'pnpm-lock.yaml';
 const SUPPORTED_FORMATS = new Set(['cyclonedx', 'spdx']);
 const DEFAULT_OUTPUT = 'dist/sbom.cyclonedx.json';
 
@@ -54,29 +55,125 @@ function parseArgs(argv) {
   return args;
 }
 
-function ensureNpmSbomAvailable() {
-  try {
-    execFileSync('npm', ['sbom', '--help'], { stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
+function splitNameVersion(id) {
+  // Ids carry a peer suffix, e.g. react@18.3.1(@types/react@18.3.31)
+  const base = id.replace(/\(.*\)$/, '');
+  const at = base.lastIndexOf('@');
+  if (at <= 0) {
+    return { name: base, version: null };
   }
+  return { name: base.slice(0, at), version: base.slice(at + 1) };
 }
 
-function generateSbom(format) {
-  const sbomFormat = format === 'spdx' ? 'spdx' : 'cyclonedx';
-  const output = execFileSync('npm', ['sbom', '--sbom-format', sbomFormat], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    maxBuffer: 64 * 1024 * 1024,
-  });
+function integrityToHex(integrity) {
+  const [algorithm, value] = String(integrity).split('-', 2);
+  if (!value) {
+    return null;
+  }
+  return { algorithm: algorithm.toUpperCase().replace('SHA', 'SHA-'), hex: Buffer.from(value, 'base64').toString('hex') };
+}
 
-  const parsed = JSON.parse(output);
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('npm sbom returned invalid JSON');
+/**
+ * Read resolved components from the `packages:` block of pnpm-lock.yaml.
+ * The block is machine generated and regular: a two-space indented `name@version`
+ * key per package, followed by indented metadata.
+ */
+export function readLockfileComponents(lockfile = LOCKFILE) {
+  const lines = readFileSync(lockfile, 'utf8').split(/\r?\n/);
+  const components = [];
+  let inPackages = false;
+  let current = null;
+
+  for (const line of lines) {
+    if (/^\S/.test(line)) {
+      inPackages = line === 'packages:';
+      continue;
+    }
+    if (!inPackages) {
+      continue;
+    }
+
+    const key = line.match(/^ {2}(\S.*):$/);
+    if (key) {
+      const id = key[1].replace(/^'(.*)'$/, '$1');
+      const { name, version } = splitNameVersion(id);
+      current = { name, version, integrity: null };
+      components.push(current);
+      continue;
+    }
+
+    const resolution = line.match(/^ {4}resolution: \{integrity: ([^}]+)\}/);
+    if (resolution && current) {
+      current.integrity = resolution[1].trim();
+    }
   }
 
-  return parsed;
+  return components;
+}
+
+export function ensureSbomSourceAvailable() {
+  return existsSync(LOCKFILE);
+}
+
+function toCycloneDx(components) {
+  return {
+    bomFormat: 'CycloneDX',
+    specVersion: '1.5',
+    version: 1,
+    components: components.map(({ name, version, integrity }) => {
+      const hash = integrityToHex(integrity);
+      const component = {
+        type: 'library',
+        name,
+        version,
+        purl: `pkg:npm/${name}@${version}`,
+      };
+      if (hash) {
+        component.hashes = [{ alg: hash.algorithm, content: hash.hex }];
+      }
+      return component;
+    }),
+  };
+}
+
+function toSpdx(components) {
+  return {
+    spdxVersion: 'SPDX-2.3',
+    dataLicense: 'CC0-1.0',
+    SPDXID: 'SPDXRef-DOCUMENT',
+    name: 'stellar-dev-dashboard',
+    documentNamespace: `https://github.com/Nanle-code/stellar-dev-dashboard/${Date.now()}`,
+    creationInfo: { created: new Date().toISOString() },
+    packages: components.map(({ name, version, integrity }) => {
+      const hash = integrityToHex(integrity);
+      const entry = {
+        SPDXID: `SPDXRef-Package-${name.replace(/[^A-Za-z0-9.-]/g, '-')}-${version}`,
+        name,
+        versionInfo: version,
+        downloadLocation: 'NOASSERTION',
+        licenseConcluded: 'NOASSERTION',
+        licenseDeclared: 'NOASSERTION',
+        copyrightText: 'NOASSERTION',
+      };
+      if (hash) {
+        entry.checksums = [{ algorithm: hash.algorithm, checksumValue: hash.hex }];
+      }
+      return entry;
+    }),
+  };
+}
+
+export function generateSbom(format) {
+  if (!ensureSbomSourceAvailable()) {
+    throw new Error(`${LOCKFILE} not found — run "pnpm install" before generating an SBOM.`);
+  }
+
+  const components = readLockfileComponents();
+  if (components.length === 0) {
+    throw new Error(`No resolved packages found in ${LOCKFILE}.`);
+  }
+
+  return format === 'spdx' ? toSpdx(components) : toCycloneDx(components);
 }
 
 function main() {
@@ -88,13 +185,8 @@ function main() {
     process.exit(1);
   }
 
-  if (!existsSync('package-lock.json')) {
-    console.error('[sbom] package-lock.json is required. Run npm ci before generating an SBOM.');
-    process.exit(3);
-  }
-
-  if (!ensureNpmSbomAvailable()) {
-    console.error('[sbom] npm sbom is unavailable in this environment (requires npm 9+).');
+  if (!ensureSbomSourceAvailable()) {
+    console.error(`[sbom] ${LOCKFILE} is required. Run pnpm install before generating an SBOM.`);
     process.exit(2);
   }
 
@@ -104,16 +196,16 @@ function main() {
     mkdirSync(path.dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
 
-    const componentCount = Array.isArray(sbom.components) ? sbom.components.length : null;
-    console.log(`[sbom] Wrote ${outputPath}${componentCount !== null ? ` (${componentCount} components)` : ''}`);
+    const componentCount = (sbom.components || sbom.packages || []).length;
+    console.log(`[sbom] Wrote ${outputPath} (${componentCount} components)`);
   } catch (err) {
     console.error('[sbom] Generation failed:', err.message || err);
     process.exit(3);
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
 
-export { parseArgs, generateSbom, ensureNpmSbomAvailable, SUPPORTED_FORMATS };
+export { parseArgs, SUPPORTED_FORMATS };

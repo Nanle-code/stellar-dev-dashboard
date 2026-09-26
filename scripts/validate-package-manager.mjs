@@ -4,6 +4,27 @@ import { pathToFileURL } from 'node:url'
 
 const SUPPORTED_NODE_RANGE = { min: 18, max: 20 }
 
+export const FOREIGN_LOCKFILES = [
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'bun.lock',
+  'bun.lockb',
+]
+
+export function findForeignLockfiles(root = process.cwd()) {
+  return FOREIGN_LOCKFILES.filter((name) => fs.existsSync(path.resolve(root, name)))
+}
+
+export function assertOnlyPnpmLockfiles(found = []) {
+  if (found.length > 0) {
+    throw new Error(
+      `Unsupported lockfile(s) found: ${found.join(', ')}. ` +
+        'Two lockfiles mean two dependency trees — delete them and run "pnpm install".'
+    )
+  }
+}
+
 export function resolvePackageManager(requestedManager, env = {}) {
   const managerName = String(requestedManager ?? '').trim().toLowerCase()
   const nodeVersion = env.nodeVersion ?? process.versions.node
@@ -31,6 +52,9 @@ export function resolvePackageManager(requestedManager, env = {}) {
     throw new Error('Missing pnpm-lock.yaml. Run "pnpm install" to generate the lockfile before continuing.')
   }
 
+  const foreignLockfiles = env.foreignLockfiles ?? []
+  assertOnlyPnpmLockfiles(foreignLockfiles)
+
   return {
     packageManager: 'pnpm',
     lockfile: 'pnpm-lock.yaml',
@@ -39,10 +63,19 @@ export function resolvePackageManager(requestedManager, env = {}) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  // CI pins a Node version the local environment check does not allow, so it runs
+  // --lockfiles-only to enforce the lockfile policy without the environment check.
+  const lockfilesOnly = process.argv.slice(2).includes('--lockfiles-only')
+
   try {
-    const result = resolvePackageManager('pnpm')
-    console.log(`Package manager: ${result.packageManager}`)
-    console.log(`Lockfile: ${result.lockfile}`)
+    const foreignLockfiles = findForeignLockfiles()
+    if (lockfilesOnly) {
+      assertOnlyPnpmLockfiles(foreignLockfiles)
+    } else {
+      const result = resolvePackageManager('pnpm', { foreignLockfiles })
+      console.log(`Package manager: ${result.packageManager}`)
+      console.log(`Lockfile: ${result.lockfile}`)
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error(msg)

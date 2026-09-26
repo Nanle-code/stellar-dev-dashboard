@@ -55,7 +55,7 @@ jobs:
           restore-keys: visual-snapshots-${{ matrix.viewport }}-
 
       - name: Run visual tests (${{ matrix.viewport }})
-        run: npx playwright test --project=visual-${{ matrix.viewport }}
+        run: pnpm exec playwright test --project=visual-${{ matrix.viewport }}
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
 

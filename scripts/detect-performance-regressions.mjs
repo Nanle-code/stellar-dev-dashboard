@@ -45,7 +45,7 @@ function loadLighthouseMetrics() {
   const lhciDir = join(ROOT, '.lighthouseci');
   
   if (!existsSync(lhciDir)) {
-    console.error('Lighthouse CI directory not found. Run `npm run test:lighthouse` first.');
+    console.error('Lighthouse CI directory not found. Run `pnpm run test:lighthouse` first.');
     return null;
   }
   

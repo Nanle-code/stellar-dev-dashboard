@@ -82,4 +82,95 @@ describe("PluginManager", () => {
     await secondManager.hydrateInstalledPlugins();
     expect(secondManager.getPluginRecords()).toHaveLength(0);
   });
+
+  it("exposes the resolved API version and compatibility on installed plugins", async () => {
+    const manager = new PluginManager({ store: createMockStore() });
+    await manager.installPlugin(iframeManifest);
+
+    const records = manager.getPluginRecords();
+    expect(records[0].apiVersion).toBeDefined();
+    expect(records[0].apiVersionCompatibility).toBe("supported");
+    expect(Array.isArray(records[0].deprecationNotices)).toBe(true);
+  });
+
+  it("rejects plugins targeting an unsupported future API version", () => {
+    const manager = new PluginManager({ store: createMockStore() });
+
+    expect(() =>
+      manager.register(
+        {
+          id: "community.future-plugin",
+          name: "Future Plugin",
+          version: "1.0.0",
+          apiVersion: "9.9.9",
+          runtime: { mode: "iframe", srcDoc: "<html></html>" },
+          widgets: [],
+          dataSources: [],
+        },
+        { sourceType: "installed" }
+      )
+    ).toThrow(/apiVersion "9.9.9" is not supported/);
+
+    // The dashboard's own version is still exposed as the supported baseline.
+    expect(manager.getPluginRecords().length).toBe(0);
+  });
+
+  it("registers plugins that omit apiVersion (backwards compatible)", async () => {
+    const manager = new PluginManager({ store: createMockStore() });
+
+    const record = await manager.register(
+      {
+        id: "community.no-api-version",
+        name: "No Api Version",
+        version: "1.0.0",
+        runtime: { mode: "iframe", srcDoc: "<html></html>" },
+        widgets: [],
+        dataSources: [],
+      },
+      { sourceType: "installed" }
+    );
+
+    expect(record).not.toBeNull();
+    expect(record.apiVersionCompatibility).toBe("supported");
+    expect(manager.canActivate(record).ok).toBe(true);
+  });
+
+  it("treats an invalid apiVersion string as unsupported", () => {
+    const manager = new PluginManager({ store: createMockStore() });
+
+    expect(() =>
+      manager.register(
+        {
+          id: "community.bad-api-version",
+          name: "Bad Api Version",
+          version: "1.0.0",
+          apiVersion: "not-a-version",
+          runtime: { mode: "iframe", srcDoc: "<html></html>" },
+          widgets: [],
+          dataSources: [],
+        },
+        { sourceType: "installed" }
+      )
+    ).toThrow(/apiVersion "not-a-version" is not supported/);
+  });
+
+  it("still activates plugins targeting the supported API version", async () => {
+    const manager = new PluginManager({ store: createMockStore() });
+
+    const record = await manager.register(
+      {
+        id: "community.supported-plugin",
+        name: "Supported Plugin",
+        version: "1.2.3",
+        apiVersion: "1.0.0",
+        runtime: { mode: "iframe", srcDoc: "<html></html>" },
+        widgets: [],
+        dataSources: [],
+      },
+      { sourceType: "installed" }
+    );
+
+    expect(record.apiVersionCompatibility).toBe("supported");
+    expect(manager.canActivate(record).ok).toBe(true);
+  });
 });

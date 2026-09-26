@@ -2,6 +2,7 @@
   "id": "community.activity-radar",
   "name": "Activity Radar",
   "version": "1.2.0",
+  "apiVersion": "1.0.0",
   "description": "Surfaces recent dashboard activity in a sandboxed extension frame.",
   "author": {
     "name": "Community Labs"

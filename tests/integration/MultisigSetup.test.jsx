@@ -31,6 +31,7 @@ vi.mock('../../src/lib/requestCancellation', () => ({
   isStaleRequestError: vi.fn(() => false),
   StaleRequestError: class StaleRequestError extends Error {},
 }));
+vi.mock('../../src/lib/stellar', async () => {
   const { Account } = await import('@stellar/stellar-sdk');
   return {
     fetchAccount: vi.fn().mockResolvedValue(

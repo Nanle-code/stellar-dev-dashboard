@@ -14,6 +14,7 @@ export default [
       'playwright-report/**',
       'test-results/**',
       '.kiro/**',
+      '.kilo/**',
       '.storybook/preview.ts',
     ],
   },

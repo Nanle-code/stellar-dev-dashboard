@@ -60,6 +60,7 @@ export default function TransactionSigner() {
     }
   }, [bio, network])
 
+
   // networkPassphrase moved up
   const handleSign = async () => {
     if (!xdr.trim()) {

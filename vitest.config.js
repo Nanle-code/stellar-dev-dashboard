@@ -20,7 +20,7 @@ export default defineConfig({
     // which breaks whenever the checkout's parent directory happens to share
     // its own last path segment (e.g. a nested `foo/foo` clone).
     setupFiles: [path.resolve(__dirname, './tests/setup.js')],
-    exclude: ['tests/e2e/**', 'node_modules/**'],
+    exclude: ['tests/e2e/**', 'node_modules/**', '.kilo/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html', 'json-summary'],

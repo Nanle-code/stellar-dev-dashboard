@@ -30,7 +30,7 @@ export default function TipButton() {
     <>
       <button
         onClick={() => setTipOpen(!tipOpen)}
-        aria-label="Open AI contextual tips"
+        aria-label={tipCount > 0 ? `AI Tips (${tipCount} available)` : 'AI Tips'}
         title={tipCount > 0 ? `AI Tips (${tipCount} available)` : 'AI Tips'}
         style={{
           position: 'fixed', bottom: '24px', left: '24px', zIndex: 1050,

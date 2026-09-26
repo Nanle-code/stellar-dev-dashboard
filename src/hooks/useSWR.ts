@@ -109,6 +109,35 @@ export interface PaginatedResponse<T> {
   hasMore?: boolean;
 }
 
+export interface UseTransactionsReturn<RecordType = unknown> {
+  data: RecordType[];
+  loading: boolean;
+  hasMore: boolean;
+  loadMore: () => void;
+  reset: () => void;
+  error: Error | undefined;
+  isLoading: boolean;
+  isValidating: boolean;
+  mutate: SWRResponse<PaginatedResponse<RecordType>, Error>['mutate'];
+  online: boolean;
+  offline: boolean;
+  dataSource: DataSource;
+  dataSourceLabel: string;
+  isLiveData: boolean;
+  cachedAt: number | null;
+  dataAgeMs: number;
+}
+
+export interface UseNetworkStatsReturn<Data = unknown> extends SWRResponse<Data, Error> {
+  online: boolean;
+  offline: boolean;
+  dataSource: DataSource;
+  dataSourceLabel: string;
+  isLiveData: boolean;
+  cachedAt: number | null;
+  dataAgeMs: number;
+}
+
 export function useTransactions<RecordType = unknown>(
   publicKey: string | null,
   network: string,
@@ -119,7 +148,7 @@ export function useTransactions<RecordType = unknown>(
     cursor: string | null
   ) => Promise<PaginatedResponse<RecordType>>,
   limit = 20
-) {
+): UseTransactionsReturn<RecordType> {
   const [cursor, setCursor] = useState<string | null>(null);
   const [allRecords, setAllRecords] = useState<RecordType[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -144,8 +173,10 @@ export function useTransactions<RecordType = unknown>(
     if (!swr.data) return;
     const records = swr.data.records ?? [];
     setAllRecords((prev) => {
-      const seen = new Set(prev.map((item: any) => item?.id ?? item));
-      return [...prev, ...records.filter((item) => !seen.has((item as any)?.id ?? item))];
+      const getId = (item: RecordType): unknown =>
+        (item as { id?: unknown } | null | undefined)?.id ?? item;
+      const seen = new Set<unknown>(prev.map(getId));
+      return [...prev, ...records.filter((item: RecordType) => !seen.has(getId(item)))];
     });
     setHasMore(swr.data.hasMore ?? Boolean(swr.data.nextCursor));
   }, [swr.data]);
@@ -156,7 +187,7 @@ export function useTransactions<RecordType = unknown>(
     setCursor(null);
   }, [publicKey, network, limit]);
 
-  const loadMore = useCallback(() => {
+  const loadMore = useCallback((): void => {
     if (!swr.isValidating && hasMore && swr.data?.nextCursor) {
       setCursor(swr.data.nextCursor);
     }
@@ -168,11 +199,11 @@ export function useTransactions<RecordType = unknown>(
     loading: swr.isLoading,
     hasMore,
     loadMore,
-    reset: () => {
+    reset: (): void => {
       setAllRecords([]);
       setCursor(null);
       setHasMore(true);
-      swr.mutate();
+      void swr.mutate();
     },
   };
 }
@@ -181,7 +212,7 @@ export function useNetworkStats<Data = unknown>(
   network: string | null,
   fetcher: (network: string) => Promise<Data>,
   refreshInterval = 30_000
-) {
+): UseNetworkStatsReturn<Data> {
   const key = network ? `network-stats:${network}` : null;
   return useStellarSWR<Data>(key, () => fetcher(network!), {
     ttl: 30_000,
@@ -204,11 +235,19 @@ export interface UseOptimisticMutationOptions<Data = unknown> {
   onSettled?: () => void;
 }
 
+export interface UseOptimisticMutationReturn<Data = unknown> {
+  mutate: () => Promise<Data>;
+  loading: boolean;
+  error: unknown;
+  online: boolean;
+  offline: boolean;
+}
+
 export function useOptimisticMutation<Data = unknown>(
   cacheKey: string | null,
   mutationFn: () => Promise<Data>,
   options: UseOptimisticMutationOptions<Data> = {}
-) {
+): UseOptimisticMutationReturn<Data> {
   const { ttl = TTL.ACCOUNT, tags = [], optimisticData, onSuccess, onError, onSettled } = options;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -218,7 +257,7 @@ export function useOptimisticMutation<Data = unknown>(
     return subscribeToConnectivity(setOnline);
   }, []);
 
-  const mutate = useCallback(async () => {
+  const mutate = useCallback(async (): Promise<Data> => {
     if (!cacheKey) {
       throw new Error('useOptimisticMutation requires a cache key');
     }
@@ -228,14 +267,14 @@ export function useOptimisticMutation<Data = unknown>(
       throw new OfflineWriteError('optimistic mutation');
     }
 
-    const previous = stellarCacheManager.get(cacheKey);
-    const rollback = async () => {
+    const previous: Data | null = stellarCacheManager.get<Data>(cacheKey);
+    const rollback = async (): Promise<void> => {
       if (previous !== null) {
         await stellarCacheManager.set(cacheKey, previous, ttl, tags);
       } else {
         await stellarCacheManager.delete(cacheKey);
       }
-      void globalMutate(cacheKey, previous as any, false);
+      void globalMutate(cacheKey, previous as Data | null, false);
     };
 
     setLoading(true);

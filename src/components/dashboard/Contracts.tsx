@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react'
 import { useStore } from '../../lib/store'
 import ContractDeployerView from '../deployment/ContractDeployer'
 import ContractRecommendations from './ContractRecommendations'
+import ContractEventDisplay from './ContractEventDisplay'
 import {
   fetchContractInfo,
   invokeContract,
@@ -21,6 +22,7 @@ import {
 import TemplateLibrary from '../templates/TemplateLibrary'
 import ContractDebugger from './ContractDebugger.jsx'
 import TestRunner from '../testing/TestRunner'
+import MainnetReviewModal from '../security/MainnetReviewModal'
 
 const ARGUMENT_TYPES = [
   { value: 'string', label: 'String' },
@@ -175,6 +177,7 @@ export default function Contracts() {
   const [testEditor, setTestEditor] = useState(() => buildContractWorkspace('token').tests)
   const [deployPlan, setDeployPlan] = useState(null)
   const [debugSession, setDebugSession] = useState(null)
+  const [showMainnetReview, setShowMainnetReview] = useState(false)
 
   const isMainnet = network === 'mainnet'
   const inspectInputError = inspectInput.trim() !== '' && !isValidContractId(inspectInput.trim())
@@ -404,6 +407,14 @@ export default function Contracts() {
   }
 
   async function handleSubmit() {
+    if (isMainnet) {
+      setShowMainnetReview(true)
+      return
+    }
+    await _doSubmit()
+  }
+
+  async function _doSubmit() {
     setInvokeError('')
     setSubmitResult(null)
     setSubmitLoading(true)
@@ -448,7 +459,21 @@ export default function Contracts() {
     }
   }
 
+  function buildMainnetReviewItems() {
+    const source = invokeForm.sourceAccount || connectedAddress || '—'
+    return [
+      { label: 'Network', value: 'Mainnet (Public)', highlight: true },
+      { label: 'Source', value: source ? `${source.slice(0, 8)}…${source.slice(-8)}` : '—', mono: true },
+      { label: 'Contract', value: invokeForm.contractId ? `${invokeForm.contractId.slice(0, 8)}…${invokeForm.contractId.slice(-8)}` : '—', mono: true },
+      { label: 'Function', value: invokeForm.functionName || '—', mono: true },
+      { label: 'Arguments', value: invocationPreview.args.length > 0
+          ? invocationPreview.args.map((a: any) => `${a.name || a.type}: ${a.value}`).join(', ')
+          : 'none' },
+    ]
+  }
+
   return (
+    <>
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Soroban Contracts</div>
       <div style={{ display: 'flex', gap: '8px' }}>
@@ -788,7 +813,7 @@ export default function Contracts() {
         }}>
           <div style={{ fontSize: '12px', color: isMainnet ? 'var(--amber)' : 'var(--text-secondary)', lineHeight: 1.6 }}>
             {isMainnet
-              ? 'Mainnet safety mode is active. Simulation still works, but transaction submission is disabled.'
+              ? 'Mainnet mode: Simulation always available. Submitting on Mainnet requires an explicit review step.'
               : 'Submission is available on Testnet only. Your secret key is used locally to sign the prepared transaction before it is sent to Soroban RPC.'}
           </div>
 
@@ -810,9 +835,9 @@ export default function Contracts() {
             disabled={simulateLoading || submitLoading || anomalies.some(a => a.severity === 'error')}
           />
           <ActionButton
-            label={submitLoading ? 'Submitting...' : 'Submit'}
+            label={submitLoading ? 'Submitting...' : isMainnet ? 'Submit on Mainnet…' : 'Submit'}
             onClick={handleSubmit}
-            disabled={isMainnet || submitLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
+            disabled={submitLoading || simulateLoading || anomalies.some(a => a.severity === 'error')}
             tone="secondary"
           />
         </div>
@@ -835,7 +860,7 @@ export default function Contracts() {
               transactionXdr: simulationResult.xdr,
             }}
           />
-          <ResultBlock label="Simulation Events" data={simulationResult.events} />
+          <ContractEventDisplay events={simulationResult.events} label="Simulation Events" />
           <ResultBlock label="Simulation Footprint" data={simulationResult.footprint} />
         </div>
       )}
@@ -894,5 +919,23 @@ export default function Contracts() {
         </Panel>
       )}
     </div>
+
+    {showMainnetReview && (
+      <MainnetReviewModal
+        actionTitle="Submit Contract Transaction"
+        irreversible
+        items={buildMainnetReviewItems()}
+        warnings={[
+          'Contract submissions on Mainnet consume real XLM fees and may modify on-chain state permanently.',
+          'Ensure simulation succeeded before submitting.',
+        ]}
+        onConfirm={() => {
+          setShowMainnetReview(false)
+          _doSubmit()
+        }}
+        onCancel={() => setShowMainnetReview(false)}
+      />
+    )}
+    </>
   )
 }

@@ -16,7 +16,17 @@ import {
   type AddressEntry,
 } from '../lib/userPreferences'
 
-export function usePreferences() {
+export interface UsePreferencesReturn {
+  preferences: UserPreferences
+  loading: boolean
+  update: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => Promise<UserPreferences>
+  save: (partial: Partial<UserPreferences>) => Promise<UserPreferences>
+  addAddress: (entry: Omit<AddressEntry, 'addedAt'>) => Promise<void>
+  removeAddress: (address: string) => Promise<void>
+  reset: () => Promise<void>
+}
+
+export function usePreferences(): UsePreferencesReturn {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
   const [loading, setLoading] = useState(true)
 

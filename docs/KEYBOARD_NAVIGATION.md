@@ -2,6 +2,9 @@
 
 This document describes keyboard navigation behavior across all dashboard routes, how to test it, and compatibility notes for developers.
 
+> Dashboard views are declared in one typed registry. See [ROUTING.md](./ROUTING.md)
+> for how routes drive the sidebar, command palette, document titles, and deep links.
+
 ## Overview
 
 Every dashboard route must be fully operable without a pointer. Keyboard users rely on:

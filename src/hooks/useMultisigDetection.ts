@@ -10,7 +10,6 @@
 
 import { useEffect, useState } from 'react';
 import { fetchAccount } from '../lib/stellar';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – multisig.js has no type declarations
 import { parseAccountSigners } from '../lib/multisig.js';
 import type { NetworkName } from '../lib/stellar';

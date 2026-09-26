@@ -2,9 +2,15 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../lib/store';
 import CopyableValue from '../dashboard/CopyableValue';
-import { NETWORKS, updateCustomNetworkConfig, switchToCustomProfile, loadCustomNetworkProfiles } from '../../lib/stellar';
+import {
+  NETWORKS,
+  updateCustomNetworkConfig,
+  switchToCustomProfile,
+  loadCustomNetworkProfiles,
+} from '../../lib/stellar';
 import { getActiveProfile } from '../../lib/userPreferences';
 import { preloadTab } from '../../hooks/usePreload';
+import { getNavGroups, isRouteVisible, type AppRoute } from '../../routes/routes';
 import { useAdaptiveComponents } from '../../hooks/useAdaptiveComponents';
 import { useExpertiseTracking } from '../../hooks/useExpertiseTracking';
 import { useSidebarArrowNav } from '../../hooks/useSidebarArrowNav';
@@ -13,78 +19,9 @@ import ExpertiseProgressPanel from '../expertise/ExpertiseProgressPanel';
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
 
-interface NavItem {
-  id?: string;
-  type?: 'header' | 'link';
-  label: string;
-  icon?: string;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { type: 'header', label: 'ANALYTICS' },
-  { id: 'overview', label: 'Overview', icon: '◈' },
-  { id: 'account', label: 'Account', icon: '◉' },
-  { id: 'claimableBalances', label: 'Claimable', icon: '⊛' },
-  { id: 'compare', label: 'Compare', icon: '◫' },
-  { id: 'transactions', label: 'Transactions', icon: '⇄' },
-  { id: 'contracts', label: 'Contracts', icon: '◻' },
-  { id: 'assets', label: 'Assets', icon: '💎' },
-  { id: 'anchors', label: 'Anchors', icon: '⚓' },
-  { id: 'search', label: 'Search', icon: '🔍' },
-
-  { type: 'header', label: 'NETWORK' },
-  { id: 'network', label: 'Network Info', icon: '◎' },
-  { id: 'validatorPredictor', label: 'Validator AI', icon: '🛡️' },
-  { id: 'realtime', label: 'Real-Time', icon: '◉' },
-  { id: 'liveActivity', label: 'Live Activity', icon: '⚡' },
-  { id: 'cacheStats', label: 'Cache Stats', icon: '⊞' },
-  
-  { id: 'performance', label: 'Performance', icon: 'P' },
-  
-  { type: 'header', label: 'BUILD' },
-  { id: 'builder', label: 'Builder', icon: '⚒' },
-  { id: 'txSimulator', label: 'Simulator', icon: '▷' },
-  { id: 'advancedSim', label: 'Advanced Sim', icon: '⚡' },
-  { id: 'faucet', label: 'Faucet', icon: '⬡' },
-  
-  { type: 'header', label: 'EXPLORE' },
-  { id: 'dex', label: 'DEX', icon: '⇌' },
-  { id: 'liquidityPrediction', label: 'Liquidity AI', icon: '🧠' },
-  { id: 'pathExplorer', label: 'Path Explorer', icon: '⇢' },
-  { id: 'explorers', label: 'Explorer Links', icon: '⊞' },
-  
-  { type: 'header', label: 'PAYMENTS' },
-  { id: 'paymentChannels', label: 'Pay Channels', icon: '⇶' },
-
-  { type: 'header', label: 'TOOLS' },
-  { id: 'wallet', label: 'Wallet', icon: '⊡' },
-  { id: 'signer', label: 'Signer', icon: '✎' },
-  { id: 'multisig', label: 'Multisig', icon: '⊕' },
-  { id: 'did', label: 'DID', icon: '🆔' },
-  { id: 'alertRules', label: 'Alerts', icon: '🔔' },
-  { id: 'portfolio', label: 'Portfolio', icon: '◐' },
-  { id: 'portfolioAnalytics', label: 'Portfolio Analytics', icon: '📊' },
-  { id: 'autonomousTrading', label: 'Trading Agent', icon: '🤖' },
-  { id: 'charts', label: 'Charts', icon: '▤' },
-  { id: 'dataStorytelling', label: 'Data Stories', icon: '📖' },
-  { id: 'analytics', label: 'Analytics', icon: '◍' },
-  { id: 'designSystem', label: 'Design System', icon: '◈' },
-  { id: 'featureFlags', label: 'Flags', icon: '🚩' },
-  { id: 'codeReview', label: 'Code Review', icon: '🔍' },
-  { id: 'txPatterns', label: 'AI Patterns', icon: '🧠' },
-  { id: 'anomalyViz', label: 'Anomaly Viz', icon: '◉' },
-  { id: 'systemHealth', label: 'Health', icon: '⚕' },
-  { id: 'monitoringDashboards', label: 'Monitoring', icon: '📊' },
-  { id: 'throughputForecast', label: 'Forecast', icon: '📈' },
-  { id: 'dataExport', label: 'Export', icon: '⬇' },
-  { id: 'collaboration', label: 'Collaboration', icon: '◌' },
-  { id: 'governance', label: 'Governance', icon: '🗳' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-  { id: 'audit', label: 'Audit', icon: '⊟' },
-  { id: 'personalization', label: 'AI Personalization', icon: '🧠' },
-  { id: 'security', label: 'Security', icon: '🛡️' },
-  { id: 'dependencyManagement', label: 'Dependencies', icon: '📦' },
-];
+type SidebarNavItem =
+  | { type: 'header'; label: string }
+  | { type: 'link'; route: AppRoute };
 
 export interface SidebarProps {
   isMobile?: boolean;
@@ -115,6 +52,20 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   const { trackFeatureInteraction } = useExpertiseTracking({ enabled: true });
   const [showExpertisePanel, setShowExpertisePanel] = useState(false);
 
+  const expertiseLevel = isExpert ? 'expert' : isNovice ? 'novice' : 'intermediate';
+  const navItems = React.useMemo<SidebarNavItem[]>(() => {
+    const items: SidebarNavItem[] = [];
+    for (const group of getNavGroups()) {
+      items.push({ type: 'header', label: group.label });
+      for (const route of group.routes) {
+        if (isRouteVisible(route, { expertiseLevel })) {
+          items.push({ type: 'link', route });
+        }
+      }
+    }
+    return items;
+  }, [expertiseLevel]);
+
   const [customProfiles, setCustomProfiles] = useState<CustomProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [customHeaderName, setCustomHeaderName] = useState<string>('');
@@ -126,10 +77,10 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   useEffect(() => {
     if (network === 'custom') {
       loadCustomNetworkProfiles().then((profiles: CustomProfile[]) => {
-        setCustomProfiles(profiles)
+        setCustomProfiles(profiles);
         getActiveProfile().then((profile: CustomProfile | null) => {
           if (profile) {
-            setActiveProfileId(profile.id)
+            setActiveProfileId(profile.id);
             updateCustomNetworkConfig({
               horizonUrl: profile.horizonUrl,
               sorobanUrl: profile.sorobanUrl,
@@ -142,9 +93,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   }, [network]);
 
   const handleNavClick = (tabId: string) => {
-    navigate(`/${tabId}`)
-    setMobileMenuOpen(false)
-  }
+    navigate(`/${tabId}`);
+    setMobileMenuOpen(false);
+  };
 
   const handleSwitchProfile = (id: string) => {
     setActiveProfileId(id);
@@ -173,7 +124,11 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
     top: 0,
     bottom: 0,
     zIndex: 1000,
-    transform: isMobile ? (isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
+    transform: isMobile
+      ? isMobileMenuOpen
+        ? 'translateX(0)'
+        : 'translateX(-100%)'
+      : 'translateX(0)',
     transition: 'transform var(--transition)',
     boxShadow: isMobile && isMobileMenuOpen ? '4px 0 20px rgba(0, 0, 0, 0.3)' : 'none',
   };
@@ -193,9 +148,10 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   const updateCustomHeader = (name: string, value: string) => {
     setCustomHeaderName(name);
     setCustomHeaderValue(value);
-    
-    const updatedHeaders: Record<string, string> = name.trim() && value.trim() ? { [name.trim()]: value.trim() } : {};
-    
+
+    const updatedHeaders: Record<string, string> =
+      name.trim() && value.trim() ? { [name.trim()]: value.trim() } : {};
+
     updateCustomNetworkConfig({
       headers: updatedHeaders,
     });
@@ -211,12 +167,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
         />
       )}
 
-      <aside
-        ref={asideRef}
-        style={sidebarStyles}
-        aria-label="Main navigation"
-        id="sidebar"
-      >
+      <aside ref={asideRef} style={sidebarStyles} aria-label="Main navigation" id="sidebar">
         {isMobile && (
           <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 1001 }}>
             <button
@@ -262,9 +213,14 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
             role="img"
             aria-label="Stellar Dev Dashboard"
           >
-            <span aria-hidden="true" style={{ fontSize: '22px' }}>✦</span>
-            STELLAR<br />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: 400, fontSize: '13px' }}>DEV DASHBOARD</span>
+            <span aria-hidden="true" style={{ fontSize: '22px' }}>
+              ✦
+            </span>
+            STELLAR
+            <br />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 400, fontSize: '13px' }}>
+              DEV DASHBOARD
+            </span>
           </div>
         </div>
 
@@ -272,7 +228,13 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
           <label
             htmlFor="network-select"
-            style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '1px', display: 'block' }}
+            style={{
+              fontSize: '10px',
+              color: 'var(--text-muted)',
+              marginBottom: '10px',
+              letterSpacing: '1px',
+              display: 'block',
+            }}
           >
             NETWORK
           </label>
@@ -305,12 +267,19 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
           </select>
 
           {network === 'custom' && (
-            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div
+              style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}
+            >
               {customProfiles.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label
                     htmlFor="profile-select"
-                    style={{ fontSize: '9px', color: 'var(--text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}
+                    style={{
+                      fontSize: '9px',
+                      color: 'var(--text-muted)',
+                      letterSpacing: '0.5px',
+                      textTransform: 'uppercase',
+                    }}
                   >
                     Quick Switch
                   </label>
@@ -323,12 +292,16 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                   >
                     <option value="">Select Profile...</option>
                     {customProfiles.map((profile) => (
-                      <option key={profile.id} value={profile.id}>{profile.name}</option>
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
                     ))}
                   </select>
                 </div>
               )}
-              <label htmlFor="horizon-url" className="sr-only">Horizon URL</label>
+              <label htmlFor="horizon-url" className="sr-only">
+                Horizon URL
+              </label>
               <input
                 id="horizon-url"
                 placeholder="Horizon URL"
@@ -338,7 +311,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                 aria-label="Custom Horizon URL"
                 onChange={(e) => updateCustomNetworkConfig({ horizonUrl: e.target.value.trim() })}
               />
-              <label htmlFor="soroban-url" className="sr-only">Soroban RPC URL</label>
+              <label htmlFor="soroban-url" className="sr-only">
+                Soroban RPC URL
+              </label>
               <input
                 id="soroban-url"
                 placeholder="Soroban RPC URL"
@@ -348,7 +323,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                 aria-label="Custom Soroban RPC URL"
                 onChange={(e) => updateCustomNetworkConfig({ sorobanUrl: e.target.value.trim() })}
               />
-              <label htmlFor="network-passphrase" className="sr-only">Network Passphrase</label>
+              <label htmlFor="network-passphrase" className="sr-only">
+                Network Passphrase
+              </label>
               <input
                 id="network-passphrase"
                 placeholder="Network Passphrase"
@@ -358,7 +335,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                 aria-label="Custom network passphrase"
                 onChange={(e) => updateCustomNetworkConfig({ passphrase: e.target.value.trim() })}
               />
-              <label htmlFor="api-key" className="sr-only">API Key</label>
+              <label htmlFor="api-key" className="sr-only">
+                API Key
+              </label>
               <input
                 id="api-key"
                 type="password"
@@ -370,7 +349,9 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                   const val = e.target.value.trim();
                   if (val) {
                     sessionStorage.setItem(SESSION_API_KEY, val);
-                    updateCustomNetworkConfig({ customHeaders: { Authorization: `Bearer ${val}` } });
+                    updateCustomNetworkConfig({
+                      customHeaders: { Authorization: `Bearer ${val}` },
+                    });
                   } else {
                     sessionStorage.removeItem(SESSION_API_KEY);
                     updateCustomNetworkConfig({ customHeaders: {} });
@@ -387,7 +368,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
           style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}
         >
           <ul role="list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {NAV_ITEMS.map((item, i) => {
+            {navItems.map((item, i) => {
               if (item.type === 'header') {
                 return (
                   <li key={`header-${i}`} role="presentation">
@@ -406,22 +387,23 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                       {item.label}
                     </div>
                   </li>
-                )
+                );
               }
 
-              const isActive = activeTab === item.id
-              const isDisabled = item.id === 'faucet' && network === 'mainnet'
+              const route = item.route;
+              const isActive = activeTab === route.id;
+              const isDisabled = route.id === 'faucet' && network === 'mainnet';
 
               return (
-                <li key={item.id} role="presentation">
+                <li key={route.id}>
                   <button
                     type="button"
-                    onClick={() => !isDisabled && item.id && handleNavClick(item.id)}
+                    onClick={() => !isDisabled && handleNavClick(route.id)}
                     disabled={isDisabled}
                     className="touch-target"
                     aria-current={isActive ? 'page' : undefined}
                     aria-disabled={isDisabled ? 'true' : undefined}
-                    aria-label={`${item.label}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
+                    aria-label={`${route.title}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -432,7 +414,11 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                       background: isActive ? 'var(--cyan-glow)' : 'transparent',
                       border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
                       borderRadius: 'var(--radius-md)',
-                      color: isActive ? 'var(--cyan)' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+                      color: isActive
+                        ? 'var(--cyan)'
+                        : isDisabled
+                          ? 'var(--text-muted)'
+                          : 'var(--text-secondary)',
                       fontSize: '13px',
                       fontFamily: 'var(--font-mono)',
                       cursor: isDisabled ? 'not-allowed' : 'pointer',
@@ -440,28 +426,31 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                       textAlign: 'left',
                       opacity: isDisabled ? 0.4 : 1,
                     }}
-                    onMouseEnter={e => {
+                    onMouseEnter={(e) => {
                       if (!isActive && !isDisabled) {
-                        e.currentTarget.style.background = 'var(--bg-hover)'
-                        e.currentTarget.style.color = 'var(--text-primary)'
+                        e.currentTarget.style.background = 'var(--bg-hover)';
+                        e.currentTarget.style.color = 'var(--text-primary)';
                       }
-                      if (item.id) preloadTab(item.id)
+                      preloadTab(route.id);
                     }}
-                    onMouseLeave={e => {
+                    onMouseLeave={(e) => {
                       if (!isActive && !isDisabled) {
-                        e.currentTarget.style.background = 'transparent'
-                        e.currentTarget.style.color = 'var(--text-secondary)'
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-secondary)';
                       }
                     }}
                   >
-                    <span aria-hidden="true" style={{ fontSize: '15px', opacity: 0.9 }}>{item.icon}</span>
-                    {item.label}
+                    <span aria-hidden="true" style={{ fontSize: '15px', opacity: 0.9 }}>
+                      {route.icon}
+                    </span>
+                    {route.title}
                     {isActive && (
                       <span
                         aria-hidden="true"
                         style={{
                           marginLeft: 'auto',
-                          width: '5px', height: '5px',
+                          width: '5px',
+                          height: '5px',
                           borderRadius: '50%',
                           background: 'var(--cyan)',
                           boxShadow: '0 0 6px var(--cyan)',
@@ -470,7 +459,7 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
                     )}
                   </button>
                 </li>
-              )
+              );
             })}
           </ul>
         </nav>
@@ -486,10 +475,24 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
             }}
             aria-label="Connected account"
           >
-            <div style={{ color: 'var(--green)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div
+              style={{
+                color: 'var(--green)',
+                marginBottom: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
               <span
                 aria-hidden="true"
-                style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }}
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: 'var(--green)',
+                  display: 'inline-block',
+                }}
               />
               <span>Connected</span>
             </div>
@@ -506,16 +509,18 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
         )}
 
         {/* Footer */}
-        <div style={{
-          padding: '12px 16px',
-          borderTop: connectedAddress ? 'none' : '1px solid var(--border)',
-          fontSize: '10px',
-          color: 'var(--text-muted)',
-          letterSpacing: '0.5px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
+        <div
+          style={{
+            padding: '12px 16px',
+            borderTop: connectedAddress ? 'none' : '1px solid var(--border)',
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            letterSpacing: '0.5px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <span>v0.1.0 · Stellar Dev Dashboard</span>
           <button
             onClick={toggleTheme}

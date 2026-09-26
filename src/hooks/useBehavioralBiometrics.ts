@@ -17,12 +17,15 @@ import { createProfileBuilder } from '../lib/behavioralBiometrics/profileBuilder
 import type { BehavioralProfileBuilder } from '../lib/behavioralBiometrics/profileBuilder'
 import type { AnomalyResult } from '../lib/behavioralBiometrics/anomalyDetector'
 import { useBiometricStore } from '../lib/behavioralBiometrics/store'
+import type { BiometricAuthStatus } from '../lib/behavioralBiometrics/store'
 import type { BehavioralProfile } from '../lib/behavioralBiometrics/profileBuilder'
 
 // storage.js is a plain JS module; we import it with type assertions to keep TS happy
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 // @ts-ignore — storage.js has no declaration file; this is intentional
-const storageModule = import('../lib/storage') as Promise<any>
+const storageModule = import('../lib/storage') as Promise<{
+  getBiometricProfile: (userId: string) => Promise<BehavioralProfile | null>;
+  saveBiometricProfile: (profile: BehavioralProfile) => Promise<void>;
+}>
 
 async function loadStoredProfile(userId: string): Promise<BehavioralProfile | null> {
   const m = await storageModule
@@ -54,7 +57,25 @@ function getBuilder(userId: string): BehavioralProfileBuilder {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useBehavioralBiometrics(userId: string | null) {
+/**
+ * Return value of the {@link useBehavioralBiometrics} hook.
+ */
+export interface UseBehavioralBiometricsReturn {
+  enabled: boolean;
+  strictMode: boolean;
+  profile: BehavioralProfile | null;
+  authStatus: BiometricAuthStatus;
+  lastAnomalyResult: AnomalyResult | null;
+  isEstablished: boolean;
+  samplesNeeded: number;
+  startCollection: () => void;
+  evaluateAndRecord: () => Promise<AnomalyResult | null>;
+  recordSuccessfulSign: () => Promise<void>;
+  recordSignAfterEval: () => Promise<void>;
+  abort: () => void;
+}
+
+export function useBehavioralBiometrics(userId: string | null): UseBehavioralBiometricsReturn {
   const {
     enabled,
     strictMode,

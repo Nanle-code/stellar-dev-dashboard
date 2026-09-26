@@ -25,11 +25,20 @@ export interface RateLimiterStats {
   timestamp: number
 }
 
+export type ThrottleMode = 'aggressive' | 'conservative';
+
+export interface UseRateLimiterReturn {
+  stats: RateLimiterStats | null;
+  throttleMode: ThrottleMode;
+  setMode: (mode: ThrottleMode) => void;
+  getMode: () => ThrottleMode;
+}
+
 const REFRESH_INTERVAL_MS = 1000
 
-export function useRateLimiter() {
+export function useRateLimiter(): UseRateLimiterReturn {
   const [stats, setStats] = useState<RateLimiterStats | null>(null)
-  const [throttleMode, setThrottleMode] = useState<'aggressive' | 'conservative'>('aggressive')
+  const [throttleMode, setThrottleMode] = useState<ThrottleMode>('aggressive')
 
   // Refresh statistics on interval
   useEffect(() => {
@@ -46,13 +55,13 @@ export function useRateLimiter() {
   }, [])
 
   // Update throttle mode in rate limiter
-  const setMode = useCallback((mode: 'aggressive' | 'conservative') => {
+  const setMode = useCallback((mode: ThrottleMode): void => {
     rateLimiter.setThrottleMode(mode)
     setThrottleMode(mode)
   }, [])
 
   // Get current mode
-  const getMode = useCallback(() => rateLimiter.getThrottleMode(), [])
+  const getMode = useCallback((): ThrottleMode => rateLimiter.getThrottleMode() as ThrottleMode, [])
 
   return {
     stats,

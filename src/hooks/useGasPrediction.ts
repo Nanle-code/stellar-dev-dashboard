@@ -10,10 +10,21 @@ export interface UseGasPredictionOptions {
   enabled?: boolean
 }
 
-export function useGasPrediction(options: UseGasPredictionOptions) {
+/**
+ * Return value of the {@link useGasPrediction} hook.
+ */
+export interface UseGasPredictionReturn {
+  prediction: GasPrediction | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  recordActual: (actualFee: number, actualInstructions: number) => void;
+}
+
+export function useGasPrediction(options: UseGasPredictionOptions): UseGasPredictionReturn {
   const { contractId, functionName, args = [], enabled = true } = options
   const [prediction, setPrediction] = useState<GasPrediction | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const serviceRef = useRef<GasPredictionService | null>(null)
   const storeSetPrediction = useGasPredictionStore((s) => s.setPrediction)
@@ -76,7 +87,7 @@ export function useGasPrediction(options: UseGasPredictionOptions) {
     }
   }, [enabled, contractId, functionName, args, storeSetPrediction])
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<void> => {
     if (!serviceRef.current || !contractId || !functionName) return
     setLoading(true)
     try {
@@ -96,7 +107,7 @@ export function useGasPrediction(options: UseGasPredictionOptions) {
     }
   }, [contractId, functionName, args, storeSetPrediction])
 
-  const recordActual = useCallback((actualFee: number, actualInstructions: number) => {
+  const recordActual = useCallback((actualFee: number, actualInstructions: number): void => {
     if (!serviceRef.current || !prediction || !contractId || !functionName) return
     serviceRef.current.recordActualCost({
       contractId,

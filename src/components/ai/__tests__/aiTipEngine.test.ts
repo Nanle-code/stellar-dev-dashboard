@@ -3,8 +3,8 @@ import {
   getAITips, dismissTip, recordTipFeedback,
   updateTipFrequency, getTipFrequency, resetTipFrequency,
   generateTipRecommendation, type TipContext,
-} from '../../lib/aiTipEngine';
-import { createDefaultModel, updateProfile } from '../../lib/learnerModel';
+} from '../../../lib/aiTipEngine';
+import { createDefaultModel, updateProfile } from '../../../lib/learnerModel';
 
 const mockContext: TipContext = {
   activeTab: 'overview', network: 'testnet',

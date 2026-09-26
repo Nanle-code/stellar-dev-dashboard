@@ -1,12 +1,17 @@
 export type RootStackParamList = {
   BiometricAuth: undefined
-  MainTabs: undefined
+  MainTabs:
+    | undefined
+    | {
+        screen?: keyof MainTabParamList
+        params?: Partial<MainTabParamList>
+      }
 }
 
 export type MainTabParamList = {
   Overview: undefined
-  Account: undefined
-  Transactions: undefined
+  Account: { accountId?: string }
+  Transactions: { transactionHash?: string }
   Network: undefined
   DEX: undefined
   Assets: undefined

@@ -1,14 +1,36 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { useRoute } from '@react-navigation/native'
 import { useStore } from '../store'
-import { shortAddress, formatXLM } from '../services/stellar'
+import { shortAddress, formatXLM, fetchAccount, isValidPublicKey } from '../services/stellar'
 import { colors, radii, spacing, typography } from '../theme'
 import Card from '../components/Card'
 import Loading from '../components/Loading'
 
 export default function AccountScreen() {
+  const route = useRoute<any>()
   const accountData = useStore((s) => s.accountData)
   const accountLoading = useStore((s) => s.accountLoading)
+  const network = useStore((s) => s.network)
+  const accountId = route.params?.accountId
+
+  useEffect(() => {
+    if (!accountId || !isValidPublicKey(accountId)) return
+
+    useStore.getState().setConnectedAddress(accountId)
+    useStore.getState().setAccountLoading(true)
+
+    fetchAccount(accountId, network)
+      .then((account) => {
+        useStore.getState().setAccountData(account)
+      })
+      .catch(() => {
+        useStore.getState().setAccountData(null as any)
+      })
+      .finally(() => {
+        useStore.getState().setAccountLoading(false)
+      })
+  }, [accountId, network])
 
   if (accountLoading && !accountData) {
     return <Loading message="Loading account..." fullScreen />

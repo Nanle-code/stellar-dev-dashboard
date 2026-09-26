@@ -303,6 +303,31 @@ To contribute to the Alert Rules system:
 5. Add tests for new functionality
 6. Update this documentation
 
+## Starter templates (developer incidents)
+
+Use `src/lib/alertRuleTemplates.ts` to create rules from predefined templates:
+
+| Template | Trigger |
+| --- | --- |
+| **Fee Spike** | Observed base fees exceed recent baseline by a multiplier |
+| **Failed Submissions** | Failed transaction submissions exceed a threshold in a time window |
+| **RPC Latency Regression** | API/RPC latency percentile exceeds a threshold |
+
+Example:
+
+```ts
+import { createAlertRuleFromTemplate } from '@/lib/alertRuleTemplates';
+
+const rule = createAlertRuleFromTemplate({
+  templateId: 'submission_failures',
+  userId: connectedAddress,
+  accountAddress: connectedAddress,
+  overrides: { failureCountThreshold: 5, windowSeconds: 600 },
+});
+```
+
+Metric-driven templates read from `src/utils/metricsCollector.ts`. Instrument submission and RPC calls with `recordTransactionSubmitted`, `recordApiCall`, and `recordFeeObservation` so evaluations have data to analyze.
+
 ## Support
 
 For issues or questions:

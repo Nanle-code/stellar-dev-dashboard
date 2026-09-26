@@ -1,10 +1,13 @@
 import { create } from 'zustand'
 import { getStoredValue } from './storage'
-import { syncState, onStateChange } from '../utils/stateSync'
+import { syncState, onStateChange, resolveStateConflict, loadSyncedState, getTabId } from '../utils/stateSync'
 import type { NetworkName, NetworkStats } from './stellar'
 import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
 import { generateInsights, type AnalyticsSummary } from './analytics'
+import { accountRequests } from './requestCancellation'
 import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
+import { handleNetworkSwitch } from './cacheInit'
+import { hydrateDemoState } from './demoMode'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,6 +135,12 @@ export interface StoreState {
   isMobileMenuOpen: boolean
   setMobileMenuOpen: (open: boolean) => void
 
+  // Demo mode (#875): a read-only, wallet-free preview of a curated testnet
+  // portfolio. Session-scoped and intentionally not persisted.
+  isDemoMode: boolean
+  enterDemoMode: () => void
+  exitDemoMode: () => void
+
   connectedAddress: string | null
   accountData: Horizon.AccountResponse | null
   accountLoading: boolean
@@ -172,6 +181,10 @@ export interface StoreState {
 
   activeTab: string
   setActiveTab: (tab: string) => void
+
+  /** Transaction hash selected via a deep link (`/transactions/:hash`). */
+  selectedTxHash: string | null
+  setSelectedTxHash: (hash: string | null) => void
 
   faucetLoading: boolean
   faucetResult: unknown
@@ -239,8 +252,10 @@ export interface StoreState {
   walletConnected: boolean
   walletType: string | null
   walletPublicKey: string | null
+  walletSessionRevokedReason: string | null
   setWalletConnected: (connected: boolean, type?: string | null, publicKey?: string | null) => void
   disconnectWallet: () => void
+  revokeWalletSession: (reason?: string) => void
 
   notifications: Notification[]
   notificationHistory: Notification[]
@@ -294,7 +309,18 @@ export const useStore = create<StoreState>((set) => ({
   network: readInitialNetwork(),
   perNetworkData: {},
   setNetwork: (network) => {
+    const validNetworks: NetworkName[] = ['testnet', 'mainnet', 'futurenet', 'local', 'custom']
+    if (!validNetworks.includes(network)) return
+
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(SELECTED_NETWORK_KEY, network) } catch { /* ignore */ }
+
+    // Capture previous network for cache invalidation before mutating state
+    const prevNetwork = useStore.getState().network
+
+    // Cancel Horizon reads issued against the network we are leaving. Without this
+    // a slower response could repopulate the state this switch is about to clear,
+    // showing the previous network's account data under the new network (#745).
+    accountRequests.abortAll()
 
     // Stash current network data before switching
     const stash = (prev: StoreState) => {
@@ -317,6 +343,12 @@ export const useStore = create<StoreState>((set) => ({
       const updatedData = stash(state)
       const cached = updatedData[network]
       const clear = {
+        // These reads were just aborted above, so nothing is loading any more.
+        // Their own `finally` handlers are lease-guarded and will no longer fire,
+        // which would otherwise leave a spinner stuck on after a network switch.
+        accountLoading: false,
+        txLoading: false,
+        opsLoading: false,
         networkStats: null,
         statsLoading: false,
         streamLedgers: [],
@@ -362,6 +394,12 @@ export const useStore = create<StoreState>((set) => ({
         opsPagingLoading: false,
       }
     })
+
+    // Invalidate the SWR/IDB cache for both networks after state is updated.
+    // Only runs in environments where the cache is available (not SSR/tests).
+    if (prevNetwork !== network) {
+      handleNetworkSwitch(prevNetwork, network)
+    }
   },
   setPerNetworkData: (network, data) => set((state) => ({
     perNetworkData: {
@@ -421,6 +459,31 @@ export const useStore = create<StoreState>((set) => ({
   isMobileMenuOpen: false,
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
 
+  isDemoMode: false,
+  enterDemoMode: () => {
+    // hydrateDemoState validates the fixtures and throws DemoModeError when they
+    // are missing or malformed, so the caller can surface a clean failure.
+    const demoState = hydrateDemoState()
+    set({ ...demoState, isDemoMode: true })
+  },
+  exitDemoMode: () =>
+    set({
+      isDemoMode: false,
+      connectedAddress: null,
+      accountData: null,
+      accountLoading: false,
+      accountError: null,
+      transactions: [],
+      txLoading: false,
+      txNextCursor: null,
+      txHasMore: false,
+      operations: [],
+      opsLoading: false,
+      opsNextCursor: null,
+      opsHasMore: false,
+      activeTab: 'overview',
+    }),
+
   connectedAddress: null,
   accountData: null,
   accountLoading: false,
@@ -470,6 +533,9 @@ export const useStore = create<StoreState>((set) => ({
 
   activeTab: 'overview',
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  selectedTxHash: null,
+  setSelectedTxHash: (hash) => set({ selectedTxHash: hash }),
 
   faucetLoading: false,
   faucetResult: null,
@@ -570,9 +636,32 @@ export const useStore = create<StoreState>((set) => ({
   walletConnected: false,
   walletType: null,
   walletPublicKey: null,
+  walletSessionRevokedReason: null,
   setWalletConnected: (connected, type = null, publicKey = null) =>
-    set({ walletConnected: connected, walletType: type, walletPublicKey: publicKey }),
-  disconnectWallet: () => set({ walletConnected: false, walletType: null, walletPublicKey: null }),
+    set({
+      walletConnected: connected,
+      walletType: type,
+      walletPublicKey: publicKey,
+      walletSessionRevokedReason: connected ? null : get().walletSessionRevokedReason,
+    }),
+  disconnectWallet: () =>
+    set({
+      walletConnected: false,
+      walletType: null,
+      walletPublicKey: null,
+      walletSessionRevokedReason: null,
+    }),
+  revokeWalletSession: (reason = 'session_revoked') =>
+    set({
+      walletConnected: false,
+      walletType: null,
+      walletPublicKey: null,
+      walletSessionRevokedReason: reason,
+      connectedAddress: null,
+      accountData: null,
+      accountLoading: false,
+      accountError: null,
+    }),
 
   notifications: [],
   notificationHistory: [],
@@ -652,6 +741,15 @@ if (typeof window !== 'undefined') {
 }
 
 // ─── Persistence middleware ───────────────────────────────────────────────────
+// Cross-tab state is persisted deterministically (#751): every write is a
+// versioned compare-and-swap, and incoming updates are merged via
+// resolveStateConflict so concurrent edits across tabs never diverge.
+
+// Tracks the version/metadata of the slice we last applied or wrote, so an
+// incoming update can be resolved deterministically against local state.
+let lastAppliedVersion = 0
+let lastAppliedTs = 0
+let lastAppliedWriter = ''
 
 if (typeof window !== 'undefined') {
   getStoredValue(STORE_PERSIST_KEY).then((saved: Record<string, unknown> | null) => {
@@ -670,25 +768,44 @@ if (typeof window !== 'undefined') {
         applyCustomThemeToDOM(restored.themeBuilderDraft as ThemeDefinition)
       }
     }
+    const synced = loadSyncedState(STORE_PERSIST_KEY)
+    if (synced) {
+      lastAppliedVersion = synced.version
+      lastAppliedTs = synced.timestamp
+      lastAppliedWriter = synced.writerId
+    }
   }).catch(() => {})
 
   useStore.subscribe((state) => {
     const slice: Record<string, unknown> = {}
     for (const key of PERSIST_KEYS) slice[key] = state[key]
-    syncState(STORE_PERSIST_KEY, slice).catch(() => {})
+    syncState(STORE_PERSIST_KEY, slice)
+      .then((version) => {
+        lastAppliedVersion = version
+        lastAppliedTs = Date.now()
+        lastAppliedWriter = getTabId()
+      })
+      .catch(() => {})
   })
 
-  onStateChange((key: string, value: unknown) => {
-    if (key === STORE_PERSIST_KEY && value && typeof value === 'object') {
-      const current = useStore.getState()
-      const incoming = value as Record<string, unknown>
-      const patch: Partial<StoreState> = {}
-      for (const k of PERSIST_KEYS) {
-        if (incoming[k] !== undefined && incoming[k] !== current[k]) {
-          (patch as Record<string, unknown>)[k] = incoming[k]
-        }
+  onStateChange((key: string, value: unknown, meta?: { version: number; writerId: string; timestamp: number } | null) => {
+    if (key !== STORE_PERSIST_KEY || !value || typeof value !== 'object') return
+    const current = useStore.getState()
+    const incoming = value as Record<string, unknown>
+    const localMeta = { version: lastAppliedVersion, timestamp: lastAppliedTs, writerId: lastAppliedWriter }
+    const patch: Partial<StoreState> = {}
+    for (const k of PERSIST_KEYS) {
+      if (incoming[k] === undefined) continue
+      const winner = resolveStateConflict(current[k], localMeta, incoming[k], meta ?? undefined)
+      if (winner === incoming[k]) (patch as Record<string, unknown>)[k] = incoming[k]
+    }
+    if (Object.keys(patch).length > 0) {
+      useStore.setState(patch)
+      if (meta) {
+        lastAppliedVersion = meta.version
+        lastAppliedTs = meta.timestamp
+        lastAppliedWriter = meta.writerId || lastAppliedWriter
       }
-      if (Object.keys(patch).length > 0) useStore.setState(patch)
     }
   })
 }

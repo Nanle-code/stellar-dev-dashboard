@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 /**
  * Enables ArrowUp/ArrowDown keyboard navigation within a sidebar nav list.
  */
-export function useSidebarArrowNav(navRef: React.RefObject<HTMLElement>, enabled = true) {
+export function useSidebarArrowNav(navRef: React.RefObject<HTMLElement>, enabled: boolean = true): void {
   const itemSelector = 'nav[aria-label="Dashboard sections"] button:not([disabled])';
 
   useEffect(() => {

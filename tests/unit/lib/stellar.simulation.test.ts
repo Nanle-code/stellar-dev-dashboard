@@ -1,5 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { loadAccountMock } = vi.hoisted(() => ({ loadAccountMock: vi.fn() }));
+
+vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@stellar/stellar-sdk')>();
+  class MockHorizonServer {
+    loadAccount = loadAccountMock;
+  }
+  return {
+    ...actual,
+    Horizon: { ...actual.Horizon, Server: MockHorizonServer },
+  };
+});
+
 import { simulateTransaction, getSimulationFeeOptions } from '../../../src/lib/stellar';
+
+beforeEach(() => {
+  loadAccountMock.mockReset();
+});
 
 describe('stellar simulation diagnostics', () => {
   it('returns validation errors for invalid transaction parameters', async () => {
@@ -26,9 +44,53 @@ describe('stellar simulation diagnostics', () => {
     expect(result.errors).toContain('Operation 1: Amount must be greater than zero.');
     expect(result.errors).toContain('Base fee must be a positive number.');
     expect(result.errors).toContain('Time bounds must be valid Unix timestamps.');
-    expect(result.warnings).toContain(
-      'Memo text may exceed the 28-character limit accepted by the Stellar network.'
-    );
+    expect(result.errors).toContain('Memo text must be 28 bytes or fewer.');
+  });
+
+  it('warns when a payment destination requires a memo (SEP-29) and none is set', async () => {
+    loadAccountMock.mockResolvedValue({
+      data_attr: { 'config.memo_required': Buffer.from('1').toString('base64') },
+    });
+
+    const result = await simulateTransaction({
+      sourceAccount: 'GATRGEIRAHUC2KD62STK4MCA2OXLIE5SSY67OCMREH5ZBI573EKGBRNI',
+      operations: [
+        {
+          type: 'payment',
+          destination: 'GAQCITSVIIDTUWUNT2635UL77CIG27RAQKPHKFYLLFM6TOTCI7GIXOEP',
+          amount: '10',
+        },
+      ],
+      memo: '',
+      baseFee: 100,
+      timeBounds: {},
+      network: 'testnet',
+    });
+
+    expect(result.warnings?.some((w) => w.includes('requires a memo'))).toBe(true);
+  });
+
+  it('does not warn when a memo is already set, even for a memo-required destination', async () => {
+    loadAccountMock.mockResolvedValue({
+      data_attr: { 'config.memo_required': Buffer.from('1').toString('base64') },
+    });
+
+    const result = await simulateTransaction({
+      sourceAccount: 'GATRGEIRAHUC2KD62STK4MCA2OXLIE5SSY67OCMREH5ZBI573EKGBRNI',
+      operations: [
+        {
+          type: 'payment',
+          destination: 'GAQCITSVIIDTUWUNT2635UL77CIG27RAQKPHKFYLLFM6TOTCI7GIXOEP',
+          amount: '10',
+        },
+      ],
+      memo: '12345',
+      baseFee: 100,
+      timeBounds: {},
+      network: 'testnet',
+    });
+
+    expect(result.warnings?.some((w) => w.includes('requires a memo'))).toBeFalsy();
   });
 
   it('generates priority fee options based on operation count', () => {

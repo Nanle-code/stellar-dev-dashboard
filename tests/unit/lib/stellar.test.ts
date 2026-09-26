@@ -3,12 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as stellar from '../../../src/lib/stellar'
 import type { NetworkName } from '../../../src/lib/stellar'
 
+const mockLoadAccount = vi.fn()
+
 // Mock Stellar SDK classes
 vi.mock('@stellar/stellar-sdk', async () => {
-  const actual = await vi.importActual('@stellar/stellar-sdk')
+  const actual = await vi.importActual<any>('@stellar/stellar-sdk')
   class MockHorizonServer {
     constructor(public url: string, public options?: any) {}
-    loadAccount = vi.fn()
+    loadAccount = mockLoadAccount
     transactions = vi.fn(() => this)
     operations = vi.fn(() => this)
     ledgers = vi.fn(() => this)
@@ -32,8 +34,7 @@ vi.mock('@stellar/stellar-sdk', async () => {
 
 // Helper mock server
 function createMockServer() {
-  const server: any = new (vi.mocked(require('@stellar/stellar-sdk')).Horizon.Server)('https://example.com')
-  return server
+  return { loadAccount: mockLoadAccount }
 }
 
 beforeEach(() => {
@@ -50,7 +51,6 @@ describe('fetchAccount', () => {
     const mockAccount = { account_id: 'GABC', balances: [] }
     const mockServer = createMockServer()
     mockServer.loadAccount.mockResolvedValueOnce(mockAccount)
-    ;(stellar as any).getServer = vi.fn(() => mockServer)
 
     const result = await stellar.fetchAccount('GABC', 'testnet')
     expect(result).toBe(mockAccount)
@@ -61,7 +61,6 @@ describe('fetchAccount', () => {
     const mockAccount = { account_id: 'GXYZ', balances: [] }
     const mockServer = createMockServer()
     mockServer.loadAccount.mockResolvedValueOnce(mockAccount)
-    ;(stellar as any).getServer = vi.fn(() => mockServer)
 
     const first = await stellar.fetchAccount('GXYZ')
     const second = await stellar.fetchAccount('GXYZ')
@@ -73,7 +72,6 @@ describe('fetchAccount', () => {
   it('should propagate errors from server', async () => {
     const mockServer = createMockServer()
     mockServer.loadAccount.mockRejectedValueOnce(new Error('network error'))
-    ;(stellar as any).getServer = vi.fn(() => mockServer)
 
     await expect(stellar.fetchAccount('GFAIL')).rejects.toThrow('network error')
   })

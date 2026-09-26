@@ -5,7 +5,34 @@
  * independent. Resolve order now favours .ts before .js, matching Vite.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../storage', () => ({
+  getStoredValue: vi.fn().mockResolvedValue(null),
+  setStoredValue: vi.fn(),
+}));
+vi.mock('../../utils/stateSync', () => ({
+  broadcastStateChange: vi.fn(),
+  onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(0),
+  loadSyncedState: vi.fn().mockReturnValue(null),
+  resolveStateConflict: vi.fn((local: unknown) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
+}));
+vi.mock('../cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+vi.mock('../requestCancellation', () => ({
+  accountRequests: { abortAll: vi.fn(), begin: vi.fn(() => ({ active: true, commit: vi.fn(() => true), abort: vi.fn() })) },
+  AccountLanes: { Connect: 'account:connect', Offers: 'account:offers', CreationDate: 'account:creation-date' },
+  isCancellation: vi.fn(() => false),
+  isStaleRequestError: vi.fn(() => false),
+  StaleRequestError: class StaleRequestError extends Error {},
+}));
+
 import { useStore } from '../store';
 
 // Capture the baseline state once on first import so we can reset between tests.

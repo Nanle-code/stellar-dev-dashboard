@@ -136,3 +136,93 @@ await offlineQueue.enqueue(
 // Flush manually (also fires automatically on 'online' event)
 await offlineQueue.flush();
 ```
+
+## Chunk Load Error Recovery (Post-Deployment Stale Chunks)
+
+When a new version of the dashboard is deployed, old JavaScript chunk files are removed from the CDN. Users who have the app open from before the deploy may encounter `ChunkLoadError` or "Failed to fetch dynamically imported module" errors when navigating to a route that hasn't been loaded yet.
+
+### Automatic Detection
+
+The `ChunkLoadErrorBoundary` component (`src/components/ChunkLoadErrorBoundary.tsx`) wraps the lazy-loaded route layer and specifically detects chunk load failures by matching against known error patterns:
+
+- `Failed to fetch dynamically imported module` (Vite)
+- `Loading chunk` / `Loading CSS chunk` (webpack)
+- `ChunkLoadError` (standard)
+- `NetworkError when attempting to fetch dynamic import`
+- `Failed to load module script`
+- Errors with `name === 'ChunkLoadError'`
+
+This detection is **distinct from general runtime errors** — only chunk-load failures trigger the recovery UI. Other errors bubble up to the standard `ErrorBoundary` for appropriate handling.
+
+### Recovery UI
+
+When a chunk load failure is detected, a non-intrusive banner appears at the bottom of the viewport (matching the `OfflineBanner` and `SWUpdatePrompt` visual style):
+
+- **First occurrence**: "New Version Available — A new version of the dashboard has been deployed. The page needs to be refreshed to load the latest changes." with a "Reload Now" button.
+- **Subsequent occurrences**: "Update Required — Unable to load the latest version. Please refresh the page to try again." with retry count display.
+- **Dismiss button**: Allows the user to hide the banner and continue using the currently loaded parts of the app.
+
+The reload action calls `window.location.reload()` by default, or a custom `onReload` callback if provided. In environments without `window.location` (SSR, tests), it degrades gracefully with a console warning.
+
+### Integration
+
+The boundary is integrated in `src/App.tsx` around the `Suspense` that wraps lazy routes:
+
+```tsx
+import ChunkLoadErrorBoundary from './components/ChunkLoadErrorBoundary';
+
+<ChunkLoadErrorBoundary>
+  <Suspense fallback={<AppLoadingFallback />}>
+    <Routes>
+      <Route path="/connect" element={<DashboardLayout />} />
+      <Route path="/*" element={<DashboardLayout />} />
+    </Routes>
+  </Suspense>
+</ChunkLoadErrorBoundary>
+```
+
+### Testing
+
+Simulate a chunk load failure in tests by throwing an error matching the detection patterns:
+
+```tsx
+const ThrowChunkLoadError = ({ shouldThrow }) => {
+  if (shouldThrow) {
+    throw new Error('Failed to fetch dynamically imported module: /assets/dashboard-[hash].js');
+  }
+  return <div>Content</div>;
+};
+
+render(
+  <ChunkLoadErrorBoundary>
+    <ThrowChunkLoadError shouldThrow={true} />
+  </ChunkLoadErrorBoundary>
+);
+
+expect(screen.getByText('New Version Available')).toBeInTheDocument();
+```
+
+Verify that generic runtime errors are **not** caught by this boundary:
+
+```tsx
+const ThrowGenericError = ({ shouldThrow }) => {
+  if (shouldThrow) throw new Error('Random runtime error');
+  return <div>Content</div>;
+};
+
+render(
+  <ChunkLoadErrorBoundary>
+    <ThrowGenericError shouldThrow={true} />
+  </ChunkLoadErrorBoundary>
+);
+
+// Banner should NOT appear — error bubbles to parent ErrorBoundary
+expect(screen.queryByText('New Version Available')).not.toBeInTheDocument();
+```
+
+### Compatibility Notes
+
+- **Browsers without dynamic import()**: The app targets modern browsers (ES2020+ per `vite.config.js`). Dynamic imports are natively supported. No polyfill is provided.
+- **SSR/Node environments**: The boundary checks for `window.location` existence before calling reload. In SSR or test environments, it logs a warning and no-ops instead of crashing.
+- **Infinite reload prevention**: The banner shows retry count. After multiple failed reloads, a hint suggests checking network connectivity. No automatic reload loop is implemented.
+- **Network vs. stale chunk distinction**: The boundary cannot definitively distinguish "stale chunk after deploy" from "genuinely offline" — both manifest as failed dynamic imports. The UI message assumes the stale-chunk case (most common post-deploy), but the reload action works for both. If the user is truly offline, the reload will fail and they'll see the banner again with incremented retry count.

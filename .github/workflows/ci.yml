@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate package manager & lockfiles
+        run: pnpm run check:package-manager
+
       - name: Run linter
         run: pnpm run lint
 
@@ -89,10 +92,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Verify supported runtime
-        run: npm run check:node
+        run: pnpm run check:node
 
       - name: Test Node support policy boundaries
-        run: npm run test:node-support
+        run: pnpm run test:node-support
 
       - name: Run unit tests with coverage
         run: pnpm run test:coverage
@@ -196,7 +199,7 @@ jobs:
                 '',
                 'To update baselines intentionally, run locally:',
                 '```bash',
-                'npm run test:visual:update',
+                'pnpm run test:visual:update',
                 'git add tests/e2e/snapshots',
                 'git commit -m "chore: update visual baselines"',
                 '```',

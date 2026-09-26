@@ -17,17 +17,19 @@ Thank you for taking the time to contribute! This guide covers everything you ne
 
 ### Prerequisites
 
-- Node.js ≥ 18
-- npm ≥ 9
+- Node.js ≥ 22 and < 27 (Node.js 22, 24, 26 LTS/Current)
+- pnpm ≥ 9.0.0 (Standardized package manager)
 
 ### Install & run
 
 ```bash
 git clone https://github.com/Nanle-code/stellar-dev-dashboard.git
 cd stellar-dev-dashboard
-npm install
-npm run dev          # Vite dev server at http://localhost:5173
+pnpm install
+pnpm run dev          # Vite dev server at http://localhost:5173
 ```
+
+> **Note**: This project strictly standardizes on `pnpm` and `pnpm-lock.yaml`. Do not commit `package-lock.json` or `yarn.lock`; CI checks will fail if non-pnpm lockfiles are committed.
 
 ### Environment
 
@@ -104,9 +106,9 @@ response cannot overwrite state after the user switches. Use a lease from
 ### Unit tests (Vitest + Testing Library)
 
 ```bash
-npm test              # run once
-npm run test:watch    # watch mode
-npm run test:coverage # with v8 coverage
+pnpm test              # run once
+pnpm run test:watch    # watch mode
+pnpm run test:coverage # with v8 coverage
 ```
 
 Test files live alongside the source they cover: `src/utils/export.test.js` tests `src/utils/export.js`.
@@ -116,8 +118,8 @@ New utility functions **must** have unit tests. New React components **should** 
 ### End-to-end tests (Playwright)
 
 ```bash
-npm run test:e2e        # headless
-npm run test:e2e:ui     # Playwright UI mode
+pnpm run test:e2e        # headless
+pnpm run test:e2e:ui     # Playwright UI mode
 ```
 
 E2E tests live in `tests/e2e/`. They rely on Playwright's network route interception (`page.route()`) to mock responses from Horizon and Soroban RPC. This guarantees fast, deterministic tests without needing valid testnet credentials or environment variables.
@@ -131,7 +133,7 @@ E2E tests live in `tests/e2e/`. They rely on Playwright's network route intercep
    git checkout -b fix/your-description
    ```
 2. Make your changes, keeping each commit focused on one logical change.
-3. Run tests: `npm test && npm run test:e2e`.
+3. Run checks: `pnpm run check:package-manager && pnpm run lint && pnpm test && pnpm run test:e2e`.
 4. Open a PR targeting `master`. Include:
    - A clear title referencing the issue (`fix: add export panel (#114)`).
    - A summary of **what** changed and **why**.

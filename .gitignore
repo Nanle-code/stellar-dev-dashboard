@@ -1,6 +1,8 @@
 node_modules
 node_modules/
 .kiro
+.kilo
+.kilo/
 
 # Build artifacts - generated during CI/release, not tracked in version control
 dist/

@@ -3,6 +3,9 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { oauthAuth, requireRole, getRuntimeEnvironment } from './middleware/auth.js';
+import { apiVersioningMiddleware } from './middleware/apiVersioning.js';
+import { idempotencyMiddleware } from './middleware/idempotency.js';
+import { router as healthRouter } from './routes/health.js';
 import { router as accountsRouter } from './routes/accounts.js';
 import { router as transactionsRouter } from './routes/transactions.js';
 import { router as behaviorRouter } from './routes/behavior.js';
@@ -15,6 +18,8 @@ export const server = createServer(app);
 export const wss = new WebSocketServer({ server });
 
 app.use(express.json());
+app.use('/health', healthRouter);
+app.use('/api/health', healthRouter);
 app.use(apiVersioningMiddleware);
 app.use(idempotencyMiddleware);
 app.use(rateLimiter);
@@ -41,6 +46,8 @@ app.get('/api/docs', (req, res) => {
         'Optional on mutating proxy calls. Retries with the same key and payload replay the original response.',
     },
     endpoints: {
+      '/health': 'GET - Liveness probe for containers and canary rollout',
+      '/health/deep': 'GET - Deep readiness probe (memory, cache, dependencies)',
       '/api/v1/accounts/:accountId': 'GET - Retrieve account data',
       '/api/v1/transactions': 'GET - Query transactions (query params: accountId, limit)',
       '/api/v1/liquidity': 'GET - Liquidity predictions and metrics',
@@ -63,7 +70,9 @@ app.get('/api/docs', (req, res) => {
 
 wss.on('connection', (ws) => {
   console.log('WebSocket client connected');
-  ws.send(JSON.stringify({ type: 'connected', message: 'Successfully connected to real-time updates.' }));
+  ws.send(
+    JSON.stringify({ type: 'connected', message: 'Successfully connected to real-time updates.' })
+  );
 
   ws.on('message', (message) => {
     try {
@@ -77,7 +86,12 @@ wss.on('connection', (ws) => {
   });
 
   const interval = setInterval(() => {
-    ws.send(JSON.stringify({ type: 'update', data: { timestamp: new Date().toISOString(), status: 'active' } }));
+    ws.send(
+      JSON.stringify({
+        type: 'update',
+        data: { timestamp: new Date().toISOString(), status: 'active' },
+      })
+    );
   }, 10000);
 
   ws.on('close', () => {

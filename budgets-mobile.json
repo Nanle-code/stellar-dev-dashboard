@@ -1,0 +1,389 @@
+[
+  {
+    "path": "/*",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3500
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 500
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2500
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3500
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 500
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2500
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/connect",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 2500
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.05
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 250
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 1800
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/overview",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3500
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 500
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2500
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/analytics",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 4000
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 600
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2800
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/transactions",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3800
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 550
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2600
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/network",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3500
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 500
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2500
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/contracts",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3800
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 550
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2600
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  },
+  {
+    "path": "/performance",
+    "timings": [
+      {
+        "metric": "largest-contentful-paint",
+        "budget": 3600
+      },
+      {
+        "metric": "cumulative-layout-shift",
+        "budget": 0.1
+      },
+      {
+        "metric": "total-blocking-time",
+        "budget": 500
+      },
+      {
+        "metric": "first-contentful-paint",
+        "budget": 2500
+      }
+    ],
+    "resourceSizes": [
+      {
+        "resourceType": "script",
+        "budget": 350
+      },
+      {
+        "resourceType": "total",
+        "budget": 700
+      },
+      {
+        "resourceType": "stylesheet",
+        "budget": 80
+      },
+      {
+        "resourceType": "document",
+        "budget": 40
+      },
+      {
+        "resourceType": "font",
+        "budget": 120
+      }
+    ]
+  }
+]

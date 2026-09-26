@@ -7,6 +7,7 @@ This document collects all integration points for Stellar Horizon, Soroban RPC, 
 ---
 
 **Contents**
+
 - Architecture overview
 - Horizon API endpoints and examples
 - Soroban RPC interactions and contract invocation flow
@@ -19,6 +20,7 @@ This document collects all integration points for Stellar Horizon, Soroban RPC, 
 ---
 
 **Acceptance checklist**
+
 - Architecture diagram of API layers — present
 - Horizon API endpoint usage documented — present
 - Soroban contract invocation flow documented — present
@@ -41,6 +43,7 @@ The API docs now include generated reference material and runnable examples.
 - [docs/api/ERROR_REFERENCE.md](ERROR_REFERENCE.md) — developer reference for error categories, codes, and recovery strategies.
 - [docs/api/RATE_LIMITING.md](RATE_LIMITING.md) — client-side rate limiting, priority queues, and throttle configurations.
 - [docs/api/IDEMPOTENCY.md](IDEMPOTENCY.md) — idempotency keys for mutating public API proxy endpoints.
+- [docs/CANARY_DEPLOYMENT.md](../CANARY_DEPLOYMENT.md) — canary deployment health probes and auto-abort error budget guide.
 - [docs/api/CHANGELOG.md](CHANGELOG.md) — API documentation changelog.
 - [docs/api/VERSION_HISTORY.md](generated/VERSION_HISTORY.md) — version history and release metadata.
 - [docs/api/examples/](examples/js/send-payment.mjs) — runnable example scripts for JavaScript and Python.
@@ -75,6 +78,7 @@ graph TB
 ```
 
 Notes:
+
 - The `lib/stellar.ts` file is the canonical connector layer for Horizon and Soroban RPC interactions. UI components and hooks call exported helpers from this file.
 - `priceFeed.js` calls CoinGecko and caches results; `streaming.js` manages SSE ledger streaming.
 
@@ -83,6 +87,7 @@ Notes:
 **Horizon API Endpoint Usage**
 
 Primary Horizon base URLs (configured in `src/lib/stellar.ts`):
+
 - Mainnet: `https://horizon.stellar.org`
 - Testnet: `https://horizon-testnet.stellar.org`
 - Futurenet: `https://horizon-futurenet.stellar.org`
@@ -123,6 +128,7 @@ curl -s "https://horizon-testnet.stellar.org/accounts/G..." | jq .
   - Purpose: Supplemental activity feed and UI annotations.
 
 Horizon usage patterns and tips:
+
 - Use cursor-based pagination for large lists: keep `next`/`prev` links returned in response and store cursors in the client state.
 - Coalesce parallel requests: when multiple components request the same account data, share a single promise/cached response.
 - For sensitive operations (submit), always show the constructed XDR to the user and allow them to sign using an external wallet (Freighter/Ledger) rather than exposing secret keys in the app.
@@ -130,18 +136,19 @@ Horizon usage patterns and tips:
 Example: Fetch account and first 20 transactions in parallel (JS, using @stellar/stellar-sdk):
 
 ```js
-import { Server } from "@stellar/stellar-sdk";
-const server = new Server("https://horizon-testnet.stellar.org");
+import { Server } from '@stellar/stellar-sdk';
+const server = new Server('https://horizon-testnet.stellar.org');
 
 async function loadAccountAndTxs(publicKey) {
   const accountPromise = server.accounts().accountId(publicKey).call();
-  const txPromise = server.transactions().forAccount(publicKey).limit(20).order("desc").call();
+  const txPromise = server.transactions().forAccount(publicKey).limit(20).order('desc').call();
   const [account, txs] = await Promise.all([accountPromise, txPromise]);
   return { account, txs };
 }
 ```
 
 Horizon rate limit headers (example):
+
 - `X-RateLimit-Limit`: total allowed
 - `X-RateLimit-Remaining`: remaining requests
 - `X-RateLimit-Reset`: seconds until reset
@@ -155,11 +162,13 @@ Handle 429 (Too Many Requests) by respecting `Retry-After` or `X-RateLimit-Reset
 Soroban RPC is used for inspecting contracts, simulating contract calls, preparing transactions, and sending signed transactions (when allowed).
 
 Primary RPC endpoints configured in `src/lib/stellar.ts`:
+
 - Testnet: `https://soroban-testnet.stellar.org`
 - Mainnet: `https://soroban-rpc.stellar.org`
 - Local: `http://localhost:8000/soroban/rpc`
 
 Common Soroban RPC methods used:
+
 - `getHealth` / `getLatestLedger` — for health checks and syncing
 - `simulateTransaction` — simulate a transaction and receive cost, events, and footprint
 - `prepareTransaction` — build a transaction skeleton with necessary network info
@@ -191,6 +200,7 @@ sequenceDiagram
 ```
 
 Notes and best practices:
+
 - Always call `simulateTransaction` before submitting — it reveals cost, footprint, and return values without changing chain state.
 - Show footprint read-only/read-write keys to the user; inform them about potential ledger changes.
 - For Mainnet safety, submissions are disabled in the UI; only simulation is allowed.
@@ -199,9 +209,9 @@ Notes and best practices:
 JS example: simulate and prepare (using @stellar/stellar-sdk v12):
 
 ```js
-import { SorobanClient, Server, Keypair } from "@stellar/stellar-sdk";
-const sorobanServer = new SorobanClient.Server("https://soroban-testnet.stellar.org");
-const horizonServer = new Server("https://horizon-testnet.stellar.org");
+import { SorobanClient, Server, Keypair } from '@stellar/stellar-sdk';
+const sorobanServer = new SorobanClient.Server('https://soroban-testnet.stellar.org');
+const horizonServer = new Server('https://horizon-testnet.stellar.org');
 
 async function simulateContractCall(sourceKey, contractId, funcName, scArgs) {
   const kp = Keypair.fromPublicKey(sourceKey);
@@ -276,11 +286,11 @@ Map low-level Horizon and Soroban errors into clear categories for the UI:
 Example: decode a failed transaction result (JS):
 
 ```js
-import { xdr } from "@stellar/stellar-sdk";
+import { xdr } from '@stellar/stellar-sdk';
 
 function decodeTxResult(resultXdr) {
   try {
-    const res = xdr.TransactionResult.fromXDR(resultXdr, "base64");
+    const res = xdr.TransactionResult.fromXDR(resultXdr, 'base64');
     // Map result codes to messages
   } catch (e) {
     // fallback: display raw XDR and link to docs
@@ -289,6 +299,7 @@ function decodeTxResult(resultXdr) {
 ```
 
 UI patterns:
+
 - Surface a concise summary (title + short reason) and an expandable detail panel containing raw JSON/XDR for advanced users.
 - For Soroban simulation errors, display `logs`, `events`, and the footprint to help debugging.
 - For rate limits, show next retry time and provide a "Try again" button that follows a backoff schedule.
@@ -298,18 +309,22 @@ UI patterns:
 **External API Integrations & Fallbacks**
 
 CoinGecko — primary price provider (used by `priceFeed.js`):
+
 - Endpoint: `https://api.coingecko.com/api/v3/simple/price` with asset id mapping maintained in `src/lib/priceFeed.js`.
 
 Integration notes:
+
 - Map non-native assets to CoinGecko IDs via `ASSET_ID_MAP`. If an asset is not mapped, fall back to SDEX order book midpoint as price estimate.
 - Cache CoinGecko responses for 60s.
 - Handle CoinGecko rate limits: they can be strict — implement exponential backoff and a local cache; consider a secondary fallback provider like CoinMarketCap or a hosted price service.
 
 Friendbot (Testnet faucet):
+
 - Endpoint: `https://friendbot.stellar.org?addr=<publicKey>`
 - Only used in Testnet; UI gating must hide or disable on Mainnet.
 
 Fallback strategy summary:
+
 - Primary: CoinGecko cached API
 - Secondary: SDEX-based price from order book midpoint
 - Tertiary: Local mock prices (development)
@@ -335,7 +350,12 @@ Sample `account.json` (simplified):
   "sequence": "1234567890",
   "balances": [
     { "asset_type": "native", "balance": "1000.1234567" },
-    { "asset_type": "credit_alphanum4", "asset_code": "USDC", "asset_issuer": "G...", "balance": "250.00" }
+    {
+      "asset_type": "credit_alphanum4",
+      "asset_code": "USDC",
+      "asset_issuer": "G...",
+      "balance": "250.00"
+    }
   ],
   "signers": [],
   "flags": {}
@@ -361,6 +381,7 @@ Store these fixtures under `tests/mocks/horizon/` and `tests/mocks/soroban/` so 
 **SDK Migration Guide (example: upgrading @stellar/stellar-sdk to a newer major)**
 
 Before upgrading:
+
 - Read the SDK release notes and changelog for breaking changes.
 - Add a feature branch and lock current version in `package.json`.
 - Run full test suite and note failing areas.
@@ -377,6 +398,7 @@ Upgrade steps:
 8. Update `docs/api/README.md` with any new or renamed SDK helpers used in the repo.
 
 Example commit checklist:
+
 - Bump dependency
 - Fix imports/usage
 - Update mocks/tests
@@ -384,6 +406,7 @@ Example commit checklist:
 - Document changes in this file
 
 Common pitfalls:
+
 - Breaking changes around Soroban helpers and XDR parsing.
 - Type changes requiring explicit casts in TypeScript files under `src/lib/`.
 
@@ -398,6 +421,7 @@ Common pitfalls:
 ---
 
 **Where this lives in the repo**
+
 - Implementation connectors: [src/lib/stellar.ts](../../src/lib/stellar.ts) (Horizon + network config)
 - Soroban helpers: [src/lib/contractInvoker.js](../../src/lib/contractInvoker.js)
 - Price feed: [src/lib/priceFeed.js](../../src/lib/priceFeed.js)
@@ -408,29 +432,31 @@ Replace the line numbers above with actual references if needed.
 ---
 
 If you want, I can also:
+
 - Add the JSON mock files under `tests/mocks/` and wire them into the test harness.
 - Create a small Visual sequence diagram PNG/SVG and include it in `docs/api/`.
 
 ---
 
 Document last updated: 2026-06-01
+
 # Stellar Dev Dashboard — API Reference
 
 This directory documents the public JavaScript modules exposed by the dashboard.
 
 ## Modules
 
-| Module | Description |
-|--------|-------------|
-| [stellar.js](./stellar.md) | Horizon & Soroban RPC wrappers with caching and rate limiting |
-| [storage.js](./storage.md) | Persistent IndexedDB storage with localStorage fallback |
-| [encryption.js](./encryption.md) | AES-GCM encryption for sensitive local data |
-| tutorialSystem.js | Guided tours and contextual help system |
-| multisig.js | Multi-signature transaction coordination |
-| priceFeed.js | XLM and asset price feeds |
-| [transactionBuilder.js](./transactionBuilder.md) | Multi-operation transaction builder and simulator |
-| [transactionTemplates.js](./transactionTemplates.md) | Pre-built transaction templates |
-| [import.js / export.js](./dataExport.md) | Dashboard backup, export, and import utilities |
+| Module                                               | Description                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------- |
+| [stellar.js](./stellar.md)                           | Horizon & Soroban RPC wrappers with caching and rate limiting |
+| [storage.js](./storage.md)                           | Persistent IndexedDB storage with localStorage fallback       |
+| [encryption.js](./encryption.md)                     | AES-GCM encryption for sensitive local data                   |
+| tutorialSystem.js                                    | Guided tours and contextual help system                       |
+| multisig.js                                          | Multi-signature transaction coordination                      |
+| priceFeed.js                                         | XLM and asset price feeds                                     |
+| [transactionBuilder.js](./transactionBuilder.md)     | Multi-operation transaction builder and simulator             |
+| [transactionTemplates.js](./transactionTemplates.md) | Pre-built transaction templates                               |
+| [import.js / export.js](./dataExport.md)             | Dashboard backup, export, and import utilities                |
 
 ## Quick Start
 
@@ -464,14 +490,14 @@ All Horizon API calls are rate-limited per identifier (user ID or IP). The defau
 
 API responses are cached in IndexedDB with configurable TTLs:
 
-| Data Type | Default TTL |
-|-----------|-------------|
-| Account | 60 seconds |
-| Transactions | 30 seconds |
-| Ledger | 5 seconds |
-| Assets | 5 minutes |
-| Network stats | 1 hour |
-| XLM price | 30 seconds |
+| Data Type     | Default TTL |
+| ------------- | ----------- |
+| Account       | 60 seconds  |
+| Transactions  | 30 seconds  |
+| Ledger        | 5 seconds   |
+| Assets        | 5 minutes   |
+| Network stats | 1 hour      |
+| XLM price     | 30 seconds  |
 
 ## Networks
 

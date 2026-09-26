@@ -54,7 +54,9 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
 ];
 
 export default function Overview() {
-  const { connectedAddress, network, activeTab } = useStore();
+  const connectedAddress = useStore(s => s.session.connectedAddress);
+  const network = useStore(s => s.network.networkId);
+  const activeTab = useStore(s => s.ui.activeTab);
   const { isMobile, isTablet, windowWidth } = useResponsive();
   const { updateAccount, updateActiveTab } = usePresence();
 

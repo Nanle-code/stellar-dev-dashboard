@@ -413,20 +413,20 @@ export default function AnomalyVisualization() {
 
   const anomalyCount = anomalyPoints.length
 
-  const sliderStyle = {
+  const sliderStyle: React.CSSProperties = {
     width: '100%',
     height: '4px',
     borderRadius: '2px',
     background: `linear-gradient(to right, ${COLORS.green} 0%, ${COLORS.blue} 33%, ${COLORS.amber} 66%, ${COLORS.red} 100%)`,
     outline: 'none',
-    WebkitAppearance: 'none',
-    appearance: 'none',
+    WebkitAppearance: 'none' as const,
+    appearance: 'none' as const,
     cursor: 'pointer',
   }
 
-  const thumbStyle = {
-    WebkitAppearance: 'none',
-    appearance: 'none',
+  const thumbStyle: React.CSSProperties = {
+    WebkitAppearance: 'none' as const,
+    appearance: 'none' as const,
     width: '14px',
     height: '14px',
     borderRadius: '50%',

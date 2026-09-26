@@ -119,8 +119,8 @@ export default function Builder() {
     setSuccess('')
   }, [network])
 
-  const addOperation = (type) => {
-    const newOp = {
+  const addOperation = (type: any) => {
+    const newOp: Record<string, any> = {
       id: Date.now(),
       type,
     }

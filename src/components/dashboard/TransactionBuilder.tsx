@@ -508,10 +508,14 @@ export default function TransactionBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceAccount, memo, memoType, baseFee, timeout, operations]);
   
+  const [sorobanData, setSorobanData] = useState(null);
+
   async function handleSimulate() {
     if (!canSimulate) return;
     
     setIsSimulating(true);
+    // Keep the previous simulation around to maintain restorePreamble
+    const previousSimulation = simulation;
     setSimulation(null);
     
     try {
@@ -522,8 +526,15 @@ export default function TransactionBuilder() {
         memoType,
         baseFee: parseInt(baseFee),
         timeout: parseInt(timeout),
-        network
+        network,
+        sorobanData: previousSimulation?.sorobanMetrics?.restorePreamble?.transactionData || sorobanData,
       });
+      
+      // If result successful, it might have new restorePreamble. We don't overwrite the user's manual sorobanData though.
+      if (result.sorobanMetrics?.restorePreamble?.transactionData) {
+        setSorobanData(result.sorobanMetrics.restorePreamble.transactionData);
+      }
+      
       setSimulation(result);
     } catch (error) {
       setSimulation({
@@ -546,7 +557,8 @@ export default function TransactionBuilder() {
         memoType,
         baseFee: parseInt(baseFee),
         timeout: parseInt(timeout),
-        network
+        network,
+        sorobanData
       });
       const xdr = transaction.toXDR();
       await navigator.clipboard.writeText(xdr);
@@ -1016,6 +1028,25 @@ export default function TransactionBuilder() {
           </>
         );
       }
+
+      case "extendFootprintTtl":
+        return (
+          <LabeledField label="Extend To (Ledger Count)">
+            <input
+              value={op.params.extendTo || ""}
+              onChange={(e) => updateOperation(op.id, "extendTo", e.target.value)}
+              placeholder="e.g. 535670"
+              style={textInputStyle(hasErrors)}
+            />
+          </LabeledField>
+        );
+
+      case "restoreFootprint":
+        return (
+          <div style={{ fontSize: "12px", color: "var(--text-muted)", padding: "10px", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+            This operation restores the footprint from the archived state. No additional parameters required.
+          </div>
+        );
 
       default:
         return (
@@ -1710,6 +1741,33 @@ export default function TransactionBuilder() {
                 </div>
               </div>
             </div>
+
+            {simulation.sorobanMetrics?.restorePreamble && (
+              <div style={{
+                padding: "14px",
+                background: "var(--amber-glow)",
+                border: "1px solid var(--amber)",
+                borderRadius: "var(--radius-md)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--amber)", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertCircle size={16} /> Archived State Detected
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  This transaction touches archived contract state. It will fail unless you restore the footprint first.
+                </div>
+                <div>
+                  <ActionButton 
+                    label="Add RestoreFootprint Operation" 
+                    onClick={() => {
+                      setOperations([{ id: Date.now(), type: "restoreFootprint", params: {} }, ...operations]);
+                    }} 
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Fee Breakdown */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>

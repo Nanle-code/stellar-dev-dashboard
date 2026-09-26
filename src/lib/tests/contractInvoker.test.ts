@@ -5,6 +5,7 @@ import {
   invokeContractFunction, 
   normalizeContractValue,
   waitForTransaction,
+  extractContractMeta,
 } from '../contractInvoker';
 import { getSorobanServer, getServer, isValidContractId, isValidPublicKey } from '../stellar';
 
@@ -252,6 +253,70 @@ describe('Contract Invoker Flows', () => {
           owner: MOCK_PUBKEY
         }
       });
+      });
+    });
+  });
+
+  describe('extractContractMeta', () => {
+    it('returns empty object for missing or invalid wasm', () => {
+      expect(extractContractMeta(null as any)).toEqual({});
+      expect(extractContractMeta(new Uint8Array([0, 1, 2]))).toEqual({});
+      expect(extractContractMeta(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 1, 2, 3, 4]))).toEqual({});
+    });
+
+    it('extracts repository and commit when present in custom section', () => {
+      const encodeString = (str: string) => {
+        const len = str.length;
+        const padding = (4 - (len % 4)) % 4;
+        const buf = new Array(4 + len + padding).fill(0);
+        buf[0] = (len >> 24) & 0xff;
+        buf[1] = (len >> 16) & 0xff;
+        buf[2] = (len >> 8) & 0xff;
+        buf[3] = len & 0xff;
+        for (let i = 0; i < len; i++) buf[4 + i] = str.charCodeAt(i);
+        return buf;
+      };
+
+      const kind0 = [0, 0, 0, 0];
+      const keyRepo = encodeString('repository');
+      const valRepo = encodeString('https://github.com/stellar/soroban-example');
+      const keyCommit = encodeString('commit');
+      const valCommit = encodeString('1234567890abcdef');
+      
+      const payload = [...kind0, ...keyRepo, ...valRepo, ...kind0, ...keyCommit, ...valCommit];
+      const nameStr = 'contractmetav0';
+      const nameBytes = new Array(nameStr.length);
+      for(let i=0; i<nameStr.length; i++) nameBytes[i] = nameStr.charCodeAt(i);
+      
+      const sectionSize = 1 + nameBytes.length + payload.length; // name length byte + name + payload
+      
+      const wasm = new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, 1, 0, 0, 0, // header
+        0, // custom section id
+        sectionSize, // LEB128 size (works for small numbers)
+        nameBytes.length,
+        ...nameBytes,
+        ...payload
+      ]);
+      
+      const meta = extractContractMeta(wasm);
+      expect(meta.repository).toBe('https://github.com/stellar/soroban-example');
+      expect(meta.commit).toBe('1234567890abcdef');
+    });
+    
+    it('ignores unknown custom sections and parses the correct one', () => {
+      const nameStr = 'unknown_section';
+      const nameBytes = new Array(nameStr.length);
+      for(let i=0; i<nameStr.length; i++) nameBytes[i] = nameStr.charCodeAt(i);
+      const sectionSize = 1 + nameBytes.length + 5;
+      
+      const wasm = new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, 1, 0, 0, 0,
+        0, sectionSize, nameBytes.length, ...nameBytes, 1, 2, 3, 4, 5 // unknown section
+      ]);
+      
+      const meta = extractContractMeta(wasm);
+      expect(meta).toEqual({});
     });
   });
 });

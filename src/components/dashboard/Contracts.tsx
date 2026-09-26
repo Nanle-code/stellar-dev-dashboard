@@ -178,6 +178,7 @@ export default function Contracts() {
   const [deployPlan, setDeployPlan] = useState(null)
   const [debugSession, setDebugSession] = useState(null)
   const [showMainnetReview, setShowMainnetReview] = useState(false)
+  const [contractVerification, setContractVerification] = useState(null)
 
   const isMainnet = network === 'mainnet'
   const inspectInputError = inspectInput.trim() !== '' && !isValidContractId(inspectInput.trim())
@@ -186,18 +187,21 @@ export default function Contracts() {
   useEffect(() => {
     if (!invokeForm.contractId || !isValidContractId(invokeForm.contractId.trim())) {
       setContractFunctions([])
+      setContractVerification(null)
       return
     }
     let isCurrent = true
     parseContractWasm(invokeForm.contractId.trim(), network)
       .then(res => {
-        if (isCurrent && res && res.functions) {
-          setContractFunctions(res.functions)
+        if (isCurrent && res) {
+          if (res.functions) setContractFunctions(res.functions)
+          if (res.verification) setContractVerification(res.verification)
         }
       })
       .catch(err => {
         if (isCurrent) {
           console.warn("Failed to load contract specification for recommendations:", err)
+          setContractVerification(null)
         }
       })
     return () => {
@@ -572,6 +576,41 @@ export default function Contracts() {
         {contractError && (
           <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--red)' }}>
             {contractError}
+          </div>
+        )}
+
+        {contractVerification && (
+          <div style={{
+            marginTop: '16px',
+            padding: '12px 14px',
+            background: contractVerification.status === 'verified' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+            border: `1px solid ${contractVerification.status === 'verified' ? 'var(--green-dim, #10b98140)' : 'var(--border)'}`,
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px'
+          }}>
+            <div style={{ color: contractVerification.status === 'verified' ? '#10b981' : 'var(--text-muted)', marginTop: '2px' }}>
+              {contractVerification.status === 'verified' ? <Sparkles size={16} /> : <AlertCircle size={16} />}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {contractVerification.status === 'verified' ? 'Source Code Verified' : 'Unverified Build'}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>
+                {contractVerification.status === 'verified' ? (
+                  <>
+                    This contract includes metadata pointing to its source. <br />
+                    Repo: <a href={contractVerification.repository} target="_blank" rel="noreferrer" style={{ color: 'var(--cyan)', textDecoration: 'none' }}>{contractVerification.repository}</a><br />
+                    Commit: <span style={{ fontFamily: 'var(--font-mono)' }}>{contractVerification.commit}</span>
+                  </>
+                ) : (
+                  <>
+                    This contract does not include verifiable source metadata (no <code style={{ fontFamily: 'var(--font-mono)' }}>contractmetav0</code> section with repository info).
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </Panel>

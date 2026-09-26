@@ -264,3 +264,66 @@ These three operations are essential for Stellar developers:
 - Maintains compatibility with existing codebase patterns
 - Tests added for all four new operations (builder, validation, component) with ≥90% coverage
 - TypeScript types already defined in `transactionBuilder.js`
+
+## Sequence Number Reservation & Conflict Warnings (#858)
+
+Stellar transactions are ordered by the source account's sequence number. The
+network has no concept of a "draft", so two locally saved drafts that target the
+same source account can silently be assigned the same sequence number — only one
+of them will ever submit successfully.
+
+### Behavior
+
+When a draft is saved from the Transaction Builder:
+
+1. If the source account is a valid public key and the network is reachable
+   (`testnet`, `mainnet`, `futurenet`), the builder loads the account's current
+  sequence from Horizon.
+2. The next free sequence number is computed as
+   `max(accountSequence, highest existing reservation for this account) + 1` so
+   that successive drafts for the same account never collide with each other.
+3. The reserved sequence number is persisted on the draft.
+4. If the account cannot be reached, the source account is invalid, or the
+   network is `local`/`custom` (no reachable Horizon), the reservation is left
+   `null` and the draft is flagged as **unresolved** instead of crashing.
+
+### Conflict detection
+
+`src/lib/sequenceReservation.ts` exposes pure, side-effect-free helpers:
+
+- `parseSequenceNumber(value)` — coerces/validates a sequence value as a
+  non-negative `BigInt`, returning `null` for invalid input.
+- `computeNextReservedSequence(existing, accountSequence, sourceAccount)` —
+  returns the next safe sequence number for an account, or `null` for invalid
+  input.
+- `detectSequenceConflicts(drafts)` — returns every collision (two drafts for
+  the same account sharing a reserved sequence) plus a list of unresolved drafts.
+- `findActiveSequenceCollision(drafts, sourceAccount, activeSequence)` — tells
+  whether the transaction currently being built collides with a saved draft.
+
+### UI
+
+- The **Source Account** field renders a red banner when saved drafts for that
+  account share a sequence number, and an amber banner when some drafts could
+  not reserve a sequence.
+- The **Drafts** panel lists the reserved sequence per draft and surfaces
+  conflict / unresolved summaries at the top.
+- After saving, a green banner confirms the reserved sequence, or an amber/red
+  banner explains why it could not be reserved (unsupported environment,
+  unreachable network, invalid account).
+
+### Migration notes
+
+The drafts storage key (`tx_builder_drafts_v1`) is unchanged; older drafts
+created before this feature load without their reserved sequence and are
+reported as unresolved until the user re-saves them against a reachable account.
+No manual migration step is required.
+
+### Failure / unsupported-environment handling
+
+| Case | Behavior |
+| --- | --- |
+| Invalid source account | Reservation skipped, draft flagged unresolved |
+| `local` / `custom` network | Reservation skipped, draft flagged unresolved |
+| Horizon unreachable / `loadAccount` throws | Reservation skipped, error surfaced as a notice |
+| Corrupt sequence value in storage | Treated as `null` by `parseSequenceNumber` |

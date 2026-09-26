@@ -159,6 +159,22 @@ const returnValue = await invokeContractFunction({
 });
 ```
 
+## Verifiable Builds
+
+Stellar contract verification helps ensure the code executing on-chain matches a specific public source repository and commit. 
+When building your contract, the `stellar-cli` can embed source repository and commit hash metadata into a WebAssembly custom section named `contractmetav0`. The dashboard automatically extracts and displays this information when you inspect a contract.
+
+### How to publish a verifiable build
+
+1. Build your contract and inject the source metadata using `stellar-cli`:
+```bash
+stellar contract build --meta-repository https://github.com/your-org/your-repo --meta-commit <commit-hash>
+```
+2. For an automated, trusted pipeline, it is recommended to compile the WASM using a GitHub Actions workflow, which produces a reproducible artifact.
+3. Deploy the resulting compiled WASM to the network.
+
+When a contract deployed with this metadata is loaded in the dashboard, its source repo and commit hash will be displayed as **Verified** under the Inspect panel.
+
 ## Troubleshooting
 
 | Error | Likely cause | Fix |

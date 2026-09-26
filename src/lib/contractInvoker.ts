@@ -403,32 +403,117 @@ async function loadContractSpec(contractId, network, server) {
     headers: NETWORKS?.[network]?.headers,
   };
 
-  if (StellarSdk.contract?.Client?.from && rpcUrl) {
-    const client = await StellarSdk.contract.Client.from(options);
-    if (client?.spec) {
-      return { spec: client.spec, source: "contract.Client.from" };
+  let wasm = null;
+
+  if (typeof server.getContractWasmByContractId === "function") {
+    try {
+      wasm = await server.getContractWasmByContractId(contractId);
+    } catch (e) {
+      // ignore
     }
   }
 
-  if (typeof server.getContractWasmByContractId === "function") {
-    const wasm = await server.getContractWasmByContractId(contractId);
+  if (StellarSdk.contract?.Client?.from && rpcUrl) {
+    try {
+      const client = await StellarSdk.contract.Client.from(options);
+      if (client?.spec) {
+        return { spec: client.spec, source: "contract.Client.from", wasm };
+      }
+    } catch(e) {}
+  }
 
+  if (wasm) {
     if (StellarSdk.contract?.Spec?.fromWasm) {
       return {
         spec: await StellarSdk.contract.Spec.fromWasm(wasm),
         source: "contract.Spec.fromWasm",
+        wasm
       };
     }
 
     if (StellarSdk.contract?.Client?.fromWasm) {
       const client = await StellarSdk.contract.Client.fromWasm(wasm, options);
       if (client?.spec) {
-        return { spec: client.spec, source: "contract.Client.fromWasm" };
+        return { spec: client.spec, source: "contract.Client.fromWasm", wasm };
       }
     }
   }
 
-  return null;
+  return { spec: null, source: null, wasm };
+}
+
+export function extractContractMeta(wasm: Uint8Array): { repository?: string; commit?: string } {
+  if (!wasm || wasm.length < 8) return {};
+  if (wasm[0] !== 0x00 || wasm[1] !== 0x61 || wasm[2] !== 0x73 || wasm[3] !== 0x6d) return {};
+  
+  let offset = 8;
+  const result: { repository?: string; commit?: string } = {};
+
+  while (offset < wasm.length) {
+    const sectionId = wasm[offset++];
+    let sectionSize = 0;
+    let shift = 0;
+    
+    while (offset < wasm.length) {
+      const byte = wasm[offset++];
+      sectionSize += (byte & 0x7f) * Math.pow(2, shift);
+      if ((byte & 0x80) === 0) break;
+      shift += 7;
+    }
+    
+    if (sectionId === 0) {
+      const start = offset;
+      let nameLen = 0;
+      shift = 0;
+      
+      while (offset < wasm.length) {
+        const byte = wasm[offset++];
+        nameLen += (byte & 0x7f) * Math.pow(2, shift);
+        if ((byte & 0x80) === 0) break;
+        shift += 7;
+      }
+      
+      const sectionName = new TextDecoder().decode(wasm.subarray(offset, offset + nameLen));
+      offset += nameLen;
+      
+      if (sectionName === 'contractmetav0') {
+        const sectionData = wasm.subarray(offset, start + sectionSize);
+        let secOff = 0;
+        
+        while (secOff < sectionData.length) {
+          if (secOff + 4 > sectionData.length) break;
+          const kind = (sectionData[secOff] << 24) | (sectionData[secOff+1] << 16) | (sectionData[secOff+2] << 8) | sectionData[secOff+3];
+          secOff += 4;
+          
+          if (kind === 0) { // SC_META_V0
+            const readStr = () => {
+              if (secOff + 4 > sectionData.length) return null;
+              const len = (sectionData[secOff] << 24) | (sectionData[secOff+1] << 16) | (sectionData[secOff+2] << 8) | sectionData[secOff+3];
+              secOff += 4;
+              if (secOff + len > sectionData.length) return null;
+              const str = new TextDecoder().decode(sectionData.subarray(secOff, secOff + len));
+              const padding = (4 - (len % 4)) % 4;
+              secOff += len + padding;
+              return str;
+            };
+            
+            const key = readStr();
+            const val = readStr();
+            
+            if (key === 'repository' || key === 'repo') result.repository = val;
+            if (key === 'commit') result.commit = val;
+          } else {
+            break;
+          }
+        }
+        return result;
+      }
+      offset = start + sectionSize;
+    } else {
+      offset += sectionSize;
+    }
+  }
+  return result;
 }
 
 function buildContractAbiPayload({
@@ -437,6 +522,7 @@ function buildContractAbiPayload({
   ledgerEntry,
   spec,
   specSource = null,
+  wasm = null,
   warnings = [],
 }) {
   const schema = spec && typeof spec.jsonSchema === "function" ? spec.jsonSchema() : null;
@@ -445,6 +531,20 @@ function buildContractAbiPayload({
   const customTypes = buildSchemaDefinitionList(schema, functionNames);
   const storageKeyTypes = detectStorageKeyTypes(customTypes);
   const errorTypes = extractErrorTypes(spec);
+  
+  let verification = null;
+  if (wasm) {
+    const meta = extractContractMeta(wasm);
+    const hasMeta = !!(meta.repository || meta.commit);
+    verification = {
+      status: hasMeta ? 'verified' : 'unverified',
+      repository: meta.repository,
+      commit: meta.commit,
+      metaPresent: hasMeta,
+    };
+  } else {
+    verification = { status: 'unverified', metaPresent: false };
+  }
 
   return {
     found: true,
@@ -458,6 +558,7 @@ function buildContractAbiPayload({
     functions,
     errorTypes,
     customTypes,
+    verification,
     storage: {
       keyTypes: storageKeyTypes,
       summary:
@@ -506,6 +607,7 @@ export async function parseContractWasm(contractId, network = "testnet") {
       ledgerEntry: response.entries[0].xdr,
       spec: loadedSpec?.spec || null,
       specSource: loadedSpec?.source || null,
+      wasm: loadedSpec?.wasm || null,
       warnings,
     });
   } catch (error) {

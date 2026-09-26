@@ -102,6 +102,27 @@ style objects scattered across component files.
 
 ---
 
+### Structured Logging & `console.log` Migration (#965)
+
+All ad-hoc `console.log` calls in `src/` have been removed in favor of the structured logger in `src/lib/logging` to enforce sensitive data redaction (#774) and environment-based level filtering.
+
+**What changed:**
+- `no-console` is enforced as an ESLint error for `src/`.
+- Replace `console.log` with `logger.info`, `logger.debug`, `logger.warn`, or `logger.error` from `src/lib/logging`.
+- Log level defaults to `LogLevel.WARN` in production (`NODE_ENV === 'production'`) and `LogLevel.DEBUG` in development.
+- Sensitive values (Stellar secret keys `S...`, Bearer tokens, passwords, private keys, seeds, api keys) are automatically redacted across log messages, context objects, and tags.
+
+```ts
+// ❌ Legacy
+console.log('User signed in', user);
+
+// ✅ Modern
+import { logger } from '@/lib/logging';
+logger.info('User signed in', { userId: user.id });
+```
+
+---
+
 ## Cross-tab state sync is now deterministic (#751)
 
 `src/utils/stateSync.js` persists settings and connected-account state with a

@@ -3,6 +3,8 @@
  * Provides comprehensive error tracking with context and user information
  */
 
+import { logger } from '../logging/logger';
+
 export interface SentryConfig {
   enabled: boolean;
   dsn: string;
@@ -61,7 +63,7 @@ export class SentryIntegration {
    */
   initialize(): void {
     if (!this.config.enabled) {
-      console.log('[Sentry Integration] Disabled');
+      logger.info('[Sentry Integration] Disabled');
       return;
     }
 
@@ -76,7 +78,7 @@ export class SentryIntegration {
     //   beforeSend: this.config.beforeSendFilter
     // });
 
-    console.log('[Sentry Integration] Initialized with config:', {
+    logger.info('[Sentry Integration] Initialized with config:', {
       dsn: this.config.dsn,
       environment: this.config.environment,
       release: this.config.release
@@ -252,7 +254,7 @@ export class SentryIntegration {
     // In a real implementation, this would use the Sentry SDK:
     // Sentry.captureEvent(event);
 
-    console.log('[Sentry] Event captured:', {
+    logger.info('[Sentry] Event captured:', {
       message: event.message,
       level: event.level,
       user: event.user,

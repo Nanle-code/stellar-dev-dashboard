@@ -10,6 +10,7 @@ import {
 } from "./pluginStorage";
 import { fetchMarketplacePlugins, fetchMarketplacePluginById } from "./pluginCatalog";
 import SandboxedPluginFrame from "./pluginSandbox";
+import { createLogger } from "../lib/logging";
 
 const PLUGIN_STATUSES = Object.freeze({
   REGISTERED: "registered",
@@ -298,11 +299,7 @@ export class PluginManager {
         }
         return this.store.subscribe((state) => listener(pickSafeState(state)));
       },
-      logger: Object.freeze({
-        info: (...args) => console.info(`[plugin:${pluginId}]`, ...args),
-        warn: (...args) => console.warn(`[plugin:${pluginId}]`, ...args),
-        error: (...args) => console.error(`[plugin:${pluginId}]`, ...args),
-      }),
+      logger: createLogger(`plugin:${pluginId}`),
     });
   }
 

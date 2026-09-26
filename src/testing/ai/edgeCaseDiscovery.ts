@@ -1,6 +1,8 @@
+import { logger } from '../../lib/logging';
+
 export class EdgeCaseDiscovery {
     public discoverEdgeCases(targetCode: string): string[] {
-        console.log('Running fuzzing and symbolic execution on target code...');
+        logger.info('Running fuzzing and symbolic execution on target code...');
         
         // Simulating symbolic execution and fuzzing for edge case discovery
         return [

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { extractAllFeatures } from './feature_extraction.js';
 import { IsolationForest } from './isolationForest.js';
 import { VALIDATION_RULES } from './preBuildValidator.js';
+import { logger } from '../../lib/logging/index.js';
 
 let tf;
 async function ensureTf() {
@@ -24,7 +25,7 @@ export async function train() {
   ensureTf();
   const dataPath = path.resolve(__dirname, 'data', 'train.json');
   if (!fs.existsSync(dataPath)) {
-    console.warn('No training data found at', dataPath);
+    logger.warn(`No training data found at ${dataPath}`);
     return;
   }
   const raw = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
@@ -37,7 +38,7 @@ export async function train() {
   const iforest = new IsolationForest(100, Math.min(256, X.length));
   iforest.fit(X);
   iforest.save(path.join(modelsDir, 'build_iforest.json'));
-  console.log('Build Isolation Forest saved.');
+  logger.info('Build Isolation Forest saved.');
 
   const xs = tf.tensor2d(X);
   const ys = tf.tensor2d(y.map(v => [1 - v, v]));
@@ -50,7 +51,7 @@ export async function train() {
   model.compile({ optimizer: tf.train.adam(0.001), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
   await model.fit(xs, ys, { epochs: 30, batchSize: 16, validationSplit: 0.2, verbose: 1 });
   await model.save('file://' + path.join(modelsDir, 'build_tfjs_model'));
-  console.log('Build TFJS model saved.');
+  logger.info('Build TFJS model saved.');
 
   const featureNames = [
     'filesAdded', 'filesModified', 'filesDeleted', 'linesAdded', 'linesDeleted',
@@ -75,12 +76,12 @@ export async function train() {
     modelVersion: new Date().toISOString(),
   };
   fs.writeFileSync(path.join(modelsDir, 'build_metadata.json'), JSON.stringify(metadata, null, 2));
-  console.log('Build model metadata saved.');
+  logger.info('Build model metadata saved.');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   train().catch(err => {
-    console.error(err);
+    logger.error(err.message, undefined, undefined, err);
     process.exit(1);
   });
 }

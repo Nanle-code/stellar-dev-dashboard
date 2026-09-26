@@ -1,3 +1,5 @@
+import { logger } from '../../lib/logging';
+
 export interface TestReport {
     passed: number;
     failed: number;
@@ -7,8 +9,8 @@ export interface TestReport {
 }
 
 export class ExecutionReporter {
-    public async executeTests(testSuite: string): Promise<TestReport> {
-        console.log('Executing generated test suite...');
+    public async executeTests(_testSuite: string): Promise<TestReport> {
+        logger.info('Executing generated test suite...');
         
         // Simulating test execution
         const startTime = Date.now();

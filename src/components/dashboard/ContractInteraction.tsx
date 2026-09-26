@@ -13,6 +13,8 @@ import { getContractInteractions } from "../../lib/storage";
 import { Sparkles, AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
 import GasCostEstimator from "./GasCostEstimator";
 import MainnetReviewModal from "../security/MainnetReviewModal";
+import MainnetConfirmDialog from "../security/MainnetConfirmDialog";
+import { useWriteGuard } from "../../hooks/useWriteGuard";
 
 const ARGUMENT_TYPES = [
   { value: 'string', label: 'String' },
@@ -190,6 +192,9 @@ export default function ContractInteraction() {
   const [invokeResult, setInvokeResult] = useState(null);
   const [invokeStatus, setInvokeStatus] = useState(null);
   const [showMainnetReview, setShowMainnetReview] = useState(false);
+
+  // #983 — central write guard
+  const { guard, isReadOnlyLocked, dialogProps } = useWriteGuard();
 
   const { preferences, update } = usePreferences();
   const advancedPreferences = preferences?.advanced || {};
@@ -531,11 +536,16 @@ export default function ContractInteraction() {
   }
 
   async function handleInvoke() {
-    if (isMainnet) {
-      setShowMainnetReview(true);
-      return;
-    }
-    await _doInvoke();
+    // #983 — route through central write guard (handles mainnet typed confirmation
+    // and session read-only lock). The per-component MainnetReviewModal is
+    // preserved as a secondary detailed review after the guard confirms.
+    guard({ action: 'invoke contract function', onConfirm: () => {
+      if (isMainnet) {
+        setShowMainnetReview(true);
+      } else {
+        _doInvoke();
+      }
+    }});
   }
 
   async function _doInvoke() {
@@ -600,7 +610,25 @@ export default function ContractInteraction() {
   }
 
   return (
+    <>
+    {/* #983 — mainnet write guard */}
+    <MainnetConfirmDialog {...dialogProps} />
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {isReadOnlyLocked && (
+        <div style={{
+          background: 'rgba(255,23,68,0.08)',
+          border: '1px solid var(--red)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          fontSize: '12px',
+          color: 'var(--red)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          🔒 Mainnet read-only lock is active — contract invocations are blocked this session.
+        </div>
+      )}
       <div
         style={{
           display: 'flex',
@@ -1005,5 +1033,6 @@ export default function ContractInteraction() {
         />
       )}
     </div>
+    </>
   );
 }

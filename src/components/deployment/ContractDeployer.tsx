@@ -6,6 +6,8 @@ import DeploymentTracker from './DeploymentTracker';
 import { ContractDeployer } from '../../lib/deployment/ContractDeployer';
 import { CostEstimator } from '../../lib/deployment/CostEstimator';
 import { getContractUrl, getTransactionUrl } from '../../lib/externalExplorers';
+import MainnetConfirmDialog from '../security/MainnetConfirmDialog';
+import { useWriteGuard } from '../../hooks/useWriteGuard';
 
 const STEPS = [
   { id: 1, label: 'Upload WASM', icon: '📦', description: 'Select the contract artifact' },
@@ -76,6 +78,9 @@ export default function ContractDeployerView() {
   const normalizedArgs = normalizeArgs(args);
   const canReview = Boolean(wasmFile) && !constructorError;
 
+  // #983 — central write guard
+  const { guard, isReadOnlyLocked, dialogProps } = useWriteGuard();
+
   const resetTransientState = () => {
     setCost(null);
     setDeploymentResult(null);
@@ -124,6 +129,12 @@ export default function ContractDeployerView() {
   };
 
   const handleDeploy = async () => {
+    if (!wasmFile?.bytes) return;
+    // #983 — gate through central write guard for mainnet protection
+    guard({ action: isMainnet ? 'simulate deployment' : 'deploy contract', onConfirm: _doDeploy });
+  };
+
+  const _doDeploy = async () => {
     if (!wasmFile?.bytes) return;
 
     setIsLoading(true);
@@ -401,7 +412,25 @@ export default function ContractDeployerView() {
   };
 
   return (
+    <>
+    {/* #983 — mainnet write guard */}
+    <MainnetConfirmDialog {...dialogProps} />
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {isReadOnlyLocked && (
+        <div style={{
+          background: 'rgba(255,23,68,0.08)',
+          border: '1px solid var(--red)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          fontSize: '12px',
+          color: 'var(--red)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          🔒 Mainnet read-only lock is active — deployments are blocked this session.
+        </div>
+      )}
       <div>
         <h2 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px' }}>
           Soroban Contract Deployment Wizard
@@ -488,6 +517,7 @@ export default function ContractDeployerView() {
       </div>
 
     </div>
+    </>
   );
 }
 

@@ -10,6 +10,7 @@
  */
 
 import * as StellarSdk from '@stellar/stellar-sdk'
+import { buildSep7TxUri } from '../sep7'
 
 const LOBSTR_EXTENSION_KEY = 'lobstrWalletConnect'
 const SEP7_CALLBACK_STORAGE_KEY = 'lobstr-sep7-pending-xdr'
@@ -91,17 +92,13 @@ export function signWithSEP7(xdr, network = 'TESTNET') {
 
   const networkParam = network === 'PUBLIC' ? 'public' : 'testnet'
   const encodedXdr = encodeURIComponent(xdr)
-  const callbackUrl = encodeURIComponent(window.location.href)
 
   // SEP-0007 tx link targeting LOBSTR
-  const sep7Uri =
-    `web+stellar:tx?xdr=${encodedXdr}` +
-    `&network_passphrase=${encodeURIComponent(
-      network === 'PUBLIC'
-        ? 'Public Global Stellar Network ; September 2015'
-        : 'Test SDF Network ; September 2015'
-    )}` +
-    `&callback=url:${callbackUrl}`
+  const sep7Uri = buildSep7TxUri({
+    xdr,
+    networkPassphrase: network === 'PUBLIC' ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET,
+    callback: window.location.href,
+  })
 
   // Detect mobile: open deep link, otherwise open Stellar Laboratory
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)

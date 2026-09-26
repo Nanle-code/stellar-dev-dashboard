@@ -218,6 +218,13 @@ The server-side API uses a narrow trust boundary for user-specific and operation
 
 This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.
 
+## Feature Guides
+
+- **Comparative network health scorecards (#867)** — side-by-side Mainnet vs Testnet health scoring with standing caveats: [docs/features/network-health-scorecards.md](docs/features/network-health-scorecards.md), rendered in the Cross-Network panel.
+- **Scheduled report delivery via webhooks (#869)** — authenticated HMAC/bearer delivery of analytics summaries with retries: [docs/features/report-webhook-delivery.md](docs/features/report-webhook-delivery.md).
+- **Transaction Builder i18n (#878)** — complete locale coverage of builder strings across all nine languages: [docs/features/builder-i18n.md](docs/features/builder-i18n.md).
+- **Mutation testing gate for fee math (#895)** — Stryker score gate on stroop conversion and fee estimation: [docs/features/mutation-testing-gate.md](docs/features/mutation-testing-gate.md). Run locally with `pnpm run test:mutation:feemath`.
+
 ## Canary Deployment Health Probes
 
 The API service includes automated canary deployment health probes and auto-abort reliability gating:

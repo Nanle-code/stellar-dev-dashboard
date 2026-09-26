@@ -45,6 +45,7 @@
     "test:visual:report": "playwright show-report tests/e2e/report",
     "test:a11y": "playwright test --project=a11y",
     "test:mutation": "stryker run",
+    "test:mutation:feemath": "node scripts/check-mutation-score.mjs",
     "test:lighthouse": "pnpm run build && lhci autorun",
     "test:lighthouse:desktop": "pnpm run build && lhci autorun --config=lighthouserc.desktop.cjs",
     "test:lighthouse:mobile": "pnpm run build && lhci autorun --config=lighthouserc.mobile.cjs",

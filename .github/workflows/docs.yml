@@ -156,7 +156,7 @@ jobs:
         working-directory: docs-site
 
       - name: Build Docusaurus site
-        run: pnpm exec docusaurus build
+        run: pnpm run build
         working-directory: docs-site
         env:
           NODE_ENV: production

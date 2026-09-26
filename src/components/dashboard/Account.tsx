@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
-import type { Horizon } from '@stellar/stellar-sdk';
+import type { Horizon, HorizonApi } from '@stellar/stellar-sdk';
 import { useStore } from '../../lib/store';
 import {
   shortAddress,
@@ -190,7 +190,7 @@ export default function Account() {
   });
   const xlmEstimate = xlm ? getEstimate(xlm) : null;
   const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
-  const dataSource: 'live' | 'cache' | 'cache-stale' | 'offline' = 'live';
+  let dataSource: string = 'live';
   const accountCachedAt: number | null = null;
 
   return (
@@ -443,12 +443,12 @@ export default function Account() {
             No non-native assets
           </div>
         ) : (
-          otherAssets.map((asset: Horizon.BalanceLine, index: number) => {
+          otherAssets.map((asset: HorizonApi.BalanceLine, index: number) => {
             const estimate = getEstimate(asset);
 
             return (
               <div
-                key={`${asset.asset_type}:${(asset as Horizon.BalanceLineAsset).asset_code}:${(asset as Horizon.BalanceLineAsset).asset_issuer}`}
+                key={`${asset.asset_type}:${(asset as HorizonApi.BalanceLineAsset).asset_code}:${(asset as HorizonApi.BalanceLineAsset).asset_issuer}`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -460,11 +460,11 @@ export default function Account() {
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {formatAsset(asset.asset_type, (asset as Horizon.BalanceLineAsset).asset_code)}
+                    {formatAsset(asset.asset_type, (asset as HorizonApi.BalanceLineAsset).asset_code)}
                   </div>
-                  {(asset as Horizon.BalanceLineAsset).asset_issuer && (
+                  {(asset as HorizonApi.BalanceLineAsset).asset_issuer && (
                     <CopyableValue
-                      value={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      value={(asset as HorizonApi.BalanceLineAsset).asset_issuer}
                       title="Copy asset issuer public key"
                       containerStyle={{
                         color: 'var(--text-muted)',
@@ -480,17 +480,17 @@ export default function Account() {
                       }}
                     >
                       <AddressLabelBadge
-                        address={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                        address={(asset as HorizonApi.BalanceLineAsset).asset_issuer}
                       />
-                      {shortAddress((asset as Horizon.BalanceLineAsset).asset_issuer)}
+                      {shortAddress((asset as HorizonApi.BalanceLineAsset).asset_issuer)}
                     </CopyableValue>
                   )}
                   <div style={{ marginTop: '6px' }}>
                     <AssetTrustStatus
-                      issuer={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      issuer={(asset as HorizonApi.BalanceLineAsset).asset_issuer}
                       trustline={{
-                        is_authorized: (asset as Horizon.BalanceLineAsset).is_authorized,
-                        is_authorized_to_maintain_liabilities: (asset as Horizon.BalanceLineAsset)
+                        is_authorized: (asset as HorizonApi.BalanceLineAsset).is_authorized,
+                        is_authorized_to_maintain_liabilities: (asset as HorizonApi.BalanceLineAsset)
                           .is_authorized_to_maintain_liabilities,
                       }}
                     />

@@ -37,7 +37,7 @@ test.describe('Connect Panel', () => {
 
   test('invalid key error state', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('textbox').fill('BADKEY');
+    await page.getByRole('textbox', { name: /stellar account address/i }).fill('BADKEY');
     await page.getByRole('button', { name: /connect/i }).click();
     await waitForStable(page);
     await expect(page).toHaveScreenshot('connect-panel-error.png');
@@ -107,7 +107,7 @@ test.describe('Dashboard tabs', () => {
 test.describe('Connected account views', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('textbox').fill(TESTNET_KEY);
+    await page.getByRole('textbox', { name: /stellar account address/i }).fill(TESTNET_KEY);
     await page.getByRole('button', { name: /connect/i }).click();
     await waitForStable(page);
   });

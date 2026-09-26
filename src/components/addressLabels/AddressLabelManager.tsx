@@ -35,7 +35,7 @@ export default function AddressLabelManager({ onClose }) {
   const searchRef = useRef(null)
 
   useEffect(() => {
-    getAllTags().then(setAllKnownTags)
+    getAllTags().then((tags) => setAllKnownTags(tags as string[]))
   }, [labels])
 
   useEffect(() => {
@@ -495,7 +495,19 @@ export default function AddressLabelManager({ onClose }) {
   )
 }
 
-function InputField({ label, value, onChange, placeholder, mono }) {
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  mono?: boolean;
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
       <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{label}</label>

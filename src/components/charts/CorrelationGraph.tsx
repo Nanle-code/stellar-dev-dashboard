@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useCorrelation } from "../../hooks/useCorrelation";
 
+const ForceGraph: any = ForceGraph2D;
+
 export default function CorrelationGraph() {
   const { data, loading, error } = useCorrelation();
   const graphRef = useRef<any>();
@@ -54,7 +56,7 @@ export default function CorrelationGraph() {
       
       <div style={{ display: "flex", flexDirection: "row" }}>
         <div style={{ flex: 1, borderRight: selectedLink ? "1px solid var(--border)" : "none" }}>
-          <ForceGraph2D
+          <ForceGraph
             ref={graphRef}
             width={selectedLink ? dimensions.width * 0.6 : dimensions.width}
             height={dimensions.height}

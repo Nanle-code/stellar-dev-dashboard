@@ -149,9 +149,9 @@ export function subscribeAudit(handler) {
   return () => _subscribers.delete(handler);
 }
 
-function notify(entry) {
+function notify(entry: any) {
   for (const fn of _subscribers) {
-    try { fn(entry); } catch { /* swallow subscriber errors */ }
+    try { (fn as any)(entry); } catch { /* swallow subscriber errors */ }
   }
 }
 
@@ -171,7 +171,7 @@ export async function recordAudit({
   environment = null,
   source = null,
   correlationId = null,
-} = {}) {
+}: any = {}) {
   if (!action || typeof action !== 'string') {
     throw new Error('audit.record requires a string action');
   }
@@ -205,7 +205,7 @@ export async function recordAudit({
   _lastHash = hash;
 
   // Mirror critical events to the console for live debugging
-  if (severity === AuditSeverity.CRITICAL || severity === AuditSeverity.HIGH) {
+  if ((severity as any) === AuditSeverity.CRITICAL || (severity as any) === AuditSeverity.HIGH) {
     // eslint-disable-next-line no-console
     console.warn(`[audit:${severity}] ${action}`, metadata);
   }
@@ -232,7 +232,7 @@ export function getAuditEntries({
   environment,
   source,
   correlationId,
-} = {}) {
+}: any = {}) {
   let entries = _ring.slice();
 
   if (category) entries = entries.filter((e) => e.category === category);
@@ -321,7 +321,7 @@ export async function bulkRecordAudit(entries) {
 // ─── Enhanced stats with compliance breakdown ────────────────────────────────
 
 export function getAuditStats({ includeComplianceBreakdown = false } = {}) {
-  const stats = {
+  const stats: Record<string, any> = {
     total: _ring.length,
     bySeverity: {},
     byCategory: {},

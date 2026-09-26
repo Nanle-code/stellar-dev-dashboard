@@ -505,20 +505,23 @@ export default function AdvancedSearch() {
           <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px' }}>
             <button
               onClick={() => setShowHistory(!showHistory)}
-              style={{ ...iconButtonStyle, title: 'Search History' }}
+              title="Search History"
+              style={iconButtonStyle}
             >
               <History size={14} />
             </button>
             <button
               onClick={saveSearch}
-              style={{ ...iconButtonStyle, title: 'Save Search' }}
+              title="Save Search"
+              style={iconButtonStyle}
             >
               <Save size={14} />
             </button>
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={loading}
-              style={{ ...iconButtonStyle, background: 'var(--cyan)', color: 'white', title: 'Search' }}
+              title="Search"
+              style={{ ...iconButtonStyle, background: 'var(--cyan)', color: 'white' }}
             >
               {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
             </button>
@@ -550,8 +553,8 @@ export default function AdvancedSearch() {
                     color: 'var(--text-primary)',
                     borderBottom: '1px solid var(--border)',
                   }}
-                  onMouseEnter={(e) => e.target.style.background = 'var(--bg-card)'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
                   {suggestion}
                 </div>
@@ -1011,7 +1014,7 @@ export default function AdvancedSearch() {
                 <Download size={14} />
               </button>
               <button
-                onClick={handleSearch}
+                onClick={() => handleSearch()}
                 style={iconButtonStyle}
                 title="Refresh"
               >
@@ -1162,8 +1165,23 @@ function SearchResultItem({ result }) {
   );
 }
 
-function AggregationChip({ label, data }) {
-  const entries = Object.entries(data).slice(0, 3);
+function AnalyticsChip({ label, value }: { label: string; value: any }) {
+  return (
+    <div style={{
+      padding: '4px 8px',
+      background: 'var(--bg-elevated)',
+      border: '1px solid var(--border)',
+      borderRadius: '999px',
+      fontSize: '11px',
+    }}>
+      <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
+      <span style={{ marginLeft: '4px', fontWeight: 600, color: 'var(--text-primary)' }}>{String(value ?? 0)}</span>
+    </div>
+  );
+}
+
+function AggregationChip({ label, data }: { label: string; data: Record<string, any> }) {
+  const entries = Object.entries(data || {}).slice(0, 3);
   
   return (
     <div style={{
@@ -1176,11 +1194,11 @@ function AggregationChip({ label, data }) {
       <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
       {entries.map(([key, value], index) => (
         <span key={key} style={{ marginLeft: '4px' }}>
-          {key} ({value})
+          {String(key)} ({String(value)})
           {index < entries.length - 1 && ', '}
         </span>
       ))}
-      {Object.keys(data).length > 3 && '...'}
+      {Object.keys(data || {}).length > 3 && '...'}
     </div>
   );
 }

@@ -14,10 +14,10 @@ export interface IdempotencyResponse {
 }
 
 export interface IdempotencyStoreBackend {
-  get(key: string): Promise<IdempotencyRecord | null>;
-  begin(key: string, fingerprint: string, ttlMs?: number): Promise<boolean>;
-  complete(key: string, fingerprint: string, response: IdempotencyResponse, ttlMs?: number): Promise<void>;
-  abandon(key: string): Promise<void>;
+  get(_key: string): Promise<IdempotencyRecord | null>;
+  begin(_key: string, _fingerprint: string, _ttlMs?: number): Promise<boolean>;
+  complete(_key: string, _fingerprint: string, _response: IdempotencyResponse, _ttlMs?: number): Promise<void>;
+  abandon(_key: string): Promise<void>;
   disconnect(): Promise<void>;
 }
 

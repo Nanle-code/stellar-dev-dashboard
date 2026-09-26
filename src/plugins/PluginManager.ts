@@ -65,10 +65,10 @@ const pluginModules = import.meta.glob("./**/*Plugin.{js,jsx,ts,tsx}", {
   eager: false,
 });
 
-let registrationPromise = null;
+let registrationPromise: Promise<any> | null = null;
 let registrationComplete = false;
 
-function freezePlainObject(value) {
+function freezePlainObject(value: any): any {
   if (!value || typeof value !== "object") return value;
   if (Array.isArray(value)) return Object.freeze(value.map(freezePlainObject));
 
@@ -79,22 +79,22 @@ function freezePlainObject(value) {
   );
 }
 
-function pickSafeState(state) {
+function pickSafeState(state: any): any {
   return freezePlainObject(
-    SAFE_STATE_KEYS.reduce((slice, key) => {
+    SAFE_STATE_KEYS.reduce((slice: any, key: string) => {
       if (state[key] !== undefined) slice[key] = state[key];
       return slice;
     }, {})
   );
 }
 
-function normalizePlugin(rawPlugin) {
+function normalizePlugin(rawPlugin: any): any {
   const plugin = rawPlugin?.default || rawPlugin?.plugin || rawPlugin?.createPlugin || rawPlugin;
   if (typeof plugin === "function") return plugin();
   return plugin;
 }
 
-function normalizeManifest(plugin) {
+function normalizeManifest(plugin: any): any {
   if (!plugin || typeof plugin !== "object") return null;
   const manifest = plugin.manifest || plugin;
 
@@ -103,13 +103,13 @@ function normalizeManifest(plugin) {
 
   const permissions = Array.isArray(manifest.permissions)
     ? manifest.permissions.filter(
-        (permission) =>
+        (permission: any) =>
           typeof permission === "string" && ALLOWED_PERMISSION_SCOPES.includes(permission)
       )
     : [];
 
   const dependencyPlugins = Array.isArray(manifest.dependencies?.plugins)
-    ? manifest.dependencies.plugins.filter((pluginId) => typeof pluginId === "string")
+    ? manifest.dependencies.plugins.filter((pluginId: any) => typeof pluginId === "string")
     : [];
 
   return freezePlainObject({
@@ -135,8 +135,8 @@ function normalizeManifest(plugin) {
   });
 }
 
-function compareVersions(a, b) {
-  const parse = (value) =>
+function compareVersions(a: any, b: any): number {
+  const parse = (value: any) =>
     String(value || "0.0.0")
       .split(".")
       .map((segment) => Number.parseInt(segment, 10) || 0);
@@ -153,21 +153,21 @@ function compareVersions(a, b) {
   return 0;
 }
 
-function sanitizePermissions(permissions = []) {
+function sanitizePermissions(permissions: any = []): string[] {
   return Array.from(
     new Set(
-      (Array.isArray(permissions) ? permissions : []).filter((permission) =>
+      (Array.isArray(permissions) ? permissions : []).filter((permission: any) =>
         ALLOWED_PERMISSION_SCOPES.includes(permission)
       )
     )
   );
 }
 
-function hasPermission(record, permission) {
+function hasPermission(record: any, permission: string): boolean {
   return Array.isArray(record.permissionsGranted) && record.permissionsGranted.includes(permission);
 }
 
-function createFailureWidget(pluginId, name, message) {
+function createFailureWidget(pluginId: string, name: string, message: string): any {
   return {
     id: `${pluginId}:failure`,
     title: `${name} unavailable`,
@@ -189,7 +189,7 @@ function createFailureWidget(pluginId, name, message) {
   };
 }
 
-function createIframeRuntime(manifest) {
+function createIframeRuntime(manifest: any): any {
   return {
     initialize: async () => undefined,
     getWidgets: () => manifest.widgets || [],
@@ -197,7 +197,7 @@ function createIframeRuntime(manifest) {
   };
 }
 
-function createModuleRuntimeLoader(manifest) {
+function createModuleRuntimeLoader(manifest: any): any {
   if (!manifest.runtime?.entry) return null;
 
   return async () => {
@@ -222,7 +222,7 @@ function createRecord({
   status = PLUGIN_STATUSES.REGISTERED,
   error = null,
   runtimeLoaded = true,
-}) {
+}: any): any {
   return {
     id: manifest.id,
     name: manifest.name,
@@ -245,7 +245,14 @@ function createRecord({
 }
 
 export class PluginManager {
-  constructor({ store = useStore } = {}) {
+  store: any;
+  plugins: Map<string, any>;
+  listeners: Set<any>;
+  initializing: any;
+  marketplace: Map<string, any>;
+  hydrated: boolean;
+
+  constructor({ store = useStore }: any = {}) {
     this.store = store && typeof store.getState === "function" ? store : useStore;
     this.plugins = new Map();
     this.listeners = new Set();
@@ -254,16 +261,16 @@ export class PluginManager {
     this.hydrated = false;
   }
 
-  createDashboardApi(pluginId, manifest) {
+  createDashboardApi(pluginId: string, manifest: any): any {
     const currentState = this.store.getState();
     const permissions = Array.isArray(manifest?.permissions) ? manifest.permissions : [];
 
-    const actions = {};
+    const actions: Record<string, any> = {};
     if (permissions.includes("dashboard:write")) {
-      SAFE_ACTION_KEYS.forEach((key) => {
+      SAFE_ACTION_KEYS.forEach((key: string) => {
         const action = currentState[key];
         if (typeof action === "function") {
-          actions[key] = (...args) => action(...args);
+          actions[key] = (...args: any[]) => action(...args);
         }
       });
     }
@@ -272,10 +279,10 @@ export class PluginManager {
       const addNotification = currentState.addNotification;
       const removeNotification = currentState.removeNotification;
       if (typeof addNotification === "function") {
-        actions.addNotification = (...args) => addNotification(...args);
+        actions.addNotification = (...args: any[]) => addNotification(...args);
       }
       if (typeof removeNotification === "function") {
-        actions.removeNotification = (...args) => removeNotification(...args);
+        actions.removeNotification = (...args: any[]) => removeNotification(...args);
       }
     }
 
@@ -292,31 +299,31 @@ export class PluginManager {
           profiles: loadConfigProfiles(),
         }),
       actions: Object.freeze(actions),
-      subscribe: (listener) => {
+      subscribe: (listener: (state: any) => void) => {
         if (typeof listener !== "function" || !permissions.includes("dashboard:read")) {
           return () => {};
         }
-        return this.store.subscribe((state) => listener(pickSafeState(state)));
+        return this.store.subscribe((state: any) => listener(pickSafeState(state)));
       },
       logger: Object.freeze({
-        info: (...args) => console.info(`[plugin:${pluginId}]`, ...args),
-        warn: (...args) => console.warn(`[plugin:${pluginId}]`, ...args),
-        error: (...args) => console.error(`[plugin:${pluginId}]`, ...args),
+        info: (...args: any[]) => console.info(`[plugin:${pluginId}]`, ...args),
+        warn: (...args: any[]) => console.warn(`[plugin:${pluginId}]`, ...args),
+        error: (...args: any[]) => console.error(`[plugin:${pluginId}]`, ...args),
       }),
     });
   }
 
-  emitChange() {
+  emitChange(): void {
     this.listeners.forEach((listener) => listener(this));
   }
 
-  subscribe(listener) {
+  subscribe(listener: (manager: PluginManager) => void): () => void {
     if (typeof listener !== "function") return () => {};
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  validate(plugin) {
+  validate(plugin: any): string | null {
     if (!plugin || typeof plugin !== "object") {
       return "Plugin export must be an object or factory.";
     }
@@ -336,15 +343,15 @@ export class PluginManager {
     return null;
   }
 
-  getRecord(pluginId) {
+  getRecord(pluginId: string): any {
     return this.plugins.get(pluginId) || null;
   }
 
-  getMarketplaceCache() {
+  getMarketplaceCache(): any[] {
     return Array.from(this.marketplace.values());
   }
 
-  async hydrateInstalledPlugins() {
+  async hydrateInstalledPlugins(): Promise<void> {
     if (this.hydrated) return;
     this.hydrated = true;
 
@@ -388,7 +395,7 @@ export class PluginManager {
     }
   }
 
-  persistRecord(record) {
+  persistRecord(record: any): void {
     if (record.sourceType === "builtin") return;
 
     upsertInstalledPlugin({
@@ -411,7 +418,7 @@ export class PluginManager {
     });
   }
 
-  removePersistedRecord(pluginId) {
+  removePersistedRecord(pluginId: string): void {
     removeInstalledPlugin(pluginId);
     const grants = loadPermissionGrants();
     if (grants && Object.prototype.hasOwnProperty.call(grants, pluginId)) {
@@ -421,7 +428,7 @@ export class PluginManager {
     }
   }
 
-  register(rawPlugin, options = {}) {
+  register(rawPlugin: any, options: any = {}): any {
     const plugin = normalizePlugin(rawPlugin);
     const validationError = this.validate(plugin);
     const safePlugin = validationError
@@ -488,13 +495,13 @@ export class PluginManager {
     return record;
   }
 
-  canActivate(record) {
+  canActivate(record: any): { ok: boolean; reason?: string } {
     if (!record.enabled) {
       return { ok: false, reason: "Plugin is disabled." };
     }
 
     const missingDependencies = (record.manifest.dependencies?.plugins || []).filter(
-      (dependencyId) => !this.plugins.has(dependencyId)
+      (dependencyId: string) => !this.plugins.has(dependencyId)
     );
     if (missingDependencies.length > 0) {
       return {
@@ -504,7 +511,7 @@ export class PluginManager {
     }
 
     const missingPermissions = (record.manifest.permissions || []).filter(
-      (permission) => !hasPermission(record, permission)
+      (permission: string) => !hasPermission(record, permission)
     );
     if (missingPermissions.length > 0) {
       return {
@@ -516,7 +523,7 @@ export class PluginManager {
     return { ok: true };
   }
 
-  async initializeAll() {
+  async initializeAll(): Promise<any> {
     if (this.initializing) return this.initializing;
 
     this.initializing = Promise.all(
@@ -548,7 +555,7 @@ export class PluginManager {
           record.initializedAt = new Date().toISOString();
           record.error = null;
           this.persistRecord(record);
-        } catch (error) {
+        } catch (error: any) {
           record.status = PLUGIN_STATUSES.FAILED;
           record.error = error?.message || String(error);
         }
@@ -564,9 +571,9 @@ export class PluginManager {
     return this.initializing;
   }
 
-  async refreshMarketplaceSnapshot() {
+  async refreshMarketplaceSnapshot(): Promise<any> {
     const catalog = await fetchMarketplacePlugins();
-    this.marketplace = new Map(catalog.map((plugin) => [plugin.id, plugin]));
+    this.marketplace = new Map(catalog.map((plugin: any) => [plugin.id, plugin]));
 
     for (const record of this.plugins.values()) {
       const marketplacePlugin = this.marketplace.get(record.id);
@@ -579,12 +586,12 @@ export class PluginManager {
     return this.getMarketplacePlugins();
   }
 
-  async getMarketplacePlugins() {
+  async getMarketplacePlugins(): Promise<any[]> {
     if (this.marketplace.size === 0) {
       await this.refreshMarketplaceSnapshot();
     }
 
-    return Array.from(this.marketplace.values()).map((plugin) => {
+    return Array.from(this.marketplace.values()).map((plugin: any) => {
       const installed = this.plugins.get(plugin.id);
       const updateAvailable = installed
         ? compareVersions(plugin.version, installed.version) > 0
@@ -599,8 +606,8 @@ export class PluginManager {
     });
   }
 
-  getPluginRecords() {
-    return Array.from(this.plugins.values()).map((record) => ({
+  getPluginRecords(): any[] {
+    return Array.from(this.plugins.values()).map((record: any) => ({
       id: record.id,
       name: record.name,
       status: record.status,
@@ -618,9 +625,9 @@ export class PluginManager {
     }));
   }
 
-  getWidgets({ placement } = {}) {
+  getWidgets({ placement }: { placement?: string } = {}): any[] {
     return Array.from(this.plugins.values())
-      .flatMap((record) => {
+      .flatMap((record: any) => {
         if (record.status === PLUGIN_STATUSES.FAILED || record.status === PLUGIN_STATUSES.DISABLED) {
           return [];
         }
@@ -631,19 +638,19 @@ export class PluginManager {
               ? record.runtime.getWidgets()
               : record.manifest.widgets || [];
           return widgets
-            .map((widget, index) => this.normalizeWidget(widget, record, index))
+            .map((widget: any, index: number) => this.normalizeWidget(widget, record, index))
             .filter(Boolean);
-        } catch (error) {
+        } catch (error: any) {
           record.error = error?.message || String(error);
           record.status = PLUGIN_STATUSES.FAILED;
           return [];
         }
       })
-      .filter((widget) => !placement || widget.placement === placement)
-      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+      .filter((widget: any) => !placement || widget.placement === placement)
+      .sort((a: any, b: any) => a.order - b.order || a.title.localeCompare(b.title));
   }
 
-  normalizeWidget(widget, record, index) {
+  normalizeWidget(widget: any, record: any, index: number): any {
     if (!widget || typeof widget !== "object") return null;
 
     const Component = widget.component || widget.Component || widget.render;
@@ -662,7 +669,7 @@ export class PluginManager {
       order: Number.isFinite(widget.order) ? widget.order : 100,
       props: widget.props || {},
       component: isIframeWidget
-        ? (iframeProps) =>
+        ? (iframeProps: any) =>
             React.createElement(SandboxedPluginFrame, {
               title: widget.title || widget.name || record.name,
               description: widget.description || record.manifest.description,
@@ -676,8 +683,8 @@ export class PluginManager {
     };
   }
 
-  getDataSources() {
-    return Array.from(this.plugins.values()).flatMap((record) => {
+  getDataSources(): any[] {
+    return Array.from(this.plugins.values()).flatMap((record: any) => {
       if (record.status === PLUGIN_STATUSES.FAILED || record.status === PLUGIN_STATUSES.DISABLED) {
         return [];
       }
@@ -688,9 +695,9 @@ export class PluginManager {
             ? record.runtime.getDataSources()
             : record.manifest.dataSources || [];
         return dataSources
-          .map((dataSource, index) => this.normalizeDataSource(dataSource, record, index))
+          .map((dataSource: any, index: number) => this.normalizeDataSource(dataSource, record, index))
           .filter(Boolean);
-      } catch (error) {
+      } catch (error: any) {
         record.error = error?.message || String(error);
         record.status = PLUGIN_STATUSES.FAILED;
         return [];
@@ -698,7 +705,7 @@ export class PluginManager {
     });
   }
 
-  normalizeDataSource(dataSource, record, index) {
+  normalizeDataSource(dataSource: any, record: any, index: number): any {
     if (!dataSource || typeof dataSource !== "object") return null;
     return {
       id: String(dataSource.id || `${record.id}:data-source:${index}`),
@@ -712,7 +719,7 @@ export class PluginManager {
     };
   }
 
-  async installPlugin(manifest, { approvedPermissions } = {}) {
+  async installPlugin(manifest: any, { approvedPermissions }: { approvedPermissions?: string[] } = {}): Promise<any> {
     const normalizedManifest = normalizeManifest(manifest);
     if (!normalizedManifest) {
       throw new Error("Cannot install an invalid plugin manifest.");
@@ -760,7 +767,7 @@ export class PluginManager {
     return record;
   }
 
-  async updatePlugin(pluginId) {
+  async updatePlugin(pluginId: string): Promise<any> {
     const current = this.plugins.get(pluginId);
     if (!current) {
       throw new Error(`Plugin "${pluginId}" is not installed.`);
@@ -783,13 +790,13 @@ export class PluginManager {
     return this.installPlugin(marketplacePlugin, { approvedPermissions: currentPermissions });
   }
 
-  async uninstallPlugin(pluginId) {
+  async uninstallPlugin(pluginId: string): Promise<void> {
     this.plugins.delete(pluginId);
     this.removePersistedRecord(pluginId);
     this.emitChange();
   }
 
-  async setPluginEnabled(pluginId, enabled) {
+  async setPluginEnabled(pluginId: string, enabled: boolean): Promise<any> {
     const record = this.plugins.get(pluginId);
     if (!record) {
       throw new Error(`Plugin "${pluginId}" is not installed.`);
@@ -803,7 +810,7 @@ export class PluginManager {
     return record;
   }
 
-  async bootstrap() {
+  async bootstrap(): Promise<PluginManager> {
     await this.hydrateInstalledPlugins();
     await this.refreshMarketplaceSnapshot();
     return this;
@@ -812,7 +819,7 @@ export class PluginManager {
 
 export const pluginManager = new PluginManager();
 
-export async function registerActivePlugins(manager = pluginManager) {
+export async function registerActivePlugins(manager: any = pluginManager): Promise<any> {
   if (registrationComplete) return manager;
   if (registrationPromise) return registrationPromise;
 
@@ -840,7 +847,7 @@ export async function registerActivePlugins(manager = pluginManager) {
           }
 
           manager.register(pluginFactory, { sourceType: "builtin" });
-        } catch (error) {
+        } catch (error: any) {
           const id = path.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
           manager.register(
             {

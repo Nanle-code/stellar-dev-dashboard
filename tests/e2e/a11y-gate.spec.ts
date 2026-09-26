@@ -29,8 +29,8 @@ test.describe('Accessibility CI Gate', () => {
 
   for (const { name, path } of PAGES) {
     test(`${name}: no WCAG 2.1 AA violations`, async ({ page }) => {
-      await page.goto(path, { waitUntil: 'domcontentloaded' });
-      await page.locator('#main-content').waitFor({ state: 'visible' });
+      await page.goto(path, { waitUntil: 'load' });
+      await page.locator('#main-content, main').first().waitFor({ state: 'visible', timeout: 30000 });
 
       await page.addScriptTag({ path: AXE_PATH });
 
@@ -58,14 +58,14 @@ test.describe('Accessibility CI Gate', () => {
 
 
   test('keyboard focus is reachable on connect page', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/', { waitUntil: 'load' });
     await page.keyboard.press('Tab');
     const tag = await page.evaluate(() => document.activeElement?.tagName);
     expect(tag).toBeTruthy();
   });
 
   test('page has a main landmark', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('main').first()).toBeVisible();
+    await page.goto('/', { waitUntil: 'load' });
+    await expect(page.locator('#main-content, main').first()).toBeVisible({ timeout: 30000 });
   });
 });

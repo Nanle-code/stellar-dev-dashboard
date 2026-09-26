@@ -37,6 +37,9 @@ Live network information including the latest ledger sequence, base fee, transac
 ### ⬡ Testnet Faucet
 Fund any testnet account directly from the dashboard using Stellar's Friendbot. Activates new accounts and re-funds existing ones with 10,000 XLM. Only available on Testnet.
 
+### ⚡ Transaction Builder & Fee Strategy Dry-Run Comparison
+Assemble operations and compare real-time dry-run simulations across **Low (Economy)**, **Medium (Standard)**, and **High (Priority)** fee strategies before signing. Evaluate success likelihood under network congestion, inspect resource traces, and apply recommended fees with a single click.
+
 ### 🔌 Wallet Connect
 Connect any Stellar public key (G...) on either Mainnet or Testnet to load account data, history, and balances instantly.
 

@@ -32,7 +32,7 @@ export default function AccountActivityChart() {
   const txByDay = useMemo(() => {
     if (!transactions || transactions.length === 0) return []
 
-    const grouped = {}
+    const grouped: Record<string, { day: string; successful: number; failed: number }> = {}
     for (const tx of transactions) {
       const day = format(new Date(tx.created_at), 'MMM d')
       if (!grouped[day]) grouped[day] = { day, successful: 0, failed: 0 }
@@ -47,7 +47,7 @@ export default function AccountActivityChart() {
   const opsByType = useMemo(() => {
     if (!operations || operations.length === 0) return []
 
-    const grouped = {}
+    const grouped: Record<string, { name: string; count: number }> = {}
     for (const op of operations) {
       const type = op.type_i !== undefined ? op.type : 'unknown'
       const label = type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
@@ -66,8 +66,8 @@ export default function AccountActivityChart() {
 
   const exportCsvCombined = () => {
     const rows = [
-      ...txByDay.map((row) => ({ section: 'tx_by_day', ...row })),
-      ...opsByType.map((row) => ({ section: 'ops_by_type', ...row })),
+      ...txByDay.map((row) => ({ section: 'tx_by_day', ...(row as object) })),
+      ...opsByType.map((row) => ({ section: 'ops_by_type', ...(row as object) })),
     ]
     exportChartDataAsCsv(rows, safeFilename('account-activity', 'csv'))
     closeMenu()
@@ -216,8 +216,8 @@ const iconBtn = {
   fontFamily: 'var(--font-mono)',
 }
 
-const dropdownStyle = {
-  position: 'absolute',
+const dropdownStyle: React.CSSProperties = {
+  position: 'absolute' as const,
   top: '32px',
   right: 0,
   background: 'var(--bg-card)',
@@ -229,7 +229,15 @@ const dropdownStyle = {
   zIndex: 50,
 }
 
-function DropdownItem({ children, onClick, disabled }) {
+function DropdownItem({
+  children,
+  onClick,
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={disabled ? undefined : onClick}

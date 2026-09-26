@@ -6,7 +6,15 @@ import { getAssetTrustlineStatus } from '../../lib/assetTrustlineValidation';
 import CopyableValue from '../dashboard/CopyableValue';
 import AssetTrustStatus from './AssetTrustStatus';
 
-export default function AssetCard({ asset, network, onClick }) {
+export default function AssetCard({
+  asset,
+  network,
+  onClick,
+}: {
+  asset: any;
+  network: any;
+  onClick?: (e?: any) => void;
+}) {
   const [issuerInfo, setIssuerInfo] = useState(null);
   const [marketData, setMarketData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -83,7 +91,7 @@ export default function AssetCard({ asset, network, onClick }) {
 
   const verification = getVerificationBadge();
 
-  const cardStyles = {
+  const cardStyles: React.CSSProperties = {
     background: 'var(--bg-card)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-lg)',
@@ -130,14 +138,14 @@ export default function AssetCard({ asset, network, onClick }) {
     border: `1px solid ${verification.color}40`
   };
 
-  const statsGridStyles = {
+  const statsGridStyles: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)',
     gap: '12px',
     marginBottom: '16px'
   };
 
-  const statItemStyles = {
+  const statItemStyles: React.CSSProperties = {
     textAlign: 'center',
     padding: '8px',
     background: 'var(--bg-elevated)',
@@ -145,14 +153,14 @@ export default function AssetCard({ asset, network, onClick }) {
     border: '1px solid var(--border)'
   };
 
-  const statValueStyles = {
+  const statValueStyles: React.CSSProperties = {
     fontSize: '14px',
     fontWeight: 700,
     color: 'var(--text-primary)',
     marginBottom: '2px'
   };
 
-  const statLabelStyles = {
+  const statLabelStyles: React.CSSProperties = {
     fontSize: '11px',
     color: 'var(--text-muted)',
     textTransform: 'uppercase',

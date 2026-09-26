@@ -33,14 +33,14 @@ export default function AssetSearch({ onSearch, loading, placeholder = "Search a
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const containerStyles = {
+  const containerStyles: React.CSSProperties = {
     position: 'relative',
     width: '100%',
     maxWidth: isMobile ? '100%' : '600px',
     margin: '0 auto'
   };
 
-  const formStyles = {
+  const formStyles: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     background: 'var(--bg-card)',

@@ -5,6 +5,7 @@ import auditTrail from './auditTrail.js';
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker';
 import { validateMemo } from './validation';
 import { requireAllowedEndpoint } from './endpointAllowlist';
+import { compareFeeStrategiesDryRun } from './feeStrategyDryRun';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -2415,6 +2416,8 @@ export async function exportTransactionXDR(params: BuildTransactionParams): Prom
   return transaction.toXDR();
 }
 
+export * from './feeStrategyDryRun';
+
 // ─── Path payments ────────────────────────────────────────────────────────────
 
 export type PathPaymentMode = 'strict-send' | 'strict-receive';
@@ -3390,6 +3393,7 @@ export default {
   buildTransaction,
   simulateTransaction,
   runAdvancedTransactionSimulation,
+  compareFeeStrategiesDryRun,
   exportTransactionXDR,
   fetchPaymentPaths,
   fetchLiquidityPools,

@@ -246,8 +246,8 @@ const iconBtn = {
   cursor: 'pointer',
 }
 
-const dropdownStyle = {
-  position: 'absolute',
+const dropdownStyle: React.CSSProperties = {
+  position: 'absolute' as const,
   top: '32px',
   right: 0,
   background: 'var(--bg-card)',

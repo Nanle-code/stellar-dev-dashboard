@@ -4,6 +4,7 @@ import { buildTransaction, simulateTransaction, exportTransactionXDR, checkDesti
 import { validateMemo } from '../../lib/validation'
 import { predictTransactionFailure } from '../../lib/transactionFailurePrediction'
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
+import FeeStrategyComparisonPanel from './FeeStrategyComparisonPanel'
 import { StatCard } from './Card'
 import { Plus, Trash2, Play, Copy, AlertCircle, CheckCircle } from 'lucide-react'
 
@@ -34,6 +35,7 @@ export default function Builder() {
   const [isSimulating, setIsSimulating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false
   const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null })
   const memoValidation = useMemo(() => validateMemo(memo, 'text'), [memo])
   const primaryDestination = useMemo(
@@ -118,8 +120,8 @@ export default function Builder() {
     setSuccess('')
   }, [network])
 
-  const addOperation = (type) => {
-    const newOp = {
+  const addOperation = (type: any) => {
+    const newOp: Record<string, any> = {
       id: Date.now(),
       type,
     }
@@ -392,6 +394,17 @@ export default function Builder() {
           />
         </div>
       </div>
+
+      {/* Fee Strategy Dry-Run Comparison */}
+      <FeeStrategyComparisonPanel
+        transactionParams={{
+          sourceAccount,
+          operations,
+          baseFee: Number(baseFee) || 100,
+          network,
+        }}
+        onSelectStrategy={(strategy) => setBaseFee(String(strategy.baseFee))}
+      />
 
       {/* Time Bounds */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '18px' }}>

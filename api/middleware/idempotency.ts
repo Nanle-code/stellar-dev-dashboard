@@ -15,9 +15,9 @@ export interface IdempotencyResponse {
 }
 
 export type IdempotencyStore = {
-  get(key: string): Promise<IdempotencyRecord | null>;
-  begin(key: string, fingerprint: string, ttlMs: number): Promise<boolean>;
-  complete(key: string, fingerprint: string, response: IdempotencyResponse, ttlMs: number): Promise<void>;
+  get(_key: string): Promise<IdempotencyRecord | null>;
+  begin(_key: string, _fingerprint: string, _ttlMs: number): Promise<boolean>;
+  complete(_key: string, _fingerprint: string, _response: IdempotencyResponse, _ttlMs: number): Promise<void>;
 };
 
 interface IdempotencyConfig {

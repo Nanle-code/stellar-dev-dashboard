@@ -6,11 +6,11 @@ import { StatCard } from "./Card";
 import CustomReports from "./CustomReports";
 import type { AlertEntry } from "./types";
 
-function RiskItem({ signal }: { signal: AlertEntry }) {
+function RiskItem({ signal }: { signal: any }) {
   const color =
-    signal.severity === "high"
+    signal.severity === "high" || signal.severity === "critical"
       ? "var(--red)"
-      : signal.severity === "medium"
+      : signal.severity === "medium" || signal.severity === "warning"
         ? "var(--amber)"
         : "var(--cyan)";
 
@@ -25,17 +25,17 @@ function RiskItem({ signal }: { signal: AlertEntry }) {
         fontSize: "12px",
       }}
     >
-      {signal.label}
+      {signal.label || signal.message || signal.title}
     </div>
   );
 }
 
 export default function Analytics() {
-  const analytics = useAnalytics();
+  const analytics: any = useAnalytics();
   const account = analytics?.account || {};
   const tx = analytics?.transactions || {};
   const network = analytics?.network || {};
-  const risks: AlertEntry[] = analytics?.risks || [];
+  const risks: any[] = analytics?.risks || [];
 
   return (
     <div className="animate-in" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

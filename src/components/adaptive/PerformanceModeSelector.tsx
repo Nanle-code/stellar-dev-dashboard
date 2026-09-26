@@ -84,9 +84,9 @@ export function PerformanceModeSelector({
   const {
     snapshot,
     ready,
+    locked,
     setPerformanceMode,
     submitFeedback,
-    locked,
     unlockAdaptation,
     refresh,
   } = useAdaptivePerformance('PerformanceModeSelector')
@@ -114,7 +114,7 @@ export function PerformanceModeSelector({
     setPerformanceMode('quality')
     // The "revert to a richer tier" path counts as a negative signal
     // for whatever tier was previously active.
-    void submitFeedback(0, 'user-override', { tierOverride: snapshot?.adaptation.tier })
+    void submitFeedback(0, 'user-override')
   }
 
   return (
@@ -298,7 +298,7 @@ export function PerformanceModeSelector({
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {locked.map((key) => (
                   <li
-                    key={key}
+                    key={String(key)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -306,7 +306,7 @@ export function PerformanceModeSelector({
                       padding: '2px 0',
                     }}
                   >
-                    <span>{key}</span>
+                    <span>{String(key)}</span>
                     <button
                       type="button"
                       onClick={() => unlockAdaptation(key)}

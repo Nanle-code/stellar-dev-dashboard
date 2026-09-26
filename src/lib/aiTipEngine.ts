@@ -31,6 +31,8 @@ export interface TipFrequencyConfig {
   minInterval: number;
 }
 
+export type TipFrequency = TipFrequencyConfig;
+
 const DEFAULT_FREQUENCY: TipFrequencyConfig = {
   enabled: true,
   frequency: "medium",

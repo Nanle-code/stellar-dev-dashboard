@@ -35,11 +35,11 @@ export default function BalanceHistoryChart() {
   const balanceData = useMemo(() => {
     if (!accountData?.balances) return []
     return accountData.balances.map((b) => {
-      const code = b.asset_type === 'native' ? 'XLM' : (b.asset_code || b.asset_type)
+      const code = b.asset_type === 'native' ? 'XLM' : ('asset_code' in b && b.asset_code ? b.asset_code : b.asset_type)
       return {
         asset: code,
         balance: parseFloat(b.balance) || 0,
-        limit: b.limit ? parseFloat(b.limit) : null,
+        limit: 'limit' in b && b.limit ? parseFloat(b.limit) : null,
       }
     }).sort((a, b) => b.balance - a.balance)
   }, [accountData])
@@ -90,7 +90,7 @@ export default function BalanceHistoryChart() {
       throttle(async () => {
         if (!connectedAddress) return
         try {
-          const fresh = await fetchAccount(connectedAddress, network, 'balance-chart')
+          const fresh = await fetchAccount(connectedAddress, network)
           setAccountData(fresh)
           setTickAt(Date.now())
           setPulse(true)

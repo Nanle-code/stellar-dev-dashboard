@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { PluginManager, PLUGIN_STATUSES } from "../PluginManager";
 
 function createMockStore() {
-  const listeners = new Set();
+  const listeners = new Set<(s: any) => void>();
   let state = {
     network: "testnet",
     theme: "dark",
@@ -12,11 +12,11 @@ function createMockStore() {
 
   return {
     getState: () => state,
-    setState: (nextState) => {
+    setState: (nextState: any) => {
       state = { ...state, ...nextState };
       listeners.forEach((listener) => listener(state));
     },
-    subscribe: (listener) => {
+    subscribe: (listener: any) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
@@ -52,7 +52,7 @@ describe("PluginManager", () => {
   });
 
   it("installs sandboxed manifests, persists them, and exposes widgets", async () => {
-    const manager = new PluginManager({ store: createMockStore() });
+    const manager = new PluginManager({ store: createMockStore() as any });
 
     await manager.installPlugin(iframeManifest);
 
@@ -71,14 +71,14 @@ describe("PluginManager", () => {
   });
 
   it("hydrates installed plugins from storage and removes them cleanly", async () => {
-    const manager = new PluginManager({ store: createMockStore() });
+    const manager = new PluginManager({ store: createMockStore() as any });
 
     await manager.installPlugin(iframeManifest);
     await manager.uninstallPlugin(iframeManifest.id);
 
     expect(manager.getPluginRecords()).toHaveLength(0);
 
-    const secondManager = new PluginManager({ store: createMockStore() });
+    const secondManager = new PluginManager({ store: createMockStore() as any });
     await secondManager.hydrateInstalledPlugins();
     expect(secondManager.getPluginRecords()).toHaveLength(0);
   });

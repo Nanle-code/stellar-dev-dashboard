@@ -185,7 +185,11 @@ export default function CacheStats() {
       try {
         const { storageStats } = await import('../../lib/storage');
         const s = await storageStats();
-        setStorage(s);
+        setStorage({
+          appState: Number(s.appState) || 0,
+          apiCache: Number(s.apiCache) || 0,
+          offlineQueue: Number(s.offlineQueue) || 0,
+        });
       } catch { /* ignore */ }
     }
     fetchStorage();
@@ -261,103 +265,105 @@ export default function CacheStats() {
           </div>
           <div style={statBox}>
             <span style={statLabel}>Total misses</span>
-            <span style={statValue}>{fmtNum(global.totalMisses)}</span>
+            <span style={statBox}>
+              <span style={statLabel}>Total misses</span>
+              <span style={statValue}>{fmtNum(global.totalMisses)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Warmed keys</span>
+              <span style={statValue}>{fmtNum((warming as any)?.warmed)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Prefetched</span>
+              <span style={statValue}>{fmtNum((warming as any)?.prefetches ?? (warming as any)?.prefetched)}</span>
+            </div>
           </div>
-          <div style={statBox}>
-            <span style={statLabel}>Warmed keys</span>
-            <span style={statValue}>{fmtNum(warming.warmed)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Prefetched</span>
-            <span style={statValue}>{fmtNum(warming.prefetches)}</span>
-          </div>
-        </div>
-      </Card>
+        </Card>
 
-      {/* ── Per-namespace table ──────────────────────────────────────────────── */}
-      <Card
-        title="Per-namespace breakdown"
-        subtitle="Hit rates, latency (p50), memory usage and size history per cache manager"
-      >
-        <div style={tableHeader}>
-          <div>Namespace</div>
-          <div>Hit rate</div>
-          <div>Hits</div>
-          <div>Misses</div>
-          <div>IDB hits</div>
-          <div>SW hits</div>
-          <div>p50 get</div>
-          <div>Bytes</div>
-          <div>Size history</div>
-        </div>
-        {loading ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
-        ) : global.namespaces.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No cache activity yet. Make some API calls to populate the dashboard.
+        {/* ── Per-namespace table ──────────────────────────────────────────────── */}
+        <Card
+          title="Per-namespace breakdown"
+          subtitle="Hit rates, latency (p50), memory usage and size history per cache manager"
+        >
+          <div style={tableHeader}>
+            <div>Namespace</div>
+            <div>Hit rate</div>
+            <div>Hits</div>
+            <div>Misses</div>
+            <div>IDB hits</div>
+            <div>SW hits</div>
+            <div>p50 get</div>
+            <div>Bytes</div>
+            <div>Size history</div>
           </div>
-        ) : (
-          global.namespaces.map((ns) => <NSRow key={ns.namespace} ns={ns} />)
-        )}
-      </Card>
+          {loading ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+          ) : global.namespaces.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No cache activity yet. Make some API calls to populate the dashboard.
+            </div>
+          ) : (
+            global.namespaces.map((ns) => <NSRow key={ns.namespace} ns={ns} />)
+          )}
+        </Card>
 
-      {/* ── Service Worker (L3) stats ────────────────────────────────────────── */}
-      <Card
-        title="Service Worker cache (L3)"
-        subtitle={sw ? `${sw.apiCacheEntries} cached API responses in SW bucket` : 'SW unavailable or not yet active'}
-      >
-        <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px' }}>
-          <div style={statBox}>
-            <span style={statLabel}>API hits</span>
-            <span style={statValue}>{fmtNum(sw?.apiHits)}</span>
+        {/* ── Service Worker (L3) stats ────────────────────────────────────────── */}
+        <Card
+          title="Service Worker cache (L3)"
+          subtitle={sw ? `${(sw as any)?.apiCacheEntries || 0} cached API responses in SW bucket` : 'SW unavailable or not yet active'}
+        >
+          <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px' }}>
+            <div style={statBox}>
+              <span style={statLabel}>API hits</span>
+              <span style={statValue}>{fmtNum((sw as any)?.apiHits)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>API misses</span>
+              <span style={statValue}>{fmtNum((sw as any)?.apiMisses)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Shell hits</span>
+              <span style={statValue}>{fmtNum((sw as any)?.shellHits)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Evictions</span>
+              <span style={statValue}>{fmtNum((sw as any)?.evictions)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Network errors</span>
+              <span style={statValue}>{fmtNum((sw as any)?.networkErrors)}</span>
+            </div>
           </div>
-          <div style={statBox}>
-            <span style={statLabel}>API misses</span>
-            <span style={statValue}>{fmtNum(sw?.apiMisses)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Shell hits</span>
-            <span style={statValue}>{fmtNum(sw?.shellHits)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Evictions</span>
-            <span style={statValue}>{fmtNum(sw?.evictions)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Network errors</span>
-            <span style={statValue}>{fmtNum(sw?.networkErrors)}</span>
-          </div>
-        </div>
-      </Card>
+        </Card>
 
-      {/* ── Cache warming stats ──────────────────────────────────────────────── */}
-      <Card
-        title="Cache warming & prefetch"
-        subtitle="Startup warming, predictive prefetch and background refresh activity"
-      >
-        <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px' }}>
-          <div style={statBox}>
-            <span style={statLabel}>Warmed</span>
-            <span style={accentValue}>{fmtNum(warming.warmed)}</span>
+        {/* ── Cache warming stats ──────────────────────────────────────────────── */}
+        <Card
+          title="Cache warming & prefetch"
+          subtitle="Startup warming, predictive prefetch and background refresh activity"
+        >
+          <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px' }}>
+            <div style={statBox}>
+              <span style={statLabel}>Warmed</span>
+              <span style={accentValue}>{fmtNum((warming as any)?.warmed)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Skipped (fresh)</span>
+              <span style={statValue}>{fmtNum((warming as any)?.skipped)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Failed</span>
+              <span style={statValue}>{fmtNum((warming as any)?.failed)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Prefetched</span>
+              <span style={statValue}>{fmtNum((warming as any)?.prefetches ?? (warming as any)?.prefetched)}</span>
+            </div>
+            <div style={statBox}>
+              <span style={statLabel}>Bg refreshes</span>
+              <span style={statValue}>{fmtNum((warming as any)?.backgroundRefreshes)}</span>
+            </div>
           </div>
-          <div style={statBox}>
-            <span style={statLabel}>Skipped (fresh)</span>
-            <span style={statValue}>{fmtNum(warming.skipped)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Failed</span>
-            <span style={statValue}>{fmtNum(warming.failed)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Prefetched</span>
-            <span style={statValue}>{fmtNum(warming.prefetches)}</span>
-          </div>
-          <div style={statBox}>
-            <span style={statLabel}>Bg refreshes</span>
-            <span style={statValue}>{fmtNum(warming.backgroundRefreshes)}</span>
-          </div>
-        </div>
-      </Card>
+        </Card>
 
       {/* ── Latency detail ───────────────────────────────────────────────────── */}
       {global.namespaces.filter((n) => n.getLatency.count > 0).length > 0 && (

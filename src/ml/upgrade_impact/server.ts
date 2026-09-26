@@ -1,11 +1,10 @@
 import express from 'express';
-import bodyParser from 'body-parser';
 import * as tf from '@tensorflow/tfjs';
 import { predictImpact, recordFeedback, trainModel, getModelStatus, resetModel } from './predictor.js';
 import { extractFeatures } from './feature_extraction.js';
 
 const app = express();
-app.use(bodyParser.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 app.post('/analyze', async (req, res) => {
   try {

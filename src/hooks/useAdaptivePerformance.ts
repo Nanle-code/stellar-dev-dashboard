@@ -31,6 +31,8 @@ export interface UseAdaptivePerformanceResult {
   snapshot: AdaptiveEngineSnapshot | null
   /** True after the engine promise has settled at least once. */
   ready: boolean
+  /** List of currently locked adaptation keys. */
+  locked: ReadonlyArray<keyof AdaptationProfile>
   /** Update the user-controlled performance mode. */
   setPerformanceMode: (next: PerformanceMode) => void
   /** Lock a single adaptation knob so the engine stops overriding it. */
@@ -120,6 +122,7 @@ export function useAdaptivePerformance(componentName?: string): UseAdaptivePerfo
   return {
     snapshot,
     ready,
+    locked: snapshot?.locked ?? [],
     setPerformanceMode,
     lockAdaptation,
     unlockAdaptation,

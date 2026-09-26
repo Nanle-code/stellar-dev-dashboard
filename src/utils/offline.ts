@@ -80,12 +80,12 @@ export async function registerServiceWorker() {
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',
     });
-    logger.info('Service Worker registered with scope:', registration.scope);
+    logger.info(`Service Worker registered with scope: ${registration.scope}`);
 
     // Initialise background sync if supported
     if ('sync' in registration) {
       try {
-        await registration.sync.register('sync-offline-queue');
+        await (registration as any).sync.register('sync-offline-queue');
         logger.info('Background sync registered');
       } catch (err) {
         logger.warn('Background sync registration failed:', err);
@@ -239,7 +239,7 @@ export async function showTestNotification() {
 
   if ('serviceWorker' in navigator) {
     const reg = await navigator.serviceWorker.ready;
-    reg.showNotification('Stellar Dev Dashboard', {
+    await (reg as any).showNotification('Stellar Dev Dashboard', {
       body: 'Notifications are working! 🚀',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-72.png',
@@ -262,12 +262,12 @@ export const getOnlineStatus = () => isOnline;
  * @param {(online: boolean) => void} callback
  * @returns {() => void} unsubscribe function
  */
-export const subscribeToOnlineStatus = (callback) => {
+export const subscribeToOnlineStatus = (callback: any) => {
   listeners.push(callback);
   return () => { listeners = listeners.filter(l => l !== callback); };
 };
 
-function notifyListeners(online) {
+function notifyListeners(online: boolean) {
   listeners.forEach(cb => { try { cb(online); } catch { /* ignore */ } });
 }
 
@@ -281,7 +281,7 @@ function notifyListeners(online) {
  * @param {string}   [label]   Human-readable description shown in the UI
  * @param {number}   [priority=0] Higher = runs first
  */
-export const queueRequest = async (id, fn, label = '', priority = 0) => {
+export const queueRequest = async (id: string, fn: any, label = '', priority = 0) => {
   // Serialise the function as a string tag — the real fn lives in-memory.
   // On reload the in-memory queue is gone; callers must re-register pending ops.
   await enqueueOfflineOp({ id, label, priority, serialised: fn.toString() });
@@ -298,7 +298,7 @@ export const queueRequest = async (id, fn, label = '', priority = 0) => {
  * custom id field alone; we mark them in the memory map for now and rely on
  * the flush to skip missing memory entries.
  */
-export const cancelQueuedRequest = (id) => {
+export const cancelQueuedRequest = (id: string) => {
   _memoryQueue.delete(id);
 };
 
@@ -307,7 +307,7 @@ export const getPendingRequests = () => [..._memoryQueue.values()];
 
 /** Returns count of IDB-persisted queued ops (survives reload). */
 export const getPendingCount = async () => {
-  const queue = await getOfflineQueue();
+  const queue = (await getOfflineQueue()) as any[];
   return queue.length;
 };
 
@@ -327,7 +327,7 @@ export async function flushOfflineQueue() {
   logger.info('Flushing offline queue…');
 
   // Read IDB to find persisted ops; match them to in-memory fn references.
-  const persisted = await getOfflineQueue();
+  const persisted = (await getOfflineQueue()) as any[];
 
   // Sort by priority desc, then queuedAt asc
   persisted.sort((a, b) => {

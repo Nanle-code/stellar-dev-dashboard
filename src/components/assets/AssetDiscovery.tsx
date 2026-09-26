@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../../lib/store';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
-import { searchAssets, fetchAssets, POPULAR_ASSETS } from '../../lib/stellar';
+import { searchAssets, fetchAssets, POPULAR_ASSETS, type AssetSearchFilters } from '../../lib/stellar';
 import { addBreadcrumb } from '../../lib/errorReporting';
 import AssetList from './AssetList';
 import AssetSearch from './AssetSearch';
@@ -123,15 +123,15 @@ export default function AssetDiscovery() {
       setLoading(true);
 
       // Only pass Horizon-supported filters to the API
-      const horizonFilters = {
+      const horizonFilters: AssetSearchFilters = {
         verified_only: filters.verified_only,
-        min_accounts: filters.min_accounts,
-        max_accounts: filters.max_accounts,
+        min_accounts: filters.min_accounts ?? undefined,
+        max_accounts: filters.max_accounts ?? undefined,
         has_domain: filters.has_domain,
-        sort_by: filters.sort_by,
-        order: filters.order,
-        asset_type: filters.asset_type || undefined,
-        cursor,
+        sort_by: (filters.sort_by as any) || undefined,
+        order: (filters.order as any) || undefined,
+        asset_type: (filters.asset_type || undefined) as any,
+        cursor: cursor || undefined,
         limit: 20,
       };
 
@@ -201,7 +201,7 @@ export default function AssetDiscovery() {
     margin: '0 auto',
   };
 
-  const tabStyles = {
+  const tabStyles: React.CSSProperties = {
     display: 'flex',
     gap: '8px',
     marginBottom: '24px',

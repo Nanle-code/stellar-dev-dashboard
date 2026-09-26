@@ -79,7 +79,7 @@ export default function AssetFilters({ filters, onChange }) {
     filters.verification_level,
   ].filter(Boolean).length;
 
-  const s = {
+  const s: Record<string, any> = {
     container: {
       background: 'var(--bg-card)',
       border: '1px solid var(--border)',
@@ -108,7 +108,7 @@ export default function AssetFilters({ filters, onChange }) {
       fontWeight: 700,
       padding: '1px 6px',
     },
-    btnRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
+    btnRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' as const },
     btn: {
       background: 'none',
       border: '1px solid var(--border)',
@@ -126,7 +126,7 @@ export default function AssetFilters({ filters, onChange }) {
       gap: '16px',
       marginBottom: '16px',
     },
-    group: { display: 'flex', flexDirection: 'column', gap: '8px' },
+    group: { display: 'flex', flexDirection: 'column' as const, gap: '8px' },
     label: {
       fontSize: '11px',
       fontWeight: 600,

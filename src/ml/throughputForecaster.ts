@@ -10,7 +10,25 @@
  */
 
 class ThroughputForecaster {
-  constructor(config = {}) {
+  baseAlpha: number;
+  baseBeta: number;
+  minDataPoints: number;
+  ledgerCapacity: number;
+  confidenceLevel: number;
+  adaptiveEnabled: boolean;
+  regimeThreshold: number;
+  smoothingAlpha: number;
+  smoothingBeta: number;
+  history: any[];
+  fitted: boolean;
+  level: number;
+  trend: number;
+  residuals: any[];
+  variance: number;
+  recentErrors: any[];
+  errorWindow: number;
+
+  constructor(config: any = {}) {
     this.baseAlpha = config.smoothingAlpha || config.baseAlpha || 0.3;
     this.baseBeta = config.smoothingBeta || config.baseBeta || 0.1;
     this.minDataPoints = config.minDataPoints || 10;

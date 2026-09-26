@@ -52,7 +52,7 @@ const ROADMAP_STEPS = [
 ];
 
 // ── Inline style tokens — matches globals.css design tokens ──────────────────
-const S = {
+const S: Record<string, any> = {
   root: {
     padding: '2rem',
     maxWidth: 680,
@@ -80,7 +80,7 @@ const S = {
     gap: '0.75rem',
     flexWrap: 'wrap',
   },
-  dot: (color) => ({
+  dot: (color: string) => ({
     width: 8,
     height: 8,
     borderRadius: '50%',
@@ -141,7 +141,7 @@ const S = {
     marginBottom: '0.35rem',
     fontSize: '0.8rem',
   },
-  badge: (color) => ({
+  badge: (color: string) => ({
     display: 'inline-block',
     padding: '0.15rem 0.55rem',
     borderRadius: 20,
@@ -203,10 +203,16 @@ const S = {
 };
 
 // ── Sync dot color map ───────────────────────────────────────────────────────
-const syncColor = { active: '#2ecc71', idle: '#888', error: '#e74c3c' };
-const wsColor = { connected: '#2ecc71', connecting: '#f39c12', disconnected: '#888', error: '#e74c3c' };
+const syncColor: Record<string, string> = { active: '#2ecc71', idle: '#888', error: '#e74c3c' };
+const wsColor: Record<string, string> = { connected: '#2ecc71', connecting: '#f39c12', disconnected: '#888', error: '#e74c3c' };
 
-export default function CollaborativeView({ store, enableWebSocket = false, wsUrl }) {
+export interface CollaborativeViewProps {
+  store: any;
+  enableWebSocket?: boolean;
+  wsUrl?: string;
+}
+
+export default function CollaborativeView({ store, enableWebSocket = false, wsUrl }: CollaborativeViewProps) {
   const {
     syncStatus,
     connectedTabs,

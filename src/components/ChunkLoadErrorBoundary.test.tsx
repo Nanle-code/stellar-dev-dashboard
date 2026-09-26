@@ -156,7 +156,7 @@ describe('ChunkLoadErrorBoundary', () => {
 
     it('handles missing window.location gracefully', () => {
       const originalWindow = global.window;
-      // @ts-expect-error - deliberately removing window for test
+      // @ts-ignore
       global.window = undefined;
       
       const boundary = new ChunkLoadErrorBoundary({ children: null });
@@ -297,7 +297,7 @@ describe('ChunkLoadErrorBoundary integration', () => {
     // child throws during render: call its own getDerivedStateFromError and
     // apply the result.
     act(() => {
-      instance!.setState(ChunkLoadErrorBoundary.getDerivedStateFromError(networkError!));
+      instance!.setState(ChunkLoadErrorBoundary.getDerivedStateFromError(networkError!) as any);
     });
 
     expect(screen.getByText('New Version Available')).toBeInTheDocument();

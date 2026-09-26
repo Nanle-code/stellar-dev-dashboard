@@ -246,7 +246,19 @@ function useVisualizationData(metric, density) {
   }, [accountData, connectedAddress, density, metric, operations, transactions])
 }
 
-function ToolbarButton({ active, children, icon: Icon, onClick, title }) {
+function ToolbarButton({
+  active = false,
+  children,
+  icon: Icon,
+  onClick,
+  title,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+  icon?: any;
+  onClick?: () => void;
+  title?: string;
+}) {
   return (
     <button
       type="button"
@@ -448,16 +460,16 @@ function FlowDiagram({ data, metric, svgRef }) {
               </path>
             )
           })}
-          {sourceNames.map((name) => (
-            <g key={name} transform={`translate(${margin.left - 12}, ${sourceScale(name)})`}>
+          {(sourceNames as string[]).map((name) => (
+            <g key={String(name)} transform={`translate(${margin.left - 12}, ${sourceScale(name)})`}>
               <rect x="-8" y="0" width="10" height={Math.max(18, sourceScale.bandwidth())} rx="3" fill={colorScale(name)} />
-              <text x="-14" y={sourceScale.bandwidth() / 2 + 4} textAnchor="end" fill="var(--text-secondary)" fontSize="11">{name.replace(/_/g, ' ')}</text>
+              <text x="-14" y={sourceScale.bandwidth() / 2 + 4} textAnchor="end" fill="var(--text-secondary)" fontSize="11">{String(name).replace(/_/g, ' ')}</text>
             </g>
           ))}
-          {targetNames.map((name) => (
-            <g key={name} transform={`translate(${width - margin.right + 12}, ${targetScale(name)})`}>
+          {(targetNames as string[]).map((name) => (
+            <g key={String(name)} transform={`translate(${width - margin.right + 12}, ${targetScale(name)})`}>
               <rect x="0" y="0" width="10" height={Math.max(18, targetScale.bandwidth())} rx="3" fill={COLORS.green} opacity="0.78" />
-              <text x="18" y={targetScale.bandwidth() / 2 + 4} fill="var(--text-secondary)" fontSize="11">{name}</text>
+              <text x="18" y={targetScale.bandwidth() / 2 + 4} fill="var(--text-secondary)" fontSize="11">{String(name)}</text>
             </g>
           ))}
         </g>

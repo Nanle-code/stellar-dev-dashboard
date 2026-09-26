@@ -6,17 +6,17 @@ const DATA_DIR = path.resolve('api', 'data');
 const LOGS_FILE = path.join(DATA_DIR, 'access_logs.json');
 const LEARNING_FILE = path.join(DATA_DIR, 'learning.json');
 
-async function readJsonSafe(file) {
+async function readJsonSafe(file: string) {
   try {
     const raw = await fs.readFile(file, 'utf8');
     return JSON.parse(raw);
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }
 
 // Simple frequency-based analysis
-export async function analyzeAccessPatterns({ since } = {}) {
+export async function analyzeAccessPatterns({ since }: { since?: string | Date | number } = {}) {
   const logs = (await readJsonSafe(LOGS_FILE)) || [];
   const sinceTs = since ? new Date(since).getTime() : 0;
 
@@ -108,9 +108,9 @@ export async function analyzeAccessPatterns({ since } = {}) {
   return { recommendations, snapshotCount: logs.length };
 }
 
-export async function recordAppliedRecommendations(applied) {
+export async function recordAppliedRecommendations(applied: any[]) {
   const existing = (await readJsonSafe(LEARNING_FILE)) || { applied: [] };
-  existing.applied.push(...applied.map((a) => ({ ...a, appliedAt: new Date().toISOString() })));
+  existing.applied.push(...applied.map((a: any) => ({ ...a, appliedAt: new Date().toISOString() })));
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(LEARNING_FILE, JSON.stringify(existing, null, 2), 'utf8');
   return existing;

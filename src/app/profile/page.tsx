@@ -1,10 +1,11 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { WalletContext } from '@/context/WalletContext'; // Adjust if your context path is different
+import React, { useState } from 'react';
+import { useStore } from '../../lib/store';
 
 export default function ProfilePage() {
-  const { wallet, connected, disconnect } = React.useContext(WalletContext);
+  const { connectedAddress, setConnectedAddress } = useStore() as any;
+  const connected = Boolean(connectedAddress);
+  const disconnect = () => setConnectedAddress(null);
+  const wallet = { publicKey: connectedAddress };
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     username: "Stellar Builder",

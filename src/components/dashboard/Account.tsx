@@ -176,7 +176,7 @@ export default function Account() {
     accountData.balances?.filter((b: { asset_type: string }) => b.asset_type !== 'native') || [];
   const signers = accountData.signers || [];
   const flags = accountData.flags || {};
-  const thresholds = accountData.thresholds || {};
+  const thresholds: Record<string, any> = accountData.thresholds || {};
   const createdValue = createdAtLoading
     ? 'Loading...'
     : createdAt
@@ -190,7 +190,7 @@ export default function Account() {
   });
   const xlmEstimate = xlm ? getEstimate(xlm) : null;
   const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
-  const dataSource = 'live';
+  let dataSource: string = 'live';
   const accountCachedAt: number | null = null;
 
   return (
@@ -443,12 +443,12 @@ export default function Account() {
             No non-native assets
           </div>
         ) : (
-          otherAssets.map((asset: Horizon.BalanceLine, index: number) => {
+          otherAssets.map((asset: any, index: number) => {
             const estimate = getEstimate(asset);
 
             return (
               <div
-                key={`${asset.asset_type}:${(asset as Horizon.BalanceLineAsset).asset_code}:${(asset as Horizon.BalanceLineAsset).asset_issuer}`}
+                key={`${asset.asset_type}:${asset.asset_code}:${asset.asset_issuer}`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -460,11 +460,11 @@ export default function Account() {
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {formatAsset(asset.asset_type, (asset as Horizon.BalanceLineAsset).asset_code)}
+                    {formatAsset(asset.asset_type, asset.asset_code)}
                   </div>
-                  {(asset as Horizon.BalanceLineAsset).asset_issuer && (
+                  {asset.asset_issuer && (
                     <CopyableValue
-                      value={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      value={asset.asset_issuer}
                       title="Copy asset issuer public key"
                       containerStyle={{
                         color: 'var(--text-muted)',
@@ -480,18 +480,18 @@ export default function Account() {
                       }}
                     >
                       <AddressLabelBadge
-                        address={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                        address={asset.asset_issuer}
                       />
-                      {shortAddress((asset as Horizon.BalanceLineAsset).asset_issuer)}
+                      {shortAddress(asset.asset_issuer)}
                     </CopyableValue>
                   )}
                   <div style={{ marginTop: '6px' }}>
                     <AssetTrustStatus
-                      issuer={(asset as Horizon.BalanceLineAsset).asset_issuer}
+                      issuer={asset.asset_issuer}
                       trustline={{
-                        is_authorized: (asset as Horizon.BalanceLineAsset).is_authorized,
-                        is_authorized_to_maintain_liabilities: (asset as Horizon.BalanceLineAsset)
-                          .is_authorized_to_maintain_liabilities,
+                        is_authorized: asset.is_authorized,
+                        is_authorized_to_maintain_liabilities:
+                          asset.is_authorized_to_maintain_liabilities,
                       }}
                     />
                   </div>
@@ -630,7 +630,7 @@ export default function Account() {
           >
             Signers ({signers.length})
           </div>
-          {signers.map((s: Horizon.AccountSigner, i: number) => (
+          {signers.map((s: any, i: number) => (
             <div
               key={i}
               style={{

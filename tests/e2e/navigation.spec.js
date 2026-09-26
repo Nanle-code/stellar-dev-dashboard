@@ -3,6 +3,10 @@ import AxeBuilder from '@axe-core/playwright';
 
 test.describe('Sidebar navigation', () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+      localStorage.setItem('stellar-dashboard-theme', 'dark');
+    });
     await page.goto('/');
   });
 
@@ -35,6 +39,10 @@ test.describe('Sidebar navigation', () => {
 
 test.describe('Authenticated navigation', () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+      localStorage.setItem('stellar-dashboard-theme', 'dark');
+    });
     await page.goto('/');
     await page.evaluate(() => {
       const store = window.__store;

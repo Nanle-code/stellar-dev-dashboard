@@ -659,6 +659,38 @@ pub struct HealthStatus {
 
 ---
 
+## Interactive Debugging Tutorial Series (In-App Education)
+
+The Stellar Developer Dashboard provides an interactive, progressive tutorial series accessible at the `/sorobanDebug` route or via the **Learning Hub** (`/learningHub`). Developers can inspect live simulation outputs, execute code fixes, and test contracts in an isolated environment.
+
+### 1. Simulation Errors & Host Execution Traps
+- **Symptoms**: `InvokeHostFunctionResultCodeTrapped`, VM `unreachable` opcode, or `HostBudgetExceeded`.
+- **Causes**: Unchecked integer arithmetic (`val * 10` on overflow), division by zero, or unbounded loop iterations exceeding 100M CPU instructions.
+- **Diagnostic Procedure**:
+  1. Inspect the RPC `simulateTransaction` response object for `error` details.
+  2. Examine `cost.cpuInsns` and `cost.memBytes` to determine whether resource quotas were exceeded.
+  3. Replace primitive arithmetic with checked operations (`checked_add`, `checked_mul`, `checked_div`).
+  4. Enforce strict batch size bounds (`MAX_BATCH_SIZE = 50`) on array and vector loops.
+
+### 2. Declarative Authorization Failures & Auth Trees
+- **Symptoms**: `InvokeHostFunctionResultCodeAuthorizationError`.
+- **Causes**: Missing caller authorization (`from.require_auth()`), parameter tampering / replay, or unverified sub-contract invocation trees.
+- **Diagnostic Procedure**:
+  1. Inspect required authorizations in the simulation result `auth` array.
+  2. Verify that addresses debiting funds or altering critical account state explicitly invoke `address.require_auth()`.
+  3. Use `address.require_auth_for_args((arg1, arg2).into_val(&env))` to bind authorization to specific call parameters.
+  4. Ensure caller signs authorization trees for deep cross-contract calls.
+
+### 3. Ledger Footprints & Storage Isolation
+- **Symptoms**: `FootprintConflictError`, `MissingFootprintKeyError`, or `LedgerEntryTtlExpired`.
+- **Causes**: Mutating a ledger entry declared in the `readOnly` footprint, accessing expired storage keys, or choosing ephemeral `Temporary` storage for persistent account balances.
+- **Diagnostic Procedure**:
+  1. Review the `resources().footprint()` returned by transaction simulation. Ensure all modified keys are in `readWrite`.
+  2. Prevent state archival by periodically calling `extend_ttl(threshold, extend_to)` on active persistent entries.
+  3. Restrict `Temporary` storage strictly to ephemeral caches; never store user balances or ownership state in temporary entries.
+
+---
+
 ## Debugging Checklist
 
 Before production deployment:

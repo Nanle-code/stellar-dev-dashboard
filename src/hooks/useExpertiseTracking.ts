@@ -35,10 +35,38 @@ const SHORTCUT_EVENT = 'stellar:shortcut-used';
 const CUSTOMIZATION_EVENT = 'stellar:customization-change';
 
 /**
+ * Options accepted by the {@link useExpertiseTracking} hook.
+ */
+export interface UseExpertiseTrackingOptions {
+  /** Enable/disable all tracking */
+  enabled: boolean;
+  /** The feature/panel identifier being tracked */
+  featureId?: string;
+  /** Category of the current task (e.g. 'transactions', 'builder', 'network') */
+  taskCategory?: string;
+}
+
+/**
+ * Return value of the {@link useExpertiseTracking} hook.
+ */
+export interface UseExpertiseTrackingReturn {
+  trackFeatureInteraction: (featureId: string) => void;
+  trackTaskComplete: (taskId?: string) => void;
+  trackTaskError: (taskId?: string) => void;
+  trackShortcutUsed: (shortcutName: string) => void;
+  trackCustomization: (settingName: string) => void;
+  trackAdvancedSearch: () => void;
+  trackTutorialCompleted: () => void;
+  flushTrackingData: () => void;
+  featureOpens: Record<string, number>;
+  uniqueFeaturesUsed: number;
+}
+
+/**
  * Hook that tracks user expertise signals automatically.
  * Should be called once at the app level (e.g., in DashboardLayout).
  */
-export function useExpertiseTracking(config?: TrackingConfig) {
+export function useExpertiseTracking(config?: TrackingConfig): UseExpertiseTrackingReturn {
   const { updateSignals, signals, extendedSignals, level, isNovice, isIntermediate, isExpert } = useExpertise();
   const taskStartTime = useRef<Record<string, number>>({});
   const sessionStartTime = useRef<number>(Date.now());
@@ -60,7 +88,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track when a feature/panel is opened.
    */
-  const trackFeatureInteraction = useCallback((featureId: string) => {
+  const trackFeatureInteraction = useCallback((featureId: string): void => {
     if (!currentConfig.current.enabled) return;
 
     featureOpens.current[featureId] = (featureOpens.current[featureId] || 0) + 1;
@@ -94,7 +122,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track when a task is completed successfully.
    */
-  const trackTaskComplete = useCallback((taskId?: string) => {
+  const trackTaskComplete = useCallback((taskId?: string): void => {
     if (!currentConfig.current.enabled) return;
     successCount.current += 1;
 
@@ -114,7 +142,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track when a task encounters an error.
    */
-  const trackTaskError = useCallback((taskId?: string) => {
+  const trackTaskError = useCallback((taskId?: string): void => {
     if (!currentConfig.current.enabled) return;
     errorCount.current += 1;
 
@@ -130,7 +158,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track keyboard shortcut usage.
    */
-  const trackShortcutUsed = useCallback((shortcutName: string) => {
+  const trackShortcutUsed = useCallback((shortcutName: string): void => {
     if (!currentConfig.current.enabled) return;
     shortcutCount.current += 1;
 
@@ -147,7 +175,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track when a user changes a customization/preference setting.
    */
-  const trackCustomization = useCallback((settingName: string) => {
+  const trackCustomization = useCallback((settingName: string): void => {
     if (!currentConfig.current.enabled) return;
     customizationCount.current += 1;
 
@@ -159,7 +187,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track advanced search usage.
    */
-  const trackAdvancedSearch = useCallback(() => {
+  const trackAdvancedSearch = useCallback((): void => {
     if (!currentConfig.current.enabled) return;
 
     updateSignals({
@@ -170,7 +198,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Track tutorial completion.
    */
-  const trackTutorialCompleted = useCallback(() => {
+  const trackTutorialCompleted = useCallback((): void => {
     if (!currentConfig.current.enabled) return;
 
     updateSignals({
@@ -201,7 +229,7 @@ export function useExpertiseTracking(config?: TrackingConfig) {
   /**
    * Persist aggregated signals to the context periodically.
    */
-  const flushTrackingData = useCallback(() => {
+  const flushTrackingData = useCallback((): void => {
     const sessionDuration = Math.floor((Date.now() - sessionStartTime.current) / 60000);
 
     updateSignals({

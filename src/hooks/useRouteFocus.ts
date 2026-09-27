@@ -9,7 +9,7 @@ const MAIN_CONTENT_ID = 'main-content';
  * Moves keyboard focus to the main content region after route changes
  * so screen reader and keyboard users skip repetitive navigation.
  */
-export function useRouteFocus(activeTab?: string) {
+export function useRouteFocus(activeTab?: string): void {
   const location = useLocation();
   const previousPath = useRef(location.pathname);
 

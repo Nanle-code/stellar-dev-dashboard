@@ -4,13 +4,19 @@
  */
 import { useEffect, useRef, useState } from 'react'
 
-interface PinchZoomOptions {
+export interface PinchZoomOptions {
   minScale?: number
   maxScale?: number
   onScaleChange?: (scale: number) => void
 }
 
-export function usePinchZoom<T extends HTMLElement>(options: PinchZoomOptions = {}) {
+export interface UsePinchZoomReturn<T extends HTMLElement> {
+  ref: { current: T | null }
+  scale: number
+  reset: () => void
+}
+
+export function usePinchZoom<T extends HTMLElement>(options: PinchZoomOptions = {}): UsePinchZoomReturn<T> {
   const { minScale = 0.5, maxScale = 4, onScaleChange } = options
   const ref = useRef<T>(null)
   const [scale, setScale] = useState(1)
@@ -62,7 +68,7 @@ export function usePinchZoom<T extends HTMLElement>(options: PinchZoomOptions = 
     }
   }, [scale, minScale, maxScale, onScaleChange])
 
-  const reset = () => setScale(1)
+  const reset = (): void => setScale(1)
 
   return { ref, scale, reset }
 }

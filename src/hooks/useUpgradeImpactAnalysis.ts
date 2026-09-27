@@ -15,13 +15,47 @@ import type {
 
 const ANALYSIS_CACHE = new Map<string, UpgradeAnalysisResult>()
 
-export function useUpgradeImpactAnalysis(options: AnalysisOptions = {}) {
+export interface ModelAccuracy {
+  accuracy: number
+  totalPredictions: number
+  status: string
+}
+
+export type ActualImpact = 'none' | 'low' | 'medium' | 'high' | 'critical'
+
+export interface UseUpgradeImpactAnalysisReturn {
+  result: UpgradeAnalysisResult | null
+  loading: boolean
+  error: string | null
+  history: UpgradeHistoryEntry[]
+  accuracy: ModelAccuracy
+  runAnalysis: (
+    oldSpec: ContractSpec | null,
+    newSpec: ContractSpec,
+    contractId?: string,
+    oldVersion?: string,
+    newVersion?: string,
+    analysisOptions?: AnalysisOptions
+  ) => Promise<UpgradeAnalysisResult | null>
+  submitFeedback: (
+    contractId: string,
+    oldVersion: string,
+    newVersion: string,
+    changeCount: number,
+    breakingCount: number,
+    actualImpact: ActualImpact
+  ) => void
+  refreshHistory: () => void
+  clearCache: () => void
+}
+
+export function useUpgradeImpactAnalysis(options: AnalysisOptions = {}): UseUpgradeImpactAnalysisReturn {
   const network = useStore((s) => s.network)
   const [result, setResult] = useState<UpgradeAnalysisResult | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<UpgradeHistoryEntry[]>([])
-  const [accuracy, setAccuracy] = useState({ accuracy: 0, totalPredictions: 0, status: 'learning' })
+  const [accuracy, setAccuracy] = useState<ModelAccuracy>({ accuracy: 0, totalPredictions: 0, status: 'learning' })
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -36,7 +70,7 @@ export function useUpgradeImpactAnalysis(options: AnalysisOptions = {}) {
     oldVersion: string = 'previous',
     newVersion: string = 'current',
     analysisOptions?: AnalysisOptions
-  ) => {
+  ): Promise<UpgradeAnalysisResult | null> => {
     if (abortRef.current) abortRef.current.abort()
     abortRef.current = new AbortController()
 
@@ -97,19 +131,19 @@ export function useUpgradeImpactAnalysis(options: AnalysisOptions = {}) {
     newVersion: string,
     changeCount: number,
     breakingCount: number,
-    actualImpact: 'none' | 'low' | 'medium' | 'high' | 'critical'
-  ) => {
+    actualImpact: ActualImpact
+  ): void => {
     recordOutcome(contractId, oldVersion, newVersion, changeCount, breakingCount, actualImpact)
     setHistory(getUpgradeHistory())
     setAccuracy(getModelAccuracy())
   }, [])
 
-  const refreshHistory = useCallback(() => {
+  const refreshHistory = useCallback((): void => {
     setHistory(getUpgradeHistory())
     setAccuracy(getModelAccuracy())
   }, [])
 
-  const clearCache = useCallback(() => {
+  const clearCache = useCallback((): void => {
     ANALYSIS_CACHE.clear()
   }, [])
 

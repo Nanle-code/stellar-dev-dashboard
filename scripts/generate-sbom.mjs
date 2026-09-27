@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Generate a CycloneDX SBOM for npm dependencies.
  *

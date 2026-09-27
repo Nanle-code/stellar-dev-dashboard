@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useRouteOptimizationStore } from '../lib/routeOptimizationStore'
 
-interface RouteOptimizationParams {
+export interface RouteOptimizationParams {
   sourceAsset: string
   destAsset: string
   amount: number
@@ -9,7 +9,7 @@ interface RouteOptimizationParams {
   fee?: number
 }
 
-interface Route {
+export interface Route {
   path?: string[]
   source_amount?: string
   destination_amount?: string
@@ -17,7 +17,72 @@ interface Route {
   destination_asset_code?: string
 }
 
-export function useRouteOptimization() {
+export interface RankedRoute {
+  route: Route
+  overallScore: number
+  rank: number
+  scores: Record<string, number>
+  originalIndex?: number
+}
+
+export interface RouteSlippagePrediction {
+  predictedSlippage: number
+  confidence: number
+  riskLevel: string
+  breakdown: Record<string, number>
+}
+
+export interface RouteExplanationFactor {
+  type: string
+  label: string
+  detail: string
+}
+
+export interface RouteExplanation {
+  summary: string
+  factors: RouteExplanationFactor[]
+  recommendation: string
+  warnings: string[]
+}
+
+export interface OptimizeRoutesResult {
+  rankedRoutes: RankedRoute[]
+  slippagePredictions: RouteSlippagePrediction[]
+  routeExplanations: RouteExplanation[]
+  selectedRoute: RankedRoute | undefined
+}
+
+export interface RouteExecutionResult {
+  success: boolean
+  actualSlippage: number
+  executionTime: number
+}
+
+export interface UseRouteOptimizationReturn {
+  routes: unknown[]
+  rankedRoutes: unknown[]
+  selectedRoute: unknown | null
+  slippagePredictions: unknown[]
+  routeExplanations: unknown[]
+  isLoading: boolean
+  error: string | null
+  settings: {
+    autoOptimize: boolean
+    showExplanations: boolean
+    slippageTolerance: number
+    maxHops: number
+    prioritizeSpeed: boolean
+  }
+  optimizeRoutes: (
+    availableRoutes: Route[],
+    params: RouteOptimizationParams
+  ) => Promise<OptimizeRoutesResult | null>
+  selectRoute: (route: Route) => void
+  recordExecution: (_route: Route, result: RouteExecutionResult) => void
+  clearOptimization: () => void
+}
+
+export function useRouteOptimization(): UseRouteOptimizationReturn {
   const {
     routes,
     rankedRoutes,
@@ -41,7 +106,7 @@ export function useRouteOptimization() {
   const optimizeRoutes = useCallback(async (
     availableRoutes: Route[],
     params: RouteOptimizationParams
-  ) => {
+  ): Promise<OptimizeRoutesResult | null> => {
     if (!availableRoutes || availableRoutes.length === 0) {
       setError('No routes available for optimization')
       return null
@@ -90,14 +155,14 @@ export function useRouteOptimization() {
     }
   }, [setRankedRoutes, setSlippagePredictions, setRouteExplanations, setSelectedRoute, setError, setLoading, addOptimizationHistory])
 
-  const selectRoute = useCallback((route: Route) => {
+  const selectRoute = useCallback((route: Route): void => {
     setSelectedRoute(route)
   }, [setSelectedRoute])
 
   const recordExecution = useCallback((
     _route: Route,
-    result: { success: boolean; actualSlippage: number; executionTime: number }
-  ) => {
+    result: RouteExecutionResult
+  ): void => {
     const current = useRouteOptimizationStore.getState().performanceMetrics
     const total = current.totalOptimizations + 1
     updatePerformanceMetrics({

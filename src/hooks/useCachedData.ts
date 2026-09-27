@@ -23,19 +23,55 @@ import { evaluateDataSource, subscribeToConnectivity, isOnline } from '../lib/of
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-function noop() {}
+function noop(..._args: unknown[]): void {}
 
 /**
  * Deduplicate in-flight requests: if two hooks request the same key
  * simultaneously, only one network call is made.
  */
-const _inflight = new Map(); // key → Promise
+const _inflight = new Map<string, Promise<unknown>>(); // key → Promise
 
-async function deduplicatedFetch(key, fetcher) {
-  if (_inflight.has(key)) return _inflight.get(key);
-  const p = fetcher().finally(() => _inflight.delete(key));
-  _inflight.set(key, p);
+async function deduplicatedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  if (_inflight.has(key)) return _inflight.get(key) as Promise<T>;
+  const p: Promise<T> = fetcher().finally(() => _inflight.delete(key));
+  _inflight.set(key, p as Promise<unknown>);
   return p;
+}
+
+// ─── useCachedData ────────────────────────────────────────────────────────────
+
+/**
+ * Options accepted by {@link useCachedData}.
+ */
+export interface UseCachedDataOptions<T> {
+  ttl?: number;
+  tags?: string[];
+  enabled?: boolean;
+  persist?: boolean;
+  refreshInterval?: number;
+  deps?: unknown[];
+  onSuccess?: (data: T) => void;
+  onError?: (err: unknown) => void;
+}
+
+/**
+ * Return value of the {@link useCachedData} hook.
+ */
+export interface UseCachedDataReturn<T> {
+  data: T | null;
+  loading: boolean;
+  error: unknown;
+  stale: boolean;
+  source: string;
+  refetch: () => Promise<void>;
+  invalidate: () => void;
+  online: boolean;
+  offline: boolean;
+  dataSource: string;
+  dataSourceLabel: string;
+  isLiveData: boolean;
+  cachedAt: number | null;
+  dataAgeMs: number | null;
 }
 
 // ─── useCachedData ────────────────────────────────────────────────────────────
@@ -57,7 +93,11 @@ async function deduplicatedFetch(key, fetcher) {
  *
  * @returns {{ data, loading, error, stale, source, refetch, invalidate }}
  */
-export function useCachedData(cacheKey, fetchFn, opts = {}) {
+export function useCachedData<T>(
+  cacheKey: string | null,
+  fetchFn: () => Promise<T>,
+  opts: UseCachedDataOptions<T> = {}
+): UseCachedDataReturn<T> {
   const {
     ttl             = TTL.ACCOUNT,
     tags            = [],
@@ -69,18 +109,18 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
     onError         = noop,
   } = opts;
 
-  const [data,       setData]       = useState(() => (cacheKey ? cache.get(cacheKey) : null));
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState(null);
-  const [stale,      setStale]      = useState(false);
-  const [source,     setSource]     = useState('init');
-  const [cachedAt,   setCachedAt]   = useState(() => {
+  const [data,       setData]       = useState<T | null>(() => (cacheKey ? cache.get(cacheKey) : null));
+  const [loading,    setLoading]    = useState<boolean>(false);
+  const [error,      setError]      = useState<unknown>(null);
+  const [stale,      setStale]      = useState<boolean>(false);
+  const [source,     setSource]     = useState<string>('init');
+  const [cachedAt,   setCachedAt]   = useState<number | null>(() => {
     if (!cacheKey) return null;
     const meta = cache._meta && cache._meta.get(cacheKey);
     return meta?.createdAt ?? null;
   });
-  const [online,     setOnline]     = useState(() => isOnline());
-  const [swCacheHit, setSwCacheHit] = useState(false);
+  const [online,     setOnline]     = useState<boolean>(() => isOnline());
+  const [swCacheHit, setSwCacheHit] = useState<boolean>(false);
 
   const mountedRef  = useRef(true);
   const fetchFnRef  = useRef(fetchFn);
@@ -90,7 +130,7 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
     return subscribeToConnectivity(setOnline);
   }, []);
 
-  const doFetch = useCallback(async (skipCache = false) => {
+  const doFetch = useCallback(async (skipCache = false): Promise<void> => {
     if (!cacheKey || !enabled) return;
 
     // 1. Try L1 memory cache
@@ -221,7 +261,11 @@ export function useCachedData(cacheKey, fetchFn, opts = {}) {
  * @param {string}      network
  * @param {Function}    fetcher   async (publicKey, network) => accountData
  */
-export function useCachedAccount(publicKey, network, fetcher) {
+export function useCachedAccount<T>(
+  publicKey: string | null,
+  network: string,
+  fetcher: (publicKey: string | null, network: string) => Promise<T>
+): UseCachedDataReturn<T> {
   const key = publicKey ? `account:${publicKey}:${network}` : null;
 
   return useCachedData(
@@ -246,14 +290,46 @@ export function useCachedAccount(publicKey, network, fetcher) {
  * @param {Function}    fetcher   async (publicKey, network, limit, cursor) => { records, nextCursor, hasMore }
  * @param {number}      [limit]
  */
-export function useCachedTransactions(publicKey, network, fetcher, limit = 20) {
-  const [cursor,  setCursor]  = useState(null);
-  const [allData, setAllData] = useState([]);
-  const [hasMore, setHasMore] = useState(true);
+/**
+ * A single paged transaction payload.
+ */
+export interface TransactionPage<TRecord = Record<string, unknown>> {
+  records?: TRecord[];
+  nextCursor?: string | null;
+  hasMore?: boolean;
+  [key: string]: unknown;
+}
+
+/**
+ * Return value of the {@link useCachedTransactions} hook.
+ */
+export interface UseCachedTransactionsReturn<TRecord = Record<string, unknown>> {
+  data: TRecord[];
+  loading: boolean;
+  error: unknown;
+  hasMore: boolean;
+  loadMore: () => void;
+  refetch: () => Promise<void>;
+}
+
+export function useCachedTransactions<TRecord extends { id: string } = { id: string } & Record<string, unknown>>(
+  publicKey: string | null,
+  network: string,
+  fetcher: (
+    publicKey: string | null,
+    network: string,
+    limit: number,
+    cursor: string | null
+  ) => Promise<TransactionPage<TRecord> | TRecord[]>,
+  limit = 20
+): UseCachedTransactionsReturn<TRecord> {
+  const [cursor,  setCursor]  = useState<string | null>(null);
+  const [allData, setAllData] = useState<TRecord[]>([]);
+  const [hasMore, setHasMore] = useState<boolean>(true);
 
   const key = publicKey ? `transactions:${publicKey}:${network}:${limit}:${cursor}` : null;
 
-  const { data, loading, error, refetch } = useCachedData(
+  const { data, loading, error, refetch } = useCachedData<TransactionPage<TRecord> | TRecord[]>(
     key,
     useCallback(
       () => fetcher(publicKey, network, limit, cursor),
@@ -264,12 +340,13 @@ export function useCachedTransactions(publicKey, network, fetcher, limit = 20) {
 
   useEffect(() => {
     if (!data) return;
-    const records = data.records || data;
+    const page = data as TransactionPage<TRecord>;
+    const records = (page.records || (data as unknown as TRecord[])) as TRecord[];
     setAllData((prev) => {
       const ids = new Set(prev.map((r) => r.id));
       return [...prev, ...records.filter((r) => !ids.has(r.id))];
     });
-    setHasMore(data.hasMore ?? records.length === limit);
+    setHasMore(page.hasMore ?? records.length === limit);
   }, [data]);
 
   // Reset when account/network changes
@@ -279,9 +356,10 @@ export function useCachedTransactions(publicKey, network, fetcher, limit = 20) {
     setHasMore(true);
   }, [publicKey, network]);
 
-  const loadMore = useCallback(() => {
-    if (!loading && hasMore && data?.nextCursor) {
-      setCursor(data.nextCursor);
+  const loadMore = useCallback((): void => {
+    const nextCursor = (data as TransactionPage<TRecord>)?.nextCursor;
+    if (!loading && hasMore && nextCursor) {
+      setCursor(nextCursor);
     }
   }, [loading, hasMore, data]);
 
@@ -297,7 +375,11 @@ export function useCachedTransactions(publicKey, network, fetcher, limit = 20) {
  * @param {Function} fetcher  async (network) => stats
  * @param {number}   [refreshInterval]  ms between auto-refreshes (0 = off)
  */
-export function useCachedNetworkStats(network, fetcher, refreshInterval = 0) {
+export function useCachedNetworkStats<T>(
+  network: string,
+  fetcher: (network: string) => Promise<T>,
+  refreshInterval = 0
+): UseCachedDataReturn<T> {
   const key = `networkStats:${network}`;
   return useCachedData(
     key,
@@ -309,16 +391,47 @@ export function useCachedNetworkStats(network, fetcher, refreshInterval = 0) {
 // ─── useCachedPaginatedData ───────────────────────────────────────────────────
 
 /**
+ * Page query passed to the fetcher of {@link useCachedPaginatedData}.
+ */
+export interface PaginatedQuery {
+  page: number;
+  limit: number;
+}
+
+/**
+ * Options accepted by {@link useCachedPaginatedData}.
+ */
+export interface UseCachedPaginatedDataOptions<T> extends UseCachedDataOptions<T[]> {
+  limit?: number;
+}
+
+/**
+ * Return value of the {@link useCachedPaginatedData} hook.
+ */
+export interface UseCachedPaginatedDataReturn<T> extends UseCachedDataReturn<T[]> {
+  data: T[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
+  loadMore: () => void;
+  setPage: React.Dispatch<React.SetStateAction<number>>;
+}
+
+/**
  * Generic paginated hook (page-number based).
  */
-export function useCachedPaginatedData(cacheKey, fetchFn, opts = {}) {
+export function useCachedPaginatedData<T>(
+  cacheKey: string | null,
+  fetchFn: (query: PaginatedQuery) => Promise<T[]>,
+  opts: UseCachedPaginatedDataOptions<T> = {}
+): UseCachedPaginatedDataReturn<T> {
   const { limit = 20, ...rest } = opts;
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(true);
 
   const pagedKey = cacheKey ? `${cacheKey}:p${page}:l${limit}` : null;
 
-  const result = useCachedData(
+  const result = useCachedData<T[]>(
     pagedKey,
     useCallback(() => fetchFn({ page, limit }), [page, limit]), // eslint-disable-line
     { ...rest }
@@ -328,7 +441,7 @@ export function useCachedPaginatedData(cacheKey, fetchFn, opts = {}) {
     if (result.data && result.data.length < limit) setHasMore(false);
   }, [result.data, limit]);
 
-  const loadMore = useCallback(() => {
+  const loadMore = useCallback((): void => {
     if (!result.loading && hasMore) setPage((p) => p + 1);
   }, [result.loading, hasMore]);
 
@@ -340,11 +453,16 @@ export function useCachedPaginatedData(cacheKey, fetchFn, opts = {}) {
 /**
  * Fetch a single item by id with caching.
  */
-export function useCachedItem(cacheKeyPrefix, id, fetchFn, opts = {}) {
+export function useCachedItem<T, TId extends string | number = string>(
+  cacheKeyPrefix: string,
+  id: TId | null | undefined,
+  fetchFn: (id: TId) => Promise<T>,
+  opts: UseCachedDataOptions<T> = {}
+): UseCachedDataReturn<T> {
   const key = id != null ? `${cacheKeyPrefix}:${id}` : null;
-  return useCachedData(
+  return useCachedData<T>(
     key,
-    useCallback(() => fetchFn(id), [id]), // eslint-disable-line
+    useCallback(() => fetchFn(id as TId), [id]), // eslint-disable-line
     { enabled: id != null, ...opts }
   );
 }
@@ -357,9 +475,19 @@ export function useCachedItem(cacheKeyPrefix, id, fetchFn, opts = {}) {
  * writeSafe is false when offline and unsafe writes are attempted (i.e. the
  * UI should disable submit buttons).
  */
-export function useOfflineStatus() {
-  const [online, setOnline] = useState(() => isOnline());
-  const [queueLength, setQueueLength] = useState(0);
+/**
+ * Return value of the {@link useOfflineStatus} hook.
+ */
+export interface UseOfflineStatusReturn {
+  online: boolean;
+  offline: boolean;
+  queueLength: number;
+  writeSafe: boolean;
+}
+
+export function useOfflineStatus(): UseOfflineStatusReturn {
+  const [online, setOnline] = useState<boolean>(() => isOnline());
+  const [queueLength, setQueueLength] = useState<number>(0);
 
   useEffect(() => {
     return subscribeToConnectivity(setOnline);
@@ -367,7 +495,9 @@ export function useOfflineStatus() {
 
   // Poll queue length every 5 s
   useEffect(() => {
-    const refresh = () => getOfflineQueue().then((q) => setQueueLength(q.length)).catch(noop);
+    const refresh = (): void => {
+      getOfflineQueue().then((q: Array<unknown>) => setQueueLength(q.length)).catch(noop);
+    };
     refresh();
     const id = setInterval(refresh, 5_000);
     return () => clearInterval(id);
@@ -387,20 +517,29 @@ export function useOfflineStatus() {
  * Live cache statistics — useful for a debug/diagnostics panel.
  * Refreshes every `interval` ms.
  */
-export function useCacheStats(interval = 2_000) {
-  const [stats, setStats] = useState(() => cache.getStats());
+/**
+ * Return value of the {@link useCacheStats} hook.
+ */
+export interface UseCacheStatsReturn<TStats = Record<string, unknown>> {
+  stats: TStats;
+  clearAll: () => void;
+  invalidateTag: (tag: string) => void;
+}
+
+export function useCacheStats<TStats = Record<string, unknown>>(interval = 2_000): UseCacheStatsReturn<TStats> {
+  const [stats, setStats] = useState<TStats>(() => cache.getStats());
 
   useEffect(() => {
     const id = setInterval(() => setStats(cache.getStats()), interval);
     return () => clearInterval(id);
   }, [interval]);
 
-  const clearAll = useCallback(() => {
+  const clearAll = useCallback((): void => {
     cache.clear();
     setStats(cache.getStats());
   }, []);
 
-  const invalidateTag = useCallback((tag) => {
+  const invalidateTag = useCallback((tag: string): void => {
     cache.invalidateTag(tag);
     setStats(cache.getStats());
   }, []);

@@ -18,7 +18,16 @@ interface CorrelationData {
   links: Link[];
 }
 
-export function useCorrelation() {
+/**
+ * Return value of the {@link useCorrelation} hook.
+ */
+export interface UseCorrelationReturn {
+  data: CorrelationData | null;
+  loading: boolean;
+  error: Error | null;
+}
+
+export function useCorrelation(): UseCorrelationReturn {
   const analytics = useAnalytics();
   const [data, setData] = useState<CorrelationData | null>(null);
   const [loading, setLoading] = useState(false);

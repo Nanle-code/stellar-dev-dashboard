@@ -60,6 +60,7 @@ describe('<ContractInteraction />', () => {
 
     vi.doMock('../../../lib/contractInvoker', () => ({
       invokeContractFunction: invokeContractFunctionMock,
+      parseContractWasm: vi.fn(),
     }));
 
     vi.doMock('../../../lib/stellar', () => ({
@@ -110,6 +111,59 @@ describe('<ContractInteraction />', () => {
     expect(updateMock).toHaveBeenCalledWith('advanced', {
       enableContractAssistant: false,
       someOtherPreference: 'value',
+    });
+  });
+
+  describe('Generated Argument Controls', () => {
+    it('generates specific controls based on contract spec and hides manual type selection', async () => {
+      // Setup mock to return a function with spec parameters
+      const { parseContractWasm } = await import('../../../lib/contractInvoker');
+      vi.mocked(parseContractWasm).mockResolvedValueOnce({
+        functions: [{
+          name: 'update_config',
+          parameters: [
+            { name: 'enable_flag', type: 'bool' },
+            { name: 'threshold', type: 'u32' }
+          ]
+        }]
+      });
+
+      render(<ContractInteraction />);
+
+      const contractIdInput = screen.getByPlaceholderText('C... contract address');
+      const functionNameInput = screen.getByPlaceholderText('increment');
+
+      fireEvent.change(contractIdInput, { target: { value: 'C1234567890ABCDEFG' } });
+      fireEvent.change(functionNameInput, { target: { value: 'update_config' } });
+
+      await waitFor(() => {
+        expect(parseContractWasm).toHaveBeenCalledWith('C1234567890ABCDEFG', 'testnet');
+      });
+
+      // The argument types are bool and u32. The manual type selections should not be present for these
+      await waitFor(() => {
+        expect(screen.queryByDisplayValue('String')).not.toBeInTheDocument();
+        expect(screen.getByText('enable_flag')).toBeInTheDocument();
+        expect(screen.getByText('threshold')).toBeInTheDocument();
+      });
+
+      // Should render a boolean select for enable_flag
+      expect(screen.getByRole('combobox', { name: /enable_flag/i })).toBeInTheDocument();
+    });
+
+    it('falls back to manual type selection if no spec is available', async () => {
+      render(<ContractInteraction />);
+
+      const contractIdInput = screen.getByPlaceholderText('C... contract address');
+      const functionNameInput = screen.getByPlaceholderText('increment');
+
+      fireEvent.change(contractIdInput, { target: { value: 'C1234567890ABCDEFG' } });
+      fireEvent.change(functionNameInput, { target: { value: 'unknown_func' } });
+
+      // Should render the manual type selection for an ad-hoc argument
+      await waitFor(() => {
+        expect(screen.getByRole('combobox', { name: /String/i })).toBeInTheDocument();
+      });
     });
   });
 });

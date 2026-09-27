@@ -3,6 +3,31 @@ import { useTranslation as useI18nextTranslation } from "react-i18next";
 import { useI18nContext } from "../components/I18nProvider.jsx";
 import { RTL_LANGUAGES } from "../i18n/index.js";
 
+export interface SupportedLanguage {
+  code: string;
+  label: string;
+  nativeLabel: string;
+}
+
+export interface UseTranslationReturn {
+  t: (key: string, options?: Record<string, unknown>) => string;
+  tPlural: (key: string, count: number, extra?: Record<string, unknown>) => string;
+  formatNumber: (value: number, opts?: Intl.NumberFormatOptions) => string;
+  formatDate: (date: Date | string | number, opts?: Intl.DateTimeFormatOptions) => string;
+  i18n: ReturnType<typeof useI18nextTranslation>['i18n'];
+  ready: boolean;
+  currentLanguage: string;
+  currentLocale: string;
+  changeLanguage: (code: string) => Promise<void>;
+  supportedLanguages: SupportedLanguage[];
+  localeProfile: unknown;
+  culturalAdaptations: unknown;
+  regionalContent: unknown;
+  formatCurrency: (value: number, currency?: string) => string;
+  validateLocale: () => unknown;
+  isRTL: boolean;
+}
+
 /**
  * useTranslation
  *
@@ -26,18 +51,10 @@ import { RTL_LANGUAGES } from "../i18n/index.js";
  * changeLanguage('es')
  * ```
  *
- * @param {string} [ns='translation'] - Optional i18next namespace override
- * @returns {{
- *   t: import('i18next').TFunction,
- *   i18n: import('i18next').i18n,
- *   currentLanguage: string,
- *   changeLanguage: (code: string) => Promise<void>,
- *   supportedLanguages: Array<{ code: string, label: string, nativeLabel: string }>,
- *   isRTL: boolean,
- *   ready: boolean,
- * }}
+ * @param ns - Optional i18next namespace override
+ * @returns Translation helpers and language-switching API
  */
-export function useTranslation(ns = "translation") {
+export function useTranslation(ns: string = "translation"): UseTranslationReturn {
   const { t, i18n, ready } = useI18nextTranslation(ns);
   const {
     currentLanguage,
@@ -59,7 +76,7 @@ export function useTranslation(ns = "translation") {
    * which prevents blank UI during hot reloads or missing keys in dev.
    */
   const safeT = useCallback(
-    (key, options) => {
+    (key: string, options?: Record<string, unknown>): string => {
       const result = t(key, options);
       return result ?? key;
     },
@@ -71,22 +88,22 @@ export function useTranslation(ns = "translation") {
    * Delegates to i18next count interpolation:
    *   tPlural('transactions.count', 3) → uses key 'transactions.count_one' or 'transactions.count_other'
    *
-   * @param {string} key
-   * @param {number} count
-   * @param {Record<string, unknown>} [extra]  Additional interpolation values
+   * @param key - Translation key
+   * @param count - Plural count
+   * @param extra - Additional interpolation values
    */
   const tPlural = useCallback(
-    (key, count, extra = {}) => safeT(key, { count, ...extra }),
+    (key: string, count: number, extra: Record<string, unknown> = {}): string => safeT(key, { count, ...extra }),
     [safeT],
   );
 
   /**
    * Format a number according to the current locale (#107).
-   * @param {number} value
-   * @param {Intl.NumberFormatOptions} [opts]
+   * @param value - Numeric value to format
+   * @param opts - Intl.NumberFormat options
    */
   const formatNumber = useCallback(
-    (value, opts = {}) => {
+    (value: number, opts: Intl.NumberFormatOptions = {}): string => {
       try {
         return formatLocaleNumber(value, opts);
       } catch {
@@ -98,11 +115,11 @@ export function useTranslation(ns = "translation") {
 
   /**
    * Format a date according to the current locale (#107).
-   * @param {Date | string | number} date
-   * @param {Intl.DateTimeFormatOptions} [opts]
+   * @param date - Date value to format
+   * @param opts - Intl.DateTimeFormat options
    */
   const formatDate = useCallback(
-    (date, opts = { dateStyle: "medium" }) => {
+    (date: Date | string | number, opts: Intl.DateTimeFormatOptions = { dateStyle: "medium" }): string => {
       try {
         return formatDateTime(date, opts);
       } catch {

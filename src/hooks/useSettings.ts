@@ -13,10 +13,36 @@ import {
   updatePreference,
 } from "../utils/preferences";
 
-export function useSettings() {
-  const [profiles, setProfiles] = useState(() => loadConfigProfiles());
-  const [activeProfileName, setActiveNameState] = useState(() => getActiveProfileName());
-  const [preferences, setPreferences] = useState(() => loadPreferences());
+export interface ConfigProfile {
+  name: string;
+  config: Record<string, unknown>;
+}
+
+export interface SettingsPreferences {
+  compactMode: boolean;
+  showAdvancedPanels: boolean;
+  autoRefreshDashboard: boolean;
+  defaultSearchScope: string;
+  diagnosticsConsent: boolean;
+  [key: string]: unknown;
+}
+
+export interface UseSettingsReturn {
+  profiles: ConfigProfile[];
+  activeProfile: ConfigProfile;
+  activeProfileName: string;
+  setActiveProfile: (name: string) => void;
+  saveProfile: (name: string, config: Record<string, unknown>) => void;
+  deleteProfile: (name: string) => void;
+  preferences: SettingsPreferences;
+  setAllPreferences: (nextPreferences: SettingsPreferences) => void;
+  setPreference: (key: string, value: unknown) => void;
+}
+
+export function useSettings(): UseSettingsReturn {
+  const [profiles, setProfiles] = useState<ConfigProfile[]>(() => loadConfigProfiles() as ConfigProfile[]);
+  const [activeProfileName, setActiveNameState] = useState<string>(() => getActiveProfileName() as string);
+  const [preferences, setPreferences] = useState<SettingsPreferences>(() => loadPreferences() as SettingsPreferences);
 
   const activeProfile = useMemo(() => {
     return (
@@ -27,30 +53,30 @@ export function useSettings() {
     );
   }, [profiles, activeProfileName]);
 
-  function setActiveProfile(name) {
+  function setActiveProfile(name: string): void {
     setActiveProfileName(name);
     setActiveNameState(name);
   }
 
-  function saveProfile(name, config) {
-    const nextProfiles = upsertProfile(name, config);
+  function saveProfile(name: string, config: Record<string, unknown>): void {
+    const nextProfiles = upsertProfile(name, config) as ConfigProfile[];
     setProfiles(nextProfiles);
     setActiveProfile(name);
   }
 
-  function deleteProfile(name) {
-    const nextProfiles = removeProfile(name);
+  function deleteProfile(name: string): void {
+    const nextProfiles = removeProfile(name) as ConfigProfile[];
     setProfiles(nextProfiles);
-    const nextActive = getActiveProfileName();
+    const nextActive = getActiveProfileName() as string;
     setActiveNameState(nextActive);
   }
 
-  function setAllPreferences(nextPreferences) {
-    setPreferences(savePreferences(nextPreferences));
+  function setAllPreferences(nextPreferences: SettingsPreferences): void {
+    setPreferences(savePreferences(nextPreferences) as SettingsPreferences);
   }
 
-  function setPreference(key, value) {
-    setPreferences(updatePreference(key, value));
+  function setPreference(key: string, value: unknown): void {
+    setPreferences(updatePreference(key, value) as SettingsPreferences);
   }
 
   return {

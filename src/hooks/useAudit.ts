@@ -20,19 +20,72 @@ import {
 } from '../lib/securityEvents.js';
 
 /**
+ * Filter shape accepted by {@link useAuditLog} (same shape as getAuditEntries).
+ */
+export interface UseAuditLogFilters {
+  category?: string;
+  severity?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Options accepted by {@link useAuditLog}.
+ */
+export interface UseAuditLogOptions {
+  pollMs?: number;
+}
+
+/**
+ * Return value of the {@link useAuditLog} hook.
+ */
+export interface UseAuditLogReturn<TEntry = Record<string, unknown>> {
+  entries: TEntry[];
+  refresh: () => void;
+}
+
+/**
+ * Overrides accepted by the callback returned from {@link useAuditAction}.
+ */
+export type AuditActionOverrides = Record<string, unknown>;
+
+/**
+ * Overrides accepted by the callback returned from {@link useSecurityEvent}.
+ */
+export type SecurityEventOverrides = Record<string, unknown>;
+
+/**
+ * A single security alert with a timestamp.
+ */
+export interface TimestampedSecurityAlert<TAlert = Record<string, unknown>> extends Record<string, unknown> {
+  at: number;
+  alert?: TAlert;
+}
+
+/**
+ * Return value of the {@link useSecurityMonitor} hook.
+ */
+export interface UseSecurityMonitorReturn<TAlert = Record<string, unknown>> {
+  alerts: Array<TAlert & { at: number }>;
+  clear: () => void;
+}
+
+/**
  * Subscribe to audit entries with optional filters.
  * Re-renders whenever a matching new entry is recorded.
  *
- * @param {object} [filters]  Same shape as getAuditEntries
- * @param {{ pollMs?: number }} [opts]
+ * @param [filters]  Same shape as getAuditEntries
+ * @param [opts]
  */
-export function useAuditLog(filters = {}, opts = {}) {
+export function useAuditLog<TEntry = Record<string, unknown>>(
+  filters: UseAuditLogFilters = {},
+  opts: UseAuditLogOptions = {}
+): UseAuditLogReturn<TEntry> {
   const { pollMs = 0 } = opts;
   // Stabilise filter object across renders
   const filterKey = JSON.stringify(filters);
   const stableFilters = useMemo(() => filters, [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [entries, setEntries] = useState(() => getAuditEntries(stableFilters));
+  const [entries, setEntries] = useState<TEntry[]>(() => getAuditEntries(stableFilters));
 
   const refresh = useCallback(() => {
     setEntries(getAuditEntries(stableFilters));
@@ -67,9 +120,12 @@ export function useAuditLog(filters = {}, opts = {}) {
  *   const logExport = useAuditAction('data.export', { category: 'export' });
  *   <button onClick={() => logExport({ metadata: { format: 'csv' } })}>Export</button>
  */
-export function useAuditAction(action, defaults = {}) {
+export function useAuditAction(
+  action: string,
+  defaults: AuditActionOverrides = {}
+): (overrides?: AuditActionOverrides) => unknown {
   return useCallback(
-    (overrides = {}) =>
+    (overrides: AuditActionOverrides = {}) =>
       recordAudit({ action, ...defaults, ...overrides }),
     [action, JSON.stringify(defaults)], // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -82,9 +138,12 @@ export function useAuditAction(action, defaults = {}) {
  *   const trackLoginFail = useSecurityEvent(SecurityEventType.AUTH_LOGIN_FAILED);
  *   trackLoginFail({ actor: address, metadata: { reason: 'bad-sig' } });
  */
-export function useSecurityEvent(eventType, defaults = {}) {
+export function useSecurityEvent(
+  eventType: string,
+  defaults: SecurityEventOverrides = {}
+): (overrides?: SecurityEventOverrides) => unknown {
   return useCallback(
-    (overrides = {}) => trackSecurityEvent(eventType, { ...defaults, ...overrides }),
+    (overrides: SecurityEventOverrides = {}) => trackSecurityEvent(eventType, { ...defaults, ...overrides }),
     [eventType, JSON.stringify(defaults)], // eslint-disable-line react-hooks/exhaustive-deps
   );
 }
@@ -93,8 +152,8 @@ export function useSecurityEvent(eventType, defaults = {}) {
  * Subscribe to live security alerts (anomaly detector output).
  * Returns the latest N alerts in chronological order (newest first).
  */
-export function useSecurityMonitor(maxAlerts = 20) {
-  const [alerts, setAlerts] = useState([]);
+export function useSecurityMonitor<TAlert = Record<string, unknown>>(maxAlerts = 20): UseSecurityMonitorReturn<TAlert> {
+  const [alerts, setAlerts] = useState<Array<TAlert & { at: number }>>([]);
 
   useEffect(() => {
     const unsub = subscribeSecurityAlerts((alert) => {
@@ -103,7 +162,7 @@ export function useSecurityMonitor(maxAlerts = 20) {
     return unsub;
   }, [maxAlerts]);
 
-  const clear = useCallback(() => setAlerts([]), []);
+  const clear = useCallback((): void => setAlerts([]), []);
 
   return { alerts, clear };
 }
@@ -111,8 +170,8 @@ export function useSecurityMonitor(maxAlerts = 20) {
 /**
  * Aggregated audit stats for dashboards. Refreshes on every new entry.
  */
-export function useAuditStats() {
-  const [stats, setStats] = useState(() => getAuditStats());
+export function useAuditStats<TStats = Record<string, unknown>>(): TStats {
+  const [stats, setStats] = useState<TStats>(() => getAuditStats());
 
   useEffect(() => {
     const unsub = subscribeAudit(() => setStats(getAuditStats()));

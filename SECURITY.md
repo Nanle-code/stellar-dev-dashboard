@@ -1,5 +1,12 @@
 # Security Policy
 
+## Federation and SEP endpoint trust
+
+Federation and SEP endpoints discovered through `stellar.toml` are restricted
+to the originating home domain and configured trusted domains. See
+[`docs/security/endpoint-allowlist.md`](docs/security/endpoint-allowlist.md)
+for compatibility and migration guidance.
+
 ## Overview
 This document outlines the security architecture and threat model for the `stellar-dev-dashboard`. Our security strategy focuses on frontend hardening, automated dependency management, and restrictive communication policies.
 

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-interface SlippagePrediction {
+export interface SlippagePrediction {
   predictedSlippage: number
   confidence: number
   riskLevel: 'low' | 'medium' | 'high' | 'critical'
@@ -14,7 +14,7 @@ interface SlippagePrediction {
   recommendedTolerance: number
 }
 
-interface SlippagePredictionParams {
+export interface SlippagePredictionParams {
   sourceAsset: string
   destAsset: string
   amount: number
@@ -22,7 +22,20 @@ interface SlippagePredictionParams {
   liquidity?: number
 }
 
-export function useSlippagePrediction() {
+export interface SlippageRiskAssessment {
+  level: string
+  message: string
+  action: string
+}
+
+export interface UseSlippagePredictionReturn {
+  predictSlippage: (params: SlippagePredictionParams) => SlippagePrediction
+  getHistoricalAverage: (assetPair: string) => SlippagePrediction | null
+  getRiskAssessment: (prediction: SlippagePrediction) => SlippageRiskAssessment
+  history: Array<[string, SlippagePrediction[]]>
+}
+
+export function useSlippagePrediction(): UseSlippagePredictionReturn {
   const [history, setHistory] = useState<Map<string, SlippagePrediction[]>>(new Map())
 
   const predictSlippage = useCallback((params: SlippagePredictionParams): SlippagePrediction => {
@@ -91,11 +104,7 @@ export function useSlippagePrediction() {
     }
   }, [history])
 
-  const getRiskAssessment = useCallback((prediction: SlippagePrediction): {
-    level: string
-    message: string
-    action: string
-  } => {
+  const getRiskAssessment = useCallback((prediction: SlippagePrediction): SlippageRiskAssessment => {
     switch (prediction.riskLevel) {
       case 'low':
         return {

@@ -7,6 +7,7 @@ import { generateInsights, type AnalyticsSummary } from './analytics'
 import { accountRequests } from './requestCancellation'
 import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
 import { handleNetworkSwitch } from './cacheInit'
+import { hydrateDemoState } from './demoMode'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,12 @@ export interface StoreState {
   isMobileMenuOpen: boolean
   setMobileMenuOpen: (open: boolean) => void
 
+  // Demo mode (#875): a read-only, wallet-free preview of a curated testnet
+  // portfolio. Session-scoped and intentionally not persisted.
+  isDemoMode: boolean
+  enterDemoMode: () => void
+  exitDemoMode: () => void
+
   connectedAddress: string | null
   accountData: Horizon.AccountResponse | null
   accountLoading: boolean
@@ -174,6 +181,10 @@ export interface StoreState {
 
   activeTab: string
   setActiveTab: (tab: string) => void
+
+  /** Transaction hash selected via a deep link (`/transactions/:hash`). */
+  selectedTxHash: string | null
+  setSelectedTxHash: (hash: string | null) => void
 
   faucetLoading: boolean
   faucetResult: unknown
@@ -448,6 +459,31 @@ export const useStore = create<StoreState>((set) => ({
   isMobileMenuOpen: false,
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
 
+  isDemoMode: false,
+  enterDemoMode: () => {
+    // hydrateDemoState validates the fixtures and throws DemoModeError when they
+    // are missing or malformed, so the caller can surface a clean failure.
+    const demoState = hydrateDemoState()
+    set({ ...demoState, isDemoMode: true })
+  },
+  exitDemoMode: () =>
+    set({
+      isDemoMode: false,
+      connectedAddress: null,
+      accountData: null,
+      accountLoading: false,
+      accountError: null,
+      transactions: [],
+      txLoading: false,
+      txNextCursor: null,
+      txHasMore: false,
+      operations: [],
+      opsLoading: false,
+      opsNextCursor: null,
+      opsHasMore: false,
+      activeTab: 'overview',
+    }),
+
   connectedAddress: null,
   accountData: null,
   accountLoading: false,
@@ -497,6 +533,9 @@ export const useStore = create<StoreState>((set) => ({
 
   activeTab: 'overview',
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  selectedTxHash: null,
+  setSelectedTxHash: (hash) => set({ selectedTxHash: hash }),
 
   faucetLoading: false,
   faucetResult: null,

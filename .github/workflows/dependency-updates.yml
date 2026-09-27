@@ -6,34 +6,35 @@ on:
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
-env:
-  NODE_VERSION: '24'
-
 jobs:
   update-deps:
     name: Check & Update Dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@v4
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          version: 9.15.0
 
-      - run: npm ci
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
 
       - name: Check for outdated packages
-        run: npm outdated || true
+        run: pnpm outdated || true
 
       - name: Security audit
-        run: npm audit --json > audit-report.json || true
+        run: pnpm audit --json > audit-report.json || true
 
       - name: Upload audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: audit-report
           path: audit-report.json
@@ -42,7 +43,7 @@ jobs:
     name: Verify Dependabot Config
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check dependabot config exists
         run: |
           if [ ! -f .github/dependabot.yml ]; then

@@ -61,10 +61,36 @@ export interface DashboardAdaptation {
 }
 
 /**
+ * Options bag for {@link useAdaptiveComponents} tooltip content lookup.
+ */
+export interface TooltipContentOptions {
+  simple?: string;
+  normal?: string;
+  advanced?: string;
+}
+
+/**
+ * Return value of the {@link useAdaptiveComponents} hook.
+ */
+export interface UseAdaptiveComponentsReturn {
+  getAdaptation: (featureId: string) => ComponentAdaptation;
+  dashboardAdaptation: DashboardAdaptation;
+  sidebarAdaptation: SidebarAdaptation;
+  getTooltipContent: (featureId: string, options: TooltipContentOptions) => string;
+  isSimplified: (featureId: string) => boolean;
+  level: ExpertiseTier;
+  isNovice: boolean;
+  isIntermediate: boolean;
+  isExpert: boolean;
+  tooltipDetail: 'simple' | 'normal' | 'advanced';
+  dashboardViewMode: 'simplified' | 'standard' | 'detailed';
+}
+
+/**
  * Hook that returns adaptation configs for components based on expertise level.
  * Use this in any component that needs to adapt its rendering.
  */
-export function useAdaptiveComponents() {
+export function useAdaptiveComponents(): UseAdaptiveComponentsReturn {
   const {
     level,
     getFeatureVisibility,
@@ -133,11 +159,7 @@ export function useAdaptiveComponents() {
   /**
    * Get tooltip content appropriate for the user's level.
    */
-  const getTooltipContent = (featureId: string, options: {
-    simple?: string;
-    normal?: string;
-    advanced?: string;
-  }): string => {
+  const getTooltipContent = (featureId: string, options: TooltipContentOptions): string => {
     switch (tooltipDetail) {
       case 'simple': return options.simple || options.normal || options.advanced || '';
       case 'normal': return options.normal || options.advanced || options.simple || '';

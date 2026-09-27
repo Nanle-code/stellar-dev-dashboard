@@ -10,41 +10,10 @@ import React, { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../../lib/store";
 import { useSwipeGesture } from "../../hooks/useSwipeGesture";
+import { getMobileNavRoutes } from "../../routes/routes";
 
-interface NavItem {
-  id: string;
-  label: string;
-  icon: string;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { id: "overview", label: "Overview", icon: "◈" },
-  { id: "account", label: "Account", icon: "◉" },
-  { id: "compare", label: "Compare", icon: "◫" },
-  { id: "transactions", label: "Transactions", icon: "⇄" },
-  { id: "contracts", label: "Contracts", icon: "◻" },
-  { id: "assets", label: "Assets", icon: "💎" },
-  { id: "network", label: "Network", icon: "◎" },
-  { id: "validatorPredictor", label: "Validator AI", icon: "🛡️" },
-  { id: "realtime", label: "Real-Time", icon: "◉" },
-  { id: "builder", label: "Builder", icon: "⚒" },
-  { id: "faucet", label: "Faucet", icon: "⬡" },
-  { id: "wallet", label: "Wallet", icon: "⊡" },
-  { id: "signer", label: "Signer", icon: "✎" },
-  { id: "multisig", label: "Multisig", icon: "⊕" },
-  { id: "portfolio", label: "Portfolio", icon: "◐" },
-  { id: "autonomousTrading", label: "Trading Agent", icon: "🤖" },
-  { id: "charts", label: "Charts", icon: "▤" },
-  { id: "dataStorytelling", label: "Data Stories", icon: "📖" },
-  { id: "designSystem", label: "Design System", icon: "◈" },
-  { id: "featureFlags", label: "Flags", icon: "🚩" },
-  { id: "collaboration", label: "Collaboration", icon: "◌" },
-  { id: "txPatterns", label: "AI Patterns", icon: "🧠" },
-  { id: "contractRecommendations", label: "Contract AI", icon: "💡" },
-  { id: "personalization", label: "AI Personalization", icon: "🧠" },
-  { id: "security", label: "Security", icon: "🛡️" },
-  { id: "dependencyManagement", label: "Dependencies", icon: "📦" },
-];
+// Resolved from the single route registry (#959) — no parallel nav list here.
+const NAV_ITEMS = getMobileNavRoutes();
 
 /**
  * Hamburger button shown in the mobile top-bar.
@@ -258,7 +227,7 @@ export default function MobileSidebar() {
                   <span aria-hidden="true" style={{ fontSize: "16px", minWidth: "20px", textAlign: "center" }}>
                     {item.icon}
                   </span>
-                  {item.label}
+                  {item.title}
                 </button>
               </li>
             );

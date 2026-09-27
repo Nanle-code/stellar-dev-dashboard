@@ -4,6 +4,7 @@ import { rateLimiter } from './rateLimiter.js';
 import auditTrail from './auditTrail.js';
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker';
 import { validateMemo } from './validation';
+import { requireAllowedEndpoint } from './endpointAllowlist';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -1436,8 +1437,6 @@ export async function resolveFederatedAddress(
   network: NetworkName = 'testnet'
 ): Promise<{ accountId: string; memoId?: string; memoType?: string } | null> {
   try {
-    const server = getServer(network);
-
     // Parse the federated address (name*domain)
     const [name, domain] = federatedAddress.split('*');
 
@@ -1469,7 +1468,11 @@ export async function resolveFederatedAddress(
 
     // Use the federation server URL if found
     if (tomlData.federationServer) {
-      const federationEndpoint = new URL(tomlData.federationServer);
+      const federationEndpoint = requireAllowedEndpoint(
+        tomlData.federationServer,
+        domain,
+        'federation'
+      );
       federationEndpoint.searchParams.append('q', federatedAddress);
       federationEndpoint.searchParams.append('type', 'name');
 

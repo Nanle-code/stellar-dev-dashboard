@@ -1,0 +1,526 @@
+{
+  "version": 1,
+  "network": "testnet",
+  "anchor": "2026-09-20T12:00:00Z",
+  "generatedBy": "scripts/seed-demo-fixtures.mjs",
+  "accounts": [
+    {
+      "address": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "label": "Testnet Retail Trader",
+      "description": "Funded testnet account holding XLM, USDC and AQUA trustlines with active DEX history.",
+      "tags": [
+        "retail",
+        "dex",
+        "stablecoins"
+      ],
+      "account": {
+        "account_id": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+        "sequence": "192045000120000",
+        "subentry_count": 3,
+        "last_modified_ledger": 53120410,
+        "last_modified_time": "1969-12-31T23:00:00Z",
+        "num_sponsoring": 0,
+        "num_sponsored": 0,
+        "thresholds": {
+          "low_threshold": 0,
+          "med_threshold": 0,
+          "high_threshold": 0
+        },
+        "flags": {
+          "auth_required": false,
+          "auth_revocable": false,
+          "auth_immutable": false
+        },
+        "balances": [
+          {
+            "asset_type": "native",
+            "balance": "4820.5000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          },
+          {
+            "asset_type": "credit_alphanum4",
+            "balance": "1250.7500000",
+            "asset_code": "USDC",
+            "asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+            "limit": "1000000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          },
+          {
+            "asset_type": "credit_alphanum4",
+            "balance": "18500.0000000",
+            "asset_code": "AQUA",
+            "asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+            "limit": "1000000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          }
+        ],
+        "signers": [
+          {
+            "key": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+            "weight": 1,
+            "type": "ed25519_public_key"
+          }
+        ],
+        "data": {}
+      }
+    },
+    {
+      "address": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+      "label": "Testnet Market Maker",
+      "description": "High-volume testnet liquidity provider with multi-asset trustlines and 2-of-3 multisig.",
+      "tags": [
+        "institutional",
+        "multisig",
+        "market_maker"
+      ],
+      "account": {
+        "account_id": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+        "sequence": "782910492810992",
+        "subentry_count": 4,
+        "last_modified_ledger": 53120408,
+        "last_modified_time": "1969-12-31T22:00:00Z",
+        "num_sponsoring": 0,
+        "num_sponsored": 0,
+        "thresholds": {
+          "low_threshold": 1,
+          "med_threshold": 2,
+          "high_threshold": 2
+        },
+        "flags": {
+          "auth_required": false,
+          "auth_revocable": false,
+          "auth_immutable": true
+        },
+        "balances": [
+          {
+            "asset_type": "native",
+            "balance": "450000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          },
+          {
+            "asset_type": "credit_alphanum4",
+            "balance": "65200.0000000",
+            "asset_code": "USDC",
+            "asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+            "limit": "1000000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          },
+          {
+            "asset_type": "credit_alphanum4",
+            "balance": "4.2500000",
+            "asset_code": "BTC",
+            "asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+            "limit": "1000000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          }
+        ],
+        "signers": [
+          {
+            "key": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+            "weight": 1,
+            "type": "ed25519_public_key"
+          },
+          {
+            "key": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+            "weight": 1,
+            "type": "ed25519_public_key"
+          },
+          {
+            "key": "GBYBJAJSIGKHXCMK6KIDCLHPY6I6YNG5I5KZBOHJAGHGXITADIPSRR65",
+            "weight": 1,
+            "type": "ed25519_public_key"
+          }
+        ],
+        "data": {}
+      }
+    },
+    {
+      "address": "GBYBJAJSIGKHXCMK6KIDCLHPY6I6YNG5I5KZBOHJAGHGXITADIPSRR65",
+      "label": "Testnet Soroban Treasury",
+      "description": "Soroban demo treasury interacting with the bundled token, AMM and registry contracts.",
+      "tags": [
+        "soroban",
+        "treasury",
+        "contracts"
+      ],
+      "account": {
+        "account_id": "GBYBJAJSIGKHXCMK6KIDCLHPY6I6YNG5I5KZBOHJAGHGXITADIPSRR65",
+        "sequence": "582049281048100",
+        "subentry_count": 2,
+        "last_modified_ledger": 53120405,
+        "last_modified_time": "1969-12-31T21:00:00Z",
+        "num_sponsoring": 0,
+        "num_sponsored": 0,
+        "thresholds": {
+          "low_threshold": 0,
+          "med_threshold": 0,
+          "high_threshold": 0
+        },
+        "flags": {
+          "auth_required": false,
+          "auth_revocable": false,
+          "auth_immutable": false
+        },
+        "balances": [
+          {
+            "asset_type": "native",
+            "balance": "75000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          },
+          {
+            "asset_type": "credit_alphanum4",
+            "balance": "142500.0000000",
+            "asset_code": "USDC",
+            "asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+            "limit": "1000000.0000000",
+            "buying_liabilities": "0.0000000",
+            "selling_liabilities": "0.0000000"
+          }
+        ],
+        "signers": [
+          {
+            "key": "GBYBJAJSIGKHXCMK6KIDCLHPY6I6YNG5I5KZBOHJAGHGXITADIPSRR65",
+            "weight": 1,
+            "type": "ed25519_public_key"
+          }
+        ],
+        "data": {}
+      }
+    }
+  ],
+  "contracts": [
+    {
+      "contractId": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+      "name": "Demo Token (DMO)",
+      "description": "SEP-41 style fungible token with mint, transfer and balance queries.",
+      "category": "token",
+      "deployedAt": "1969-12-22T00:00:00Z",
+      "callCount": 312,
+      "functions": [
+        "initialize",
+        "mint",
+        "transfer",
+        "balance"
+      ]
+    },
+    {
+      "contractId": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+      "name": "Demo AMM Pool",
+      "description": "Constant-product liquidity pool used by the curated DEX history.",
+      "category": "liquidity_pool",
+      "deployedAt": "1969-12-23T00:00:00Z",
+      "callCount": 176,
+      "functions": [
+        "swap",
+        "deposit",
+        "withdraw",
+        "get_reserves"
+      ]
+    },
+    {
+      "contractId": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+      "name": "Demo Registry",
+      "description": "Read-only registry mapping demo accounts to their roles.",
+      "category": "registry",
+      "deployedAt": "1969-12-24T00:00:00Z",
+      "callCount": 88,
+      "functions": [
+        "register",
+        "lookup",
+        "list"
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de00",
+      "paging_token": "53120300",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de00",
+      "ledger": 53120300,
+      "created_at": "2026-09-20T11:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120000",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "text",
+      "memo": "demo-payment"
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de01",
+      "paging_token": "53120301",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de01",
+      "ledger": 53120301,
+      "created_at": "2026-09-20T10:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120001",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "200",
+      "max_fee": "200",
+      "operation_count": 2,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "none",
+      "memo": null
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de02",
+      "paging_token": "53120302",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de02",
+      "ledger": 53120302,
+      "created_at": "2026-09-20T09:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120002",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "text",
+      "memo": "invoke-token"
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de03",
+      "paging_token": "53120303",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de03",
+      "ledger": 53120303,
+      "created_at": "2026-09-20T07:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120003",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "none",
+      "memo": null
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de04",
+      "paging_token": "53120304",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de04",
+      "ledger": 53120304,
+      "created_at": "2026-09-20T04:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120004",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "text",
+      "memo": "swap"
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de05",
+      "paging_token": "53120305",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de05",
+      "ledger": 53120305,
+      "created_at": "2026-09-19T23:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120005",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "none",
+      "memo": null
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de06",
+      "paging_token": "53120306",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de06",
+      "ledger": 53120306,
+      "created_at": "2026-09-19T15:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120006",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "text",
+      "memo": "mint"
+    },
+    {
+      "id": "000000000000000000000000000000000000000000000000000000000000de07",
+      "paging_token": "53120307",
+      "successful": true,
+      "hash": "000000000000000000000000000000000000000000000000000000000000de07",
+      "ledger": 53120307,
+      "created_at": "2026-09-19T02:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "source_account_sequence": "192045000120007",
+      "fee_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "fee_charged": "100",
+      "max_fee": "100",
+      "operation_count": 1,
+      "envelope_xdr": "",
+      "result_xdr": "",
+      "result_meta_xdr": "",
+      "memo_type": "none",
+      "memo": null
+    }
+  ],
+  "operations": [
+    {
+      "id": "900000",
+      "paging_token": "53120300-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de00",
+      "transaction_successful": true,
+      "type": "payment",
+      "type_i": 1,
+      "created_at": "2026-09-20T11:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "asset_type": "native",
+      "from": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "to": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+      "amount": "250.0000000"
+    },
+    {
+      "id": "900001",
+      "paging_token": "53120301-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de01",
+      "transaction_successful": true,
+      "type": "manage_sell_offer",
+      "type_i": 3,
+      "created_at": "2026-09-20T10:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "offer_id": "1001",
+      "amount": "500.0000000",
+      "price": "0.1265000",
+      "price_r": {
+        "n": 253,
+        "d": 2000
+      },
+      "buying_asset_type": "credit_alphanum4",
+      "buying_asset_code": "USDC",
+      "buying_asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+      "selling_asset_type": "native"
+    },
+    {
+      "id": "900002",
+      "paging_token": "53120302-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de02",
+      "transaction_successful": true,
+      "type": "invoke_host_function",
+      "type_i": 24,
+      "created_at": "2026-09-20T09:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "function": "host_function",
+      "contract_id": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526"
+    },
+    {
+      "id": "900003",
+      "paging_token": "53120303-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de03",
+      "transaction_successful": true,
+      "type": "payment",
+      "type_i": 1,
+      "created_at": "2026-09-20T07:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "asset_type": "native",
+      "from": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "to": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+      "amount": "250.0000000"
+    },
+    {
+      "id": "900004",
+      "paging_token": "53120304-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de04",
+      "transaction_successful": true,
+      "type": "manage_sell_offer",
+      "type_i": 3,
+      "created_at": "2026-09-20T04:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "offer_id": "1004",
+      "amount": "500.0000000",
+      "price": "0.1265000",
+      "price_r": {
+        "n": 253,
+        "d": 2000
+      },
+      "buying_asset_type": "credit_alphanum4",
+      "buying_asset_code": "USDC",
+      "buying_asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+      "selling_asset_type": "native"
+    },
+    {
+      "id": "900005",
+      "paging_token": "53120305-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de05",
+      "transaction_successful": true,
+      "type": "invoke_host_function",
+      "type_i": 24,
+      "created_at": "2026-09-19T23:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "function": "host_function",
+      "contract_id": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ"
+    },
+    {
+      "id": "900006",
+      "paging_token": "53120306-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de06",
+      "transaction_successful": true,
+      "type": "payment",
+      "type_i": 1,
+      "created_at": "2026-09-19T15:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "asset_type": "native",
+      "from": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "to": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+      "amount": "250.0000000"
+    },
+    {
+      "id": "900007",
+      "paging_token": "53120307-1",
+      "transaction_hash": "000000000000000000000000000000000000000000000000000000000000de07",
+      "transaction_successful": true,
+      "type": "manage_sell_offer",
+      "type_i": 3,
+      "created_at": "2026-09-19T02:00:00Z",
+      "source_account": "GBIEWBI6Y3UUG5AKBQH4V5O75BFACPJ66QWTT6NZYH4S645TIR2XT4KC",
+      "offer_id": "1007",
+      "amount": "500.0000000",
+      "price": "0.1265000",
+      "price_r": {
+        "n": 253,
+        "d": 2000
+      },
+      "buying_asset_type": "credit_alphanum4",
+      "buying_asset_code": "USDC",
+      "buying_asset_issuer": "GBTNSMGDYQKVYFAU5K2L3SHC7X6SUNVM3XQUDDIE4HF4YRSIOAIO5PSA",
+      "selling_asset_type": "native"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { Transaction, Networks } from '@stellar/stellar-sdk';
 import { encryptWithKey, decryptWithKey, generateKey } from './encryption.js';
 import auditTrail from './auditTrail.js';
+import { requireAllowedEndpoint, validateEndpointUrl } from './endpointAllowlist';
 
 /**
  * Stellar Anchor Integration System
@@ -523,16 +524,28 @@ class AnchorService {
     try {
       const toml = await this.fetchStellarToml(anchor.homeDomain);
       return {
-        sep10Auth: !!toml.WEB_AUTH_ENDPOINT,
-        sep24Interactive: !!toml.TRANSFER_SERVER_SEP0024,
-        sep31CrossBorder: !!toml.DIRECT_PAYMENT_SERVER,
-        sep6Transfer: !!toml.TRANSFER_SERVER,
-        sep12KYC: !!toml.KYC_SERVER,
+        sep10Auth: this.isAllowedSepEndpoint(toml.WEB_AUTH_ENDPOINT, anchor.homeDomain, 'SEP-10'),
+        sep24Interactive: this.isAllowedSepEndpoint(toml.TRANSFER_SERVER_SEP0024, anchor.homeDomain, 'SEP-24'),
+        sep31CrossBorder: this.isAllowedSepEndpoint(toml.DIRECT_PAYMENT_SERVER, anchor.homeDomain, 'SEP-31'),
+        sep6Transfer: this.isAllowedSepEndpoint(toml.TRANSFER_SERVER, anchor.homeDomain, 'SEP-6'),
+        sep12KYC: this.isAllowedSepEndpoint(toml.KYC_SERVER, anchor.homeDomain, 'SEP-12'),
         currencies: toml.CURRENCIES || []
       };
     } catch (e) {
       return null;
     }
+  }
+
+  isAllowedSepEndpoint(endpoint, homeDomain, kind) {
+    if (!endpoint) return false;
+    const validation = validateEndpointUrl(endpoint, homeDomain);
+    if (!validation.allowed) {
+      const message = `Blocked unexpected ${kind} endpoint: ${validation.reason}`;
+      console.warn(message, { endpoint, homeDomain });
+      auditTrail.logSecurityEvent(message, { endpoint, homeDomain });
+      return false;
+    }
+    return true;
   }
 
   async getWebAuthEndpoint(anchor) {
@@ -541,7 +554,7 @@ class AnchorService {
     }
 
     if (anchor.authEndpoint) {
-      return anchor.authEndpoint;
+      return requireAllowedEndpoint(anchor.authEndpoint, anchor.homeDomain, 'SEP-10').toString();
     }
 
     if (anchor.homeDomain) {
@@ -549,7 +562,7 @@ class AnchorService {
       if (!toml.WEB_AUTH_ENDPOINT) {
         throw new Error(`WEB_AUTH_ENDPOINT not defined in stellar.toml for ${anchor.homeDomain}`);
       }
-      return toml.WEB_AUTH_ENDPOINT;
+      return requireAllowedEndpoint(toml.WEB_AUTH_ENDPOINT, anchor.homeDomain, 'SEP-10').toString();
     }
 
     throw new Error(`Anchor ${anchor.id} does not support SEP-10 authentication`);

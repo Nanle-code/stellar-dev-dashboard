@@ -31,24 +31,24 @@ Commit message should briefly explain why the visuals changed (e.g. "redesigned 
 
 Tests run at three viewports for each major widget:
 
-| Viewport  | Size       |
-|-----------|------------|
-| mobile    | 375 × 667  |
-| tablet    | 768 × 1024 |
-| desktop   | 1440 × 900 |
+| Viewport | Size       |
+| -------- | ---------- |
+| mobile   | 375 × 667  |
+| tablet   | 768 × 1024 |
+| desktop  | 1440 × 900 |
 
 Widgets tested: Connect Panel, Overview, Account, Transactions, NetworkStats, DEXExplorer, PathExplorer, RealTimeLedger, AccountComparison, PortfolioValue, plus Sidebar, Themes (dark/light), and Multisig panels.
 
 ## Configuration
 
-| Setting | Value |
-|---------|-------|
-| Config file | `playwright.config.ts` |
+| Setting           | Value                                                             |
+| ----------------- | ----------------------------------------------------------------- |
+| Config file       | `playwright.config.ts`                                            |
 | Viewport projects | `visual-mobile`, `visual-tablet`, `visual-desktop`, `visual-wide` |
-| Snapshots | `tests/e2e/snapshots/` |
-| Threshold | `maxDiffPixelRatio: 0.002` (0.2%) |
-| Animations | Disabled (`reducedMotion: reduce`) |
-| Browser | Chromium only (for baseline consistency) |
+| Snapshots         | `tests/e2e/snapshots/`                                            |
+| Threshold         | `maxDiffPixelRatio: 0.002` (0.2%)                                 |
+| Animations        | Disabled (`reducedMotion: reduce`)                                |
+| Browser           | Chromium only (for baseline consistency)                          |
 
 The threshold of 0.2% tolerates minor anti-aliasing differences. Raise it in `playwright.config.ts → expect.toHaveScreenshot.maxDiffPixelRatio` if you have persistent false positives from font rendering.
 
@@ -59,7 +59,7 @@ Visual tests run on every PR via `.github/workflows/testing.yml` (multi-viewport
 - **Chromatic** (optional): set `CHROMATIC_PROJECT_TOKEN` and run `npm run test:chromatic` for Storybook component snapshots.
 - **Mutation testing**: `npm run test:mutation` (Stryker) — runs weekly in CI.
 - **Coverage gate**: `npm run test:coverage:check` enforces thresholds from `testing/coverage-thresholds.json`.
-- **Lighthouse CI**: `npm run test:lighthouse` with budgets in `lighthouserc.cjs`.
+- **Lighthouse CI**: `npm run test:lighthouse` with route-level Core Web Vitals budgets in `lighthouserc.cjs`, `lighthouserc.desktop.cjs`, and `lighthouserc.mobile.cjs`. Dedicated commands: `npm run test:lighthouse:desktop`, `npm run test:lighthouse:mobile`, and `npm run test:lighthouse:enforce`. See `docs/PERFORMANCE.md`.
 - **Accessibility gate**: `npm run test:a11y` with axe-core WCAG 2.1 AA.
 
 - On failure: diff artifacts are uploaded as `visual-diff-<run>` (retained 14 days) and a comment is posted on the PR explaining how to update baselines.
@@ -72,6 +72,7 @@ Visual tests run on every PR via `.github/workflows/testing.yml` (multi-viewport
 **Font rendering differs across OS** — Always generate and compare baselines in the same environment. CI uses Ubuntu; local macOS/Windows may produce different anti-aliasing. Generate baselines inside a container or accept the CI-generated ones as source of truth.
 
 **Snapshot directory path** — Snapshots follow the pattern:
+
 ```
 tests/e2e/snapshots/tests/e2e/visual.spec.js/<snapshot-name>-visual.png
 ```

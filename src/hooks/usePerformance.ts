@@ -5,10 +5,31 @@ import { trackPerformanceMetric, trackPageView } from '../utils/analytics';
 /**
  * usePerformance - React hook for performance monitoring and Core Web Vitals
  * Measures and reports performance metrics and user interactions
+ *
+ * @param componentName - Optional component name used for metric labels and page-view tracking
+ * @returns Performance timing helpers and current metrics
  */
-export const usePerformance = (componentName = null) => {
-  const [metrics, setMetrics] = useState(null);
-  const [vitals, setVitals] = useState(null);
+export interface PerformanceMetrics {
+  domContentLoaded: number;
+  loadComplete: number;
+  ttfb: number;
+  domInteractive: number;
+  resourcesCount: number;
+  totalResourceSize: number;
+}
+
+export interface UsePerformanceReturn {
+  startTimer: () => number;
+  endTimer: (startTime: number, metricName?: string | null) => number;
+  measureApiCall: <T>(apiFunction: () => Promise<T>, endpoint: string, method?: string) => Promise<T>;
+  metrics: PerformanceMetrics | null;
+  vitals: null;
+  getMetrics: () => PerformanceMetrics | null;
+}
+
+export const usePerformance = (componentName: string | null = null): UsePerformanceReturn => {
+  const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
+  const [vitals, setVitals] = useState<null>(null);
 
   // Initialize performance monitoring
   useEffect(() => {
@@ -16,18 +37,18 @@ export const usePerformance = (componentName = null) => {
   }, []);
 
   // Measure component render time
-  const startTimer = useCallback(() => {
+  const startTimer = useCallback((): number => {
     return performance.now();
   }, []);
 
-  const endTimer = useCallback((startTime, metricName) => {
+  const endTimer = useCallback((startTime: number, metricName?: string | null): number => {
     const duration = performance.now() - startTime;
     trackPerformanceMetric(metricName || componentName, duration, 'ms');
     return duration;
   }, [componentName]);
 
   // Track API call duration
-  const measureApiCall = useCallback(async (apiFunction, endpoint, method = 'GET') => {
+  const measureApiCall = useCallback(async <T>(apiFunction: () => Promise<T>, endpoint: string, method: string = 'GET'): Promise<T> => {
     const startTime = startTimer();
     try {
       const result = await apiFunction();
@@ -42,7 +63,7 @@ export const usePerformance = (componentName = null) => {
   }, [startTimer, endTimer]);
 
   // Get current performance metrics
-  const getMetrics = useCallback(() => {
+  const getMetrics = useCallback((): PerformanceMetrics | null => {
     if (typeof window === 'undefined') return null;
 
     const perfData = window.performance;

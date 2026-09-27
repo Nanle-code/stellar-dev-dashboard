@@ -2,45 +2,97 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 5
-    profiles: [production]
 
   app:
     build:
       context: .
       target: production
     ports:
-      - "8080:80"
+      - '${WEB_PORT:-8080}:80'
     environment:
       - NODE_ENV=production
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      test: ['CMD', 'wget', '-qO-', 'http://localhost/health']
       interval: 30s
       timeout: 3s
       retries: 3
+    profiles: [production]
 
   app-dev:
-    image: node:20-alpine
+    image: node:22-alpine
     working_dir: /app
     volumes:
       - .:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - '${WEB_PORT:-5173}:5173'
     command: npm run dev -- --host
     environment:
       - NODE_ENV=development
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
+    depends_on:
+      api:
+        condition: service_healthy
     profiles: [dev]
+
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - '${API_PORT:-4000}:4000'
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=4000
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:4000/health']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    profiles: [dev, production, api]
+
+  api-canary:
+    build:
+      context: .
+      target: api
+    ports:
+      - '4001:4000'
+    environment:
+      - NODE_ENV=production
+      - CANARY=true
+      - PORT=4000
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: 'no'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:4000/health']
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 3s
+    profiles: [canary]
 
 volumes:
   redis_data:

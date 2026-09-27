@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef } from 'react'
 
-interface SwipeOptions {
+export interface SwipeOptions {
   onSwipeLeft?: () => void
   onSwipeRight?: () => void
   onSwipeUp?: () => void
@@ -15,9 +15,13 @@ interface SwipeOptions {
   restraint?: number
 }
 
+export interface UseSwipeGestureReturn<T extends HTMLElement> {
+  current: T | null
+}
+
 export function useSwipeGesture<T extends HTMLElement>(
   options: SwipeOptions,
-) {
+): UseSwipeGestureReturn<T> {
   const ref = useRef<T>(null)
   const touch = useRef({ x: 0, y: 0 })
 

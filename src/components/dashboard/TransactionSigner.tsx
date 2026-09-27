@@ -67,7 +67,7 @@ export default function TransactionSigner() {
     [bio, network]
   );
 
-  // networkPassphrase moved up
+  const networkPassphrase = NETWORKS[network]?.passphrase ?? NETWORKS.testnet.passphrase;
   const handleSign = async () => {
     if (!xdr.trim()) {
       setError('Please enter a transaction XDR to sign');

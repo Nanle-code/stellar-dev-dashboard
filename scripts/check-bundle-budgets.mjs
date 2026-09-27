@@ -31,8 +31,9 @@ function checkBudgets() {
       const gzipped = zlib.gzipSync(content);
       const sizeKB = gzipped.length / 1024;
 
-      // Extract chunk name: chunkName-[hash].js
-      const chunkNameMatch = file.match(/^(.+)-[a-zA-Z0-9_-]+\.js$/);
+      // Extract chunk name: chunkName-[hash].js. The base62 hash is 8 chars and may itself
+      // contain '-'/'_', so pin the length instead of matching a greedy character class.
+      const chunkNameMatch = file.match(/^(.+)-[0-9a-zA-Z_-]{8}\.js$/);
       const chunkName = chunkNameMatch ? chunkNameMatch[1] : 'unknown';
 
       const budget = BUDGETS[chunkName] || BUDGETS['default'];

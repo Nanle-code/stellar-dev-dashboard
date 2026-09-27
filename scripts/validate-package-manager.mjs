@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const SUPPORTED_NODE_RANGE = { min: 18, max: 20 }
+const SUPPORTED_NODE_RANGE = { min: 22, max: 26 }
 
 export const FOREIGN_LOCKFILES = [
   'package-lock.json',
@@ -63,8 +63,8 @@ export function resolvePackageManager(requestedManager, env = {}) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  // CI pins a Node version the local environment check does not allow, so it runs
-  // --lockfiles-only to enforce the lockfile policy without the environment check.
+  // CI runs --lockfiles-only to enforce the lockfile policy on its own,
+  // independently of whichever Node version the current job is pinned to.
   const lockfilesOnly = process.argv.slice(2).includes('--lockfiles-only')
 
   try {

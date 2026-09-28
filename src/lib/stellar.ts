@@ -1159,6 +1159,47 @@ export interface SerializedContractEvent {
   value: unknown;
 }
 
+/**
+ * Serializable representation of a Soroban authorization invocation node.
+ * Mirrors the XDR SorobanAuthorizedInvocation but with all bigint/XDR
+ * values converted to plain strings so the tree can be serialized to JSON
+ * and passed safely as React props.
+ */
+export interface SerializedAuthInvocation {
+  /** Human-readable label describing the authorized function. */
+  functionType: 'contract_fn' | 'create_contract' | 'create_contract_v2' | 'unknown';
+  /** Contract address (for contract_fn) or empty string for host functions. */
+  contractAddress: string;
+  /** Function name (for contract_fn) or empty string. */
+  functionName: string;
+  /** Serialized argument values. */
+  args: unknown[];
+  /** Nested sub-invocations that must also be authorized. */
+  subInvocations: SerializedAuthInvocation[];
+}
+
+/**
+ * Serializable representation of a Soroban authorization entry credentials.
+ * Discriminated union keyed by `type`.
+ */
+export type SerializedAuthCredentials =
+  | { type: 'source_account' }
+  | {
+      type: 'address';
+      address: string;
+      nonce: string;
+      signatureExpirationLedger: number;
+    };
+
+/**
+ * Serializable representation of a single SorobanAuthorizationEntry from a
+ * simulation response.
+ */
+export interface SerializedAuthEntry {
+  credentials: SerializedAuthCredentials;
+  rootInvocation: SerializedAuthInvocation;
+}
+
 export interface ContractSimulationResult {
   xdr: string;
   latestLedger: number;
@@ -1170,6 +1211,8 @@ export interface ContractSimulationResult {
     readWrite: SerializedLedgerKey[];
     minResourceFee: string;
   } | null;
+  /** Authorization entries required by the simulation, if any. */
+  authEntries: SerializedAuthEntry[];
 }
 
 export interface ContractSubmitResult {
@@ -1291,6 +1334,86 @@ async function buildContractInvocationTransaction(
     .build();
 }
 
+// ─── Auth Entry Serialization ────────────────────────────────────────────────
+
+function serializeAuthInvocation(
+  invocation: StellarSdk.xdr.SorobanAuthorizedInvocation,
+): SerializedAuthInvocation {
+  const fn = invocation.function();
+  const fnType = fn.switch?.()?.name ?? fn.switch?.()?.toString?.() ?? '';
+
+  let functionType: SerializedAuthInvocation['functionType'] = 'unknown';
+  let contractAddress = '';
+  let functionName = '';
+  let args: unknown[] = [];
+
+  if (fnType === 'sorobanAuthorizedFunctionTypeContractFn') {
+    functionType = 'contract_fn';
+    try {
+      const contractFn = fn.contractFn();
+      const addr = contractFn.contractAddress();
+      contractAddress = StellarSdk.Address.fromScAddress(addr).toString();
+      const nameBytes = contractFn.functionName();
+      functionName =
+        typeof nameBytes === 'string'
+          ? nameBytes
+          : new TextDecoder().decode(nameBytes as unknown as Uint8Array);
+      args = contractFn.args().map(serializeScVal);
+    } catch {
+      // Silently degrade — the tree still shows the entry with partial info.
+    }
+  } else if (fnType === 'sorobanAuthorizedFunctionTypeCreateContractHostFn') {
+    functionType = 'create_contract';
+  } else if (fnType === 'sorobanAuthorizedFunctionTypeCreateContractV2HostFn') {
+    functionType = 'create_contract_v2';
+  }
+
+  const subInvocations = (invocation.subInvocations() ?? []).map(serializeAuthInvocation);
+
+  return { functionType, contractAddress, functionName, args, subInvocations };
+}
+
+function serializeAuthEntry(
+  entry: StellarSdk.xdr.SorobanAuthorizationEntry,
+): SerializedAuthEntry {
+  const creds = entry.credentials();
+  const credsType = creds.switch?.()?.name ?? creds.switch?.()?.toString?.() ?? '';
+
+  let credentials: SerializedAuthCredentials;
+  if (credsType === 'sorobanCredentialsSourceAccount') {
+    credentials = { type: 'source_account' };
+  } else {
+    // Covers sorobanCredentialsAddress, sorobanCredentialsAddressV2,
+    // sorobanCredentialsAddressWithDelegates — all expose an address field.
+    try {
+      const addressCreds =
+        typeof (creds as any).address === 'function'
+          ? (creds as any).address()
+          : typeof (creds as any).addressV2 === 'function'
+            ? (creds as any).addressV2()
+            : (creds as any).addressWithDelegates?.();
+
+      if (addressCreds) {
+        credentials = {
+          type: 'address',
+          address: StellarSdk.Address.fromScAddress(addressCreds.address()).toString(),
+          nonce: String(addressCreds.nonce()),
+          signatureExpirationLedger: addressCreds.signatureExpirationLedger(),
+        };
+      } else {
+        credentials = { type: 'source_account' };
+      }
+    } catch {
+      credentials = { type: 'source_account' };
+    }
+  }
+
+  return {
+    credentials,
+    rootInvocation: serializeAuthInvocation(entry.rootInvocation()),
+  };
+}
+
 export async function simulateContractCall(
   params: BuildContractInvocationParams
 ): Promise<ContractSimulationResult> {
@@ -1323,6 +1446,7 @@ export async function simulateContractCall(
     result: successfulSimulation.result ? serializeScVal(successfulSimulation.result.retval) : null,
     events: (successfulSimulation.events || []).map(serializeDiagnosticEvent),
     footprint,
+    authEntries: (successfulSimulation.result?.auth ?? []).map(serializeAuthEntry),
   };
 }
 

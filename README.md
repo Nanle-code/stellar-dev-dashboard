@@ -260,6 +260,7 @@ This keeps user-specific and operational endpoints behind explicit authenticatio
 - **Scheduled report delivery via webhooks (#869)** — authenticated HMAC/bearer delivery of analytics summaries with retries: [docs/features/report-webhook-delivery.md](docs/features/report-webhook-delivery.md).
 - **Transaction Builder i18n (#878)** — complete locale coverage of builder strings across all nine languages: [docs/features/builder-i18n.md](docs/features/builder-i18n.md).
 - **Mutation testing gate for fee math (#895)** — Stryker score gate on stroop conversion and fee estimation: [docs/features/mutation-testing-gate.md](docs/features/mutation-testing-gate.md). Run locally with `pnpm run test:mutation:feemath`.
+- **Soroban contract authorization tree (#850)** — nested authorization entry visualization in the Soroban invocation UI showing required signers and their authorized invocation trees: [docs/features/soroban-auth-tree.md](docs/features/soroban-auth-tree.md).
 
 ## Canary Deployment Health Probes
 

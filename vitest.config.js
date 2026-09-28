@@ -38,6 +38,10 @@ export default defineConfig({
     // its own last path segment (e.g. a nested `foo/foo` clone).
     setupFiles: [path.resolve(__dirname, './tests/setup.js')],
     exclude: ['.kilo/**', 'tests/e2e/**', 'node_modules/**'],
+    // Bound teardown/hook time so a worker holding an open handle fails its
+    // file instead of stalling the whole run for hours.
+    teardownTimeout: 10000,
+    hookTimeout: 10000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html', 'json-summary'],

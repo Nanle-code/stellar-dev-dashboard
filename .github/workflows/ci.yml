@@ -71,6 +71,9 @@ jobs:
   test:
     name: Unit & Integration Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    # Fail fast instead of burning hours: the suite previously ran ~5h10m
+    # because workers never tore down cleanly, so a hang looked like progress.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

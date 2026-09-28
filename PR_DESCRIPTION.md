@@ -2,7 +2,7 @@
 
 Implements cost attribution by application tag or memo prefix for project budgeting (#868). Attributes transaction fees (in Stroops and XLM) and payment transfer volumes to developer-defined project tags (e.g. `billing`, `auth`, `nft-drop`, `defi-swap`) via literal memo prefixes (e.g., `[APP:billing]`, `BILL:`) or custom regex patterns.
 
-- **Domain Library (`src/lib/costThresholdManager.ts`)**: `CostThresholdManager` implementation for tag management, memo prefix and regex pattern matching, Stroops/XLM fee calculation, volume tracking, threshold alerts (`ok`, `warning` >= 80%, `exceeded` >= 100%, `unbudgeted`), auto-discovery of embedded tags (`[APP:tag]`), JSON/CSV report exports, and graceful SSR/storage error handling.
+- **Domain Library (`src/lib/costThresholdManager.ts`)**: `CostThresholdManager` implementation for tag definition, memo prefix and regex pattern matching, budget limits, volume tracking, threshold alerts (`ok`, `warning` >= 80%, `exceeded` >= 100%, `unbudgeted`), auto-discovery of embedded tags (`[APP:tag]`), JSON/CSV report exports, and graceful SSR/storage error handling.
 - **Analytics Integration (`src/lib/analytics.ts`)**: Embedded cost attribution calculations into `buildAnalyticsSnapshot()` and re-exported `CostThresholdManager`.
 - **Documentation**: User-facing & developer guide in [`docs/features/COST_ATTRIBUTION_ANALYTICS.md`](docs/features/COST_ATTRIBUTION_ANALYTICS.md) and changelog entry in `CHANGELOG.md`.
 

@@ -1,5 +1,5 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { getSorobanServer, NetworkName, NETWORKS } from '../stellar';
+import { getSorobanServer, NetworkName, NETWORKS } from './networks.js';
 import {
   StellarReadSource,
   GetLedgersParams,
@@ -15,6 +15,21 @@ import {
   NormalizedTransaction,
   NormalizedEvent,
 } from './types';
+
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const toString = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value;
+  if (value === undefined || value === null) return fallback;
+  return String(value);
+};
 
 export const RPC_RETENTION_LIMIT_LEDGERS = 100_000;
 
@@ -210,9 +225,12 @@ export class RpcReadSource implements StellarReadSource {
         };
       });
 
-      cursor = typeof response === 'object' && response !== null && 'cursor' in response ? (response as any).cursor : undefined;
-    } catch (err: any) {
-      if (err?.message?.includes('out of range') || err?.code === -32600) {
+      const responseRecord = typeof response === 'object' && response !== null ? (response as Record<string, unknown>) : undefined;
+      cursor = typeof responseRecord?.cursor === 'string' ? responseRecord.cursor : undefined;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code = typeof err === 'object' && err !== null && 'code' in err ? (err as { code?: number }).code : undefined;
+      if (message.includes('out of range') || code === -32600) {
         return {
           transactions: [],
           hasMore: false,
@@ -265,7 +283,7 @@ export class RpcReadSource implements StellarReadSource {
       startLedger = latestSeq - this.retentionLimit;
     }
 
-    const filters: any[] = [];
+    const filters: Record<string, unknown>[] = [];
     if (params.contractIds || params.topics || params.type) {
       filters.push({
         type: params.type || 'contract',
@@ -319,8 +337,10 @@ export class RpcReadSource implements StellarReadSource {
       });
 
       nextCursor = events.length > 0 ? events[events.length - 1].pagingToken : undefined;
-    } catch (err: any) {
-      if (err?.message?.includes('out of range') || err?.code === -32600) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code = typeof err === 'object' && err !== null && 'code' in err ? (err as { code?: number }).code : undefined;
+      if (message.includes('out of range') || code === -32600) {
         return {
           events: [],
           hasMore: false,

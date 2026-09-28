@@ -243,8 +243,17 @@ export class Logger {
     this.addLog(this.createLogEntry(LogLevel.INFO, message, context, tags));
   }
 
-  warn(message: string, context?: Record<string, unknown>, tags?: string[]) {
-    this.addLog(this.createLogEntry(LogLevel.WARN, message, context, tags));
+  warn(message: string, context?: Record<string, unknown>, tags?: string[], error?: Error) {
+    const entry = this.createLogEntry(LogLevel.WARN, message, context, tags);
+    if (error) {
+      entry.stack = error.stack;
+      entry.context = {
+        ...(entry.context || {}),
+        errorName: error.name,
+        errorMessage: redactSensitive(error.message),
+      };
+    }
+    this.addLog(entry);
   }
 
   error(message: string, context?: Record<string, unknown>, tags?: string[], error?: Error) {
@@ -283,7 +292,9 @@ export class Logger {
 
   subscribe(callback: (entry: LogEntry) => void) {
     this.subscribers.add(callback);
-    return () => this.subscribers.delete(callback);
+    return () => {
+      this.subscribers.delete(callback);
+    };
   }
 
   getLogs(filter?: LogFilter): LogEntry[] {

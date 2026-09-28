@@ -31,6 +31,8 @@
     "format": "prettier --write package.json pnpm-lock.yaml eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
     "format:check": "prettier --check package.json pnpm-lock.yaml eslint.config.js tsconfig.json .github/workflows/ci.yml .prettierrc.json",
     "type-check": "tsc --noEmit",
+    "type-check:strict": "tsc --noEmit -p tsconfig.strict.json",
+    "check:strict-tsconfig": "node scripts/check-strict-tsconfig.mjs",
     "test": "vitest run --config vitest.config.js",
     "test:watch": "vitest --config vitest.config.js",
     "test:ui": "vitest --ui --config vitest.config.js",

@@ -4,7 +4,6 @@ import { describe, it, expect } from "vitest";
 
 const NETWORK_PASSPHRASE = StellarSdk.Networks.TESTNET;
 const BASE_FEE = "100";
-const MIN_AMOUNT = 0.0000001;
 const MAX_SAFE_AMOUNT = 9000000000000000;
 
 function keypairArb() {

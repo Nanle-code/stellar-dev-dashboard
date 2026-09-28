@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **API Versioning & Lifecycle Management** ([#449](https://github.com/Nanle-code/stellar-dev-dashboard/issues/449)).
+  Comprehensive API versioning system with analytics, migration tools, and sunset policy enforcement.
+  - `api/routes/analytics.ts` — Admin endpoints for version usage metrics, deprecated route tracking, and adoption rates
+  - `api/routes/migration.ts` — Public endpoints for migration guides, compatibility checks, breaking changes, and sunset policy
+  - `api/utils/migrationTools.ts` — Migration utilities including version compatibility checking, breaking change tracking, and sunset policy definitions
+  - Enhanced `api/middleware/apiVersioning.ts` — Added real-time version tracking, sunset date enforcement with HTTP 410 responses, and per-endpoint usage analytics
+  - `docs/api/API_LIFECYCLE_MANAGEMENT.md` — Complete guide covering versioning strategy, backward compatibility, deprecation process, migration tools, analytics, and sunset policy
+  - Updated `docs/api/VERSION_HISTORY.md` — Detailed changelog of version 1.1.0 features and endpoints
+  - Updated `docs/api/API_VERSIONING.md` — Added references to lifecycle management documentation
+  - Version analytics tracking with endpoint-level granularity
+  - Programmatic migration guides accessible via REST API
+  - Automatic sunset enforcement (410 Gone after sunset date)
+  - Breaking changes documentation with impact levels
+  - 6-month minimum deprecation period with 30-day grace period
+  - Real-time adoption rate calculation across API versions
+
 - **Pre-sign risk summary** ([#982](https://github.com/Nanle-code/stellar-dev-dashboard/issues/982)).
   Every transaction is now parsed and described in plain language before it
   reaches a wallet, so an operation that irreversibly changes an account cannot

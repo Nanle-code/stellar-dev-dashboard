@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cohort retention views for account activity** ([#863](https://github.com/Nanle-code/stellar-dev-dashboard/issues/863)).
+  Provides cohort charts that group accounts by first-seen period (Day, Week, Month) and subsequent activity.
+  - `src/lib/cohortRetention.ts` — domain calculations for cohort retention matrices, period headers, summary stats, CSV/JSON exports, and graceful error handling.
+  - `src/components/dashboard/CohortRetentionView.tsx` — accessible UI view featuring cohort heatmap matrix table, line chart, controls, view mode toggles, and export triggers.
+  - `docs/features/COHORT_RETENTION_ANALYTICS.md` — comprehensive user-facing and developer documentation including compatibility, security, and migration guidance.
 - **Pre-sign risk summary** ([#982](https://github.com/Nanle-code/stellar-dev-dashboard/issues/982)).
   Every transaction is now parsed and described in plain language before it
   reaches a wallet, so an operation that irreversibly changes an account cannot

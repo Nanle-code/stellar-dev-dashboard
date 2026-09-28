@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cost attribution by application tag or memo prefix** ([#868](https://github.com/Nanle-code/stellar-dev-dashboard/issues/868)).
+  Attributes transaction fees and asset transfer volumes to developer-defined project tags for project budgeting and threshold alerts.
+  - `src/lib/costThresholdManager.ts` — `CostThresholdManager` implementation for tag definition, memo prefix and regex pattern matching, budget limits, volume tracking, threshold alerts (`ok`, `warning`, `exceeded`), JSON/CSV report exports, and SSR/unsupported environment fallbacks.
+  - `src/lib/analytics.ts` — integrated `costAttribution` calculation into `buildAnalyticsSnapshot()` and re-exported `CostThresholdManager`.
+  - `docs/features/COST_ATTRIBUTION_ANALYTICS.md` — feature documentation, usage examples, compatibility, security, and migration notes.
+  - `src/lib/__tests__/costThresholdManager.test.ts` — 13 unit tests covering primary flow, boundary cases (0 fee, exact threshold %, 100% budget cap), failure paths (invalid regex, NaN/negative fees, null inputs), and SSR/storage error handling.
 - **Cohort retention views for account activity** ([#863](https://github.com/Nanle-code/stellar-dev-dashboard/issues/863)).
   Provides cohort charts that group accounts by first-seen period (Day, Week, Month) and subsequent activity.
   - `src/lib/cohortRetention.ts` — domain calculations for cohort retention matrices, period headers, summary stats, CSV/JSON exports, and graceful error handling.

@@ -318,12 +318,20 @@ export function buildAnalyticsSnapshot({
   networkStats: { latestLedger?: Partial<Horizon.ServerApi.LedgerRecord> | null; feeStats?: { last_ledger_base_fee?: string; p90_accepted_fee?: string } | null } | null
   recentLedgers: Horizon.ServerApi.LedgerRecord[]
 }) {
+  const manager = getCostThresholdManager()
+  const costAttribution = manager.attributeTransactions(transactions)
+
   return {
     account: summarizeBalances(accountData),
     transactions: summarizeTransactions(transactions, operations),
     network: summarizeNetwork(networkStats, recentLedgers),
     activity: buildActivityTimeseries(transactions),
     risks: calculateRiskSignals(accountData, transactions),
+    costAttribution,
     generatedAt: new Date().toISOString(),
   }
 }
+
+export { CostThresholdManager, getCostThresholdManager } from './costThresholdManager'
+export type { CostTagRule, CostAttributionRecord, CostAttributionSummary, CostThresholdAlert } from './costThresholdManager'
+

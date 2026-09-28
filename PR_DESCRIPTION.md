@@ -1,22 +1,21 @@
 ## Summary
 
-Adds cohort retention views for Stellar account activity to the Analytics dashboard (#863). Accounts are grouped by their first-seen period (Day, Week, Month) and subsequent retention decay rates are tracked across subsequent time periods.
+Implements cost attribution by application tag or memo prefix for project budgeting (#868). Attributes transaction fees (in Stroops and XLM) and payment transfer volumes to developer-defined project tags (e.g. `billing`, `auth`, `nft-drop`, `defi-swap`) via literal memo prefixes (e.g., `[APP:billing]`, `BILL:`) or custom regex patterns.
 
-- **Domain Library (`src/lib/cohortRetention.ts`)**: Pure TypeScript calculation engine for cohort matrices, summary statistics, period headers, activity filtering (Payments, Smart Contracts, DEX Trades), CSV/JSON exports, and discriminated union error handling (`CohortRetentionResult`).
-- **UI Component (`src/components/dashboard/CohortRetentionView.tsx`)**: Heatmap matrix table with HSL-tailored dark mode color gradients, Recharts line chart for average retention curve, granularity controls, view mode toggles (`%` vs `#`), and export buttons.
-- **Integration**: Embedded in `Analytics.tsx` and registered route `/cohortRetention` in `routes.ts`.
-- **Documentation**: Detailed guide in [`docs/features/COHORT_RETENTION_ANALYTICS.md`](docs/features/COHORT_RETENTION_ANALYTICS.md) and changelog entry in `CHANGELOG.md`.
+- **Domain Library (`src/lib/costThresholdManager.ts`)**: `CostThresholdManager` implementation for tag management, memo prefix and regex pattern matching, Stroops/XLM fee calculation, volume tracking, threshold alerts (`ok`, `warning` >= 80%, `exceeded` >= 100%, `unbudgeted`), auto-discovery of embedded tags (`[APP:tag]`), JSON/CSV report exports, and graceful SSR/storage error handling.
+- **Analytics Integration (`src/lib/analytics.ts`)**: Embedded cost attribution calculations into `buildAnalyticsSnapshot()` and re-exported `CostThresholdManager`.
+- **Documentation**: User-facing & developer guide in [`docs/features/COST_ATTRIBUTION_ANALYTICS.md`](docs/features/COST_ATTRIBUTION_ANALYTICS.md) and changelog entry in `CHANGELOG.md`.
 
-Closes #863
+Closes #868
 
 ## How was this tested?
 
-Ran unit and component tests:
-`pnpm run test:unit -- src/lib/__tests__/cohortRetention.test.ts src/components/dashboard/__tests__/CohortRetentionView.test.tsx` (20 passed)
+Ran unit tests:
+`pnpm run test:unit src/lib/__tests__/costThresholdManager.test.ts` (13 passed)
 
-- **Primary flow**: Verified daily, weekly, monthly cohort calculations, retention percentages, active account matrices, aggregated curve data points, activity filtering, and CSV/JSON export generation.
-- **Boundary cases**: Verified empty activity list handling, single-account cohorts, 100% retention across all periods, 0% retention decay, date boundary parsing (UTC month/week boundaries), and `minCohortSize` filtering.
-- **Failure cases**: Verified `null` / non-array activity inputs, invalid granularity strings (`'year'`), negative period parameters, malformed records with invalid dates/missing IDs, calculation error objects, and graceful fallback when `URL.createObjectURL` is unsupported in JSdom/SSR.
+- **Primary flow**: Verified adding/updating rules, attributing fees and payment volumes to configured tags by memo prefix, auto-discovering unbudgeted tag prefixes, calculating fee sums in Stroops and XLM, average fee calculations, and JSON/CSV report exporting.
+- **Boundary cases**: Verified empty transaction list handling, exact warning threshold calculation (80.0%), exact 100% budget cap exceedance, zero-fee transactions, and case-insensitive memo matching.
+- **Failure cases**: Verified `null` / `undefined` / non-array transaction inputs, malformed transaction objects with invalid fee strings (`"invalid_number"`, negative fees), malformed regex rules (unclosed brackets), throwing `localStorage` security/quota errors in restricted SSR/iframe sandboxes, and missing required rule properties.
 
 ## Merge requirements
 

@@ -12,7 +12,7 @@ const token = process.env.CHROMATIC_PROJECT_TOKEN;
 if (!token) {
   console.log(
     'CHROMATIC_PROJECT_TOKEN not set — skipping Chromatic visual tests.\n' +
-      'Playwright visual regression (npm run test:visual) is the primary visual test runner.'
+      'Playwright visual regression (pnpm run test:visual) is the primary visual test runner.'
   );
   process.exit(0);
 }
@@ -23,8 +23,8 @@ if (!existsSync('.storybook')) {
 }
 
 console.log('Building Storybook and running Chromatic...');
-execSync('npm run build-storybook', { stdio: 'inherit' });
+execSync('pnpm run build-storybook', { stdio: 'inherit' });
 execSync(
-  `npx chromatic --project-token="${token}" --storybook-build-dir=storybook-static --exit-zero-on-changes`,
+  `pnpm exec chromatic --project-token="${token}" --storybook-build-dir=storybook-static --exit-zero-on-changes`,
   { stdio: 'inherit' }
 );

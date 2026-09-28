@@ -18,15 +18,29 @@ describe('generate-sbom script', () => {
     expect(() => sbom.parseArgs(['--format', 'invalid'])).toThrow(/unsupported format/i);
   });
 
-  it('generates a CycloneDX document when npm sbom is available', () => {
-    if (!sbom.ensureNpmSbomAvailable()) {
+  it('generates a CycloneDX document from pnpm-lock.yaml', () => {
+    if (!sbom.ensureSbomSourceAvailable()) {
       expect(sbom.SUPPORTED_FORMATS.has('cyclonedx')).toBe(true);
       return;
     }
 
     const result = sbom.generateSbom('cyclonedx');
-    expect(result).toBeTypeOf('object');
-    expect(result.bomFormat || result.specVersion || result.components).toBeTruthy();
+    expect(result.bomFormat).toBe('CycloneDX');
+    expect(result.components.length).toBeGreaterThan(0);
+    expect(result.components[0]).toMatchObject({
+      type: 'library',
+      purl: expect.stringMatching(/^pkg:npm\/.+@.+$/),
+    });
+  });
+
+  it('generates an SPDX document from pnpm-lock.yaml', () => {
+    if (!sbom.ensureSbomSourceAvailable()) {
+      return;
+    }
+
+    const result = sbom.generateSbom('spdx');
+    expect(result.spdxVersion).toBe('SPDX-2.3');
+    expect(result.packages.length).toBeGreaterThan(0);
   });
 
   it('fails fast on unknown CLI arguments', () => {

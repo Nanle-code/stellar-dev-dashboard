@@ -28,16 +28,32 @@ beforeEach(() => {
     revokeObjectURL,
   };
 
-  // Intercept document.createElement so we capture the anchor click
+  // Intercept document.createElement so we capture the anchor click.
+  // Everything else must go through the real implementation: returning a
+  // plain object for other tags breaks testing-library's own container setup
+  // and ReactDOM.createRoot rejects it with "Target container is not a DOM element".
+  const realCreateElement = document.createElement.bind(document);
   vi.spyOn(document, 'createElement').mockImplementation((tag) => {
     if (tag === 'a') {
       const anchor = { href: '', download: '', click, style: {} };
       return anchor;
     }
-    return document.createElement.wrappedJSObject?.(tag) ?? {};
+    return realCreateElement(tag);
   });
-  vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
-  vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+  // Do not stub appendChild/removeChild into no-ops: testing-library relies on
+  // real DOM insertion to attach its container, and a no-op appendChild leaves
+  // createRoot without a usable element. The stubbed download anchor is a plain
+  // object rather than a Node, so it must be skipped instead of forwarded.
+  const realAppendChild = document.body.appendChild.bind(document.body);
+  const realRemoveChild = document.body.removeChild.bind(document.body);
+  vi.spyOn(document.body, 'appendChild').mockImplementation((node) => {
+    if (!(node instanceof Node)) return node;
+    return realAppendChild(node);
+  });
+  vi.spyOn(document.body, 'removeChild').mockImplementation((node) => {
+    if (!(node instanceof Node)) return node;
+    return realRemoveChild(node);
+  });
 });
 
 // ── Stub Zustand store ───────────────────────────────────────────────────────

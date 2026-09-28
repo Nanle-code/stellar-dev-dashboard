@@ -25,6 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Enforce pnpm as the only package manager
+        run: node scripts/validate-package-manager.mjs --lockfiles-only
+
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.0
@@ -68,6 +71,9 @@ jobs:
   test:
     name: Unit & Integration Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    # Fail fast instead of burning hours: the suite previously ran ~5h10m
+    # because workers never tore down cleanly, so a hang looked like progress.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -89,10 +95,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Verify supported runtime
-        run: npm run check:node
+        run: pnpm run check:node
 
       - name: Test Node support policy boundaries
-        run: npm run test:node-support
+        run: pnpm run test:node-support
 
       - name: Run unit tests with coverage
         run: pnpm run test:coverage
@@ -196,7 +202,7 @@ jobs:
                 '',
                 'To update baselines intentionally, run locally:',
                 '```bash',
-                'npm run test:visual:update',
+                'pnpm run test:visual:update',
                 'git add tests/e2e/snapshots',
                 'git commit -m "chore: update visual baselines"',
                 '```',

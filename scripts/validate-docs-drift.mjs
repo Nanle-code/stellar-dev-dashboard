@@ -10,7 +10,7 @@ const rootPackage = path.join(repoRoot, 'package.json');
 
 const externalLinkPattern = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|\/\/)/;
 const markdownLinkPattern = /!?\[[^\]]*\]\(\s*([^\s)]+)(?:\s+"[^"]*")?\s*\)/g;
-const npmRunPattern = /npm run\s+([\w:-]+)/g;
+const npmRunPattern = /(?:npm|pnpm) run\s+([\w:-]+)/g;
 
 async function collectMarkdownFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -147,7 +147,7 @@ async function main() {
     if (error.type === 'missing-file') {
       console.log(`ERROR: File not found: "${error.link}" (resolved: ${error.resolved}) — referenced from ${path.relative(repoRoot, error.file)}`);
     } else if (error.type === 'missing-script') {
-      console.log(`ERROR: Script not found: "npm run ${error.script}" — referenced from ${path.relative(repoRoot, error.file)}`);
+      console.log(`ERROR: Script not found: "pnpm run ${error.script}" — referenced from ${path.relative(repoRoot, error.file)}`);
     }
   }
   console.log();

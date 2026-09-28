@@ -6,9 +6,14 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 // Use a fixed test public key to avoid hoisting issues
 const TEST_PUBLIC_KEY = 'GASUV7H3C246L2U7LEKOAZ3XDRFKMTRJMJFFIXGBA2S4YO675GKTBX6Y';
 
-const mockSuccess = vi.fn();
-const mockError = vi.fn();
-const mockWarning = vi.fn();
+// `vi.mock` factories are hoisted above module-level declarations, so these
+// must be created with `vi.hoisted` or the factory hits the temporal dead
+// zone and every test in this file fails with "mockSuccess is not defined".
+const { mockSuccess, mockError, mockWarning } = vi.hoisted(() => ({
+  mockSuccess: vi.fn(),
+  mockError: vi.fn(),
+  mockWarning: vi.fn(),
+}));
 
 vi.mock('../../src/components/notifications/NotificationContext', () => ({
   useNotifications: () => ({ success: mockSuccess, error: mockError, warning: mockWarning }),

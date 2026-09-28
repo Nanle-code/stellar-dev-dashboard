@@ -1,46 +1,75 @@
-import assert from 'node:assert/strict'
-import test from 'node:test'
+import { expect, it } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
-import { resolvePackageManager } from '../../scripts/validate-package-manager.mjs'
+import { findForeignLockfiles, resolvePackageManager } from '../../scripts/validate-package-manager.mjs'
 
-test('accepts the repo-standard pnpm flow', () => {
-  const result = resolvePackageManager('pnpm', {
-    nodeVersion: '20.11.1',
-    hasWorkspaceFile: true,
-    hasLockfile: true,
-  })
+const supported = { nodeVersion: '24.11.1', hasWorkspaceFile: true, hasLockfile: true }
 
-  assert.deepStrictEqual(result, {
+it('accepts the repo-standard pnpm flow', () => {
+  const result = resolvePackageManager('pnpm', supported)
+
+  expect(result).toEqual({
     packageManager: 'pnpm',
     lockfile: 'pnpm-lock.yaml',
     workspaceFile: 'pnpm-workspace.yaml',
   })
 })
 
-test('rejects invalid or unsupported manager input', () => {
-  assert.throws(() => resolvePackageManager('yarn', {
-    nodeVersion: '20.11.1',
+it('rejects invalid or unsupported manager input', () => {
+  expect(() => resolvePackageManager('yarn', {
+    nodeVersion: '24.11.1',
     hasWorkspaceFile: true,
     hasLockfile: true,
-  }), /pnpm|unsupported/i)
+  })).toThrow(/pnpm|unsupported/i)
 
-  assert.throws(() => resolvePackageManager('', {
-    nodeVersion: '20.11.1',
+  expect(() => resolvePackageManager('', {
+    nodeVersion: '24.11.1',
     hasWorkspaceFile: true,
     hasLockfile: true,
-  }), /required|pnpm/i)
+  })).toThrow(/required|pnpm/i)
 })
 
-test('fails when the environment is unsupported or config is incomplete', () => {
-  assert.throws(() => resolvePackageManager('pnpm', {
+it('fails when the environment is unsupported or config is incomplete', () => {
+  expect(() => resolvePackageManager('pnpm', {
+    ...supported,
     nodeVersion: '16.20.0',
-    hasWorkspaceFile: true,
-    hasLockfile: true,
-  }), /node\.js|18|unsupported/i)
+  })).toThrow(/node\.js|18|unsupported/i)
 
-  assert.throws(() => resolvePackageManager('pnpm', {
-    nodeVersion: '20.11.1',
+  expect(() => resolvePackageManager('pnpm', {
+    ...supported,
     hasWorkspaceFile: false,
-    hasLockfile: true,
-  }), /pnpm-workspace\.yaml|missing/i)
+  })).toThrow(/pnpm-workspace\.yaml|missing/i)
+})
+
+it('rejects a second lockfile from another package manager', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'package-manager-'))
+  try {
+    writeFileSync(join(dir, 'package-lock.json'), '{}\n')
+
+    const found = findForeignLockfiles(dir)
+    expect(found).toEqual(['package-lock.json'])
+    expect(() => resolvePackageManager('pnpm', { ...supported, foreignLockfiles: found })).toThrow(/package-lock\.json/i)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('leaves a pnpm-only tree alone, including nested projects', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'package-manager-'))
+  try {
+    writeFileSync(join(dir, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n")
+    const nested = join(dir, 'docs-site')
+    mkdirSync(nested)
+    writeFileSync(join(nested, 'package-lock.json'), '{}\n')
+
+    expect(findForeignLockfiles(dir)).toEqual([])
+    expect(() => resolvePackageManager('pnpm', {
+      ...supported,
+      foreignLockfiles: findForeignLockfiles(dir),
+    })).not.toThrow()
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

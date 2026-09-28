@@ -58,6 +58,10 @@ export default defineConfig({
       'tests/node-version-policy.test.mjs',
       'node_modules/**',
     ],
+    // Bound teardown/hook time so a worker holding an open handle fails its
+    // own file instead of stalling the whole run for hours.
+    teardownTimeout: 10000,
+    hookTimeout: 10000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html', 'json-summary'],

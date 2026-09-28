@@ -8,6 +8,15 @@
     "node": ">=22 <27",
     "pnpm": ">=9.0.0"
   },
+  "pnpm": {
+    "overrides": {
+      "adm-zip": "^0.6.1",
+      "image-size": "^2.0.4",
+      "js-yaml": "^4.3.2",
+      "tar": "^7.5.22",
+      "toml": "^4.2.0"
+    }
+  },
   "scripts": {
     "check:node": "node scripts/node-version-policy.mjs",
     "test:node-support": "node --test tests/node-version-policy.test.mjs",
@@ -59,6 +68,7 @@
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
     "check:package-manager": "node scripts/validate-package-manager.mjs",
+    "check:lockfiles": "node scripts/validate-package-manager.mjs --lockfiles-only",
     "sbom:generate": "node scripts/generate-sbom.mjs",
     "api:start": "node api/server.js",
     "seed:local": "node scripts/seed-local-stellar.mjs",

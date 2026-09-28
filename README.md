@@ -110,10 +110,10 @@ The ML training pipeline is configured as follows:
 
 ```bash
 # Train models
-npm run ml:train
+pnpm run ml:train
 
 # Start scoring server
-npm run ml:server
+pnpm run ml:server
 ```
 
 The training uses historical transaction data to train:
@@ -128,13 +128,13 @@ Run tests to verify the fee prediction functionality:
 
 ```bash
 # Unit tests for fee prediction
-npm run test:unit
+pnpm run test:unit
 
 # Integration tests
-npm run test:integration
+pnpm run test:integration
 
 # Run ML-specific tests
-npm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
+pnpm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
 ```
 
 ## Ledger Hardware Wallet Support
@@ -214,7 +214,7 @@ development and production, and Node 26 is tested as the current release.
 Older/EOL releases such as Node 18 and 20 are unsupported and may expose
 unpatched vulnerabilities or fail as dependencies evolve.
 
-Use `npm run check:node` to validate the active runtime. CI exercises Node 22,
+Use `pnpm run check:node` to validate the active runtime. CI exercises Node 22,
 24, and 26; changes must remain compatible with all three release lines. When
 Node changes its active release schedule, update `package.json` engines, the CI
 matrix, and `scripts/node-version-policy.mjs` together.

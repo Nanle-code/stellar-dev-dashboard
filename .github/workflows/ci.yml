@@ -104,6 +104,57 @@ jobs:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
+  # ── API workspace package ─────────────────────────────────────────────────
+  # The Node-only API lives in its own workspace package so the web install
+  # never pulls express/ws/ioredis. Its tests run here, scoped to that package.
+  api-tests:
+    name: API Package Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run API package tests
+        run: pnpm --filter api run test
+
+  # ── Browser/Node dependency boundary ─────────────────────────────────────
+  # Fails if the web package re-introduces a server-only dependency or the
+  # workspace members disappear.
+  workspace-boundaries:
+    name: Workspace Dependency Boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate workspace boundaries
+        run: pnpm run check:workspace-boundaries
+
+      - name: Run boundary regression tests
+        run: pnpm exec vitest run --config vitest.config.js tests/unit/workspace-boundaries.test.ts
+
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest

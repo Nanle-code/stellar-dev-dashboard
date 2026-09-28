@@ -6,7 +6,7 @@ import {
   apiVersioningMiddleware,
   CURRENT_API_VERSION,
   withApiVersion,
-} from '../../../api/middleware/apiVersioning.js'
+} from '../../middleware/apiVersioning.js'
 
 function mockReq(overrides = {}) {
   return {

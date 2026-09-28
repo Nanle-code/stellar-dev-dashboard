@@ -7,7 +7,7 @@
  */
 import express from 'express';
 import { createServer } from 'http';
-import { LiquidityModel } from '../lib/liquidityModel';
+import { LiquidityModel } from './liquidityModel';
 
 const app = express();
 app.use(express.json());

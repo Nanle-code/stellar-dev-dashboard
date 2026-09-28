@@ -1,4 +1,4 @@
-// src/lib/liquidityModel.ts
+// src/ml/liquidityModel.ts
 
 /**
  * LiquidityModel: Wraps a TensorFlow.js LSTM model for liquidity prediction.
@@ -7,7 +7,7 @@
  */
 
 import * as tf from '@tensorflow/tfjs-node';
-import { TimeSeriesFeatures, LiquidityPredictionResult } from '../ml/liquidityPredictionModel';
+import { TimeSeriesFeatures, LiquidityPredictionResult } from './liquidityPredictionModel';
 
 export class LiquidityModel {
   private model: tf.LayersModel | null = null;

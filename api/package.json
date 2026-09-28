@@ -1,0 +1,28 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-only Express + WebSocket API for the Stellar Dev Dashboard",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <27",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "vitest run --config vitest.config.js",
+    "test:watch": "vitest --config vitest.config.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "vitest": "^2.1.9"
+  }
+}

@@ -11,8 +11,8 @@
  *   • Failure case: missing / malformed client IP returns 400.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRateLimiter } from '../../../api/middleware/rateLimiter.js';
-import { _resetStoreCache } from '../../../api/middleware/stores.js';
+import { createRateLimiter } from '../../middleware/rateLimiter.js';
+import { _resetStoreCache } from '../../middleware/stores.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,7 +78,7 @@ async function setupMiddleware(max, windowMs) {
   if (max !== undefined) process.env.RATE_LIMIT_MAX = String(max);
   if (windowMs !== undefined) process.env.RATE_LIMIT_WINDOW = String(windowMs);
 
-  const mod = await import('../../../api/middleware/rateLimiter.js');
+  const mod = await import('../../middleware/rateLimiter.js');
   return mod.createRateLimiter();
 }
 

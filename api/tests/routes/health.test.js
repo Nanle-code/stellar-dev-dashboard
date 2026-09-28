@@ -7,7 +7,7 @@ import {
   router as healthRouter,
   _resetSimulatedFailure,
   _setSimulatedFailure,
-} from '../../../api/routes/health.js';
+} from '../../routes/health.js';
 
 describe('Health Routes and Probes', () => {
   let app;

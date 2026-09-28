@@ -11,15 +11,15 @@
   "scripts": {
     "check:node": "node scripts/node-version-policy.mjs",
     "test:node-support": "node --test tests/node-version-policy.test.mjs",
-    "ml:train": "node src/ml/train.js",
-    "ml:train:liquidity": "node src/ml/trainLiquidity.cjs",
-    "ml:train:phishing": "node src/ml/train_phishing.cjs",
-    "ml:server": "node src/ml/server.js",
-    "ml:server:liquidity": "node src/ml/liquidityServer.js",
-    "ml:build:train": "node src/ml/build_prediction/train.js",
-    "ml:build:server": "node src/ml/build_prediction/server.js",
-    "ml:backup:train": "node src/ml/backup/train.js",
-    "ml:backup:server": "node src/ml/backup/server.js",
+    "ml:train": "pnpm --filter ml run train",
+    "ml:train:liquidity": "pnpm --filter ml run train:liquidity",
+    "ml:train:phishing": "pnpm --filter ml run train:phishing",
+    "ml:server": "pnpm --filter ml run server",
+    "ml:server:liquidity": "pnpm --filter ml run server:liquidity",
+    "ml:build:train": "pnpm --filter ml run build:train",
+    "ml:build:server": "pnpm --filter ml run build:server",
+    "ml:backup:train": "pnpm --filter ml run backup:train",
+    "ml:backup:server": "pnpm --filter ml run backup:server",
     "dev": "vite",
     "build": "vite build && node scripts/check-bundle-budgets.mjs",
     "build:analyze": "ANALYZE=1 vite build",
@@ -58,8 +58,11 @@
     "docs:validate-drift": "node scripts/validate-docs-drift.mjs",
     "docs:api:generate": "node scripts/generate-api-docs.mjs",
     "check:package-manager": "node scripts/validate-package-manager.mjs",
+    "check:workspace-boundaries": "node scripts/validate-workspace-boundaries.mjs",
     "sbom:generate": "node scripts/generate-sbom.mjs",
-    "api:start": "node api/server.js",
+    "api:start": "pnpm --filter api run start",
+    "api:dev": "pnpm --filter api run dev",
+    "api:test": "pnpm --filter api run test",
     "canary:probe": "node scripts/canary-health-probe.mjs",
     "demo:seed": "node scripts/seed-demo-fixtures.mjs",
     "demo:seed:check": "node scripts/seed-demo-fixtures.mjs --check"
@@ -70,7 +73,6 @@
     "@sentry/react": "8.54.0",
     "@stellar/stellar-sdk": "^12.3.0",
     "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow/tfjs-node": "4.22.0",
     "d3-array": "^3.2.4",
     "d3-force-3d": "^3.0.6",
     "d3-scale": "^4.0.2",
@@ -80,7 +82,6 @@
     "d3-time-format": "^4.1.0",
     "d3-zoom": "^3.0.0",
     "date-fns": "^3.6.0",
-    "express": "^4.18.2",
     "i18next": "^23.15.1",
     "i18next-browser-languagedetector": "^8.0.0",
     "idb": "^8.0.3",
@@ -94,13 +95,11 @@
     "recharts": "^2.12.7",
     "swr": "^2.2.0",
     "uuid": "^9.0.1",
-    "ws": "^8.16.0",
     "zustand": "^4.5.4"
   },
   "optionalDependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.29.4",
-    "@ledgerhq/hw-transport-webusb": "^6.29.4",
-    "ioredis": "^5.4.0"
+    "@ledgerhq/hw-transport-webusb": "^6.29.4"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.0",
@@ -142,6 +141,15 @@
     "typescript": "^5.9.3",
     "vite": "^5.4.0",
     "vitest": "^2.1.9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@tensorflow/tfjs-node",
+      "core-js",
+      "esbuild",
+      "msw",
+      "protobufjs"
+    ]
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint",

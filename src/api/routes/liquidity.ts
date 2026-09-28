@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { checkLiquidityAlertRules } from '../../lib/liquidityAlerts';
 import { cacheMiddleware } from '../middleware/predictCache';
-import { POPULAR_DEX_PAIRS, liquidityEngine } from '../../lib/liquidityEngine';
+import { POPULAR_DEX_PAIRS, liquidityEngine } from '../../ml/liquidityEngine';
 import { getModelMetrics } from '../../ml/liquidityPredictionModel';
 
 const router = Router();

@@ -1,0 +1,28 @@
+{
+  "name": "ml",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node-only TensorFlow.js training scripts and model servers for the Stellar Dev Dashboard",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <27",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "train": "node train.js",
+    "train:liquidity": "node trainLiquidity.cjs",
+    "train:phishing": "node train_phishing.cjs",
+    "server": "node server.js",
+    "server:liquidity": "node liquidityServer.js",
+    "build:train": "node build_prediction/train.js",
+    "build:server": "node build_prediction/server.js",
+    "backup:train": "node backup/train.js",
+    "backup:server": "node backup/server.js"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-node": "4.22.0",
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2"
+  }
+}

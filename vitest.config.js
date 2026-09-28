@@ -37,7 +37,9 @@ export default defineConfig({
     // which breaks whenever the checkout's parent directory happens to share
     // its own last path segment (e.g. a nested `foo/foo` clone).
     setupFiles: [path.resolve(__dirname, './tests/setup.js')],
-    exclude: ['.kilo/**', 'tests/e2e/**', 'node_modules/**'],
+    // `api/**` is a Node-only workspace package with its own runner; run it
+    // via `pnpm --filter api run test` so the web install stays browser-only.
+    exclude: ['.kilo/**', 'tests/e2e/**', 'api/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html', 'json-summary'],

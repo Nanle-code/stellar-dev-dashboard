@@ -6,7 +6,7 @@ import {
   oauthAuth,
   requireRole,
   getRuntimeEnvironment,
-} from '../../api/middleware/auth.js';
+} from '../middleware/auth.js';
 
 function mockReq(overrides = {}) {
   return {

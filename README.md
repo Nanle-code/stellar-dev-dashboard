@@ -18,6 +18,24 @@ pnpm run check:package-manager
 - Unsupported: npm or yarn installs, and Node.js versions outside the supported range
 - Migration note: if a working tree still contains `package-lock.json`, remove it before installing or this repo will reject the environment as unsupported
 
+## Workspace layout (web / api / ml)
+
+This repo is a pnpm workspace. The browser app (**web**) lives at the root, the
+Node-only Express API in `api/`, and the Node-only TensorFlow.js training scripts
+in `src/ml/`. Server-only dependencies (`express`, `ws`, `ioredis`,
+`@tensorflow/tfjs-node`) are never declared by the web package.
+
+```bash
+# browser-only install (web is the workspace root, hence --include-workspace-root)
+pnpm install --filter stellar-dev-dashboard --include-workspace-root
+pnpm --filter api run start                   # start the API server
+pnpm --filter ml run train:liquidity          # run an ML training job
+pnpm run check:workspace-boundaries           # verify the dependency split
+```
+
+See [docs/WORKSPACE_PACKAGES.md](docs/WORKSPACE_PACKAGES.md) for the full guide,
+including compatibility, security and migration notes.
+
 ## Demo Mode (#875)
 
 New visitors land on the connect screen, so the first impression of the dashboard

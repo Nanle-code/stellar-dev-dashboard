@@ -8,8 +8,8 @@ import {
   createIdempotencyMiddleware,
   requestFingerprint,
   validateIdempotencyKey,
-} from '../../../api/middleware/idempotency.js';
-import { _resetIdempotencyStoreCache } from '../../../api/middleware/idempotencyStore.js';
+} from '../../middleware/idempotency.js';
+import { _resetIdempotencyStoreCache } from '../../middleware/idempotencyStore.js';
 
 function mockReq(method, path, body, headers = {}) {
   return {
@@ -67,7 +67,7 @@ async function setupMiddleware() {
   delete process.env.IDEMPOTENCY_STORE;
   delete process.env.REDIS_URL;
 
-  const mod = await import('../../../api/middleware/idempotency.js');
+  const mod = await import('../../middleware/idempotency.js');
   return mod.createIdempotencyMiddleware();
 }
 

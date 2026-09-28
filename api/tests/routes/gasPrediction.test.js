@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import { createServer } from 'http';
-import { router as gasPredictionRouter } from '../../../api/routes/gasPrediction.js';
+import { router as gasPredictionRouter } from '../../routes/gasPrediction.js';
 
 let server;
 let baseUrl;

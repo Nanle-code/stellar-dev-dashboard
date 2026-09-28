@@ -5,7 +5,7 @@ import {
   predictLiquidityAndPrice,
   getModelMetrics,
   MarketSnapshot,
-} from '../../ml/liquidityPredictionModel';
+} from '../liquidityPredictionModel';
 import { liquidityEngine, POPULAR_DEX_PAIRS } from '../liquidityEngine';
 import {
   getLiquidityAlertRules,
@@ -13,7 +13,7 @@ import {
   deleteLiquidityAlertRule,
   toggleLiquidityAlertRule,
   checkLiquidityAlertRules,
-} from '../liquidityAlerts';
+} from '../../lib/liquidityAlerts';
 
 describe('AI DEX Liquidity & Price Movement Prediction System', () => {
   let sampleSnapshot: MarketSnapshot;

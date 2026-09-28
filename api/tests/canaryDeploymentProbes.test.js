@@ -3,8 +3,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer } from 'http';
-import { app } from '../../api/server.js';
-import { _setSimulatedFailure, _resetSimulatedFailure } from '../../api/routes/health.js';
+import { app } from '../server.js';
+import { _setSimulatedFailure, _resetSimulatedFailure } from '../routes/health.js';
 import { runCanaryHealthProbes } from '../../scripts/canary-health-probe.mjs';
 
 describe('Canary Deployment Live Probes Integration', () => {

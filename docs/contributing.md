@@ -17,16 +17,29 @@ Thank you for taking the time to contribute! This guide covers everything you ne
 
 ### Prerequisites
 
-- Node.js ≥ 18
-- npm ≥ 9
+- Node.js ≥ 22 (< 27)
+- pnpm ≥ 9 (`corepack enable`)
 
 ### Install & run
+
+This repository is a pnpm workspace with three packages — the web SPA at the
+repo root, the Node-only `api` package, and the Node-only `ml` package. See
+[Workspace Packages](./WORKSPACE_PACKAGES.md) for the full layout.
 
 ```bash
 git clone https://github.com/Nanle-code/stellar-dev-dashboard.git
 cd stellar-dev-dashboard
-npm install
-npm run dev          # Vite dev server at http://localhost:5173
+corepack enable
+pnpm install
+pnpm run dev   # Vite dev server at http://localhost:5173
+```
+
+Working only on the frontend? The web package is the workspace root, so pass
+`--include-workspace-root` to filter it. This skips the Node-only API and ML
+dependencies, including the `@tensorflow/tfjs-node` native build.
+
+```bash
+pnpm install --filter stellar-dev-dashboard --include-workspace-root
 ```
 
 ### Environment
@@ -50,6 +63,9 @@ src/
 ├── utils/            # Pure utility functions (export.js, transactionValidation.ts, …)
 ├── styles/           # globals.css, themes.js, accessibility.css
 └── i18n/             # Translation JSON files (en, es, zh)
+api/                  # Node-only Express API package (express, ws, ioredis)
+└── tests/            # API package tests (run via `pnpm --filter api run test`)
+src/ml/               # Node-only ML package (@tensorflow/tfjs-node) + shared model code
 docs/
 ├── api/              # API module reference (stellar.md, storage.md, …)
 ├── components.md     # Component catalogue
@@ -104,10 +120,14 @@ response cannot overwrite state after the user switches. Use a lease from
 ### Unit tests (Vitest + Testing Library)
 
 ```bash
-npm test              # run once
-npm run test:watch    # watch mode
-npm run test:coverage # with v8 coverage
+pnpm --filter stellar-dev-dashboard run test          # web: run once
+pnpm --filter stellar-dev-dashboard run test:watch    # web: watch mode
+pnpm --filter stellar-dev-dashboard run test:coverage # web: with v8 coverage
+pnpm --filter api run test                            # api package tests
 ```
+
+The browser and Node test suites run in separate packages so the web install
+never needs express/ws or the TensorFlow native binary.
 
 Test files live alongside the source they cover: `src/utils/export.test.js` tests `src/utils/export.js`.
 

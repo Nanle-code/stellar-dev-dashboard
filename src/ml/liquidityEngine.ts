@@ -3,9 +3,9 @@
  * Stellar Dev Dashboard
  */
 
-import { fetchOrderBook, fetchTrades, parseAssetString } from './dex';
+import { fetchOrderBook, fetchTrades, parseAssetString } from '../lib/dex';
 import { LiquidityModel } from './liquidityModel';
-import { getServer } from './stellar';
+import { getServer } from '../lib/stellar';
 import { extractTimeSeriesFeatures,
   predictLiquidityAndPrice,
   LiquidityPredictionResult,
@@ -14,7 +14,7 @@ import { extractTimeSeriesFeatures,
   TradeRecord,
   getModelMetrics,
   ModelMetrics,
-} from '../ml/liquidityPredictionModel';
+} from './liquidityPredictionModel';
 
 export interface DEXPair {
   id: string; // e.g. "XLM:USDC"

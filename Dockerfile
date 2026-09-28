@@ -1,15 +1,23 @@
-# ── Build stage ──────────────────────────────────────────────────────────────
+# ── Build stage (web) ─────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
+
+RUN corepack enable
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci --ignore-scripts
+# Copy only the workspace manifests so the web install never resolves the
+# Node-only express/ws/ioredis/@tensorflow/tfjs-node dependency trees.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY api/package.json ./api/package.json
+COPY src/ml/package.json ./src/ml/package.json
+COPY mobile/package.json ./mobile/package.json
+
+RUN pnpm install --frozen-lockfile --filter stellar-dev-dashboard --include-workspace-root
 
 COPY . .
-RUN npm run build
+RUN pnpm --filter stellar-dev-dashboard --include-workspace-root run build
 
-# ── Production stage ──────────────────────────────────────────────────────────
+# ── Production stage (static web assets) ──────────────────────────────────────
 FROM nginx:alpine AS production
 
 # Copy built assets
@@ -28,12 +36,21 @@ CMD ["nginx", "-g", "daemon off;"]
 # ── API stage ─────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS api
 
+RUN corepack enable
+
 WORKDIR /app
 
-COPY package*.json pnpm-lock.yaml* ./
-RUN npm install --ignore-scripts --omit=dev
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY api/package.json ./api/package.json
+COPY src/ml/package.json ./src/ml/package.json
+COPY mobile/package.json ./mobile/package.json
 
-COPY . .
+# The API reuses shared modules from src/, so it installs the web production
+# deps plus the api package (express/ws) — but not the ML native toolchain.
+RUN pnpm install --frozen-lockfile --prod --filter stellar-dev-dashboard --filter api --include-workspace-root
+
+COPY api ./api
+COPY src ./src
 
 ENV NODE_ENV=production
 ENV PORT=4000
@@ -44,4 +61,3 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:4000/health || exit 1
 
 CMD ["node", "api/server.js"]
-

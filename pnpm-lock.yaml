@@ -23,9 +23,6 @@ importers:
       '@tensorflow/tfjs':
         specifier: ^4.22.0
         version: 4.22.0(seedrandom@3.0.5)
-      '@tensorflow/tfjs-node':
-        specifier: 4.22.0
-        version: 4.22.0(seedrandom@3.0.5)
       d3-array:
         specifier: ^3.2.4
         version: 3.2.4
@@ -53,9 +50,6 @@ importers:
       date-fns:
         specifier: ^3.6.0
         version: 3.6.0
-      express:
-        specifier: ^4.18.2
-        version: 4.22.2
       i18next:
         specifier: ^23.15.1
         version: 23.16.8
@@ -95,9 +89,6 @@ importers:
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
-      ws:
-        specifier: ^8.16.0
-        version: 8.21.3
       zustand:
         specifier: ^4.5.4
         version: 4.5.7(@types/react@18.3.31)(react@18.3.1)
@@ -108,9 +99,6 @@ importers:
       '@ledgerhq/hw-transport-webusb':
         specifier: ^6.29.4
         version: 6.35.0
-      ioredis:
-        specifier: ^5.4.0
-        version: 5.11.1
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.10.0
@@ -230,6 +218,26 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@26.3.0)(@vitest/ui@2.1.9)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.3.0)(typescript@5.9.3))(terser@5.50.0)
 
+  api:
+    dependencies:
+      express:
+        specifier: ^4.18.2
+        version: 4.22.2
+      ws:
+        specifier: ^8.16.0
+        version: 8.21.3
+    optionalDependencies:
+      ioredis:
+        specifier: ^5.4.0
+        version: 5.11.1
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@26.3.0)(@vitest/ui@2.1.9)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.3.0)(typescript@5.9.3))(terser@5.50.0)
+
   mobile:
     dependencies:
       '@react-native-async-storage/async-storage':
@@ -335,6 +343,21 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+
+  src/ml:
+    dependencies:
+      '@tensorflow/tfjs':
+        specifier: ^4.22.0
+        version: 4.22.0(seedrandom@3.0.5)
+      '@tensorflow/tfjs-node':
+        specifier: 4.22.0
+        version: 4.22.0(seedrandom@3.0.5)
+      body-parser:
+        specifier: ^1.20.2
+        version: 1.20.6
+      express:
+        specifier: ^4.18.2
+        version: 4.22.2
 
 packages:
 
@@ -9809,7 +9832,9 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - '@babel/preset-env'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.76.9': {}
 
@@ -10544,7 +10569,7 @@ snapshots:
 
   '@types/mute-stream@0.0.4':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.3.0
 
   '@types/node-fetch@2.6.13':
     dependencies:

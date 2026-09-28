@@ -1,6 +1,9 @@
 import { logger } from './logging';
 
-import { guardProviderSend } from '../utils/providerCircuitBreaker';
+import {
+  hasCurrentAnalyticsConsent,
+  subscribeToAnalyticsConsent,
+} from '../utils/analyticsConsent';
 
 type PerfConfig = {
   rumEndpoint?: string; // optional endpoint to send RUM events
@@ -20,24 +23,36 @@ const defaultConfig: PerfConfig = {
   },
 };
 
+const activeObservers: PerformanceObserver[] = [];
+const activeRequests = new Set<AbortController>();
+let monitoringConfig: PerfConfig | null = null;
+let consentSubscription: (() => void) | null = null;
+let performanceMonitoringActive = false;
+
 function sendEvent(endpoint: string | undefined, payload: any) {
+  if (!hasCurrentAnalyticsConsent()) return;
   if (!endpoint) {
     // Fallback: debug log for local dev
     logger.debug('[RUM]', payload);
     return;
   }
 
-  try {
-    navigator.sendBeacon
-      ? navigator.sendBeacon(endpoint, JSON.stringify(payload))
-      : void fetch(endpoint, { method: 'POST', body: JSON.stringify(payload), keepalive: true });
-  } catch (e) {
-    logger.warn('RUM send failed', { error: e });
-  }
+  if (typeof fetch !== 'function' || typeof AbortController === 'undefined') return;
+  const controller = new AbortController();
+  activeRequests.add(controller);
+  void fetch(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    keepalive: true,
+    signal: controller.signal,
+  }).catch(e => {
+    if (!controller.signal.aborted) logger.warn('RUM send failed', { error: e });
+  }).finally(() => activeRequests.delete(controller));
 }
 
-export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
-  const cfg = { ...defaultConfig, ...userConfig };
+function startPerformanceMonitoring(cfg: PerfConfig) {
+  if (performanceMonitoringActive || !hasCurrentAnalyticsConsent() || typeof window === 'undefined') return;
+  performanceMonitoringActive = true;
 
   // Page load metrics (Navigation Timing / Paint)
   if ('performance' in window) {
@@ -85,6 +100,7 @@ export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
           sendEvent(cfg.rumEndpoint, { type: 'budget_violation', metric: 'lcp', value: lcp });
         }
       });
+      activeObservers.push(po);
       po.observe({ type: 'largest-contentful-paint', buffered: true });
     }
   } catch (e) {
@@ -109,6 +125,7 @@ export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
           sendEvent(cfg.rumEndpoint, { type: 'budget_violation', metric: 'cls', value: cls });
         }
       });
+      activeObservers.push(poCLS);
       poCLS.observe({ type: 'layout-shift', buffered: true });
     }
   } catch (e) {
@@ -131,6 +148,7 @@ export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
           }
         }
       });
+      activeObservers.push(poFID);
       poFID.observe({ type: 'first-input', buffered: true });
     }
   } catch (e) {
@@ -172,6 +190,29 @@ export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
       });
     }
   };
+}
+
+function stopPerformanceMonitoring() {
+  performanceMonitoringActive = false;
+  activeObservers.forEach(observer => observer.disconnect());
+  activeObservers.length = 0;
+  activeRequests.forEach(controller => controller.abort());
+  activeRequests.clear();
+  if (typeof window !== 'undefined') delete (window as Window & { __perf?: unknown }).__perf;
+}
+
+export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {
+  monitoringConfig = { ...defaultConfig, ...userConfig };
+  if (!consentSubscription) {
+    consentSubscription = subscribeToAnalyticsConsent(allowed => {
+      if (!allowed) {
+        stopPerformanceMonitoring();
+      } else if (monitoringConfig) {
+        startPerformanceMonitoring(monitoringConfig);
+      }
+    });
+  }
+  if (hasCurrentAnalyticsConsent()) startPerformanceMonitoring(monitoringConfig);
 }
 
 export default {

@@ -145,6 +145,9 @@ if (!result.delivered) {
   `fail-closed` and persist the queue in `localStorage`.
 - No changes are required for consumers that only call `trackEvent` /
   `trackPageView` / `trackPerformanceMetric`.
+- Outbound analytics and monitoring also require the current, versioned user
+  consent. See [Analytics and diagnostics consent](./ANALYTICS_CONSENT.md) for
+  policy upgrades, legacy preference behavior, and withdrawal semantics.
 
 ## 9. Security notes
 

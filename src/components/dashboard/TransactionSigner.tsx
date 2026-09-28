@@ -66,7 +66,6 @@ export default function TransactionSigner() {
   const bio = useBehavioralBiometrics(walletPublicKey);
 
   const [accountInfo, setAccountInfo] = useState<any>(null);
-  const networkPassphrase = NETWORKS[network].passphrase;
 
   useEffect(() => {
     async function fetchPreferences() {

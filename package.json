@@ -8,6 +8,15 @@
     "node": ">=22 <27",
     "pnpm": ">=9.0.0"
   },
+  "pnpm": {
+    "overrides": {
+      "adm-zip": "^0.6.1",
+      "image-size": "^2.0.4",
+      "js-yaml": "^4.3.2",
+      "tar": "^7.5.22",
+      "toml": "^4.2.0"
+    }
+  },
   "scripts": {
     "check:node": "node scripts/node-version-policy.mjs",
     "test:node-support": "node --test tests/node-version-policy.test.mjs",

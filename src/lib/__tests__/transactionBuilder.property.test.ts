@@ -35,8 +35,6 @@ function formatStellarAmount(stroops: bigint): string {
 
 function validAmountArb() {
   return fc
-    .bigInt({ min: 1n, max: 10000000000000000n })
-    .map((stroops) => (Number(stroops) / 10000000).toFixed(7));
     .bigInt({ min: 1n, max: 1_000_000_000n * 10_000_000n })
     .map(formatStellarAmount);
 }
@@ -201,9 +199,6 @@ describe("Property-based: Amount boundary rejection", () => {
     fc.assert(
       fc.property(publicKeyArb(), extremeAmountArb(), (dest, amount) => {
         const source = buildAccount();
-        const numAmount = typeof amount === 'number' ? amount : parseFloat(String(amount));
-
-        if (numAmount < MIN_AMOUNT || !isFinite(numAmount) || isNaN(numAmount) || numAmount > MAX_SAFE_AMOUNT) {
         const num = Number(amount);
         const isInvalid = !/^\d+(\.\d{1,7})?$/.test(amount) || isNaN(num) || num <= 0 || !isFinite(num) || num > MAX_SAFE_AMOUNT;
 

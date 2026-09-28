@@ -4,51 +4,56 @@
  * lets us evolve a single source of truth as the TS migration progresses.
  */
 
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react';
 
 export interface CardProps {
-  children?: ReactNode
-  title?: ReactNode
-  subtitle?: ReactNode
-  action?: ReactNode
-  glow?: boolean
-  style?: CSSProperties
-  className?: string
+  children?: ReactNode;
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  action?: ReactNode;
+  glow?: boolean;
+  style?: CSSProperties;
+  className?: string;
 }
 
 export interface StatCardProps {
-  label: ReactNode
-  value?: ReactNode
-  sub?: ReactNode
-  accent?: string
-  loading?: boolean
+  label: ReactNode;
+  value?: ReactNode;
+  sub?: ReactNode;
+  accent?: string;
+  loading?: boolean;
 }
 
 export interface CopyableValueProps {
-  value: string
-  children?: ReactNode
-  title?: string
-  textStyle?: CSSProperties
-  containerStyle?: CSSProperties
-  buttonStyle?: CSSProperties
+  value: string;
+  children?: ReactNode;
+  title?: string;
+  textStyle?: CSSProperties;
+  containerStyle?: CSSProperties;
+  buttonStyle?: CSSProperties;
   /** Force confirmation before copying, even if the value isn't auto-detected. */
-  sensitive?: boolean
+  sensitive?: boolean;
   /** Override the confirmation prompt shown when a copy is gated. */
-  sensitiveLabel?: string
+  sensitiveLabel?: string;
   /** Called after a successful copy (receives the copied value). */
-  onCopy?: (value: string) => void
+  onCopy?: (_value: string) => void;
 }
 
 export interface ResponsiveBreakpoints {
-  mobile: number
-  tablet: number
-  desktop: number
+  mobile: number;
+  tablet: number;
+  desktop: number;
 }
 
 export interface ResponsiveState {
-  windowWidth: number
-  isMobile: boolean
-  isTablet: boolean
-  isDesktop: boolean
-  breakpoints: ResponsiveBreakpoints
+  windowWidth: number;
+  windowHeight: number;
+  orientation: 'portrait' | 'landscape';
+  isLandscape: boolean;
+  isPortrait: boolean;
+  isTabletLandscape: boolean;
+  isMobile: boolean;
+  isTablet: boolean;
+  isDesktop: boolean;
+  breakpoints: ResponsiveBreakpoints;
 }

@@ -594,6 +594,8 @@ export default function Contracts() {
         <div role="tabpanel" id="panel-contract-templates" aria-labelledby="tab-contract-templates">
           <TemplateLibrary />
         </div>
+      )}
+
         {contractError && (
           <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--red)' }}>
             {contractError}
@@ -634,7 +636,6 @@ export default function Contracts() {
             </div>
           </div>
         )}
-      </Panel>
 
       {contractData && (
         <ResultBlock label="Contract Data" data={contractData} />

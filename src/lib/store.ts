@@ -169,6 +169,30 @@ export interface StoreState {
   addStreamLedger: (ledger: StreamLedger) => void
   clearStreamLedgers: () => void
   setStreamError: (e: string | null) => void
+
+  // Server-side rate-limit quota (parsed from response headers)
+  rateLimitQuota: RateLimitQuota | null
+  setRateLimitQuota: (quota: RateLimitQuota | null) => void
+}
+
+/**
+ * Quota reported by the upstream server via standard rate-limit response headers.
+ * All numeric fields are parsed integers; `resetAt` is an epoch-seconds timestamp.
+ * A field is `null` when the server did not send the corresponding header.
+ */
+export interface RateLimitQuota {
+  /** Maximum requests allowed in the current window (X-RateLimit-Limit). */
+  limit: number | null
+  /** Requests still available before the window resets (X-RateLimit-Remaining). */
+  remaining: number | null
+  /** Unix epoch seconds at which the window resets (X-RateLimit-Reset). */
+  resetAt: number | null
+  /** Seconds to wait before retrying after a 429 (Retry-After). */
+  retryAfter: number | null
+  /** Whether the most-recent request was rate-limited by the server (HTTP 429). */
+  isLimited: boolean
+  /** Wall-clock time when this snapshot was recorded. */
+  timestamp: number
 }
 
 // ─── Persisted keys ───────────────────────────────────────────────────────────
@@ -397,6 +421,10 @@ export const useStore = create<StoreState>((set, get) => ({
   }),
   clearStreamLedgers: () => set({ streamLedgers: [] }),
   setStreamError: (e) => set({ streamError: e }),
+
+  // Server-side rate-limit quota
+  rateLimitQuota: null,
+  setRateLimitQuota: (quota) => set({ rateLimitQuota: quota }),
 }))
 
 // ─── Expose store for e2e testing ────────────────────────────────────────────

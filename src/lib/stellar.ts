@@ -3,6 +3,7 @@ import { Cache, TTL } from './cache.js'
 import { rateLimiter } from './rateLimiter.js'
 import auditTrail from './auditTrail.js'
 import { getCircuitBreaker } from './errorHandling/CircuitBreaker'
+import type { RateLimitQuota } from './store'
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -133,6 +134,40 @@ function getServerOptions(network: NetworkName) {
   return Object.keys(headers).length ? { headers } : undefined
 }
 
+// ─── Rate-limit header parsing ────────────────────────────────────────────────
+
+/**
+ * Parse the standard server-side rate-limit response headers into a typed
+ * quota snapshot.  All header values are integers; the function is defensive
+ * and returns `null` for any field the server omits or that cannot be parsed.
+ *
+ * Supported headers:
+ *   X-RateLimit-Limit     – request ceiling for the current window
+ *   X-RateLimit-Remaining – requests left in the current window
+ *   X-RateLimit-Reset     – epoch-seconds when the window resets
+ *   Retry-After           – seconds to wait after a 429 response
+ */
+export function parseRateLimitHeaders(
+  headers: Headers,
+  isLimited: boolean,
+): RateLimitQuota {
+  const parseIntHeader = (name: string): number | null => {
+    const raw = headers.get(name)
+    if (raw === null || raw.trim() === '') return null
+    const value = parseInt(raw, 10)
+    return Number.isFinite(value) ? value : null
+  }
+
+  return {
+    limit:      parseIntHeader('X-RateLimit-Limit'),
+    remaining:  parseIntHeader('X-RateLimit-Remaining'),
+    resetAt:    parseIntHeader('X-RateLimit-Reset'),
+    retryAfter: parseIntHeader('Retry-After'),
+    isLimited,
+    timestamp:  Date.now(),
+  }
+}
+
 // ─── Rate Limited Fetch Wrapper ───────────────────────────────────────────────
 
 async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'high' | 'medium' | 'low' = 'medium', extraHeaders?: Record<string, string>): Promise<Response> {
@@ -160,6 +195,9 @@ async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'h
         responseTime,
         queued: true
       })
+
+      // Propagate quota from the server response to the UI store
+      _updateQuotaFromResponse(response)
       
       return response
     }
@@ -173,12 +211,46 @@ async function rateLimitedFetch(url: string, options?: RequestInit, priority: 'h
       responseTime,
       queued: false
     })
+
+    // Propagate quota from the server response to the UI store
+    _updateQuotaFromResponse(response)
     
     return response
     
   } catch (error) {
     auditTrail.logError(error as Error, { url, operation: 'rateLimitedFetch' })
     throw error
+  }
+}
+
+/**
+ * Parse rate-limit headers from a Response and push the quota into the Zustand
+ * store so UI components can display the remaining quota without coupling the
+ * fetch layer directly to React.
+ *
+ * The store import is deferred to avoid a circular-dependency at module load
+ * time (store → stellar → store).  The dynamic import resolves synchronously
+ * from the module cache on every call after the first.
+ */
+function _updateQuotaFromResponse(response: Response): void {
+  const isLimited = response.status === 429
+  const quota = parseRateLimitHeaders(response.headers, isLimited)
+
+  // Only write to the store when at least one header was present so we don't
+  // overwrite a valid quota snapshot with a completely-null one.
+  if (
+    quota.limit !== null ||
+    quota.remaining !== null ||
+    quota.resetAt !== null ||
+    quota.retryAfter !== null ||
+    isLimited
+  ) {
+    // Dynamic import avoids a circular-dependency at parse time.
+    import('./store').then(({ useStore }) => {
+      useStore.getState().setRateLimitQuota(quota)
+    }).catch(() => {
+      // Store unavailable (e.g. SSR / test env without store) — silently skip.
+    })
   }
 }
 

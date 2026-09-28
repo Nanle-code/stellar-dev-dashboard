@@ -1,45 +1,30 @@
-# #863 [2026 Analytics] Add cohort retention views for account activity
-
 ## Summary
 
-Resolves #863 by adding **Cohort Retention Views for Account Activity** to the Analytics workspace in `stellar-dev-dashboard`.
+Adds cohort retention views for Stellar account activity to the Analytics dashboard (#863). Accounts are grouped by their first-seen period (Day, Week, Month) and subsequent retention decay rates are tracked across subsequent time periods.
 
-This PR provides cohort matrix heatmaps and retention curve visualizations that group accounts by their first-seen period (Day, Week, or Month) and analyze subsequent retention over time.
+- **Domain Library (`src/lib/cohortRetention.ts`)**: Pure TypeScript calculation engine for cohort matrices, summary statistics, period headers, activity filtering (Payments, Smart Contracts, DEX Trades), CSV/JSON exports, and discriminated union error handling (`CohortRetentionResult`).
+- **UI Component (`src/components/dashboard/CohortRetentionView.tsx`)**: Heatmap matrix table with HSL-tailored dark mode color gradients, Recharts line chart for average retention curve, granularity controls, view mode toggles (`%` vs `#`), and export buttons.
+- **Integration**: Embedded in `Analytics.tsx` and registered route `/cohortRetention` in `routes.ts`.
+- **Documentation**: Detailed guide in [`docs/features/COHORT_RETENTION_ANALYTICS.md`](docs/features/COHORT_RETENTION_ANALYTICS.md) and changelog entry in `CHANGELOG.md`.
 
----
+Closes #863
 
-## Key Changes Included
+## How was this tested?
 
-1. **Domain Library (`src/lib/cohortRetention.ts`)**:
-   - `calculateCohortRetention()`: Pure TypeScript calculation engine for cohort matrices, summary statistics, periods headers, and activity filtering (Payments, Smart Contracts, DEX Trades).
-   - `exportCohortDataAsCsv()` & `exportCohortDataAsJson()`: Export helpers for offline analysis and data pipelines.
-   - Robust input validation, boundary checking, and discriminated error union (`CohortRetentionResult`).
+Ran unit and component tests:
+`pnpm run test:unit -- src/lib/__tests__/cohortRetention.test.ts src/components/dashboard/__tests__/CohortRetentionView.test.tsx` (20 passed)
 
-2. **React UI Component (`src/components/dashboard/CohortRetentionView.tsx`)**:
-   - Modern, high-aesthetic heat map matrix table with HSL-tailored dark mode color gradients.
-   - Granularity selector (`Daily`, `Weekly`, `Monthly`).
-   - View mode toggle (`Percentage %` vs `Account Count #`).
-   - Interactive Recharts LineChart for the aggregated average retention curve.
-   - Download buttons for CSV and JSON exports.
-   - Accessible tooltips, ARIA attributes, and error/empty state fallbacks.
+- **Primary flow**: Verified daily, weekly, monthly cohort calculations, retention percentages, active account matrices, aggregated curve data points, activity filtering, and CSV/JSON export generation.
+- **Boundary cases**: Verified empty activity list handling, single-account cohorts, 100% retention across all periods, 0% retention decay, date boundary parsing (UTC month/week boundaries), and `minCohortSize` filtering.
+- **Failure cases**: Verified `null` / non-array activity inputs, invalid granularity strings (`'year'`), negative period parameters, malformed records with invalid dates/missing IDs, calculation error objects, and graceful fallback when `URL.createObjectURL` is unsupported in JSdom/SSR.
 
-3. **Analytics Integration & Routing**:
-   - Embedded `CohortRetentionView` in `src/components/dashboard/Analytics.tsx`.
-   - Registered `/cohortRetention` route in `src/routes/routes.ts`.
+## Merge requirements
 
-4. **Automated Tests**:
-   - **`src/lib/__tests__/cohortRetention.test.ts`** (16 tests): Tests primary flows (weekly/daily/monthly cohorts), boundary cases (empty datasets, single activity, 0% & 100% retention, timestamp parsing), and failure paths (null inputs, invalid granularity, negative parameters, malformed records).
-   - **`src/components/dashboard/__tests__/CohortRetentionView.test.tsx`** (4 tests): Component tests validating UI rendering, controls, view mode toggles, and export triggers.
+A PR is merged only when **every** box below is true. See
+[Merge requirements](https://github.com/Nanle-code/stellar-dev-dashboard/blob/master/docs/contributing.md#merge-requirements) for the full policy.
 
-5. **User & Developer Documentation**:
-   - **`docs/features/COHORT_RETENTION_ANALYTICS.md`**: Complete guide covering architecture, features, compatibility, security, and migration/integration code snippets.
-   - **`CHANGELOG.md`**: Entry under `## [Unreleased]`.
-
----
-
-## Acceptance Criteria Verification
-
-- [x] Objective implemented with clear handling for invalid input, unsupported environments, and failure paths.
-- [x] Automated tests cover the primary flow, at least one boundary case, and at least one failure case.
-- [x] User-facing documentation and developer guidance updated with compatibility, security, and migration notes.
-- [x] All 20 new automated unit tests passing cleanly.
+- [x] All required CI checks pass on the latest commit (not just an earlier push).
+- [x] No required checks are failing, pending, or skipped — re-run or fix them; do not ask for a merge while any are outstanding.
+- [x] The branch has no merge conflicts with the target branch (rebase or merge `master` if GitHub shows "This branch has conflicts").
+- [x] Tests were added or updated for the change (primary flow, a boundary case, and a failure case).
+- [x] Docs were updated where behaviour, configuration, or security posture changed.

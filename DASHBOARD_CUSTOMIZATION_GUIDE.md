@@ -6,6 +6,7 @@ The Stellar Dev Dashboard now features a fully customizable widget-based layout 
 
 ## Features
 
+
 ### ✨ Core Features
 - **Drag & Drop**: Rearrange widgets by dragging them to new positions
 - **Resizable Widgets**: Resize widgets using the resize handle in edit mode
@@ -35,18 +36,22 @@ The Stellar Dev Dashboard now features a fully customizable widget-based layout 
 
 ## How to Use
 
+
 ### Basic Usage
+
 
 1. **View Mode** (Default)
    - View your widgets in read-only mode
    - Interact with widget content normally
    - Click "Edit" button to enter edit mode
 
+
 2. **Edit Mode**
    - **Drag & Drop**: Click and drag widgets to rearrange them
    - **Resize**: Use the resize handle (⤡) in the top-right corner of widgets
    - **Remove**: Click the × button to remove widgets
    - **Add Widgets**: Click "Add Widget" to open the widget selector
+
 
 3. **Adding Widgets**
    - Click "Add Widget" in edit mode
@@ -66,12 +71,20 @@ The dashboard automatically adapts to different screen sizes:
 - **Tablet**: 2-column grid with touch-optimized controls
 - **Mobile**: 1-column grid with always-visible controls
 
+### Short-Window Undo
+
+All preference and layout mutations support short-window undo capabilities:
+- **Instant Undo Banner**: When widget layouts or preferences are changed, an interactive undo banner appears with a 10-second countdown.
+- **Reversible Mutations**: Theme changes, layout rearrangements, and notification settings can be restored with a single click.
+- **Developer Guide**: See `PREFERENCE_UNDO_GUIDE.md` for full implementation details.
+
 ### Persistence
 
 Your dashboard layout is automatically saved to browser storage and will be restored when you return to the application. This includes:
 - Widget positions and order
 - Widget sizes (if resized)
 - Which widgets are added or removed
+
 
 ## Widget Development
 

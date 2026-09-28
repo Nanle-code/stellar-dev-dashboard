@@ -1,6 +1,6 @@
 /**
  * usePreferences — Issue #142
- * React hook for reading and updating user preferences.
+ * React hook for reading and updating user preferences, with automatic undo tracking.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -8,6 +8,9 @@ import {
   loadPreferences,
   savePreferences,
   updatePreference,
+  updatePreferenceWithUndo,
+  savePreferencesWithUndo,
+  resetPreferencesWithUndo,
   addSavedAddress,
   removeSavedAddress,
   resetPreferences,
@@ -15,29 +18,64 @@ import {
   type UserPreferences,
   type AddressEntry,
 } from '../lib/userPreferences'
+import { preferenceUndoManager } from '../lib/preferenceUndoManager'
 
-export function usePreferences() {
+export interface UsePreferencesReturn {
+  preferences: UserPreferences
+  loading: boolean
+  update: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K], options?: { recordUndo?: boolean }) => Promise<UserPreferences>
+  save: (partial: Partial<UserPreferences>, options?: { recordUndo?: boolean }) => Promise<UserPreferences>
+  addAddress: (entry: Omit<AddressEntry, 'addedAt'>) => Promise<void>
+  removeAddress: (address: string) => Promise<void>
+  reset: (options?: { recordUndo?: boolean }) => Promise<void>
+  reload: () => Promise<UserPreferences>
+}
+
+export function usePreferences(): UsePreferencesReturn {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadPreferences().then((prefs) => {
-      setPreferences(prefs)
-      setLoading(false)
-    })
+  const reload = useCallback(async () => {
+    const prefs = await loadPreferences()
+    setPreferences(prefs)
+    return prefs
   }, [])
+
+  useEffect(() => {
+    reload().then(() => setLoading(false))
+    const unsubscribe = preferenceUndoManager.subscribe(() => {
+      reload()
+    })
+    return unsubscribe
+  }, [reload])
 
   const update = useCallback(async <K extends keyof UserPreferences>(
     key: K,
-    value: UserPreferences[K]
+    value: UserPreferences[K],
+    options: { recordUndo?: boolean } = { recordUndo: true }
   ) => {
-    const next = await updatePreference(key, value)
+    let next: UserPreferences
+    if (options.recordUndo !== false) {
+      const res = await updatePreferenceWithUndo(key, value)
+      next = res.next
+    } else {
+      next = await updatePreference(key, value)
+    }
     setPreferences(next)
     return next
   }, [])
 
-  const save = useCallback(async (partial: Partial<UserPreferences>) => {
-    const next = await savePreferences(partial)
+  const save = useCallback(async (
+    partial: Partial<UserPreferences>,
+    options: { recordUndo?: boolean } = { recordUndo: true }
+  ) => {
+    let next: UserPreferences
+    if (options.recordUndo !== false) {
+      const res = await savePreferencesWithUndo(partial)
+      next = res.next
+    } else {
+      next = await savePreferences(partial)
+    }
     setPreferences(next)
     return next
   }, [])
@@ -52,8 +90,14 @@ export function usePreferences() {
     setPreferences(next)
   }, [])
 
-  const reset = useCallback(async () => {
-    const next = await resetPreferences()
+  const reset = useCallback(async (options: { recordUndo?: boolean } = { recordUndo: true }) => {
+    let next: UserPreferences
+    if (options.recordUndo !== false) {
+      const res = await resetPreferencesWithUndo()
+      next = res.next
+    } else {
+      next = await resetPreferences()
+    }
     setPreferences(next)
   }, [])
 
@@ -65,5 +109,6 @@ export function usePreferences() {
     addAddress,
     removeAddress,
     reset,
+    reload,
   }
 }

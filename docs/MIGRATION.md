@@ -1,0 +1,173 @@
+# Migration Guide
+
+Human-readable migration instructions for Stellar Dev Dashboard component library changes.
+The interactive version with before/after code examples lives in Storybook:
+**Design System / Migration**.
+
+Full changelog: `docs/api/CHANGELOG.md`.
+
+---
+
+## Version History
+
+### v0.1.0 (June 2025) — Initial Release
+
+First public release. No migration required.
+
+**Added:**
+- Dashboard shell: Sidebar, MobileHeader, MobileSidebar, DashboardGrid
+- Core components: Card, StatCard, CopyableValue, ThemeToggle
+- Chart suite: NetworkMetricsChart, BalanceHistoryChart, AccountActivityChart
+- Accessibility: AccessibilitySettings, ScreenReaderAnnouncer, KeyboardNavigation
+- Network: NetworkIndicator, OfflineBanner, RetryButton
+- Assets: AssetCard, AssetDiscovery
+- Forms: ValidatedInput
+- Design system: tokens, colors, spacing, typography, variants
+- Storybook 8.5 with a11y, viewport addons, and dark/light theme toolbar
+
+---
+
+## Breaking Changes
+
+No breaking changes in v0.1.0.
+
+Future breaking changes will be documented here with migration steps and, where possible,
+a codemod command.
+
+---
+
+## Active Migration Tracks
+
+### Shareable view links (query parameters)
+
+Shared view links use **query parameters**; the collaboration session feature
+uses a **hash fragment** (`#<base64>`). The two channels do not collide and may
+both be present in one URL. Existing hash-based collaboration links are
+unaffected — no migration is required for links already in the wild.
+
+New store state is **not** shared by default. To put a field in a shared link,
+add it to `ShareableViewState` and `selectShareableState()` in
+`src/lib/shareLinks.ts`, then to the encoder and the decoder. Fields outside
+that path cannot reach a URL.
+
+`ledgerPin` was added to the store and is deliberately excluded from
+`PERSIST_KEYS`: a pin belongs to a shared link and the current session, not to a
+durable preference. Persisting it would leave a stale pin silently applied to
+later, unrelated work in the same browser.
+
+Full details, including the security model and the ledger-pin support matrix,
+are in [SHARED_VIEW_LINKS.md](./SHARED_VIEW_LINKS.md).
+
+### JavaScript → TypeScript
+
+The codebase is migrating from `.jsx` to `.tsx`. New components **must** be TypeScript.
+
+**Steps for converting an existing component:**
+
+1. Rename the file from `.jsx` to `.tsx`.
+2. Add prop types using interfaces from `src/types/components.ts` where they exist.
+3. Run `npm run type-check` to surface type errors.
+4. Fix errors — the `tsconfig.json` has `allowJs: true` so no config changes are needed.
+5. Update any `.stories.tsx` imports if the file extension changed.
+
+```ts
+// src/types/components.ts — add your interface
+export interface MyComponentProps {
+  title: string;
+  onAction?: () => void;
+}
+
+// src/components/dashboard/MyComponent.tsx
+import type { MyComponentProps } from '../../types/components';
+
+export default function MyComponent({ title, onAction }: MyComponentProps) { … }
+```
+
+---
+
+### Inline Styles → CSS Custom Properties
+
+Components should use `var(--token)` rather than hard-coded hex values.
+
+```jsx
+// ❌ Before
+<div style={{ color: '#f8fafc', background: '#0f172a' }}>
+
+// ✅ After
+<div style={{ color: 'var(--text-primary)', background: 'var(--bg-card)' }}>
+```
+
+Reference the full token list in `docs/design-system.md` or the **Design System / Tokens**
+Storybook story.
+
+Do **not** remove legacy token aliases until all call sites are migrated.
+
+---
+
+### Adopting the Variant System
+
+New component variants should live in `src/design-system/variants.ts`, not as ad-hoc inline
+style objects scattered across component files.
+
+```ts
+// src/design-system/variants.ts — add to the relevant group
+{
+  key: 'ghost',
+  label: 'Ghost',
+  description: 'Transparent background, border only. For tertiary actions.',
+  composition: ['border.default', 'text.primary', 'radii.sm'],
+  status: 'planned', // → 'ready' once implemented
+}
+```
+
+---
+
+### Structured Logging & `console.log` Migration (#965)
+
+All ad-hoc `console.log` calls in `src/` have been removed in favor of the structured logger in `src/lib/logging` to enforce sensitive data redaction (#774) and environment-based level filtering.
+
+**What changed:**
+- `no-console` is enforced as an ESLint error for `src/`.
+- Replace `console.log` with `logger.info`, `logger.debug`, `logger.warn`, or `logger.error` from `src/lib/logging`.
+- Log level defaults to `LogLevel.WARN` in production (`NODE_ENV === 'production'`) and `LogLevel.DEBUG` in development.
+- Sensitive values (Stellar secret keys `S...`, Bearer tokens, passwords, private keys, seeds, api keys) are automatically redacted across log messages, context objects, and tags.
+
+```ts
+// ❌ Legacy
+console.log('User signed in', user);
+
+// ✅ Modern
+import { logger } from '@/lib/logging';
+logger.info('User signed in', { userId: user.id });
+```
+
+---
+
+## Cross-tab state sync is now deterministic (#751)
+
+`src/utils/stateSync.js` persists settings and connected-account state with a
+versioned compare-and-swap envelope. See `docs/CROSS_TAB_STATE_SYNC.md` for the
+full guide (compatibility, security, migration).
+
+**What changed (read before upgrading):**
+
+- `syncState(key, value)` now stores an envelope `{ __v, __t, __w, value }`
+  instead of the raw JSON value. Read it back with `loadSyncedState(key)` or
+  `onStateChange`'s `value` argument. Pre-#751 raw values are still read
+  correctly (normalised to version 0).
+- `syncState` now returns `Promise<number>` (the assigned version) and **may
+  reject** (invalid input, unavailable storage, quota, exhausted retries). Call
+  sites must tolerate rejection.
+- `onStateChange` callback is now `(key, value, meta)` — `meta` carries
+  `{ version, writerId, timestamp }`.
+- New exports: `resolveStateConflict`, `getTabId`, `loadSyncedState`.
+
+---
+
+## Adding a Breaking Change (for maintainers)
+
+1. Add to `docs/api/CHANGELOG.md` under `## Breaking Changes` for the next version.
+2. Add a migration entry to `stories/Migration.stories.tsx`.
+3. If automatable, provide a codemod: `npx codemod <package-name>`.
+4. Keep legacy aliases active for at least one minor version before removing them.
+5. Update this document.

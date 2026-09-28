@@ -22,7 +22,18 @@ export class CostEstimator {
     constructorArgs: any[]
   ): Promise<CostEstimate> {
     const kb = Math.ceil(wasmBytes.length / 1024);
-    const validArgCount = constructorArgs.filter(arg => arg && String(arg).trim() !== '').length;
+    const validArgCount = constructorArgs.filter((arg) => {
+      if (!arg) return false;
+      if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') {
+        return String(arg).trim() !== '';
+      }
+
+      if (typeof arg === 'object' && 'value' in arg) {
+        return String((arg as { value?: unknown }).value ?? '').trim() !== '';
+      }
+
+      return String(arg).trim() !== '';
+    }).length;
 
     const baseStorageFee = CostEstimator.BASE_FEE_STROOPS;
     const perKbFee = kb * CostEstimator.PER_KB_FEE_STROOPS;

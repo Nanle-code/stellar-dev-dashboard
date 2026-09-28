@@ -1,0 +1,429 @@
+/**
+ * Collaboration Feature Styles
+ *
+ * Styles for presence indicators, annotations panel, and cursor overlays.
+ */
+
+/* ─── Presence Indicator ───────────────────────────────────────────────────── */
+
+.presence-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.presence-indicator:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Presence List ───────────────────────────────────────────────────────── */
+
+.presence-list {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.presence-list.empty {
+  padding: 2rem;
+  text-align: center;
+}
+
+.presence-list-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.presence-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.presence-list-item {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  padding: 0.5rem;
+  transition: background 0.2s ease;
+}
+
+.presence-list-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.presence-list-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.presence-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.presence-avatar-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+}
+
+.presence-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.presence-user-id {
+  font-size: 12px;
+  font-weight: 500;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.presence-status {
+  font-size: 11px;
+  color: #888;
+}
+
+.presence-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+/* ─── Annotations Panel ───────────────────────────────────────────────────── */
+
+.annotations-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.annotations-panel.loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.annotations-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.annotations-panel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.annotations-panel-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 0.5rem;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.annotations-panel-input:focus {
+  outline: none;
+  border-color: rgba(102, 126, 234, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.annotations-panel-input::placeholder {
+  color: #888;
+}
+
+.annotations-panel-submit {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.annotations-panel-submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.annotations-panel-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.annotations-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.annotation-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.annotation-item.resolved {
+  opacity: 0.6;
+  background: rgba(76, 175, 80, 0.1);
+  border-color: rgba(76, 175, 80, 0.2);
+}
+
+.annotation-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.annotation-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.annotation-item-author {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.annotation-item-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+}
+
+.annotation-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.annotation-item-time {
+  font-size: 11px;
+  color: #888;
+}
+
+.annotation-item-content {
+  font-size: 13px;
+  color: #c0c0c0;
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+  word-wrap: break-word;
+}
+
+.annotation-item-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.annotation-item-action {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.annotation-item-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+.annotation-item-action.resolve:hover {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #81c784;
+}
+
+.annotation-item-action.delete:hover {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: rgba(244, 67, 54, 0.3);
+  color: #ef5350;
+}
+
+/* ─── Cursor Overlay ─────────────────────────────────────────────────────── */
+
+.cursor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.remote-cursor {
+  position: absolute;
+  pointer-events: none;
+  transition: transform 0.1s ease-out;
+  z-index: 10000;
+}
+
+.remote-cursor svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.remote-cursor-label {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  background: var(--cursor-color, #667eea);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .presence-list {
+    max-height: 300px;
+  }
+
+  .annotations-panel {
+    max-height: 400px;
+  }
+
+  .annotations-panel-input {
+    font-size: 14px;
+  }
+}
+
+/* ─── Dark Theme ─────────────────────────────────────────────────────────── */
+
+[data-theme='dark'] .presence-indicator {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .presence-list {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .annotations-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .annotations-panel-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+/* ─── Light Theme ─────────────────────────────────────────────────────────── */
+
+[data-theme='light'] .presence-indicator {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='light'] .presence-list {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='light'] .presence-user-id {
+  color: #333;
+}
+
+[data-theme='light'] .presence-status {
+  color: #666;
+}
+
+[data-theme='light'] .annotations-panel {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='light'] .annotations-panel-input {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+[data-theme='light'] .annotations-panel-input::placeholder {
+  color: #999;
+}
+
+[data-theme='light'] .annotation-item-content {
+  color: #555;
+}
+
+[data-theme='light'] .annotation-item-name {
+  color: #333;
+}
+
+[data-theme='light'] .annotation-item-time {
+  color: #666;
+}
+
+[data-theme='light'] .annotation-item-action {
+  color: #666;
+}
+
+[data-theme='light'] .annotation-item-action:hover {
+  color: #333;
+}

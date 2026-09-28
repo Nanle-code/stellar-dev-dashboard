@@ -1,0 +1,121 @@
+// @ts-check
+/** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
+const sidebars = {
+  gettingStarted: [
+    {
+      type: 'category',
+      label: 'Getting Started',
+      collapsed: false,
+      items: [
+        'getting-started/introduction',
+        'getting-started/installation',
+        'getting-started/quick-start',
+        'getting-started/authentication',
+        'getting-started/networks',
+      ],
+    },
+  ],
+
+  apiReference: [
+    {
+      type: 'category',
+      label: 'API Reference',
+      collapsed: false,
+      items: [
+        'api-reference/overview',
+        {
+          type: 'category',
+          label: 'Horizon REST API',
+          items: [
+            'api-reference/horizon/accounts',
+            'api-reference/horizon/submit-transaction',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Soroban RPC',
+          items: [
+            'api-reference/soroban/overview',
+            'api-reference/soroban/simulate-transaction',
+            'api-reference/soroban/send-transaction',
+            'api-reference/soroban/get-transaction',
+            'api-reference/soroban/get-contract-data',
+            'api-reference/soroban/get-events',
+          ],
+        },
+        'api-reference/error-reference',
+        'api-reference/rate-limiting',
+      ],
+    },
+  ],
+
+  guides: [
+    {
+      type: 'category',
+      label: 'Guides',
+      collapsed: false,
+      items: [
+        'guides/getting-started-guide',
+        'guides/sending-payments',
+        'guides/sep-0007-payment-requests',
+        'guides/working-with-assets',
+        'guides/soroban-smart-contracts',
+        'guides/dex-trading',
+        'guides/transaction-templates',
+        'guides/developer-toolkit',
+        'guides/error-handling',
+        'guides/rate-limiting',
+        'guides/horizon-pagination',
+        'guides/offline-support',
+        'guides/architecture-decision-records',
+        'guides/advanced-tutorials',
+        'guides/wallet-connection-troubleshooting',
+        'guides/troubleshooting',
+      ],
+    },
+  ],
+
+  examples: [
+    {
+      type: 'category',
+      label: 'Code Examples',
+      collapsed: false,
+      items: [
+        'examples/overview',
+        {
+          type: 'category',
+          label: 'JavaScript / TypeScript',
+          items: [
+            'examples/js/fetch-account',
+            'examples/js/send-payment',
+            'examples/js/create-trustline',
+            'examples/js/invoke-contract',
+            'examples/js/dex-swap',
+            'examples/js/stream-transactions',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Python',
+          items: [
+            'examples/python/fetch-account',
+            'examples/python/send-payment',
+            'examples/python/create-trustline',
+            'examples/python/invoke-contract',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Error Scenarios',
+          items: [
+            'examples/errors/transaction-failed',
+            'examples/errors/rate-limit',
+            'examples/errors/insufficient-funds',
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+export default sidebars;

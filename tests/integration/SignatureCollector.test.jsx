@@ -3,14 +3,33 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { createSession } from '../../src/lib/multisig';
+import { buildPaymentTransactionXdr } from '../__factories__';
 
+const { _idbStore } = vi.hoisted(() => ({ _idbStore: new Map() }));
 vi.mock('../../src/lib/storage', () => ({
-  getStoredValue: vi.fn().mockResolvedValue(null),
-  setStoredValue: vi.fn(),
+  getStoredValue: vi.fn(async (key) => _idbStore.get(key) ?? null),
+  setStoredValue: vi.fn(async (key, value) => { _idbStore.set(key, value); }),
 }));
 vi.mock('../../src/utils/stateSync', () => ({
   broadcastStateChange: vi.fn(),
   onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(undefined),
+  loadSyncedState: vi.fn().mockResolvedValue(null),
+  resolveStateConflict: vi.fn((local) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
+}));
+vi.mock('../../src/lib/cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+vi.mock('../../src/lib/requestCancellation', () => ({
+  accountRequests: { abortAll: vi.fn(), begin: vi.fn(() => ({ active: true, commit: vi.fn(() => true), abort: vi.fn() })) },
+  AccountLanes: { Connect: 'account:connect', Offers: 'account:offers', CreationDate: 'account:creation-date' },
+  isCancellation: vi.fn(() => false),
+  isStaleRequestError: vi.fn(() => false),
+  StaleRequestError: class StaleRequestError extends Error {},
 }));
 
 const mockSuccess = vi.fn();
@@ -26,33 +45,28 @@ import SignatureCollector from '../../src/components/multisig/SignatureCollector
 const KP_A = StellarSdk.Keypair.random();
 const KP_B = StellarSdk.Keypair.random();
 
-const buildTxXdr = () => {
-  const account = new StellarSdk.Account(KP_A.publicKey(), '100');
-  return new StellarSdk.TransactionBuilder(account, {
-    fee: StellarSdk.BASE_FEE,
-    networkPassphrase: StellarSdk.Networks.TESTNET,
-  })
-    .addOperation(StellarSdk.Operation.payment({
-      destination: KP_B.publicKey(),
-      asset: StellarSdk.Asset.native(),
-      amount: '1',
-    }))
-    .setTimeout(300)
-    .build()
-    .toXDR();
-};
+const buildTxXdr = () =>
+  buildPaymentTransactionXdr({
+    sourceKeypair: KP_A,
+    destination: KP_B.publicKey(),
+    amount: '1',
+    asset: StellarSdk.Asset.native(),
+    network: StellarSdk.Networks.TESTNET,
+    timeout: 300,
+  });
 
 describe('SignatureCollector (integration)', () => {
   let session;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    _idbStore.clear();
     mockSuccess.mockClear();
     mockWarning.mockClear();
     mockError.mockClear();
     useStore.setState({ network: 'testnet' }, false);
 
-    session = createSession({
+    session = await createSession({
       txXdr: buildTxXdr(),
       sourceAddress: KP_A.publicKey(),
       description: 'Test Signing',

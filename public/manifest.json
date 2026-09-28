@@ -1,18 +1,57 @@
 {
   "name": "Stellar Dev Dashboard",
-  "short_name": "StellarDash",
-  "description": "Real-time developer dashboard for the Stellar network — inspect accounts, transactions, contracts, and network stats.",
+  "short_name": "StellarDev",
+  "description": "Real-time developer dashboard for the Stellar network — balances, transactions, contracts, DEX, and more.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#080c10",
-  "theme_color": "#00e5ff",
   "orientation": "any",
+  "background_color": "#0f1117",
+  "theme_color": "#1e2327",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["finance", "developer tools", "productivity"],
   "icons": [
+    {
+      "src": "/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
@@ -21,7 +60,58 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["developer tools", "finance", "utilities"],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-overview.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Overview — account balances, recent transactions, and live network stats"
+    },
+    {
+      "src": "/screenshots/desktop-transactions.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Transaction history with paginated operations"
+    },
+    {
+      "src": "/screenshots/desktop-network.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Live network stats — ledger close times, fee histogram, and real-time ledger stream"
+    },
+    {
+      "src": "/screenshots/mobile-overview.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile overview — account summary and balances"
+    },
+    {
+      "src": "/screenshots/mobile-dex.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile DEX explorer — order book and recent trades"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Network Stats",
+      "short_name": "Network",
+      "description": "View live Stellar network statistics",
+      "url": "/?tab=network",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "DEX Explorer",
+      "short_name": "DEX",
+      "description": "Explore SDEX order books and trades",
+      "url": "/?tab=dex",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ],
   "prefer_related_applications": false
 }

@@ -31,6 +31,12 @@ export interface CopyableValueProps {
   textStyle?: CSSProperties
   containerStyle?: CSSProperties
   buttonStyle?: CSSProperties
+  /** Force confirmation before copying, even if the value isn't auto-detected. */
+  sensitive?: boolean
+  /** Override the confirmation prompt shown when a copy is gated. */
+  sensitiveLabel?: string
+  /** Called after a successful copy (receives the copied value). */
+  onCopy?: (value: string) => void
 }
 
 export interface ResponsiveBreakpoints {

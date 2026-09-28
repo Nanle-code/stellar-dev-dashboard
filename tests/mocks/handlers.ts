@@ -1,73 +1,103 @@
 import { http, HttpResponse } from 'msw';
+import { buildAccountFixture, buildLedgerFixture, buildTransactionsResponse } from '../__factories__';
 
 const HORIZON_BASE = 'https://horizon-testnet.stellar.org';
+const HORIZON_MAINNET = 'https://horizon.stellar.org';
+const SOROBAN_BASE = 'https://soroban-testnet.stellar.org';
+const FRIENDBOT_URL = 'https://friendbot.stellar.org';
+const COINGECKO_URL = 'https://api.coingecko.com/api/v3/simple/price';
 
-const mockAccount = {
-  id: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-  account_id: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-  sequence: '1234567890',
-  subentry_count: 0,
-  balances: [
-    { balance: '100.0000000', asset_type: 'native', buying_liabilities: '0.0000000', selling_liabilities: '0.0000000' },
-  ],
-  thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
-  flags: { auth_required: false, auth_revocable: false, auth_immutable: false },
-  signers: [
-    { public_key: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN', weight: 1, type: 'ed25519_public_key' },
-  ],
-};
-
-const mockTransactions = {
-  _embedded: {
-    records: [
-      {
-        id: 'tx1',
-        hash: 'abc123',
-        ledger: 1000,
-        created_at: '2024-01-01T00:00:00Z',
-        source_account: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-        fee_charged: '100',
-        operation_count: 1,
-        successful: true,
-      },
-    ],
-  },
-};
-
-const mockLedger = {
-  id: 'ledger1',
-  sequence: 50000000,
-  closed_at: '2024-01-01T00:00:00Z',
-  transaction_count: 42,
-  operation_count: 100,
-  base_fee_in_stroops: 100,
-};
+const mockAccount = buildAccountFixture();
+const mockTransactions = buildTransactionsResponse();
+const mockLedger = buildLedgerFixture();
 
 export const handlers = [
-  // Account endpoint
-  http.get(`${HORIZON_BASE}/accounts/:accountId`, ({ params }) => {
-    return HttpResponse.json({ ...mockAccount, id: params.accountId, account_id: params.accountId });
+  // ── Coingecko XLM price ────────────────────────────────────────────────────
+  http.get(COINGECKO_URL, () => {
+    return HttpResponse.json({ stellar: { usd: 0.5, usd_24h_change: 1.2 } });
   }),
 
-  // Transactions for an account
+  // ── Friendbot / faucet ─────────────────────────────────────────────────────
+  http.get(`${FRIENDBOT_URL}`, () => {
+    return HttpResponse.json({ funded: true });
+  }),
+
+  // ── Order book (testnet) ───────────────────────────────────────────────────
+  http.get(`${HORIZON_BASE}/order_book`, () => {
+    return HttpResponse.json({
+      bids: [{ price: '0.1', amount: '1000.0' }],
+      asks: [{ price: '0.2', amount: '2000.0' }],
+    });
+  }),
+
+  // ── Account endpoint ───────────────────────────────────────────────────────
+  http.get(`${HORIZON_BASE}/accounts/:accountId`, ({ params }) => {
+    return HttpResponse.json({
+      ...mockAccount,
+      id: params.accountId,
+      account_id: params.accountId,
+    });
+  }),
+
+  http.get(`${HORIZON_MAINNET}/accounts/:accountId`, ({ params }) => {
+    return HttpResponse.json({
+      ...mockAccount,
+      id: params.accountId,
+      account_id: params.accountId,
+    });
+  }),
+
+  // ── Transactions ───────────────────────────────────────────────────────────
   http.get(`${HORIZON_BASE}/accounts/:accountId/transactions`, () => {
     return HttpResponse.json(mockTransactions);
   }),
 
-  // Latest ledger
+  http.get(`${HORIZON_BASE}/transactions`, () => {
+    return HttpResponse.json(mockTransactions);
+  }),
+
+  // ── Operations ─────────────────────────────────────────────────────────────
+  http.get(`${HORIZON_BASE}/accounts/:accountId/operations`, () => {
+    return HttpResponse.json({
+      _embedded: { records: [{ id: 'op1', type: 'payment', paging_token: '1' }] },
+    });
+  }),
+
+  // ── Ledgers ────────────────────────────────────────────────────────────────
   http.get(`${HORIZON_BASE}/ledgers/:sequence`, () => {
     return HttpResponse.json(mockLedger);
   }),
 
-  // Ledger list
   http.get(`${HORIZON_BASE}/ledgers`, () => {
     return HttpResponse.json({
       _embedded: { records: [mockLedger] },
     });
   }),
 
-  // Operations for an account
-  http.get(`${HORIZON_BASE}/accounts/:accountId/operations`, () => {
-    return HttpResponse.json({ _embedded: { records: [] } });
+  http.get(`${HORIZON_MAINNET}/ledgers`, () => {
+    return HttpResponse.json({
+      _embedded: { records: [mockLedger] },
+    });
   }),
+
+  // ── Fee stats ──────────────────────────────────────────────────────────────
+  http.get(`${HORIZON_BASE}/fee_stats`, () => {
+    return HttpResponse.json({
+      last_ledger_base_fee: '100',
+      min_accepted_fee: '100',
+      median_accepted_fee: '150',
+      p90_accepted_fee: '300',
+    });
+  }),
+
+  // ── Soroban RPC probe ──────────────────────────────────────────────────────
+  http.post(SOROBAN_BASE, () => {
+    return HttpResponse.json({ jsonrpc: '2.0', id: 1, result: { status: 'healthy' } });
+  }),
+
+  // ── Generic Horizon HEAD probes (for probeAllNetworks) ────────────────────
+  http.head(`${HORIZON_BASE}`, () => new HttpResponse(null, { status: 200 })),
+  http.head(`${HORIZON_MAINNET}`, () => new HttpResponse(null, { status: 200 })),
+  http.get(`${HORIZON_BASE}`, () => HttpResponse.json({ horizon_version: '2.0.0' })),
+  http.get(`${HORIZON_MAINNET}`, () => HttpResponse.json({ horizon_version: '2.0.0' })),
 ];

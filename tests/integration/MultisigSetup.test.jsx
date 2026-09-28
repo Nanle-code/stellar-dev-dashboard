@@ -6,6 +6,14 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 // Use a fixed test public key to avoid hoisting issues
 const TEST_PUBLIC_KEY = 'GASUV7H3C246L2U7LEKOAZ3XDRFKMTRJMJFFIXGBA2S4YO675GKTBX6Y';
 
+const mockSuccess = vi.fn();
+const mockError = vi.fn();
+const mockWarning = vi.fn();
+
+vi.mock('../../src/components/notifications/NotificationContext', () => ({
+  useNotifications: () => ({ success: mockSuccess, error: mockError, warning: mockWarning }),
+}));
+
 vi.mock('../../src/lib/storage', () => ({
   getStoredValue: vi.fn().mockResolvedValue(null),
   setStoredValue: vi.fn(),
@@ -13,12 +21,23 @@ vi.mock('../../src/lib/storage', () => ({
 vi.mock('../../src/utils/stateSync', () => ({
   broadcastStateChange: vi.fn(),
   onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(undefined),
+  loadSyncedState: vi.fn().mockResolvedValue(null),
+  resolveStateConflict: vi.fn((local) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
 }));
-
-const mockSuccess = vi.fn();
-const mockError = vi.fn();
-vi.mock('../../src/hooks/useNotifications', () => ({
-  useNotifications: () => ({ success: mockSuccess, error: mockError, warning: vi.fn() }),
+vi.mock('../../src/lib/cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+vi.mock('../../src/lib/requestCancellation', () => ({
+  accountRequests: { abortAll: vi.fn(), begin: vi.fn(() => ({ active: true, commit: vi.fn(() => true), abort: vi.fn() })) },
+  AccountLanes: { Connect: 'account:connect', Offers: 'account:offers', CreationDate: 'account:creation-date' },
+  isCancellation: vi.fn(() => false),
+  isStaleRequestError: vi.fn(() => false),
+  StaleRequestError: class StaleRequestError extends Error {},
 }));
 vi.mock('../../src/lib/stellar', async () => {
   const { Account } = await import('@stellar/stellar-sdk');

@@ -1,20 +1,15 @@
+import { TransactionBuilder, Transaction } from '@stellar/stellar-sdk';
+
 export class MultiSigTransaction {
-  transaction: unknown;
-  requiredSignatures: number;
-  collectedSignatures: unknown[];
+  public txXdr: string;
+  public network: string;
 
-  constructor(transaction: unknown, requiredSignatures: number) {
-    this.transaction = transaction;
-    this.requiredSignatures = requiredSignatures;
-    this.collectedSignatures = [];
+  constructor(txXdr: string, network: string = 'testnet') {
+    this.txXdr = txXdr;
+    this.network = network;
   }
 
-  addSignature(signature: unknown) {
-    this.collectedSignatures.push(signature);
-    return this.isFullySigned();
-  }
-
-  isFullySigned() {
-    return this.collectedSignatures.length >= this.requiredSignatures;
+  public get transaction(): Transaction {
+    return TransactionBuilder.fromXDR(this.txXdr, this.network) as Transaction;
   }
 }

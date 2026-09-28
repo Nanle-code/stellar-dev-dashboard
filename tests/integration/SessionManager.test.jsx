@@ -3,13 +3,31 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { createSession, SESSION_STATUS } from '../../src/lib/multisig';
 
+const { _idbStore } = vi.hoisted(() => ({ _idbStore: new Map() }));
 vi.mock('../../src/lib/storage', () => ({
-  getStoredValue: vi.fn().mockResolvedValue(null),
-  setStoredValue: vi.fn(),
+  getStoredValue: vi.fn(async (key) => _idbStore.get(key) ?? null),
+  setStoredValue: vi.fn(async (key, value) => { _idbStore.set(key, value); }),
 }));
 vi.mock('../../src/utils/stateSync', () => ({
   broadcastStateChange: vi.fn(),
   onStateChange: vi.fn(),
+  syncState: vi.fn().mockResolvedValue(undefined),
+  loadSyncedState: vi.fn().mockResolvedValue(null),
+  resolveStateConflict: vi.fn((local) => local),
+  getTabId: vi.fn().mockReturnValue('test-tab'),
+}));
+vi.mock('../../src/lib/cacheInit', () => ({
+  handleNetworkSwitch: vi.fn(),
+  initCache: vi.fn().mockResolvedValue(undefined),
+  handleTransactionSuccess: vi.fn().mockResolvedValue(undefined),
+  _resetCacheInit: vi.fn(),
+}));
+vi.mock('../../src/lib/requestCancellation', () => ({
+  accountRequests: { abortAll: vi.fn(), begin: vi.fn(() => ({ active: true, commit: vi.fn(() => true), abort: vi.fn() })) },
+  AccountLanes: { Connect: 'account:connect', Offers: 'account:offers', CreationDate: 'account:creation-date' },
+  isCancellation: vi.fn(() => false),
+  isStaleRequestError: vi.fn(() => false),
+  StaleRequestError: class StaleRequestError extends Error {},
 }));
 
 const mockSuccess = vi.fn();
@@ -26,18 +44,19 @@ const KP_A = StellarSdk.Keypair.random();
 describe('SessionManager (integration)', () => {
   beforeEach(() => {
     localStorage.clear();
+    _idbStore.clear();
     mockSuccess.mockClear();
     mockError.mockClear();
     useStore.setState({ network: 'testnet' }, false);
   });
 
-  it('shows empty state when no sessions', () => {
+  it('shows empty state when no sessions', async () => {
     render(<SessionManager />);
-    expect(screen.getByText(/no sessions yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no sessions yet/i)).toBeInTheDocument();
   });
 
-  it('renders existing sessions from localStorage', () => {
-    createSession({
+  it('renders existing sessions from localStorage', async () => {
+    await createSession({
       txXdr: 'AAAA',
       sourceAddress: KP_A.publicKey(),
       description: 'Treasury Payment',
@@ -46,11 +65,11 @@ describe('SessionManager (integration)', () => {
       network: 'testnet',
     });
     render(<SessionManager />);
-    expect(screen.getByText('Treasury Payment')).toBeInTheDocument();
+    expect(await screen.findByText('Treasury Payment')).toBeInTheDocument();
   });
 
   it('deletes a session when Delete clicked', async () => {
-    createSession({
+    await createSession({
       txXdr: 'AAAA',
       sourceAddress: KP_A.publicKey(),
       description: 'To Delete',
@@ -59,14 +78,15 @@ describe('SessionManager (integration)', () => {
       network: 'testnet',
     });
     render(<SessionManager />);
-    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+    const deleteBtn = await screen.findByRole('button', { name: /delete/i });
+    fireEvent.click(deleteBtn);
     await waitFor(() => {
       expect(screen.queryByText('To Delete')).toBeNull();
     });
   });
 
   it('opens session detail when Open clicked', async () => {
-    createSession({
+    await createSession({
       txXdr: 'AAAA',
       sourceAddress: KP_A.publicKey(),
       description: 'Detail Session',
@@ -75,7 +95,8 @@ describe('SessionManager (integration)', () => {
       network: 'testnet',
     });
     render(<SessionManager />);
-    fireEvent.click(screen.getByRole('button', { name: /open/i }));
+    const openBtn = await screen.findByRole('button', { name: /open/i });
+    fireEvent.click(openBtn);
     await waitFor(() => {
       expect(screen.getByText('Detail Session')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /← back/i })).toBeInTheDocument();
@@ -83,7 +104,7 @@ describe('SessionManager (integration)', () => {
   });
 
   it('navigates back from session detail', async () => {
-    createSession({
+    await createSession({
       txXdr: 'AAAA',
       sourceAddress: KP_A.publicKey(),
       description: 'Back Test',
@@ -92,25 +113,29 @@ describe('SessionManager (integration)', () => {
       network: 'testnet',
     });
     render(<SessionManager />);
-    fireEvent.click(screen.getByRole('button', { name: /open/i }));
-    await waitFor(() => screen.getByRole('button', { name: /← back/i }));
-    fireEvent.click(screen.getByRole('button', { name: /← back/i }));
+    const openBtn = await screen.findByRole('button', { name: /open/i });
+    fireEvent.click(openBtn);
+    const backBtn = await screen.findByRole('button', { name: /← back/i });
+    fireEvent.click(backBtn);
     await waitFor(() => {
       expect(screen.getByText('Back Test')).toBeInTheDocument();
     });
   });
 
-  it('shows new session form when "+ New Session" clicked', () => {
+  it('shows new session form when "+ New Session" clicked', async () => {
     render(<SessionManager />);
-    fireEvent.click(screen.getByText('+ New Session'));
-    expect(screen.getByText(/new signature session/i)).toBeInTheDocument();
+    const newBtn = await screen.findByText('+ New Session');
+    fireEvent.click(newBtn);
+    expect(await screen.findByText(/new signature session/i)).toBeInTheDocument();
   });
 
   it('creates a new session from the form', async () => {
     render(<SessionManager />);
-    fireEvent.click(screen.getByText('+ New Session'));
+    const newBtn = await screen.findByText('+ New Session');
+    fireEvent.click(newBtn);
 
-    fireEvent.change(screen.getByPlaceholderText(/treasury payment/i), {
+    const descInput = await screen.findByPlaceholderText(/treasury payment/i);
+    fireEvent.change(descInput, {
       target: { value: 'My New Session' },
     });
     fireEvent.change(screen.getByLabelText(/transaction xdr/i), {

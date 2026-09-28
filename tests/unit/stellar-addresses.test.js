@@ -10,8 +10,8 @@ import {
 
 describe('Stellar Address Handling', () => {
   // Test data
-  const testEd25519 = 'GBUQWP3BOUZX34ULLWK7HAJQQ5UJXLG6VSE7WMLBTMDJLLAW7YKGU6EP'
-  const testMuxed = 'MBXV5U2D55PLQZW35UP7CC5ULMRM4KH72CIHRSR53E2QAZ5Z5K7I6S23'
+  const testEd25519 = 'GDN577S7IL2PEASLGLFODVKKS7IOJ6PYR2QF22GFROACDVHSI4R2ACPO'
+  const testMuxed = 'MDN577S7IL2PEASLGLFODVKKS7IOJ6PYR2QF22GFROACDVHSI4R2AAAAAAAAAAAE2LMCA'
   const testFederated = 'user@example.com'
   const testFederatedWithDots = 'my.name@stellar.example.org'
 

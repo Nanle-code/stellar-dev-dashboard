@@ -324,7 +324,7 @@ expect(categorizeError(networkError)).toEqual({
 });
 
 // Test retry logic
-const mockFn = jest.fn()
+const mockFn = vi.fn()
   .mockRejectedValueOnce(new Error('Network error'))
   .mockResolvedValueOnce('success');
 

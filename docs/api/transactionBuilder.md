@@ -16,35 +16,35 @@ import { OPERATION_TYPES } from './src/lib/transactionBuilder';
 
 Build a single `StellarSdk.Operation` from a type string and a params object.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `type` | `string` | One of the values in `OPERATION_TYPES` |
-| `params` | `Object` | Operation-specific fields (see below) |
+| Parameter | Type     | Description                            |
+| --------- | -------- | -------------------------------------- |
+| `type`    | `string` | One of the values in `OPERATION_TYPES` |
+| `params`  | `Object` | Operation-specific fields (see below)  |
 
 **Returns:** `StellarSdk.xdr.Operation`
 
 ### Supported operation types
 
-| type | Required params |
-|------|----------------|
-| `payment` | `destination`, `assetType`, `amount` (+ `assetCode`/`assetIssuer` for non-native) |
-| `createAccount` | `destination`, `startingBalance` |
-| `changeTrust` | `assetCode`, `assetIssuer`, `limit?` |
-| `manageSellOffer` | `sellingAsset*`, `buyingAsset*`, `amount`, `price` |
-| `manageBuyOffer` | `sellingAsset*`, `buyingAsset*`, `buyAmount`, `price` |
-| `setOptions` | `homeDomain?`, `setFlags?`, `clearFlags?` |
-| `accountMerge` | `destination` |
-| `manageData` | `name`, `value?` |
-| `pathPaymentStrictSend` | `sendAsset*`, `sendAmount`, `destination`, `destAsset*`, `destMin`, `path?` |
-| `pathPaymentStrictReceive` | `sendAsset*`, `sendMax`, `destination`, `destAsset*`, `destAmount`, `path?` |
-| `claimClaimableBalance` | `balanceId` |
-| `createClaimableBalance` | `asset*`, `amount`, `claimants` |
-| `bumpSequence` | `bumpTo` |
-| `revokeSponsorship` | `account` |
-| `beginSponsoringFutureReserves` | `sponsoredId` |
-| `endSponsoringFutureReserves` | _(none)_ |
-| `feeBump` | `feeSource`, `baseFee`, `innerTransaction` |
-| `clawback` | `assetCode`, `assetIssuer`, `from`, `amount` |
+| type                            | Required params                                                                   |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| `payment`                       | `destination`, `assetType`, `amount` (+ `assetCode`/`assetIssuer` for non-native) |
+| `createAccount`                 | `destination`, `startingBalance`                                                  |
+| `changeTrust`                   | `assetCode`, `assetIssuer`, `limit?`                                              |
+| `manageSellOffer`               | `sellingAsset*`, `buyingAsset*`, `amount`, `price`                                |
+| `manageBuyOffer`                | `sellingAsset*`, `buyingAsset*`, `buyAmount`, `price`                             |
+| `setOptions`                    | `homeDomain?`, `setFlags?`, `clearFlags?`                                         |
+| `accountMerge`                  | `destination`                                                                     |
+| `manageData`                    | `name`, `value?`                                                                  |
+| `pathPaymentStrictSend`         | `sendAsset*`, `sendAmount`, `destination`, `destAsset*`, `destMin`, `path?`       |
+| `pathPaymentStrictReceive`      | `sendAsset*`, `sendMax`, `destination`, `destAsset*`, `destAmount`, `path?`       |
+| `claimClaimableBalance`         | `balanceId`                                                                       |
+| `createClaimableBalance`        | `asset*`, `amount`, `claimants`                                                   |
+| `bumpSequence`                  | `bumpTo`                                                                          |
+| `revokeSponsorship`             | `account`                                                                         |
+| `beginSponsoringFutureReserves` | `sponsoredId`                                                                     |
+| `endSponsoringFutureReserves`   | _(none)_                                                                          |
+| `feeBump`                       | `feeSource`, `baseFee`, `innerTransaction`                                        |
+| `clawback`                      | `assetCode`, `assetIssuer`, `from`, `amount`                                      |
 
 ## `buildTransaction(params)`
 
@@ -53,20 +53,55 @@ Async. Loads the source account from Horizon and builds a signed-ready `Transact
 ```js
 const tx = await buildTransaction({
   sourceAccount: 'G...',
-  operations: [{ type: 'payment', params: { destination: 'G...', assetType: 'native', amount: '10' } }],
+  operations: [
+    { type: 'payment', params: { destination: 'G...', assetType: 'native', amount: '10' } },
+  ],
   memo: 'Hello',
-  memoType: 'text',  // 'text' | 'id' | 'hash' | 'return'
+  memoType: 'text', // 'text' | 'id' | 'hash' | 'return'
   baseFee: 100,
   timeout: 180,
   network: 'testnet',
 });
 ```
 
+**Throws:** if `memo` is set, it is validated against `memoType` before the transaction is assembled (see [Memo validation](#memo-validation) below) — invalid input, or a `memoType` outside `'none' | 'text' | 'id' | 'hash' | 'return'`, throws synchronously with a human-readable message instead of building a transaction the network would reject.
+
+## Memo validation
+
+`memo`/`memoType` are validated client-side by [`validateMemo`](../../src/lib/validation.ts) before submission, wired into both `transactionBuilder.js#buildTransaction` and `stellar.ts#buildTransaction`/`simulateTransaction`:
+
+| `memoType` | Accepted `memo` format                                      |
+| ---------- | ------------------------------------------------------------ |
+| `none`     | Ignored — no memo is attached.                                |
+| `text`     | Up to 28 bytes, UTF-8 encoded (not 28 *characters* — multi-byte characters count for more). |
+| `id`       | A non-negative integer string, up to `18446744073709551615` (unsigned 64-bit / `2^64 - 1`). |
+| `hash`     | Exactly 64 hex characters (32 bytes), matching what `StellarSdk.Memo.hash()` accepts. |
+| `return`   | Same format as `hash`.                                        |
+
+An empty memo is always valid regardless of type — the memo is optional unless the destination requires one (see below).
+
+### Destination memo requirements (SEP-29)
+
+Some destinations — most commonly centralized exchange deposit addresses — reject any payment that doesn't carry a memo, and require a specific one (usually `id`) to route funds internally. Per [SEP-29](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md), such accounts publish a `config.memo_required` data entry (base64 for `"1"`).
+
+`checkDestinationMemoRequirement(destination, network)` in [`stellar.ts`](../../src/lib/stellar.ts) looks up that data entry via Horizon and returns:
+
+```ts
+{ required: boolean; checked: boolean; error?: string }
+```
+
+- `checked: false` means the requirement could not be determined — the destination isn't a directly checkable `G...` account (e.g. it's a federated or contract address), or the Horizon lookup failed (offline, rate-limited, unsupported network). Treat this as "unknown," not "not required."
+- Muxed accounts (`M...`) are never flagged, since they already carry their own sub-account id.
+- An unfunded (404) destination is treated as not requiring a memo, since it cannot yet carry the data entry.
+
+Both `TransactionBuilder.tsx` and `Builder.tsx` call this (debounced, against the first payment-style destination) and show a warning banner when a memo is required but none is set; `stellar.ts#simulateTransaction` surfaces the same condition as a `warnings` entry. In every case this is a **warning, not a hard block** — the UI still lets the user submit, since the check is best-effort and the destination is the source of truth.
+
 ## `simulateTransaction(params)`
 
 Async. Builds and validates a transaction without submitting it.
 
 **Returns:**
+
 ```js
 {
   success: boolean,
@@ -78,14 +113,35 @@ Async. Builds and validates a transaction without submitting it.
 }
 ```
 
-## `signAndSubmitTransaction(transaction, secretKey, network?)`
+## `signAndSubmitTransaction(transaction, secretKey, network?, options?)`
 
-Sign a built transaction with a secret key and submit it to the network.
+The transaction is reviewed against the [`riskRules.js`](./riskRules.md) ruleset
+**before** the secret key is used. When anything is flagged as
+acknowledgement-worthy, the caller must present the summary and obtain explicit
+consent — signing is refused otherwise. This function cannot render UI, so
+consent is delegated to `options.onReview`.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `transaction` | `Transaction` | ✓ | The parsed transaction to sign. |
+| `secretKey` | `string` | ✓ | Ed25519 secret seed. |
+| `network` | `string` | — | Network name (default: `'testnet'`). |
+| `options.onReview` | `Function` | — | `async (summary) => boolean`. Must resolve `true` to allow a flagged transaction to be signed. |
+| `options.knownContracts` | `string[]` | — | Allowlisted Soroban contract addresses (default: `[]`). |
+| `options.account` | `object` | — | Source account snapshot, enabling balance-relative rules. |
 
 **Returns:**
+
 ```js
 { hash: string, ledger: number, successful: boolean }
 ```
+
+**Throws:** `Signing cancelled: high-risk operations were not acknowledged.` when
+`onReview` resolves falsy for a flagged transaction, and `This transaction
+contains high-risk operations that must be acknowledged before signing.` when no
+`onReview` was supplied at all.
 
 ## `feeBump(params)`
 
@@ -93,25 +149,33 @@ Build a fee-bump transaction wrapping a previously signed inner transaction.
 
 **Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `feeSource` | `string` | ✓ | Account public key (G...) that pays the fee-bump fee. Must be able to authorize fee-bump transactions. |
-| `baseFee` | `number` | ✓ | Fee per operation in stroops (must be positive). Applies to the entire wrapped transaction. |
-| `innerTransaction` | `string` | ✓ | The signed inner transaction as XDR envelope string. Must be a valid, signed Stellar transaction. |
-| `network` | `string` | — | Network name: `'testnet'`, `'mainnet'`, `'futurenet'`, or `'local'` (default: `'testnet'`). |
+| Parameter          | Type     | Required | Description                                                                                            |
+| ------------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `feeSource`        | `string` | ✓        | Account public key (G...) that pays the fee-bump fee. Must be able to authorize fee-bump transactions. |
+| `baseFee`          | `number` | ✓        | Fee per operation in stroops (must be positive). Applies to the entire wrapped transaction.            |
+| `innerTransaction` | `string` | ✓        | The signed inner transaction as XDR envelope string. Must be a valid, signed Stellar transaction.      |
+| `network`          | `string` | —        | Network name: `'testnet'`, `'mainnet'`, `'futurenet'`, or `'local'` (default: `'testnet'`).            |
 
 **Returns:** `FeeBumpTransaction` — Fee-bump transaction envelope ready for simulation or submission.
 
 **Throws:** Error if `feeSource` is invalid, `baseFee` is not positive, or `innerTransaction` XDR is malformed.
 
 **Example:**
+
 ```js
 import { feeBump } from './src/lib/transactionBuilder';
 
 // Step 1: Build and sign an inner transaction
 const innerTx = await buildTransaction({
   sourceAccount: 'G...',
-  operations: [{ type: 'payment', params: { /* ... */ } }],
+  operations: [
+    {
+      type: 'payment',
+      params: {
+        /* ... */
+      },
+    },
+  ],
   baseFee: 100,
   network: 'testnet',
 });
@@ -120,7 +184,7 @@ const innerXDR = innerTx.toXDR();
 // Step 2: Wrap it in a fee-bump from a different account
 const feeBumpTx = feeBump({
   feeSource: 'G...fee-bump-account',
-  baseFee: 200,  // Higher fee per operation
+  baseFee: 200, // Higher fee per operation
   innerTransaction: innerXDR,
   network: 'testnet',
 });
@@ -130,9 +194,12 @@ const xdr = feeBumpTx.toXDR();
 ```
 
 **Notes:**
+
 - Fee-bump transactions allow a different account to pay higher fees for an already-constructed transaction.
 - The `feeSource` must authorize the fee-bump transaction (typically via signature).
 - The `baseFee` is per operation in the inner transaction, not a total fee.
+- The estimated fee for a fee-bump transaction is calculated as `baseFee * (inner transaction operation count + 1)`.
+- In the advanced transaction builder UI, fee-bump transactions are built as standalone operations and the sponsor account is selected with `feeSource`.
 - Common use case: sponsor or re-submit transactions with insufficient fees.
 
 ## Operation Type: `clawback`
@@ -140,12 +207,14 @@ const xdr = feeBumpTx.toXDR();
 Initiate a clawback of an issued custom asset from a designated holder.
 
 **Required params:**
+
 - `assetCode` (string): The code of the clawbackable asset (1–12 uppercase alphanumerics)
 - `assetIssuer` (string): The issuer's public key (G...)
 - `from` (string): The account from which to claw back (G...)
 - `amount` (string): The amount to claw back (numeric, must be positive)
 
 **Example params:**
+
 ```js
 {
   assetCode: 'TEST',
@@ -156,6 +225,7 @@ Initiate a clawback of an issued custom asset from a designated holder.
 ```
 
 **Notes:**
+
 - Only the asset issuer can clawback.
 - The asset must have the clawback flag enabled on the issuer's account.
 - Clawed-back amounts are removed from the holder's balance.
@@ -166,9 +236,11 @@ Initiate a clawback of an issued custom asset from a designated holder.
 Begin sponsoring future reserve requirements for another account.
 
 **Required params:**
+
 - `sponsoredId` (string): The public key (G...) of the account to be sponsored
 
 **Notes:**
+
 - Must be followed by `endSponsoringFutureReserves` from the sponsored account to complete the sponsorship pair.
 - The sponsoring account pays for the sponsored account's reserve requirements.
 - Useful for onboarding and account management workflows.
@@ -180,8 +252,8 @@ End sponsorship of future reserves (must be called by the sponsored account).
 **Required params:** None
 
 **Notes:**
+
 - Terminates the active sponsorship relationship initiated by `beginSponsoringFutureReserves`.
 - The sponsored account must execute this operation to end the sponsorship.
 - If sponsorship ends, the sponsored account becomes responsible for its own reserve requirements.
-
 ````

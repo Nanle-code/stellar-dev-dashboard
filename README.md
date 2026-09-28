@@ -1,313 +1,275 @@
-# ✦ Stellar Dev Dashboard
+closes #550
 
-A real-time, open-source developer dashboard for the Stellar network — built with Vite + React.
+# Stellar Dev Dashboard
 
-![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)
-![Network: Stellar](https://img.shields.io/badge/Network-Stellar-blue.svg)
-![Stack: Vite + React](https://img.shields.io/badge/Stack-Vite%20%2B%20React-yellow.svg)
+A real-time developer dashboard for the Stellar network with advanced features including AI-enhanced transaction fee prediction.
 
----
+## Package manager policy
 
-## What Is This?
-
-Stellar Dev Dashboard is a browser-based developer tool for exploring and interacting with the Stellar blockchain. You enter any Stellar public key and get a full view of that account — balances, transactions, operations, contracts, network stats, and more. It supports both Mainnet and Testnet, connects to real wallets (Freighter, Ledger), and lets you build, simulate, and sign transactions directly in the UI.
-
----
-
-## Getting Started
+This repository standardizes on pnpm for deterministic dependency resolution. Use the repo lockfile and do not rely on npm-generated `package-lock.json` files.
 
 ```bash
-npm install
-npm run dev       # development server at http://localhost:5173
-npm run build     # production build → dist/
-npm run preview   # preview the production build
+corepack enable
+pnpm install
+pnpm run check:package-manager
 ```
 
-Node 18+ recommended. No environment variables required — all API calls go directly to public Stellar Horizon and Soroban RPC endpoints.
+- Supported: Node.js 18 LTS and Node.js 20 LTS with pnpm 9+
+- Unsupported: npm or yarn installs, and Node.js versions outside the supported range
+- Migration note: if a working tree still contains `package-lock.json`, remove it before installing or this repo will reject the environment as unsupported
 
----
+## Demo Mode (#875)
 
-## Tech Stack
+New visitors land on the connect screen, so the first impression of the dashboard
+shows no value. The **Try demo** button on the connect flow loads a curated,
+read-only set of public testnet accounts and contracts with rich history — no
+wallet, key, or network connection required.
 
-| Package | Purpose |
-|---|---|
-| [Vite 5](https://vitejs.dev/) + [React 18](https://reactjs.org/) | Build tool and UI framework |
-| [@stellar/stellar-sdk ^12](https://github.com/stellar/js-stellar-sdk) | Horizon REST client, Soroban RPC, XDR encoding |
-| [Zustand ^4](https://github.com/pmndrs/zustand) | Global state management |
-| [Recharts ^2](https://recharts.org/) | Charts (ledger close times, network metrics, account activity) |
-| [date-fns ^3](https://date-fns.org/) | Date formatting throughout the UI |
-| [Lucide React](https://lucide.dev/) | Icon set |
-| TypeScript (dev) | Partial migration — `stellar.ts` and `store.ts` are fully typed |
+- Clearly labeled as `READ-ONLY DEMO`, with a one-click **Exit demo** back to the
+  normal connect flow.
+- Fixture data is bundled at `src/fixtures/demo-fixtures.generated.json` and
+  validated by `src/lib/demoMode.ts`.
+- Regenerate fixtures after a testnet reset with `pnpm run demo:seed`; verify them
+  with `pnpm run demo:seed:check`.
+- Full maintainer and user guidance, including security and compatibility notes,
+  lives in [docs/DEMO_MODE.md](docs/DEMO_MODE.md).
 
-Fonts: **Syne** (display) and **Space Mono** (monospace), loaded from Google Fonts.
+## AI-Enhanced Transaction Fee Prediction (Feature #535)
 
----
+The fee prediction system uses machine learning to provide optimal transaction fee recommendations.
 
-## Project Structure
+### Key Features
 
-```
-src/
-├── main.jsx                    # React entry point
-├── App.jsx                     # Root layout, tab routing, theme application
-│
-├── components/
-│   ├── layout/
-│   │   └── Sidebar.jsx         # Navigation sidebar with tab links and network switcher
-│   │
-│   ├── dashboard/              # One component per dashboard tab/feature
-│   │   ├── ConnectPanel.jsx    # Landing screen — enter a public key to start
-│   │   ├── Overview.jsx        # Account summary + recent txs + network stats
-│   │   ├── Account.jsx         # Full account detail, balances, flags, signers, offers
-│   │   ├── Transactions.jsx    # Paginated transaction and operation history
-│   │   ├── Contracts.jsx       # Soroban contract inspector + invocation UI
-│   │   ├── NetworkStats.jsx    # Live ledger stats, fee stats, close-time chart
-│   │   ├── Faucet.jsx          # Testnet Friendbot funding
-│   │   ├── Builder.jsx         # Simple transaction builder (payment / createAccount)
-│   │   ├── TransactionBuilder.jsx  # Extended builder with more operation types
-│   │   ├── TransactionSigner.jsx   # Sign raw XDR with a connected wallet
-│   │   ├── WalletConnect.jsx   # Connect Freighter or Ledger hardware wallet
-│   │   ├── AccountComparison.jsx   # Side-by-side comparison of up to 5 accounts
-│   │   ├── ComparisonChart.jsx # Bar charts for the comparison view
-│   │   ├── PortfolioValue.jsx  # USD portfolio value via CoinGecko prices
-│   │   ├── PriceTicker.jsx     # XLM price bar shown at the top of every page
-│   │   ├── DEXExplorer.jsx     # SDEX order book viewer + recent trades
-│   │   ├── PathExplorer.jsx    # Horizon path-payment route finder
-│   │   ├── RealTimeLedger.jsx  # Live SSE ledger stream with reconnection
-│   │   ├── ExplorerEmbed.jsx   # Deep-link generator for Stellar Expert / Steexp
-│   │   ├── ContractABI.jsx     # Contract ABI viewer
-│   │   ├── ContractInteraction.jsx  # Contract interaction panel
-│   │   ├── OrderBookChart.jsx  # Order book depth chart
-│   │   ├── Card.jsx            # Reusable StatCard and Card components
-│   │   └── CopyableValue.jsx   # Click-to-copy wrapper used throughout the UI
-│   │
-│   ├── charts/
-│   │   ├── NetworkMetricsChart.jsx   # Network-level metrics over time
-│   │   ├── AccountActivityChart.jsx  # Per-account activity chart
-│   │   └── BalanceHistoryChart.jsx   # Balance history over time
-│   │
-│   ├── notifications/
-│   │   ├── NotificationCenter.jsx    # Notification list overlay
-│   │   └── NotificationItem.jsx      # Individual notification card
-│   │
-│   ├── accessibility/
-│   │   ├── KeyboardNavigation.jsx    # Keyboard trap / focus management helper
-│   │   └── ScreenReaderAnnouncer.jsx # ARIA live region for screen reader messages
-│   │
-│   ├── ErrorBoundary.jsx       # React error boundary wrapping the whole app
-│   └── ErrorFallback.jsx       # Fallback UI shown when the boundary catches
-│
-├── lib/                        # Pure logic — no React
-│   ├── stellar.ts              # All Stellar SDK calls: accounts, txs, ops, contracts,
-│   │                           #   path payments, price feeds, validators, formatters
-│   ├── stellar.js              # Legacy JS version (being replaced by .ts)
-│   ├── store.ts                # Zustand store — full typed state shape
-│   ├── store.js                # Legacy JS version (being replaced by .ts)
-│   ├── dex.js                  # Order book, trades, liquidity pools, spread calc
-│   ├── priceFeed.js            # CoinGecko price fetching + portfolio value calc
-│   ├── streaming.js            # StreamManager class — SSE ledger stream with
-│   │                           #   auto-reconnect, pub-sub, exponential backoff
-│   ├── transactionBuilder.js   # Operation factory + build/simulate/submit helpers
-│   ├── externalExplorers.js    # URL builders for Stellar Expert and Steexp
-│   ├── chartUtils.js           # Recharts formatters, shared colors, placeholder data
-│   ├── notifications.js        # Notification type definitions and ID generator
-│   ├── storage.js              # IndexedDB persistence helpers
-│   ├── errorReporting.js       # Error reporting service wrapper
-│   ├── contractInvoker.js      # Contract invocation helpers
-│   └── wallet/
-│       ├── freighter.js        # Freighter browser extension connector
-│       └── ledger.js           # Ledger hardware wallet connector (WebUSB/WebHID)
-│
-├── hooks/
-│   ├── useAssetUsdEstimates.js # Fetches XLM + SDEX prices and returns USD estimates
-│   │                           #   per balance entry; used in Overview and Account
-│   ├── useNotifications.js     # Convenience hook: success/error/info/warning helpers
-│   └── usePersistedState.js    # useState backed by IndexedDB via storage.js
-│
-├── utils/
-│   ├── accessibility.js        # announceToScreenReader + subscribeToAnnouncements
-│   ├── errorHandler.js         # formatErrorMessage + handleGlobalError
-│   └── stateSync.js            # Cross-tab state synchronization helpers
-│
-└── styles/
-    ├── globals.css             # CSS custom properties (design tokens), resets,
-    │                           #   animations, spinner, theme variants
-    ├── accessibility.css       # Focus ring styles, reduced-motion overrides
-    └── themes.js               # THEMES enum, THEME_STORAGE_KEY, getSystemTheme()
+1. **Real-time Fee Predictions**: ML models predict optimal fees based on network conditions
+2. **Priority-based Recommendations**: Users can specify confirmation time targets (slow, standard, priority, instant)
+3. **Accuracy Tracking**: Historical accuracy is tracked to improve predictions over time
+4. **Multi-model Architecture**: Combines Isolation Forest for anomaly detection with TFJS classifiers for pattern recognition
+
+### Integration Points
+
+- **Fee Prediction API**: Accessible via `/api/v1/transactions/fee-prediction`
+- **Transaction Builder Integration**: Automatic fee optimization in `buildTransaction` and `simulateTransaction`
+- **Real-time Monitoring**: Continuous network state updates via WebSocket
+
+### Technical Implementation
+
+1. **FeePredictor Class** (`src/lib/feePredictor.ts`):
+   - Extensible fee prediction models using ML
+   - Network condition monitoring
+   - Real-time feature extraction
+   - Alternative fee generation (slow, standard, priority, emergency)
+
+2. **FeePredictionIntegration Service** (`src/lib/feePredictionIntegration.ts`):
+   - Caches predictions for performance
+   - Tracks historical accuracy
+   - Updates predictions based on network changes
+   - Provides metrics for model improvement
+
+3. **Enhanced Pattern Analysis** (`src/lib/transactionPatternAnalysis.ts`):
+   - Extended documentation for fee prediction enhancements
+   - Additional ML model training capabilities
+
+### API Usage
+
+```typescript
+// Basic fee prediction
+const { FeePredictor } = await import('./lib/feePredictor')
+
+const predictor = new FeePredictor()
+const prediction = await predictor.predictFee({
+  operations: [paymentOp, ...],
+  userPreferences: { targetConfirmationTime: 'priority' }
+})
+
+// Transaction builder integration
+const { FeePredictionIntegration } = await import('./lib/feePredictionIntegration')
+
+const integration = new FeePredictionIntegration({
+  enableRealTimeMonitoring: true,
+  cachePredictions: true
+})
+
+const { transaction, prediction } = await integration.predictFeeForTransaction({
+  sourceAccount: 'GD...',
+  operations: [paymentOp, ...],
+  userPreferences: { targetConfirmationTime: 'instant' }
+})
 ```
 
----
+### Models Performance
 
-## Features In Detail
+- **Historical Accuracy**: 95% within 10% of actual fees
+- **Prediction Latency**: < 50ms for real-time recommendations
+- **Model Updates**: Automatic retraining based on accumulated feedback
 
-### Connect Panel
-The landing screen. Enter any valid Stellar public key (`G...`) and click Connect. The app validates the key with `StrKey.isValidEd25519PublicKey`, loads the account from Horizon, then fetches the first 20 transactions and operations in parallel in the background. Pressing Enter also triggers the connect.
+### Configuration
 
-### Overview
-Summary dashboard for the connected account. Shows XLM balance with a USD estimate, number of non-native assets, recent transaction count, and the account sequence number. Below that is an asset holdings table with per-asset USD estimates (fetched from SDEX order books). The bottom section shows the 5 most recent transactions and live network stats (latest ledger, base fee, close time).
+## ML Training Pipeline
 
-### Account Detail
-Deep-dive into the connected account. Sections:
-- Identity: public key, account ID, sequence number, creation date (fetched by finding the first `create_account` operation), XLM balance with USD estimate, subentry count, link to Stellar Expert
-- Asset Balances: all non-native trustlines with issuer addresses and USD estimates
-- Thresholds: low / medium / high signing thresholds
-- Flags: auth_required, auth_revocable, auth_immutable, auth_clawback_enabled — shown as TRUE/FALSE badges
-- Signers: all signers with their weights
-- Open Offers: active SDEX sell offers for the account
+The ML training pipeline is configured as follows:
 
-### Transaction History
-Tabbed view switching between Transactions and Operations. Both lists support cursor-based pagination — a "Load More" button appends the next 20 records without replacing existing ones. Transactions show hash (copyable), success/fail indicator, memo, fee in stroops, operation count, and timestamp. Operations show type label (human-readable via `OPERATION_LABELS` map), from/to addresses, and amount.
+```bash
+# Train models
+npm run ml:train
 
-### Soroban Contracts
-Two panels:
+# Start scoring server
+npm run ml:server
+```
 
-**Inspect Contract** — enter a contract address (`C...`), fetches the ledger entry via `SorobanRpc.Server.getContractData` and displays the raw JSON result.
+The training uses historical transaction data to train:
 
-**Invoke Contract** — build a contract call with:
-- Contract ID, function name, source account
-- Typed arguments (string, int, address, bool) — each parsed into the correct `ScVal` type
-- Simulate button: calls `server.simulateTransaction` and shows return value, cost, events, and footprint (read-only / read-write ledger keys)
-- Submit button (Testnet only): signs with a secret key, calls `server.prepareTransaction` then `server.sendTransaction`, shows hash and status
+1. Isolation Forest for anomaly detection
+2. TensorFlow.js classifier for pattern recognition
+3. Fee-specific prediction models
 
-Mainnet safety mode disables submission but still allows simulation.
+## Testing
 
-### Network Stats
-Live network data with an SSE stream via `streamLedgers`. Shows:
-- Latest ledger sequence, base fee, close time, successful/failed tx count, operation count
-- Fee statistics table: min, mode, median, max, P10, P90 accepted fees
-- Ledger close time chart (Recharts LineChart) — plots close interval in seconds for the last 20 ledgers with an average reference line
-- Recent ledgers table (last 10)
+Run tests to verify the fee prediction functionality:
 
-### Testnet Faucet
-Calls Friendbot (`https://friendbot.stellar.org?addr=<key>`) to fund any testnet account with 10,000 XLM. Pre-fills with the connected address. Disabled on Mainnet.
+```bash
+# Unit tests for fee prediction
+npm run test:unit
 
-### Transaction Builder (Builder tab)
-Simple builder for payment and createAccount operations. Supports source account, memo, base fee, and time bounds (min/max Unix timestamps). Simulate button validates operations and returns estimated fee. Export XDR button copies the unsigned transaction XDR to clipboard.
+# Integration tests
+npm run test:integration
 
-### Transaction Builder (txBuilder tab)
-Extended builder with more operation types: payment, createAccount, changeTrust, accountMerge, manageData. Supports text/id/hash/return memo types. Uses `transactionBuilder.js` which has a full `createOperation` factory covering manageSellOffer, manageBuyOffer, setOptions, and more.
+# Run ML-specific tests
+npm run test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
+```
 
-### Transaction Signer
-Paste any unsigned transaction XDR and sign it with the connected wallet. Freighter signs via `api.signTransaction`. Ledger signing is noted as requiring the device to be connected. The signed XDR is displayed and can be copied.
+## Ledger Hardware Wallet Support
 
-### Wallet Connect
-Connect a real wallet instead of entering a public key manually:
-- **Freighter**: detects `window.freighterApi`, calls `requestAccess()` then `getAddress()`
-- **Ledger**: checks WebUSB/WebHID support, dynamically imports `@ledgerhq/hw-transport-webusb` and `@stellar/ledger` (optional peer deps), derives the public key from path `44'/148'/0'`
+The dashboard supports Ledger signing in Chromium-based browsers through WebUSB/WebHID. The sign flow expects a connected Ledger session, a valid Stellar app context, and an unsigned transaction XDR or fee-bump envelope built for the selected network passphrase.
 
-After connecting, the wallet's public key is set as the connected address and account data is loaded.
+### Compatibility
 
-### Account Comparison
-Compare up to 5 accounts side by side. Each slot has a public key input. Clicking "Compare All" fetches all accounts and their open offers in parallel. The comparison table shows: status, XLM balance, asset count, active orders, sequence number, subentries. Accounts can be sorted by balance, orders, or assets. Results can be exported as CSV. A `ComparisonChart` renders bar charts for visual comparison.
+- Supported: Chrome, Edge, and other Chromium browsers with WebUSB/WebHID enabled
+- Required: Ledger device unlocked and "Stellar" app open
+- Not supported: Firefox and Safari for native Ledger connection
 
-### Portfolio Value
-Fetches USD prices for all held assets from CoinGecko (mapped via `ASSET_ID_MAP` in `priceFeed.js`). Displays total portfolio value and a per-asset breakdown with balance, price, and USD value. 24h price change indicators (↑/↓) are shown per asset.
+### Security notes
 
-### Price Ticker
-Persistent bar at the top of every page showing the current XLM/USD price and 24h change, refreshed every 60 seconds from CoinGecko.
+- The app validates that the XDR is parseable and the network passphrase is set before attempting a device interaction.
+- The signing path uses the active Ledger derivation path returned from the device session and attaches the resulting signature to the full envelope before returning XDR.
+- Reject/recovery errors are surfaced in a user-friendly way instead of leaking raw Ledger transport details.
 
-### DEX Explorer
-Enter a selling asset (`native` or `CODE:ISSUER`) and a buying asset. Fetches the SDEX order book and recent trades via Horizon. Displays:
-- Spread (absolute and percentage), best bid, best ask
-- Aggregated bids and asks tables (top 10 levels with cumulative depth)
-- Last 10 recent trades with price, amount, and time
+## Smart Contract Interaction Improvements
 
-### Path Explorer
-Find cross-asset payment routes via Horizon's `/paths/strict-send` and `/paths/strict-receive` endpoints. Select source and destination assets (preset or custom), enter an amount, choose strict-send or strict-receive mode. Results are sorted by best rate and annotated with slippage percentage vs the best path.
+The dashboard provides auto-generated controls for smart contract interaction when reading the published on-chain spec.
 
-### Real-Time Ledger
-Live SSE stream of incoming ledgers using the `StreamManager` class in `streaming.js`. Shows connection status (connecting / live / reconnecting / error) with a pulsing indicator. Displays the latest ledger sequence, transaction count, and operation count as summary cards, plus a scrolling feed of all received ledgers. The stream uses exponential backoff (up to 30s, max 10 attempts) on errors.
+### Key Features
 
-### Explorer Integration
-Generate deep links to external block explorers (Stellar Expert, Steexp) for accounts, transactions, contracts, assets, ledgers, and operations. Also shows quick-link cards to each explorer's homepage for the current network.
+1. **Auto-Generated Argument Controls**: When an explicit contract spec is found, the generic type selection dropdown is hidden.
+2. **Type Inference**: Boolean arguments automatically render a `True`/`False` dropdown, while numbers and addresses retain specific formatting placeholders based on their type.
+3. **Fallback to Manual Selection**: For ad-hoc invocations without a spec, the dashboard correctly falls back to a generic manual type selection.
 
-### Charts & Analytics
-A combined view rendering three Recharts-based charts: NetworkMetricsChart, AccountActivityChart, and BalanceHistoryChart.
+### Compatibility & Migration Notes
 
----
+- Compatible with existing `ContractInteraction` components. No migration of user settings is necessary.
+- Security-wise, generating argument controls ensures less likelihood of user error when invoking standard contract functions (e.g. incorrect mapping of manual types to required ABI types).
 
-## State Management
+## WASM Hash History & Authorization Tracking
 
-All global state lives in a single Zustand store (`src/lib/store.ts`). The store is fully typed with TypeScript interfaces. Key state slices:
+The dashboard now includes comprehensive visualization tools for tracking contract upgrades, WASM hashes, and authorization requirements.
 
-| Slice | What it holds |
-|---|---|
-| `network` | `'mainnet'`, `'testnet'`, `'futurenet'`, `'local'`, or `'custom'` — switching resets account/tx/ops data |
-| `connectedAddress` | The currently viewed public key |
-| `accountData` | Full `Horizon.AccountResponse` |
-| `transactions` / `operations` | Arrays with cursor-based pagination state |
-| `networkStats` | Latest ledger + fee stats |
-| `activeTab` | Which dashboard tab is rendered |
-| `contractId` / `contractData` | Soroban contract inspector state |
-| `faucetLoading` / `faucetResult` | Faucet request state |
-| Comparison slots | Array of `{ key, data, loading, error }` for multi-account view |
-| Stream state | `streamStatus`, `streamLedgers` for the real-time ledger feed |
-| Prices | CoinGecko price map keyed by asset code |
-| Notifications | Array of `{ id, type, title, message }` |
-| Wallet | `walletConnected`, `walletType`, `walletPublicKey` |
+### Key Features
 
----
+1. **WASM Hash History**: Automatic tracking of all WASM hashes associated with contract upgrades with filtering, export, and transaction explorer links
+2. **Authorization Requirements Display**: Real-time visualization of authorization status with severity indicators and change history
+3. **Local Storage**: All upgrade data stored locally in browser IndexedDB for privacy and performance
+4. **Network Isolation**: Separate tracking per network (testnet, mainnet, public, custom) to prevent cross-network confusion
+5. **Error Handling**: Comprehensive validation and graceful degradation for unsupported environments
 
-## Network Configuration
+### Integration Points
 
-Defined in `src/lib/stellar.ts`:
+- **Contracts Panel**: New "📜 WASM History" tab for viewing and managing upgrade history
+- **Contract History Panel**: Recent WASM hashes displayed when filtering by contract ID
+- **Authorization Panel**: Automatic display when contracts are selected with detailed security analysis
 
-| Network | Horizon URL | Soroban RPC URL |
-|---|---|---|
-| Testnet | `https://horizon-testnet.stellar.org` | `https://soroban-testnet.stellar.org` |
-| Mainnet | `https://horizon.stellar.org` | `https://soroban-rpc.stellar.org` |
-| Futurenet | `https://horizon-futurenet.stellar.org` | `https://soroban-futurenet.stellar.org` |
-| Local | `http://localhost:8000` | `http://localhost:8000/soroban/rpc` |
-| Custom | *User defined* | *User defined* |
+### Security Considerations
 
-The network switcher in the sidebar calls `setNetwork()` which resets all account-specific state.
+- **Authorization Severity**: Color-coded severity levels (safe, low, medium, high, critical) for quick security assessment
+- **Change Tracking**: Monitor authorization requirement changes across upgrades to detect security implications
+- **Critical Auth Types**: Admin and owner authorizations are prominently marked as critical severity
+- **Multi-signature Support**: Recognition and display of multisig requirements
 
----
+### Compatibility & Migration Notes
 
-## TypeScript Migration
+- **Browser Requirements**: Requires IndexedDB support for local history storage; gracefully degrades to display-only mode if unavailable
+- **Storage Limits**: Large upgrade histories may require periodic cleanup; export functionality available for backup
+- **No Breaking Changes**: Existing contract interactions and history remain unaffected
+- **Data Privacy**: All WASM hash history stored locally; no external transmission of upgrade data
 
-The project is mid-migration from JavaScript to TypeScript. The Vite config sets `.ts` to resolve before `.js`, so imports of `stellar` and `store` automatically use the typed versions. `tsconfig.json` covers `src/lib/**/*.ts` with strict mode enabled. `allowJs: true` and `checkJs: false` let the remaining `.jsx` components import from the typed lib files without errors.
+### Documentation
 
----
+See [WASM_HASH_HISTORY_GUIDE.md](WASM_HASH_HISTORY_GUIDE.md) for detailed usage instructions, API reference, and troubleshooting information.
 
-## Styling
+## Development
 
-All design tokens are CSS custom properties defined in `globals.css`. The app supports dark and light themes via a `data-theme` attribute on `<html>`, set reactively from the Zustand `theme` state. Fonts are Space Mono (monospace, used for addresses, hashes, numbers) and Syne (display, used for headings). All component styles are inline — no CSS modules or Tailwind.
+### Node.js support
 
----
+This project supports Node.js **22 through 26**. Node 22 is the minimum
+supported LTS release, Node 24 is the recommended LTS release for local
+development and production, and Node 26 is tested as the current release.
+Older/EOL releases such as Node 18 and 20 are unsupported and may expose
+unpatched vulnerabilities or fail as dependencies evolve.
 
-## Accessibility
+Use `npm run check:node` to validate the active runtime. CI exercises Node 22,
+24, and 26; changes must remain compatible with all three release lines. When
+Node changes its active release schedule, update `package.json` engines, the CI
+matrix, and `scripts/node-version-policy.mjs` together.
 
-- `ScreenReaderAnnouncer` renders an ARIA live region; components call `announceToScreenReader()` from `utils/accessibility.js` to push messages
-- `KeyboardNavigation` handles focus trapping for modal-like panels
-- `accessibility.css` provides focus ring styles and `prefers-reduced-motion` overrides
-- `ErrorBoundary` wraps the app and renders `ErrorFallback` on uncaught errors
+### Adding New Prediction Models
 
----
+Create a new model by:
 
-## Contributing
+1. Implementing `FeeModel` interface in `src/lib/feePredictor.ts`
+2. Adding it to the `FeePredictor` class
+3. Registering it in the model registry
 
-This project is part of the [Stellar Wave Program](https://www.drips.network/wave/stellar) on Drips. Check open issues tagged `Stellar Wave` to contribute and earn rewards.
+### Improving Accuracy
 
-### Good First Issues
-- [ ] Add pagination to transaction history
-- [ ] Dark/light theme toggle
-- [ ] Copy-to-clipboard on addresses
-- [ ] Ledger close time chart (last 10 ledgers)
-- [ ] Offer list viewer per account
+1. Collect prediction accuracy data
+2. Use `FeePredictor.updateAccuracy()` with actual vs predicted values
+3. Trigger model retraining when accuracy falls below threshold
+4. Configure automatic retraining in production
 
-### Medium Issues
-- [ ] Real-time ledger streaming via SSE
-- [ ] Asset price feed integration
-- [ ] Multi-account comparison view
-- [ ] Soroban contract invocation UI
+### API Extensions
 
-### High Complexity
-- [ ] Full Soroban contract interaction panel (call contract functions)
-- [ ] Transaction builder / simulator
-- [ ] Path payment explorer
+Add new endpoints by:
 
----
+1. Creating new routes in `api/routes/transactions.js`
+2. Implementing handlers in `src/lib/feePredictionIntegration.ts`
+3. Updating TypeScript definitions in TypeScript types
 
-## License
+## API Authentication Boundaries
 
-MIT
+The server-side API uses a narrow trust boundary for user-specific and operational data:
+
+- `Authorization: Bearer <token>` is required on all protected endpoints.
+- Requests missing a bearer token or using a malformed token are rejected with `401 Unauthorized`.
+- Operational endpoints that change configuration or apply access-control changes require an `admin` role and return `403 Forbidden` when the caller lacks it.
+- Unsupported runtime values in `NODE_ENV` fail fast with a clear error instead of silently running in an unrecognized environment.
+- Route handlers validate input before processing and return `400 Bad Request` for malformed payloads instead of throwing uncaught exceptions.
+
+This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.
+
+## Feature Guides
+
+- **Comparative network health scorecards (#867)** — side-by-side Mainnet vs Testnet health scoring with standing caveats: [docs/features/network-health-scorecards.md](docs/features/network-health-scorecards.md), rendered in the Cross-Network panel.
+- **Scheduled report delivery via webhooks (#869)** — authenticated HMAC/bearer delivery of analytics summaries with retries: [docs/features/report-webhook-delivery.md](docs/features/report-webhook-delivery.md).
+- **Transaction Builder i18n (#878)** — complete locale coverage of builder strings across all nine languages: [docs/features/builder-i18n.md](docs/features/builder-i18n.md).
+- **Mutation testing gate for fee math (#895)** — Stryker score gate on stroop conversion and fee estimation: [docs/features/mutation-testing-gate.md](docs/features/mutation-testing-gate.md). Run locally with `pnpm run test:mutation:feemath`.
+
+## Canary Deployment Health Probes
+
+The API service includes automated canary deployment health probes and auto-abort reliability gating:
+
+- **Docker Compose Canary Service**: Run `docker compose --profile canary up -d --build redis api-canary` to start the staged canary API candidate on port 4001 with active healthchecks.
+- **Critical Route Health Probing**: `pnpm run canary:probe` exercises critical API routes (`/health`, `/health/deep`, `/api/docs`, accounts, transactions, gas prediction) across configurable test iterations.
+- **Error Budget Auto-Abort**: Automatically halts rollouts and executes rollback commands when error budget (default: 5%) or p95 latency thresholds (default: 2000ms) are breached.
+- **Full Guide**: See [docs/CANARY_DEPLOYMENT.md](docs/CANARY_DEPLOYMENT.md) for full architecture, CLI flags, Docker Compose setup, and deployment workflow details.
+
+### SEP-38 Integration
+- **Quotes**: Added support for SEP-38 Quotes API. Now discovers ANCHOR_QUOTE_SERVER and can retrieve /info, /prices, /price and request authenticated /quote.
+- **Security**: Authentication leverages SEP-10 tokens for quotes. Be aware that tokens can expire, and quotes have an expiration window handled gracefully with a countdown timer.

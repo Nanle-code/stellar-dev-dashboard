@@ -1,0 +1,239 @@
+---
+id: soroban-smart-contracts
+title: Soroban Smart Contracts
+sidebar_label: Soroban Smart Contracts
+---
+
+# Soroban Smart Contracts
+
+Soroban is Stellar's smart contract platform. Contracts are written in Rust, compiled to WASM, and deployed on-chain. This guide covers invoking deployed contracts from JavaScript and Python.
+
+## Prerequisites
+
+- A funded testnet account
+- The **contract ID** of a deployed contract (e.g. `CBXG...`)
+- `@stellar/stellar-sdk` ≥ 12.x (includes Soroban RPC support)
+
+## The invocation lifecycle
+
+Every contract call follows this sequence:
+
+```
+loadAccount → buildTx → simulateTx → prepareTx → sign → sendTx → poll
+```
+
+Never skip `simulateTransaction` — it computes the resource footprint that Soroban needs to execute the transaction.
+
+## Step-by-step walkthrough
+
+### Step 1 — Build the unsigned transaction
+
+```js
+import { SorobanRpc, TransactionBuilder, Networks, Contract, nativeToScVal, Keypair } from '@stellar/stellar-sdk';
+
+const rpc = new SorobanRpc.Server('https://soroban-testnet.stellar.org');
+const keypair = Keypair.fromSecret('SXXX...');
+const account = await rpc.getAccount(keypair.publicKey());
+
+const contract = new Contract('CBXG...CONTRACT_ID');
+const tx = new TransactionBuilder(account, {
+  fee: '100',
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(
+    contract.call('transfer',
+      nativeToScVal('GABC...FROM', { type: 'address' }),
+      nativeToScVal('GDEST...TO', { type: 'address' }),
+      nativeToScVal(1000n, { type: 'i128' }),
+    )
+  )
+  .setTimeout(30)
+  .build();
+```
+
+### Step 2 — Simulate
+
+```js
+const simResult = await rpc.simulateTransaction(tx);
+
+if (SorobanRpc.Api.isSimulationError(simResult)) {
+  throw new Error(`Simulation error: ${simResult.error}`);
+}
+
+console.log('Estimated fee:', simResult.minResourceFee, 'stroops');
+```
+
+### Step 3 — Prepare (inject footprint + auth)
+
+```js
+const preparedTx = await rpc.prepareTransaction(tx);
+```
+
+### Step 4 — Sign and send
+
+```js
+preparedTx.sign(keypair);
+const sendResult = await rpc.sendTransaction(preparedTx);
+```
+
+### Step 5 — Poll for confirmation
+
+```js
+import { scValToNative } from '@stellar/stellar-sdk';
+
+let result;
+do {
+  await new Promise(r => setTimeout(r, 3000));
+  result = await rpc.getTransaction(sendResult.hash);
+} while (result.status === 'NOT_FOUND');
+
+if (result.status === 'SUCCESS') {
+  console.log('Return value:', scValToNative(result.returnValue));
+}
+```
+
+## Authorization
+
+Contracts can require caller authorization. The `prepareTransaction` call handles `auth` injection for simple cases. For contracts that require explicit auth (`requireAuth()`), you may need multi-party signing:
+
+```js
+// After prepare, check if auth is needed
+const preparedTx = await rpc.prepareTransaction(tx);
+const authEntries = preparedTx.operations[0].auth ?? [];
+
+for (const entry of authEntries) {
+  // Sign each auth entry with the appropriate key
+  entry.credentials.address().signature = keypair.sign(
+    hash(xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(...).toXDR())
+  );
+}
+```
+
+## Deploying a contract
+
+```js
+import { SorobanRpc, TransactionBuilder, Networks, Operation, Keypair } from '@stellar/stellar-sdk';
+import { readFileSync } from 'node:fs';
+
+const wasm = readFileSync('my_contract.wasm');
+
+// 1. Upload the WASM
+const uploadTx = new TransactionBuilder(account, { fee: '100', networkPassphrase: Networks.TESTNET })
+  .addOperation(Operation.uploadContractWasm({ wasm }))
+  .setTimeout(30)
+  .build();
+
+// simulate → prepare → sign → send → poll (same flow as invoke)
+const wasmHash = result.returnValue; // SHA-256 hash of the WASM
+
+// 2. Instantiate the contract
+const createTx = new TransactionBuilder(account, { fee: '100', networkPassphrase: Networks.TESTNET })
+  .addOperation(Operation.createContractV2({
+    address: keypair.publicKey(),
+    wasmHash,
+    constructorArgs: [],
+  }))
+  .setTimeout(30)
+  .build();
+
+// simulate → prepare → sign → send → poll
+const contractId = result.returnValue; // new contract ID
+```
+
+## Using the dashboard's contractInvoker
+
+```ts
+import { invokeContractFunction, parseContractWasm } from '@/lib/contractInvoker';
+
+// Inspect contract ABI
+const abi = await parseContractWasm('CBXG...CONTRACT_ID', 'testnet');
+console.log('Functions:', abi.functions.map(f => f.name));
+
+// Invoke
+const returnValue = await invokeContractFunction({
+  contractId: 'CBXG...CONTRACT_ID',
+  functionName: 'increment',
+  args: [nativeToScVal(1, { type: 'u32' })],
+  network: 'testnet',
+  secretKey: 'SXXX...',
+});
+```
+
+## Verifiable Builds
+
+Stellar contract verification helps ensure the code executing on-chain matches a specific public source repository and commit. 
+When building your contract, the `stellar-cli` can embed source repository and commit hash metadata into a WebAssembly custom section named `contractmetav0`. The dashboard automatically extracts and displays this information when you inspect a contract.
+
+### How to publish a verifiable build
+
+1. Build your contract and inject the source metadata using `stellar-cli`:
+```bash
+stellar contract build --meta-repository https://github.com/your-org/your-repo --meta-commit <commit-hash>
+```
+2. For an automated, trusted pipeline, it is recommended to compile the WASM using a GitHub Actions workflow, which produces a reproducible artifact.
+3. Deploy the resulting compiled WASM to the network.
+
+When a contract deployed with this metadata is loaded in the dashboard, its source repo and commit hash will be displayed as **Verified** under the Inspect panel.
+
+## Troubleshooting
+
+| Error | Likely cause | Fix |
+|---|---|---|
+| `Simulation failed: HostError: Value(InvalidInput)` | Wrong argument types | Check the contract ABI and ScVal types |
+| `tx_bad_seq` | Stale sequence number | Reload account before building |
+| `FAILED` status with `invokeVmFunction` | Contract logic rejected the call | Check contract-level conditions |
+| No return value | Function returns `()` (unit) | Expected — `returnValue` will be null |
+
+## WASM Hash History & Authorization Tracking
+
+The Stellar Dev Dashboard now provides visualization tools for tracking contract upgrades and authorization requirements:
+
+### WASM Hash History
+
+The dashboard automatically tracks WASM hashes for contract upgrades, allowing you to:
+
+- **View Historical Upgrades**: See all historical WASM hashes associated with a contract
+- **Filter by Contract**: Search and filter by contract ID or WASM hash
+- **Export History**: Export upgrade history as JSON for analysis
+- **Transaction Links**: Direct links to block explorers for each upgrade transaction
+
+Access the WASM hash history by navigating to the **Contracts** panel and selecting the **📜 WASM History** tab.
+
+### Authorization Requirements Visualization
+
+The authorization requirements display shows:
+
+- **Current Authorization Status**: Whether the contract requires public access, admin privileges, owner authorization, or custom auth
+- **Severity Levels**: Color-coded severity indicators (safe, low, medium, high, critical)
+- **Change History**: Track how authorization requirements have changed across upgrades
+- **Network Context**: Authorization requirements per network (testnet, mainnet, etc.)
+
+### Integration with Contract Workflow
+
+When working with contract upgrades:
+
+1. **Before Upgrade**: Review current authorization requirements using the Authorization panel
+2. **During Upgrade**: The dashboard automatically tracks the new WASM hash
+3. **After Upgrade**: Compare authorization changes and verify security implications
+4. **Historical Analysis**: Use the WASM history to audit upgrade patterns
+
+### Security Considerations
+
+- **Authorization Changes**: Pay special attention to authorization requirement changes during upgrades
+- **Critical Auth Types**: Admin and owner authorizations are marked as critical severity
+- **Multi-signature Support**: The system recognizes and displays multisig requirements
+- **Network Isolation**: History is tracked separately per network to prevent cross-network confusion
+
+### Compatibility Notes
+
+- **Browser Support**: Requires IndexedDB support for local history storage
+- **Storage Limits**: Large upgrade histories may require periodic cleanup
+- **Migration**: Existing contract interactions are not affected by the new tracking system
+- **Fallback**: If IndexedDB is unavailable, the UI gracefully degrades to display-only mode
+
+### Data Privacy
+
+- **Local Storage**: All WASM hash history is stored locally in your browser's IndexedDB
+- **No External Transmission**: Upgrade data is never sent to external servers
+- **User Control**: You can clear history at any time using the "Clear History" button
+- **Export Capability**: Full data export available for backup and analysis

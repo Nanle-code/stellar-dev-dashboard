@@ -1,0 +1,6 @@
+[
+  { "tx": { "amount": 5, "timestamp": 1620000000000, "senderFreq": 50, "recipientFreq": 20, "inputs": 1, "outputs": 1, "geoDistance": 1 }, "label": 0 },
+  { "tx": { "amount": 2000, "timestamp": 1620003600000, "senderFreq": 1, "recipientFreq": 0, "inputs": 3, "outputs": 1, "geoDistance": 2000 }, "label": 1 },
+  { "tx": { "amount": 10, "timestamp": 1620007200000, "senderFreq": 10, "recipientFreq": 5, "inputs": 1, "outputs": 1, "geoDistance": 5 }, "label": 0 },
+  { "tx": { "amount": 5000, "timestamp": 1620010800000, "senderFreq": 0, "recipientFreq": 0, "inputs": 5, "outputs": 2, "geoDistance": 8000 }, "label": 1 }
+]

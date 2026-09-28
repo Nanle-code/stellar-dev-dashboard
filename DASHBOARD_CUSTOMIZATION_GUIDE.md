@@ -71,12 +71,20 @@ The dashboard automatically adapts to different screen sizes:
 - **Tablet**: 2-column grid with touch-optimized controls
 - **Mobile**: 1-column grid with always-visible controls
 
+### Short-Window Undo
+
+All preference and layout mutations support short-window undo capabilities:
+- **Instant Undo Banner**: When widget layouts or preferences are changed, an interactive undo banner appears with a 10-second countdown.
+- **Reversible Mutations**: Theme changes, layout rearrangements, and notification settings can be restored with a single click.
+- **Developer Guide**: See `PREFERENCE_UNDO_GUIDE.md` for full implementation details.
+
 ### Persistence
 
 Your dashboard layout is automatically saved to browser storage and will be restored when you return to the application. This includes:
 - Widget positions and order
 - Widget sizes (if resized)
 - Which widgets are added or removed
+
 
 ## Widget Development
 

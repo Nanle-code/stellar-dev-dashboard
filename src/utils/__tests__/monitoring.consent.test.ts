@@ -2,20 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as Sentry from '@sentry/react';
 import * as preferences from '../preferences';
 
-vi.mock('@sentry/react', () => ({
-  init: vi.fn(),
-  getClient: vi.fn(() => ({
-    close: vi.fn(),
-  })),
-  browserTracingIntegration: vi.fn(),
-  replayIntegration: vi.fn(),
-  breadcrumbsIntegration: vi.fn(),
-  withScope: vi.fn(),
-  captureException: vi.fn(),
-  setUser: vi.fn(),
-  startSpan: vi.fn(),
-  ErrorBoundary: vi.fn(),
-}));
+vi.mock('@sentry/react', () => {
+  // Return a stable client so callers that fetch it again observe the same
+  // `close` spy that `revokeSentryConsent` invoked.
+  const client = { close: vi.fn() };
+  return {
+    init: vi.fn(),
+    getClient: vi.fn(() => client),
+    browserTracingIntegration: vi.fn(),
+    replayIntegration: vi.fn(),
+    breadcrumbsIntegration: vi.fn(),
+    withScope: vi.fn(),
+    captureException: vi.fn(),
+    setUser: vi.fn(),
+    startSpan: vi.fn(),
+    ErrorBoundary: vi.fn(),
+  };
+});
 
 vi.mock('../preferences', () => ({
   loadPreferences: vi.fn(),
@@ -57,6 +60,19 @@ describe('monitoring Sentry consent', () => {
     monitoring.initMonitoring({ sentryDsn: 'http://test-dsn@sentry.io/1' });
 
     expect(Sentry.init).not.toHaveBeenCalled();
+  });
+
+  it('applies external provider circuit-breaker policies during init', async () => {
+    vi.mocked(preferences.loadPreferences).mockReturnValue({ diagnosticsConsent: true });
+
+    const monitoring = await import('../monitoring');
+    monitoring.initMonitoring({
+      sentryDsn: 'http://test-dsn@sentry.io/1',
+      providerPolicies: { analytics: 'fail-closed' },
+    });
+
+    expect(monitoring.getProviderPolicy('analytics')).toBe('fail-closed');
+    expect(monitoring.getProviderStats('analytics').state).toBe('CLOSED');
   });
 
   it('closes Sentry client when consent is revoked', async () => {

@@ -14,6 +14,7 @@ import {
   type EnhancedSummary,
   type RelationshipType,
 } from '../../lib/accountRelationshipEngine'
+import ContextualEmptyState from '../common/ContextualEmptyState'
 
 interface ScoreColorTier {
   min: number;
@@ -177,7 +178,7 @@ export default function RelationshipPanel({
               connectedAddress={connectedAddress}
             />
           ) : relationships.length === 0 ? (
-            <EmptyState message="No relationships found" />
+            <ContextualEmptyState context="noRelationships" />
           ) : (
             relationships.map((rel) => (
               <RelationshipRow
@@ -195,7 +196,7 @@ export default function RelationshipPanel({
 
         {activeTab === 'addresses' && (
           rankedNodes.length === 0 ? (
-            <EmptyState message="No addresses found" />
+            <ContextualEmptyState context="noAddresses" />
           ) : (
             rankedNodes.map((node, i) => (
               <AddressRow
@@ -211,7 +212,7 @@ export default function RelationshipPanel({
 
         {activeTab === 'clusters' && (
           clusters.length === 0 ? (
-            <EmptyState message="No clusters detected" />
+            <ContextualEmptyState context="noClusters" />
           ) : (
             clusters.map((cluster, i) => (
               <ClusterRow
@@ -748,14 +749,6 @@ export function AIInsightsTab({
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
-      {message}
     </div>
   )
 }

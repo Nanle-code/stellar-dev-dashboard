@@ -15,6 +15,7 @@ Stellar Dev Dashboard supports third-party extensions through a manifest-first p
   "id": "community.activity-radar",
   "name": "Activity Radar",
   "version": "1.2.0",
+  "apiVersion": "1.0.0",
   "description": "Sandboxed dashboard extension",
   "author": { "name": "Community Labs" },
   "permissions": ["dashboard:read", "data:read"],
@@ -34,6 +35,23 @@ Stellar Dev Dashboard supports third-party extensions through a manifest-first p
   "dataSources": []
 }
 ```
+
+## API Versioning
+
+Plugins declare `apiVersion` (a semver string such as `"1.0.0"`) to pin the
+plugin API contract they target. The dashboard enforces compatibility:
+
+* A version with a newer **major** than the dashboard supports is **unsupported**
+  and the plugin will not activate.
+* A version with an older **major** is **deprecated** (still active, with a
+  notice).
+* A version with the current major but a newer minor/patch is **unsupported**
+  (requires a dashboard upgrade).
+* Omitting `apiVersion` defaults to the dashboard version and is allowed for
+  backwards compatibility.
+
+See [`API_VERSIONING.md`](./API_VERSIONING.md) for the full contract,
+compatibility matrix, deprecation policy, and migration guide.
 
 ## Permission Scopes
 
@@ -65,6 +83,13 @@ It exports:
 - `createPluginManifest()`
 - `createIframeWidget()`
 - `comparePluginVersions()`
+- `SUPPORTED_PLUGIN_API_VERSION` / `PLUGIN_API_VERSION`
+- `parseApiVersion()`, `compareApiVersions()`, `getApiVersionCompatibility()`,
+  `isPluginApiVersionSupported()`, `getDeprecationNoticesForVersion()`,
+  `resolveApiVersion()`
+
+See [`API_VERSIONING.md`](./API_VERSIONING.md) for the versioning policy and
+compatibility enforcement.
 
 ## CLI
 

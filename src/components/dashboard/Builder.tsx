@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../../lib/store'
-import { buildTransaction, simulateTransaction, exportTransactionXDR, checkDestinationMemoRequirement } from '../../lib/stellar'
+import { buildTransaction, simulateTransaction, exportTransactionXDR, checkDestinationMemoRequirement, calculateOperationFeeAttribution } from '../../lib/stellar'
 import { validateMemo } from '../../lib/validation'
 import { predictTransactionFailure } from '../../lib/transactionFailurePrediction'
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
+import FeeAttributionBreakdown from './FeeAttributionBreakdown'
 import { StatCard } from './Card'
 import { Plus, Trash2, Play, Copy, AlertCircle, CheckCircle } from 'lucide-react'
 
@@ -856,6 +857,18 @@ export default function Builder() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Fee Attribution Breakdown */}
+      {operations.length > 0 && sourceAccount && (
+        <FeeAttributionBreakdown
+          operations={operations.map(op => ({ type: op.type, params: op }))}
+          baseFee={parseInt(baseFee || '100', 10)}
+          sourceAccount={sourceAccount}
+          network={network}
+          memo={memo}
+          memoType="text"
+        />
       )}
 
       <AdvancedTransactionSimulation transactionParams={transactionParams} />

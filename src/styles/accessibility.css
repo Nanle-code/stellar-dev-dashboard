@@ -104,6 +104,13 @@ input[type="radio"]:focus-visible {
   }
 }
 
+/* JavaScript-driven charts and force graphs use the same explicit signal as
+ * CSS so custom visualizations can opt out without guessing browser state. */
+[data-reduced-motion="true"] .recharts-wrapper,
+[data-reduced-motion="true"] canvas {
+  transition: none !important;
+}
+
 /* ── Nav current page indicator ───────────────────────────────────────────── */
 [aria-current="page"] {
   font-weight: 700;

@@ -2,7 +2,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -11,47 +11,54 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    profiles: [production]
 
   app:
     build:
       context: .
       target: production
     ports:
-      - '8080:80'
+      - '${WEB_PORT:-8080}:80'
     environment:
       - NODE_ENV=production
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost/health']
       interval: 30s
       timeout: 3s
       retries: 3
+    profiles: [production]
 
   app-dev:
-    image: node:20-alpine
+    image: node:22-alpine
     working_dir: /app
     volumes:
       - .:/app
       - /app/node_modules
     ports:
-      - '5173:5173'
+      - '${WEB_PORT:-5173}:5173'
     command: npm run dev -- --host
     environment:
       - NODE_ENV=development
-    profiles: [dev]
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
+    depends_on:
+      api:
+        condition: service_healthy
+    profiles: [dev, local]
 
   api:
     build:
       context: .
       target: api
     ports:
-      - '4000:4000'
+      - '${API_PORT:-4000}:4000'
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
       - PORT=4000
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       redis:
         condition: service_healthy
@@ -62,7 +69,7 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
-    profiles: [production, api]
+    profiles: [dev, production, api]
 
   api-canary:
     build:
@@ -74,7 +81,7 @@ services:
       - NODE_ENV=production
       - CANARY=true
       - PORT=4000
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       redis:
         condition: service_healthy
@@ -87,5 +94,56 @@ services:
       start_period: 3s
     profiles: [canary]
 
+  # ── Local development network (#1004) ─────────────────────────────────────
+  # One-command stack: docker compose --profile local up -d
+  #
+  # `stellar` runs the official Stellar Quickstart image in standalone mode:
+  #   Horizon       http://localhost:8000
+  #   Friendbot     http://localhost:8000/friendbot
+  #   Soroban RPC   http://localhost:8000/rpc
+  #   Stellar Lab   http://localhost:8000/lab
+  #   Passphrase    Standalone Network ; February 2017
+  #
+  # The named volume keeps ledger state across restarts. Reset the whole chain
+  # (and re-seed from scratch) with: docker compose --profile local down -v
+  # Re-run the seeder any time with: docker compose --profile local up seed
+  #
+  # DEVELOPMENT ONLY: the standalone network is throwaway test infrastructure
+  # and the seeder uses deterministic, publicly-known keys. Never fund these
+  # accounts on testnet or mainnet.
+  stellar:
+    image: stellar/quickstart:latest
+    command: --local
+    ports:
+      - '8000:8000'
+    volumes:
+      - stellar_local_data:/opt/stellar
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:8000']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    profiles: [local]
+
+  # One-shot seeder: funds deterministic accounts via the local friendbot,
+  # issues XDEMO/USDC, creates sell offers and a liquidity pool, and deploys
+  # the XDEMO asset contract. Idempotent — safe to re-run after partial runs.
+  seed:
+    build:
+      context: .
+      target: api
+    command: node scripts/seed-local-stellar.mjs
+    environment:
+      - STELLAR_SEED_HORIZON_URL=http://stellar:8000
+      - STELLAR_SEED_RPC_URL=http://stellar:8000/rpc
+    depends_on:
+      stellar:
+        condition: service_healthy
+    restart: 'no'
+    profiles: [local]
+
 volumes:
   redis_data:
+  stellar_local_data:

@@ -3,6 +3,8 @@ import { useStore } from '../../lib/store'
 import ContractDeployerView from '../deployment/ContractDeployer'
 import ContractRecommendations from './ContractRecommendations'
 import ContractEventDisplay from './ContractEventDisplay'
+import WasmHashHistory from './WasmHashHistory'
+import AuthorizationRequirements from './AuthorizationRequirements'
 import {
   fetchContractInfo,
   invokeContract,
@@ -144,6 +146,7 @@ function ResultBlock({ label, data }) {
 
 export default function Contracts() {
   const [mode, setMode] = useState('inspect')
+  const [subMode, setSubMode] = useState('interact')
   const {
     network,
     contractId,
@@ -477,7 +480,7 @@ export default function Contracts() {
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>Soroban Contracts</div>
       <div style={{ display: 'flex', gap: '8px' }}>
-        {['inspect', 'deploy', 'templates'].map((m) => (
+        {['inspect', 'deploy', 'templates', 'history'].map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
@@ -493,12 +496,23 @@ export default function Contracts() {
               textTransform: 'capitalize',
             }}
           >
-            {m === 'inspect' ? 'Inspect & Invoke' : m === 'deploy' ? 'Deploy' : '📚 Templates'}
+            {m === 'inspect' ? 'Inspect & Invoke' : m === 'deploy' ? 'Deploy' : m === 'templates' ? '📚 Templates' : '📜 WASM History'}
           </button>
         ))}
       </div>
       {mode === 'deploy' && <ContractDeployerView />}
       {mode === 'templates' && <TemplateLibrary />}
+      {mode === 'history' && (
+        <>
+          <WasmHashHistory />
+          {contractId && (
+            <AuthorizationRequirements 
+              contractId={contractId}
+              network={network}
+            />
+          )}
+        </>
+      )}
 
       <Panel
         title="Test Runner"

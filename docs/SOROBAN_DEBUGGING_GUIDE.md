@@ -10,6 +10,7 @@ Comprehensive guide for debugging Soroban smart contracts during development and
 4. [Debugging Techniques](#debugging-techniques)
 5. [Performance Profiling](#performance-profiling)
 6. [Production Debugging](#production-debugging)
+7. [Footprint Diff Viewer](#footprint-diff-viewer)
 
 ---
 
@@ -688,6 +689,69 @@ The Stellar Developer Dashboard provides an interactive, progressive tutorial se
   1. Review the `resources().footprint()` returned by transaction simulation. Ensure all modified keys are in `readWrite`.
   2. Prevent state archival by periodically calling `extend_ttl(threshold, extend_to)` on active persistent entries.
   3. Restrict `Temporary` storage strictly to ephemeral caches; never store user balances or ownership state in temporary entries.
+
+---
+
+## Footprint Diff Viewer
+
+The dashboard's **Contract Interaction** panel now diffs the ledger footprint of
+each simulation against the previous run of the same call, so unexpected
+resource access is visible before a transaction is signed and submitted.
+
+### Where to find it
+
+`Contracts → Contract Interaction → Simulate` renders a **Footprint Diff**
+card under the simulation result. The first simulation shows the current
+footprint summary; every subsequent simulation shows the delta relative to the
+previous successful simulation of that call.
+
+### What is shown
+
+- **Added / removed / unchanged** ledger keys, split by `readOnly` and `readWrite` sections.
+- **Minimum resource fee delta** in stroops between the two simulations.
+- Warnings for higher-risk changes:
+  - `Unexpected write` — a new read-write key whose type is a contract code,
+    trustline, claimable balance, or liquidity pool entry.
+  - `Footprint growth` — the read-write section more than doubled.
+  - `Fee increase` — the minimum resource fee grew by ≥ 25%.
+  - `Unclassified key` — a ledger key whose type could not be determined.
+
+### Programmatic usage
+
+```ts
+import { diffFootprints, explainInvalidFootprint } from '../lib/footprintDiff';
+
+const invalid = explainInvalidFootprint(nextFootprint);
+if (invalid) {
+  console.warn(invalid); // e.g. simulation failed and returned no footprint
+} else {
+  const diff = diffFootprints(previousFootprint, nextFootprint);
+  console.log(diff.summary.addedCount, diff.summary.removedCount);
+}
+```
+
+### Failure and input handling
+
+- `diffFootprints` throws a descriptive error (prefixed with
+  `Baseline footprint:` or `Comparison footprint:`) when a snapshot is missing
+  or malformed, instead of failing deep inside the render tree.
+- Failed simulations return `footprint: null`; the viewer treats this as "no
+  data yet" rather than an error and shows the explanatory message from
+  `explainInvalidFootprint` when a non-null snapshot is malformed.
+- Duplicate ledger keys inside one snapshot are deduplicated before diffing.
+- The diff utility is pure and DOM-free; it runs in node, jsdom tests, and the
+  browser. No network access or secret material is involved — the viewer only
+  reads data the RPC already returned for the simulation.
+
+### Compatibility and security notes
+
+- Footprint snapshots are compared per simulation run in memory only; nothing
+  is persisted, so switching contracts, functions, or accounts resets the
+  baseline.
+- XDR keys are rendered as trimmed previews only; raw base64 is available in
+  the title attribute for copy-out, never decoded client-side.
+- No migration is required: the feature is additive and does not change the
+  shape of `simulateContractCall` results (see #849).
 
 ---
 

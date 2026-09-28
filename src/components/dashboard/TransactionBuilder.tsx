@@ -13,8 +13,10 @@ import { fetchContractData, resolveFederatedAddress } from "../../lib/stellar";
 import { useTransactionHistory } from "../../lib/txHistory";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
 import { useExpertise } from "../../context/ExpertiseContext";
+import { useTranslation } from "react-i18next";
 
 function FederatedAddressInput({ value, onChange, placeholder, style, network, hasError }) {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState(value);
   const [resolvedData, setResolvedData] = useState(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -40,10 +42,10 @@ function FederatedAddressInput({ value, onChange, placeholder, style, network, h
       if (result && (result.account_id || result.accountId)) {
         setResolvedData(result);
       } else {
-        setError("Could not resolve address");
+        setError(t("builder.federatedResolution.couldNotResolve"));
       }
     } catch (e) {
-      setError(e.message || "Resolution failed");
+      setError(e.message || t("builder.federatedResolution.resolutionFailed"));
     } finally {
       setIsResolving(false);
     }
@@ -77,7 +79,7 @@ function FederatedAddressInput({ value, onChange, placeholder, style, network, h
         />
         {inputValue.includes('*') && !confirmed && !resolvedData && (
           <button onClick={handleResolve} disabled={isResolving} style={{ padding: '0 12px', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '12px', cursor: 'pointer' }}>
-            {isResolving ? '...' : 'Resolve'}
+            {isResolving ? '...' : t("builder.federatedResolution.resolve")}
           </button>
         )}
       </div>
@@ -85,11 +87,11 @@ function FederatedAddressInput({ value, onChange, placeholder, style, network, h
       {resolvedData && !confirmed && (
         <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--cyan)', padding: '8px', borderRadius: '4px', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <span style={{ color: 'var(--text-muted)' }}>Resolved: </span>
+            <span style={{ color: 'var(--text-muted)' }}>{t("builder.federatedResolution.resolved")} </span>
             <span style={{ fontFamily: 'var(--font-mono)' }}>{resolvedData.account_id || resolvedData.accountId}</span>
           </div>
           <button onClick={handleConfirm} style={{ background: 'var(--cyan)', color: 'var(--bg-base)', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-            Confirm
+            {t("builder.federatedResolution.confirm")}
           </button>
         </div>
       )}
@@ -274,6 +276,7 @@ function getAllTransactionTemplates() {
 }
 
 export default function TransactionBuilder() {
+  const { t } = useTranslation();
   const { connectedAddress, network, selectedTemplateId, setSelectedTemplateId } = useStore();
   const { isNovice, isExpert, updateSignals } = useExpertise();
   const availableTemplates = useMemo(() => getAllTransactionTemplates(), [selectedTemplateId]);
@@ -550,17 +553,17 @@ export default function TransactionBuilder() {
       });
       const xdr = transaction.toXDR();
       await navigator.clipboard.writeText(xdr);
-      alert("Transaction XDR copied to clipboard!");
+      alert(t("builder.xdrCopied"));
     } catch (error) {
-      alert(`Export failed: ${error.message}`);
+      alert(t("builder.exportFailed", { message: error.message }));
     }
   }
 
   async function handleSaveAsTemplate() {
-    const label = window.prompt("Template name (will be shown in command palette):", "My Template");
+    const label = window.prompt(t("builder.templateNamePrompt"), "My Template");
     if (!label) return;
 
-    const passphrase = window.prompt("Password to encrypt and store templates (not saved):");
+    const passphrase = window.prompt(t("builder.templatePassphrasePrompt"));
     if (!passphrase) return;
 
     const template = {
@@ -574,9 +577,9 @@ export default function TransactionBuilder() {
 
     try {
       await upsertUserTransactionTemplate(passphrase, template);
-      window.alert("Template saved (encrypted). You can export it from Contract Templates → Transaction Templates.");
+      window.alert(t("builder.templateSaved"));
     } catch (error) {
-      window.alert(`Save failed: ${error.message}`);
+      window.alert(t("builder.templateSaveFailed", { message: error.message }));
     }
   }
 
@@ -587,19 +590,19 @@ export default function TransactionBuilder() {
       case "payment":
         return (
           <>
-            <LabeledField label="Destination">
+            <LabeledField label={t("builder.operationFields.destination")}>
               <FederatedAddressInput
                 value={op.params.destination || ""}
                 onChange={(val) =>
                   updateOperation(op.id, "destination", val)
                 }
-                placeholder="G... destination address (or name*domain)"
+                placeholder={t("builder.operationFields.destinationPaymentPlaceholder")}
                 style={textInputStyle(hasErrors)}
                 network={network}
                 hasError={hasErrors}
               />
             </LabeledField>
-            <LabeledField label="Amount">
+            <LabeledField label={t("builder.operationFields.amount")}>
               <input
                 value={op.params.amount || ""}
                 onChange={(e) =>
@@ -615,19 +618,19 @@ export default function TransactionBuilder() {
       case "createAccount":
         return (
           <>
-            <LabeledField label="Destination">
+            <LabeledField label={t("builder.operationFields.destination")}>
               <FederatedAddressInput
                 value={op.params.destination || ""}
                 onChange={(val) =>
                   updateOperation(op.id, "destination", val)
                 }
-                placeholder="G... new account address (or name*domain)"
+                placeholder={t("builder.operationFields.destinationPaymentPlaceholder")}
                 style={textInputStyle(hasErrors)}
                 network={network}
                 hasError={hasErrors}
               />
             </LabeledField>
-            <LabeledField label="Starting Balance">
+            <LabeledField label={t("builder.operationFields.startingBalance")}>
               <input
                 value={op.params.startingBalance || ""}
                 onChange={(e) =>
@@ -643,7 +646,7 @@ export default function TransactionBuilder() {
       case "changeTrust":
         return (
           <>
-            <LabeledField label="Asset Code">
+            <LabeledField label={t("builder.operationFields.assetCode")}>
               <input
                 value={op.params.assetCode || ""}
                 onChange={(e) =>
@@ -653,25 +656,25 @@ export default function TransactionBuilder() {
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Asset Issuer">
+            <LabeledField label={t("builder.operationFields.assetIssuer")}>
               <FederatedAddressInput
                 value={op.params.assetIssuer || ""}
                 onChange={(val) =>
                   updateOperation(op.id, "assetIssuer", val)
                 }
-                placeholder="G... issuer address (or name*domain)"
+                placeholder={t("builder.operationFields.assetIssuerPlaceholder")}
                 style={textInputStyle(hasErrors)}
                 network={network}
                 hasError={hasErrors}
               />
             </LabeledField>
-            <LabeledField label="Limit (optional)">
+            <LabeledField label={t("builder.operationFields.limit")}>
               <input
                 value={op.params.limit || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "limit", e.target.value)
                 }
-                placeholder="Max trustline limit"
+                placeholder={t("builder.operationFields.limitPlaceholder")}
                 style={textInputStyle()}
               />
             </LabeledField>
@@ -680,13 +683,13 @@ export default function TransactionBuilder() {
 
       case "accountMerge":
         return (
-          <LabeledField label="Destination">
+          <LabeledField label={t("builder.operationFields.destination")}>
             <FederatedAddressInput
               value={op.params.destination || ""}
               onChange={(val) =>
                 updateOperation(op.id, "destination", val)
               }
-              placeholder="G... merge destination (or name*domain)"
+              placeholder={t("builder.operationFields.destinationPaymentPlaceholder")}
               style={textInputStyle(hasErrors)}
               network={network}
               hasError={hasErrors}
@@ -697,7 +700,7 @@ export default function TransactionBuilder() {
       case "manageData":
         return (
           <>
-            <LabeledField label="Data Name">
+            <LabeledField label={t("builder.operationFields.dataName")}>
               <input
                 value={op.params.name || ""}
                 onChange={(e) => updateOperation(op.id, "name", e.target.value)}
@@ -705,13 +708,13 @@ export default function TransactionBuilder() {
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Data Value">
+            <LabeledField label={t("builder.operationFields.dataValue")}>
               <input
                 value={op.params.value || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "value", e.target.value)
                 }
-                placeholder="value (leave empty to delete)"
+                placeholder={t("builder.operationFields.dataValuePlaceholder")}
                 style={textInputStyle()}
               />
             </LabeledField>
@@ -722,19 +725,19 @@ export default function TransactionBuilder() {
       case "manageBuyOffer":
         return (
           <>
-            <LabeledField label="Selling Asset Type">
+            <LabeledField label={t("builder.operationFields.sellingAssetType")}>
               <select
                 value={op.params.sellingAssetType || "native"}
                 onChange={(e) => updateOperation(op.id, "sellingAssetType", e.target.value)}
                 style={textInputStyle()}
               >
-                <option value="native">XLM (native)</option>
-                <option value="credit">Credit Asset</option>
+                <option value="native">{t("builder.operationFields.assetTypeNative")}</option>
+                <option value="credit">{t("builder.operationFields.assetTypeCredit")}</option>
               </select>
             </LabeledField>
             {op.params.sellingAssetType === "credit" && (
               <>
-                <LabeledField label="Selling Asset Code">
+                <LabeledField label={t("builder.operationFields.sellingAssetCode")}>
                   <input
                     value={op.params.sellingAssetCode || ""}
                     onChange={(e) => updateOperation(op.id, "sellingAssetCode", e.target.value)}
@@ -742,7 +745,7 @@ export default function TransactionBuilder() {
                     style={textInputStyle()}
                   />
                 </LabeledField>
-                <LabeledField label="Selling Asset Issuer">
+                <LabeledField label={t("builder.operationFields.sellingAssetIssuer")}>
                   <input
                     value={op.params.sellingAssetIssuer || ""}
                     onChange={(e) => updateOperation(op.id, "sellingAssetIssuer", e.target.value)}
@@ -752,19 +755,19 @@ export default function TransactionBuilder() {
                 </LabeledField>
               </>
             )}
-            <LabeledField label="Buying Asset Type">
+            <LabeledField label={t("builder.operationFields.buyingAssetType")}>
               <select
                 value={op.params.buyingAssetType || "native"}
                 onChange={(e) => updateOperation(op.id, "buyingAssetType", e.target.value)}
                 style={textInputStyle()}
               >
-                <option value="native">XLM (native)</option>
-                <option value="credit">Credit Asset</option>
+                <option value="native">{t("builder.operationFields.assetTypeNative")}</option>
+                <option value="credit">{t("builder.operationFields.assetTypeCredit")}</option>
               </select>
             </LabeledField>
             {op.params.buyingAssetType === "credit" && (
               <>
-                <LabeledField label="Buying Asset Code">
+                <LabeledField label={t("builder.operationFields.buyingAssetCode")}>
                   <input
                     value={op.params.buyingAssetCode || ""}
                     onChange={(e) => updateOperation(op.id, "buyingAssetCode", e.target.value)}
@@ -772,7 +775,7 @@ export default function TransactionBuilder() {
                     style={textInputStyle()}
                   />
                 </LabeledField>
-                <LabeledField label="Buying Asset Issuer">
+                <LabeledField label={t("builder.operationFields.buyingAssetIssuer")}>
                   <input
                     value={op.params.buyingAssetIssuer || ""}
                     onChange={(e) => updateOperation(op.id, "buyingAssetIssuer", e.target.value)}
@@ -782,7 +785,7 @@ export default function TransactionBuilder() {
                 </LabeledField>
               </>
             )}
-            <LabeledField label={op.type === "manageSellOffer" ? "Amount" : "Buy Amount"}>
+            <LabeledField label={op.type === "manageSellOffer" ? t("builder.operationFields.amount") : t("builder.operationFields.buyAmount")}>
               <input
                 value={op.type === "manageSellOffer" ? (op.params.amount || "") : (op.params.buyAmount || "")}
                 onChange={(e) => updateOperation(op.id, op.type === "manageSellOffer" ? "amount" : "buyAmount", e.target.value)}
@@ -790,7 +793,7 @@ export default function TransactionBuilder() {
                 style={textInputStyle()}
               />
             </LabeledField>
-            <LabeledField label="Price">
+            <LabeledField label={t("builder.operationFields.price")}>
               <input
                 value={op.params.price || ""}
                 onChange={(e) => updateOperation(op.id, "price", e.target.value)}
@@ -804,17 +807,17 @@ export default function TransactionBuilder() {
       case "feeBump":
         return (
           <>
-            <LabeledField label="Fee Source Account">
+            <LabeledField label={t("builder.operationFields.feeSourceAccount")}>
               <input
                 value={op.params.feeSource || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "feeSource", e.target.value)
                 }
-                placeholder="G... account paying fee-bump fee"
+                placeholder={t("builder.operationFields.feeSourcePlaceholder")}
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Base Fee (stroops)">
+            <LabeledField label={t("builder.baseFee")}>
               <input
                 type="number"
                 value={op.params.baseFee || ""}
@@ -825,13 +828,13 @@ export default function TransactionBuilder() {
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Inner Transaction XDR">
+            <LabeledField label={t("builder.operationFields.innerTransactionXdr")}>
               <textarea
                 value={op.params.innerTransaction || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "innerTransaction", e.target.value)
                 }
-                placeholder="Paste the signed inner transaction XDR envelope here"
+                placeholder={t("builder.operationFields.innerTransactionPlaceholder")}
                 style={{
                   ...textInputStyle(hasErrors),
                   minHeight: "100px",
@@ -846,13 +849,13 @@ export default function TransactionBuilder() {
 
       case "beginSponsoringFutureReserves":
         return (
-          <LabeledField label="Sponsored Account ID">
+          <LabeledField label={t("builder.operationFields.sponsoredAccountId")}>
             <input
               value={op.params.sponsoredId || ""}
               onChange={(e) =>
                 updateOperation(op.id, "sponsoredId", e.target.value)
               }
-              placeholder="G... account to be sponsored"
+              placeholder={t("builder.operationFields.sponsoredIdPlaceholder")}
               style={textInputStyle(hasErrors)}
             />
           </LabeledField>
@@ -861,14 +864,14 @@ export default function TransactionBuilder() {
       case "endSponsoringFutureReserves":
         return (
           <div style={{ fontSize: "12px", color: "var(--text-muted)", padding: "10px", background: "var(--bg-base)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-            This operation has no required parameters. The account calling this operation ends its own sponsorship.
+            {t("builder.operationFields.endSponsoringNoParams")}
           </div>
         );
 
       case "clawback":
         return (
           <>
-            <LabeledField label="Asset Code">
+            <LabeledField label={t("builder.operationFields.assetCode")}>
               <input
                 value={op.params.assetCode || ""}
                 onChange={(e) =>
@@ -878,27 +881,27 @@ export default function TransactionBuilder() {
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Asset Issuer">
+            <LabeledField label={t("builder.operationFields.assetIssuer")}>
               <input
                 value={op.params.assetIssuer || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "assetIssuer", e.target.value)
                 }
-                placeholder="G... issuer address"
+                placeholder={t("builder.operationFields.assetIssuerPlaceholder")}
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="From Account">
+            <LabeledField label={t("builder.operationFields.fromAccount")}>
               <input
                 value={op.params.from || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "from", e.target.value)
                 }
-                placeholder="G... account to claw back from"
+                placeholder={t("builder.operationFields.fromPlaceholder")}
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Amount">
+            <LabeledField label={t("builder.operationFields.amount")}>
               <input
                 value={op.params.amount || ""}
                 onChange={(e) =>
@@ -915,17 +918,17 @@ export default function TransactionBuilder() {
         const args = op.params.args || [];
         return (
           <>
-            <LabeledField label="Contract ID">
+            <LabeledField label={t("builder.contractId")}>
               <input
                 value={op.params.contractId || ""}
                 onChange={(e) =>
                   updateOperation(op.id, "contractId", e.target.value)
                 }
-                placeholder="C... contract address"
+                placeholder={t("builder.contractIdPlaceholder")}
                 style={textInputStyle(hasErrors)}
               />
             </LabeledField>
-            <LabeledField label="Function Name">
+            <LabeledField label={t("builder.operationFields.functionName")}>
               <input
                 value={op.params.functionName || ""}
                 onChange={(e) =>
@@ -937,7 +940,7 @@ export default function TransactionBuilder() {
             </LabeledField>
             <div style={{ marginBottom: "8px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <LabeledField label="Arguments" style={{ marginBottom: 0 }}>
+                <LabeledField label={t("builder.operationFields.arguments")} style={{ marginBottom: 0 }}>
                 </LabeledField>
                 <button
                   onClick={() => {
@@ -954,7 +957,7 @@ export default function TransactionBuilder() {
                     cursor: "pointer",
                   }}
                 >
-                  Add Argument
+                  {t("builder.operationFields.addArgument")}
                 </button>
               </div>
               {args.map((arg, idx) => (
@@ -989,7 +992,7 @@ export default function TransactionBuilder() {
                       newArgs[idx] = { ...arg, value: e.target.value };
                       updateOperation(op.id, "args", newArgs);
                     }}
-                    placeholder={arg.type === "bool" ? "true/false" : "Argument value"}
+                    placeholder={arg.type === "bool" ? t("builder.operationFields.boolPlaceholder") : t("builder.operationFields.argumentValuePlaceholder")}
                     style={textInputStyle()}
                   />
                   <button
@@ -1020,7 +1023,7 @@ export default function TransactionBuilder() {
       default:
         return (
           <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-            Configure operation parameters
+            {t("builder.operationFields.configureParameters")}
           </div>
         );
     }
@@ -1035,12 +1038,10 @@ export default function TransactionBuilder() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700 }}>
-            {isNovice ? "Transaction Builder" : "Advanced Transaction Builder"}
+            {isNovice ? t("builder.title") : t("builder.titleAdvanced")}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
-            {isNovice
-              ? "Start with a template and simulate a simple transaction. Advanced controls appear as you gain confidence."
-              : "Build, simulate, and export Stellar transactions with visual flow"}
+            {isNovice ? t("builder.subtitleNovice") : t("builder.subtitleExpert")}
           </div>
         </div>
         <div style={{
@@ -1059,7 +1060,7 @@ export default function TransactionBuilder() {
       </div>
 
       {/* Quick Templates */}
-      <Panel title="Quick Start Templates" subtitle="Load pre-configured operation sequences">
+      <Panel title={t("builder.quickStartTemplates")} subtitle={t("builder.quickStartTemplatesSubtitle")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
           {availableTemplates.map((template) => (
             <button
@@ -1090,31 +1091,31 @@ export default function TransactionBuilder() {
       </Panel>
 
       {!isNovice && (
-        <Panel title="Contract State Inspection" subtitle="Fetch and inspect contract storage before building transactions">
+        <Panel title={t("builder.contractStateInspection")} subtitle={t("builder.contractStateInspectionSubtitle")}>
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
           <div style={{ flex: 1, minWidth: "200px" }}>
-            <LabeledField label="Contract ID">
+            <LabeledField label={t("builder.contractId")}>
               <input
                 value={inspectContractId}
                 onChange={(e) => setInspectContractId(e.target.value)}
-                placeholder="C... contract address"
+                placeholder={t("builder.contractIdPlaceholder")}
                 style={textInputStyle()}
               />
             </LabeledField>
           </div>
           <div style={{ flex: 1, minWidth: "200px" }}>
-            <LabeledField label="Storage Key">
+            <LabeledField label={t("builder.storageKey")}>
               <input
                 value={inspectContractKey}
                 onChange={(e) => setInspectContractKey(e.target.value)}
-                placeholder="Storage key (string or JSON)"
+                placeholder={t("builder.storageKeyPlaceholder")}
                 style={textInputStyle()}
               />
             </LabeledField>
           </div>
           <div style={{ alignSelf: "flex-end" }}>
             <ActionButton
-              label={inspectContractLoading ? "Fetching..." : "Fetch State"}
+              label={inspectContractLoading ? t("builder.fetching") : t("builder.fetchState")}
               onClick={handleFetchContractData}
               disabled={inspectContractLoading || !inspectContractId.trim()}
             />
@@ -1129,7 +1130,7 @@ export default function TransactionBuilder() {
             <div style={{ display: "grid", gap: "16px" }}>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                Key
+                {t("builder.key")}
               </div>
               <pre style={{
                 margin: 0,
@@ -1150,7 +1151,7 @@ export default function TransactionBuilder() {
             </div>
             <div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                Value
+                {t("builder.value")}
               </div>
               <pre style={{
                 margin: 0,
@@ -1175,25 +1176,25 @@ export default function TransactionBuilder() {
       )}
 
       {/* Transaction Settings */}
-      <Panel title="Transaction Settings" subtitle="Configure source account and transaction parameters">
+      <Panel title={t("builder.transactionSettings")} subtitle={t("builder.transactionSettingsSubtitle")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "14px" }}>
-          <LabeledField label="Source Account">
+          <LabeledField label={t("builder.sourceAccount")}>
             <FederatedAddressInput
               value={sourceAccount}
               onChange={(val) => setSourceAccount(val)}
-              placeholder={connectedAddress || "G... source account (or name*domain)"}
+              placeholder={connectedAddress || t("builder.sourceAccountPlaceholder")}
               style={textInputStyle(!sourceAccount && !feeBumpOnly)}
               network={network}
               hasError={!sourceAccount && !feeBumpOnly}
             />
             {feeBumpOnly && (
               <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }}>
-                Source account is optional for fee-bump transactions. The fee source account is defined in the fee bump operation.
+                {t("builder.sourceAccountOptionalFeeBump")}
               </div>
             )}
           </LabeledField>
 
-          <LabeledField label="Base Fee (stroops)">
+          <LabeledField label={t("builder.baseFee")}>
             <input
               type="number"
               value={baseFee}
@@ -1203,7 +1204,7 @@ export default function TransactionBuilder() {
             />
           </LabeledField>
 
-          <LabeledField label="Timeout (seconds)">
+          <LabeledField label={t("builder.timeout")}>
             <input
               type="number"
               value={timeout}
@@ -1214,29 +1215,29 @@ export default function TransactionBuilder() {
             <TimeboundsPreset timeout={timeout} setTimeout={setTimeout} />
           </LabeledField>
 
-          <LabeledField label="Memo Type">
+          <LabeledField label={t("builder.memoType")}>
             <select
               value={memoType}
               onChange={(e) => setMemoType(e.target.value)}
               style={textInputStyle()}
             >
-              <option value="text">Text</option>
-              <option value="id">ID</option>
-              <option value="hash">Hash</option>
-              <option value="return">Return</option>
+              <option value="text">{t("builder.operationFields.memoTypeText")}</option>
+              <option value="id">{t("builder.operationFields.memoTypeId")}</option>
+              <option value="hash">{t("builder.operationFields.memoTypeHash")}</option>
+              <option value="return">{t("builder.operationFields.memoTypeReturn")}</option>
             </select>
           </LabeledField>
 
-          <LabeledField label="Memo">
+          <LabeledField label={t("builder.memo")}>
             <input
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
               placeholder={
                 memoType === "id"
-                  ? "Optional memo (unsigned integer)"
+                  ? t("builder.memoPlaceholderId")
                   : memoType === "hash" || memoType === "return"
-                  ? "Optional memo (64 hex characters)"
-                  : "Optional memo"
+                  ? t("builder.memoPlaceholderHash")
+                  : t("builder.memoPlaceholder")
               }
               style={textInputStyle(!memoValidation.valid)}
             />
@@ -1262,20 +1263,20 @@ export default function TransactionBuilder() {
             gap: "8px",
           }}>
             <AlertCircle size={14} />
-            This destination requires a memo (SEP-29). Transactions without one will be rejected by the network — add a memo above before submitting.
+            {t("builder.memoRequiredSep29")}
           </div>
         )}
 
         {memoRequirement.error && !memoRequirement.checking && (
           <div style={{ marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>
-            Memo requirement for this destination could not be verified ({memoRequirement.error}). Double-check with the recipient if unsure.
+            {t("builder.memoRequirementUnverified", { reason: memoRequirement.error })}
           </div>
         )}
       </Panel>
 
       {/* Visual Flow Diagram */}
       {operations.length > 0 && (
-        <Panel title="Transaction Flow" subtitle="Visual representation of operation sequence">
+        <Panel title={t("builder.transactionFlow")} subtitle={t("builder.transactionFlowSubtitle")}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
             <div style={{
               padding: "10px 16px",
@@ -1287,7 +1288,7 @@ export default function TransactionBuilder() {
               color: "var(--cyan)",
               fontWeight: 600,
             }}>
-              SOURCE: {sourceAccount ? `${sourceAccount.slice(0, 8)}...${sourceAccount.slice(-8)}` : "Not set"}
+              {t("builder.operationFields.source")}: {sourceAccount ? `${sourceAccount.slice(0, 8)}...${sourceAccount.slice(-8)}` : t("builder.notSet")}
             </div>
             
             {operations.map((op, index) => (
@@ -1325,14 +1326,14 @@ export default function TransactionBuilder() {
               color: "var(--green)",
               fontWeight: 600,
             }}>
-              SUBMIT TO NETWORK
+              {t("builder.submitToNetwork")}
             </div>
           </div>
         </Panel>
       )}
 
       {/* Operations */}
-      <Panel title={`Operations (${operations.length})`} subtitle="Drag to reorder • Click to configure">
+      <Panel title={`${t("builder.operations")} (${operations.length})`} subtitle={t("builder.operationsSubtitle")}>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {operations.map((op, index) => (
             <div
@@ -1354,7 +1355,7 @@ export default function TransactionBuilder() {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <GripVertical size={16} style={{ color: "var(--text-muted)" }} />
                   <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    Operation {index + 1}
+                    {t("builder.operation")} {index + 1}
                   </span>
                   {validationErrors[op.id] && (
                     <AlertCircle size={14} style={{ color: "var(--red)" }} />
@@ -1376,10 +1377,10 @@ export default function TransactionBuilder() {
                         alignItems: "center",
                         gap: "4px",
                       }}
-                      title="Duplicate operation"
+                      title={t("builder.duplicateTitle")}
                     >
                       <Copy size={12} />
-                      Duplicate
+                      {t("builder.duplicate")}
                     </button>
                     <button
                       onClick={() => removeOperation(op.id)}
@@ -1399,7 +1400,7 @@ export default function TransactionBuilder() {
                       }}
                     >
                       <Trash2 size={12} />
-                      Remove
+                      {t("builder.remove")}
                     </button>
                   </div>
                 )}
@@ -1422,7 +1423,7 @@ export default function TransactionBuilder() {
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-                <LabeledField label="Operation Type">
+                <LabeledField label={t("builder.operationType")}>
                   <select
                     value={op.type}
                     onChange={(e) => updateOperation(op.id, "type", e.target.value)}
@@ -1461,7 +1462,7 @@ export default function TransactionBuilder() {
             onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-bright)"; e.currentTarget.style.color = "var(--text-secondary)" }}
           >
             <Plus size={16} />
-            Add Operation
+            {t("builder.addOperation")}
           </button>
         </div>
       </Panel>
@@ -1469,14 +1470,14 @@ export default function TransactionBuilder() {
       {/* Actions */}
       {isNovice && (
         <div style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--bg-elevated)", color: "var(--text-secondary)", fontSize: "12px" }}>
-          Guided mode is active: start with a template, confirm the defaults, and simulate once to see how the builder behaves.
+          {t("builder.guidanceNovice")}
         </div>
       )}
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
         <button
           onClick={() => txHistory.undo()}
           disabled={!txHistory?.canUndo?.()}
-          title="Undo"
+          title={t("builder.undo")}
           style={{
             padding: "10px 14px",
             background: txHistory?.canUndo?.() ? "var(--bg-elevated)" : "var(--bg-base)",
@@ -1489,13 +1490,13 @@ export default function TransactionBuilder() {
             cursor: txHistory?.canUndo?.() ? "pointer" : "not-allowed",
           }}
         >
-          Undo
+          {t("builder.undo")}
         </button>
 
         <button
           onClick={() => txHistory.redo()}
           disabled={!txHistory?.canRedo?.()}
-          title="Redo"
+          title={t("builder.redo")}
           style={{
             padding: "10px 14px",
             background: txHistory?.canRedo?.() ? "var(--bg-elevated)" : "var(--bg-base)",
@@ -1508,7 +1509,7 @@ export default function TransactionBuilder() {
             cursor: txHistory?.canRedo?.() ? "pointer" : "not-allowed",
           }}
         >
-          Redo
+          {t("builder.redo")}
         </button>
 
         <button
@@ -1533,12 +1534,12 @@ export default function TransactionBuilder() {
           {isSimulating ? (
             <>
               <div className="spinner" />
-              Simulating...
+              {t("builder.simulating")}
             </>
           ) : (
             <>
               <Play size={16} />
-              Simulate Transaction
+              {t("builder.simulate")}
             </>
           )}
         </button>
@@ -1563,20 +1564,20 @@ export default function TransactionBuilder() {
           }}
         >
           <Download size={16} />
-          Export XDR
+          {t("builder.exportXdr")}
         </button>
 
         {!isNovice && (
           <button
             onClick={async () => {
-              const name = window.prompt("Draft name:", "My Draft");
+              const name = window.prompt(t("builder.draftNamePrompt"), "My Draft");
               if (!name) return;
               try {
                 txHistory.saveDraft(name, getSnapshot());
                 setDraftsList(txHistory.listDrafts());
-                window.alert("Draft saved");
+                window.alert(t("builder.draftSaved"));
               } catch (e) {
-                window.alert("Failed to save draft");
+                window.alert(t("builder.draftSaveFailed"));
               }
             }}
             style={{
@@ -1595,7 +1596,7 @@ export default function TransactionBuilder() {
             transition: "var(--transition)",
           }}
         >
-            Save Draft
+            {t("builder.saveDraft")}
           </button>
         )}
 
@@ -1619,7 +1620,7 @@ export default function TransactionBuilder() {
                 cursor: "pointer",
               }}
             >
-              Drafts ({txHistory.listDrafts().length})
+              {t("builder.drafts")} ({txHistory.listDrafts().length})
             </button>
 
             {showDraftsPanel && (
@@ -1635,14 +1636,14 @@ export default function TransactionBuilder() {
                 zIndex: 60,
               }}>
                 {draftsList.length === 0 && (
-                  <div style={{ padding: "8px", color: "var(--text-muted)" }}>No drafts saved</div>
+                  <div style={{ padding: "8px", color: "var(--text-muted)" }}>{t("builder.noDraftsSaved")}</div>
                 )}
                 {draftsList.map((d) => (
                   <div key={d.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", padding: "6px 4px" }}>
                     <div style={{ fontSize: "13px", color: "var(--text-primary)" }}>{d.name}</div>
                     <div style={{ display: "flex", gap: "6px" }}>
-                      <button onClick={() => { txHistory.loadDraft(d.id); setShowDraftsPanel(false); }} style={{ padding: "6px", fontSize: "12px" }}>Load</button>
-                      <button onClick={() => { txHistory.deleteDraft(d.id); setDraftsList(txHistory.listDrafts()); }} style={{ padding: "6px", fontSize: "12px", color: "var(--red)" }}>Delete</button>
+                      <button onClick={() => { txHistory.loadDraft(d.id); setShowDraftsPanel(false); }} style={{ padding: "6px", fontSize: "12px" }}>{t("builder.load")}</button>
+                      <button onClick={() => { txHistory.deleteDraft(d.id); setDraftsList(txHistory.listDrafts()); }} style={{ padding: "6px", fontSize: "12px", color: "var(--red)" }}>{t("builder.delete")}</button>
                     </div>
                   </div>
                 ))}
@@ -1672,7 +1673,7 @@ export default function TransactionBuilder() {
             }}
           >
             <Zap size={16} />
-            Save as Template
+            {t("builder.saveAsTemplate")}
           </button>
         )}
       </div>
@@ -1680,8 +1681,8 @@ export default function TransactionBuilder() {
       {/* Simulation Results */}
       {simulation && (
         <Panel
-          title="Simulation Results"
-          subtitle={simulation.success ? "Transaction is valid and ready to submit" : "Transaction validation failed"}
+          title={t("builder.simulationResults")}
+          subtitle={simulation.success ? t("builder.simulationSuccessSubtitle") : t("builder.simulationFailureSubtitle")}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {/* Status Banner */}
@@ -1701,12 +1702,12 @@ export default function TransactionBuilder() {
               )}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: simulation.success ? "var(--green)" : "var(--red)" }}>
-                  {simulation.success ? "Simulation Successful" : "Simulation Failed"}
+                  {simulation.success ? t("builder.simulationSuccessful") : t("builder.simulationFailed")}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
                   {simulation.success
-                    ? "Transaction passed all validation checks"
-                    : `${simulation.errors.length} error${simulation.errors.length !== 1 ? "s" : ""} found`}
+                    ? t("builder.simulationPassedChecks")
+                    : t("builder.simulationErrorsFound", { count: simulation.errors.length })}
                 </div>
               </div>
             </div>
@@ -1720,13 +1721,13 @@ export default function TransactionBuilder() {
                 borderRadius: "var(--radius-md)",
               }}>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                  Estimated Fee
+                  {t("builder.estimatedFee")}
                 </div>
                 <div style={{ fontSize: "20px", fontFamily: "var(--font-mono)", color: "var(--cyan)", fontWeight: 700 }}>
                   {simulation.fee.toLocaleString()}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-                  stroops ({(simulation.fee / 10000000).toFixed(7)} XLM)
+                  {t("builder.stroopsPerOp", { xlm: (simulation.fee / 10000000).toFixed(7) })}
                 </div>
               </div>
 
@@ -1737,13 +1738,13 @@ export default function TransactionBuilder() {
                 borderRadius: "var(--radius-md)",
               }}>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                  Operations
+                  {t("builder.operations")}
                 </div>
                 <div style={{ fontSize: "20px", fontFamily: "var(--font-mono)", color: "var(--amber)", fontWeight: 700 }}>
                   {simulation.operationCount}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
-                  {baseFee} stroops per op
+                  {t("builder.stroopsPerOperation", { stroops: baseFee })}
                 </div>
               </div>
 
@@ -1755,7 +1756,7 @@ export default function TransactionBuilder() {
                   borderRadius: "var(--radius-md)",
                 }}>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                    Transaction Hash
+                    {t("builder.transactionHash")}
                   </div>
                   <div style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--text-primary)", wordBreak: "break-all" }}>
                     {simulation.hash.slice(0, 16)}...
@@ -1768,7 +1769,7 @@ export default function TransactionBuilder() {
             {simulation.errors && simulation.errors.length > 0 && (
               <div>
                 <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--red)", marginBottom: "8px" }}>
-                  Validation Errors:
+                  {t("builder.validationErrors")}
                 </div>
                 {simulation.errors.map((error, index) => (
                   <div key={index} style={{
@@ -1792,7 +1793,7 @@ export default function TransactionBuilder() {
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                    Transaction XDR
+                    {t("builder.transactionXdr")}
                   </div>
                   <button
                     onClick={() => setShowXDR(!showXDR)}
@@ -1806,7 +1807,7 @@ export default function TransactionBuilder() {
                       cursor: "pointer",
                     }}
                   >
-                    {showXDR ? "Hide" : "Show"} XDR
+                    {showXDR ? t("builder.hideXdr") : t("builder.showXdr")} XDR
                   </button>
                 </div>
                 {showXDR && (

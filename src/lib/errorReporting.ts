@@ -1,4 +1,5 @@
 import { createLogger } from '../utils/logger';
+import { guardProviderSend } from '../utils/providerCircuitBreaker';
 
 const logger = createLogger('ErrorReporting');
 
@@ -282,17 +283,28 @@ async function flushErrorQueue(): Promise<void> {
 
   if (ERROR_REPORTING_CONFIG.endpoint) {
     try {
-      await fetch(ERROR_REPORTING_CONFIG.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Error reporting is delivery-oriented: `fail-closed` propagates failures
+      // so the batch is re-queued below and retried after the breaker cools down.
+      await guardProviderSend(
+        'errorReporting',
+        async () => {
+          const response = await fetch(ERROR_REPORTING_CONFIG.endpoint as string, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              errors: errorsToSend,
+              sessionId,
+              timestamp: new Date().toISOString()
+            })
+          });
+          if (!response.ok) {
+            throw new Error(`Error reporting endpoint responded ${response.status}`);
+          }
         },
-        body: JSON.stringify({
-          errors: errorsToSend,
-          sessionId,
-          timestamp: new Date().toISOString()
-        })
-      });
+        { failureThreshold: 5, successThreshold: 2, timeout: 60000 },
+      );
     } catch (e) {
       console.error('Failed to send errors to reporting service:', e);
       errorQueue.unshift(...errorsToSend);

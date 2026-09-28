@@ -1,84 +1,78 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../../lib/store";
-import { getNavRoutes, buildPath } from "../../routes/routes";
 import {
   registerShortcut,
   getRecentAccounts,
   addRecentAccount,
   getTransactionTemplates,
 } from "../../utils/accessibility";
+import {
+  buildPaletteCommands,
+  classifyPaletteQuery,
+  getPaletteResults,
+  getPaletteShortcutLabel,
+  resolveTargetPath,
+  MAX_QUERY_LENGTH,
+} from "../../lib/commandPalette";
 import FocusManager from "./FocusManager";
 import "../../styles/accessibility.css";
 
+/** Run a storage-backed read without letting a broken store break the palette. */
+function safely(read, fallback) {
+  try {
+    const value = read();
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Command Palette Component
+ *
+ * Keyboard-first navigation to routes, accounts, contracts, and settings (#877).
+ * Pasting a G… account address or C… contract ID offers a direct jump; malformed
+ * addresses show a validation message instead of silently matching nothing.
  */
-function CommandPalette({ isOpen, onClose }) {
+export function CommandPalette({ isOpen, onClose, onShowShortcuts = undefined }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [error, setError] = useState(null);
   const inputRef = useRef(null);
-  const triggerRef = useRef(document.activeElement);
+  const triggerRef = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   const navigate = useNavigate();
-  const { setConnectedAddress, setSelectedTemplateId } = useStore();
+  const { setConnectedAddress, setSelectedTemplateId, setPreferencesOpen } = useStore();
 
   useEffect(() => {
     if (isOpen) {
-      triggerRef.current = document.activeElement;
+      triggerRef.current = document.activeElement as HTMLElement | null;
+      setQuery("");
+      setError(null);
     } else if (triggerRef.current instanceof HTMLElement) {
       triggerRef.current.focus();
     }
   }, [isOpen]);
 
-  const commands = [
-    // Navigation — generated from the route registry (#959)
-    ...getNavRoutes().map((route) => ({
-      id: `nav-${route.id}`,
-      label: `Go to ${route.title}`,
-      category: "Navigation",
-      action: () => navigate(buildPath(route.id)),
-    })),
+  // Rebuilt on every open so newly visited accounts / unlocked templates show up.
+  const commands = useMemo(
+    () =>
+      isOpen
+        ? buildPaletteCommands({
+            recentAccounts: safely(getRecentAccounts, []),
+            templates: Object.values(safely(getTransactionTemplates, {})),
+          })
+        : [],
+    [isOpen],
+  );
 
-    // Quick Actions
-    { id: "action-builder", label: "Open Transaction Builder", category: "Actions", action: () => navigate(buildPath("txBuilder")) },
-    { id: "action-faucet", label: "Request Testnet Funds", category: "Actions", action: () => navigate(buildPath("faucet")) },
-    { id: "action-compare", label: "Compare Accounts", category: "Actions", action: () => navigate(buildPath("compare")) },
+  const parsedQuery = useMemo(() => classifyPaletteQuery(query), [query]);
+  const filteredCommands = useMemo(
+    () => getPaletteResults(commands, parsedQuery),
+    [commands, parsedQuery],
+  );
 
-    // Recent Accounts
-    ...getRecentAccounts().map((acc) => ({
-      id: `account-${acc.publicKey}`,
-      label: `Switch to ${acc.publicKey.slice(0, 8)}...${acc.publicKey.slice(-4)}`,
-      category: "Recent Accounts",
-      action: () => {
-        setConnectedAddress(acc.publicKey);
-        addRecentAccount(acc.publicKey);
-        navigate(buildPath("account", { address: acc.publicKey }));
-        onClose();
-      },
-    })),
-
-    // Templates
-    ...Object.values(getTransactionTemplates()).map((template) => ({
-      id: `template-${template.id}`,
-      label: `Load Template: ${template.label || template.name || template.id}`,
-      category: "Templates",
-      action: () => {
-        setSelectedTemplateId(template.id);
-        navigate(buildPath("txBuilder"));
-        onClose();
-      },
-    })),
-  ];
-
-  const filteredCommands = query
-    ? commands.filter(
-        (cmd) =>
-          cmd.label.toLowerCase().includes(query.toLowerCase()) ||
-          cmd.category.toLowerCase().includes(query.toLowerCase()),
-      )
-    : commands;
-
-  const groupedCommands = filteredCommands.reduce((acc, cmd) => {
+  const groupedCommands = filteredCommands.reduce<Record<string, typeof filteredCommands>>((acc, cmd) => {
     if (!acc[cmd.category]) acc[cmd.category] = [];
     acc[cmd.category].push(cmd);
     return acc;
@@ -92,13 +86,39 @@ function CommandPalette({ isOpen, onClose }) {
 
   useEffect(() => {
     setSelectedIndex(0);
+    setError(null);
   }, [query]);
+
+  const runCommand = (cmd) => {
+    const { target } = cmd;
+    try {
+      if (target.type === "account") {
+        setConnectedAddress(target.address);
+        // Remembering the account is best-effort: private mode or a full quota
+        // must not block navigation.
+        safely(() => addRecentAccount(target.address), undefined);
+      } else if (target.type === "template") {
+        setSelectedTemplateId(target.templateId);
+      } else if (target.type === "preferences") {
+        setPreferencesOpen(true);
+      } else if (target.type === "shortcuts") {
+        onShowShortcuts?.();
+      }
+
+      const path = resolveTargetPath(target);
+      if (path) navigate(path);
+      onClose();
+    } catch (err) {
+      console.error("Command palette action failed:", err);
+      setError(`Couldn't run "${cmd.label}". Please try again.`);
+    }
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((prev) =>
-        Math.min(prev + 1, filteredCommands.length - 1),
+        Math.max(0, Math.min(prev + 1, filteredCommands.length - 1)),
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -106,8 +126,7 @@ function CommandPalette({ isOpen, onClose }) {
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (filteredCommands[selectedIndex]) {
-        filteredCommands[selectedIndex].action();
-        onClose();
+        runCommand(filteredCommands[selectedIndex]);
       }
     } else if (e.key === "Escape") {
       onClose();
@@ -115,6 +134,9 @@ function CommandPalette({ isOpen, onClose }) {
   };
 
   if (!isOpen) return null;
+
+  const invalidReason = parsedQuery.kind === "invalid" ? parsedQuery.reason : null;
+  const activeCommand = filteredCommands[selectedIndex];
 
   return (
     <div
@@ -156,7 +178,7 @@ function CommandPalette({ isOpen, onClose }) {
             style={{ padding: "16px", borderBottom: "1px solid var(--border)" }}
           >
             <label htmlFor="command-palette-input" className="sr-only">
-              Search commands
+              Search commands, or paste an account address or contract ID
             </label>
             <div style={{ position: 'relative' }}>
               <span aria-hidden="true" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '16px' }}>🔍</span>
@@ -164,19 +186,26 @@ function CommandPalette({ isOpen, onClose }) {
                 id="command-palette-input"
                 ref={inputRef}
                 type="text"
+                role="combobox"
+                aria-expanded={filteredCommands.length > 0}
+                aria-controls="command-palette-listbox"
+                aria-autocomplete="list"
+                aria-invalid={invalidReason ? true : undefined}
+                aria-describedby={invalidReason ? "command-palette-invalid" : undefined}
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={MAX_QUERY_LENGTH * 2}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search commands, pages, accounts..."
+                placeholder="Search pages, settings, or paste a G… / C… address"
                 aria-activedescendant={
-                  filteredCommands[selectedIndex]
-                    ? `command-option-${filteredCommands[selectedIndex].id}`
-                    : undefined
+                  activeCommand ? `command-option-${activeCommand.id}` : undefined
                 }
                 style={{
                   width: "100%",
                   background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
+                  border: `1px solid ${invalidReason ? "var(--red, #ff4d6d)" : "var(--border)"}`,
                   borderRadius: "var(--radius-md)",
                   padding: "12px 16px 12px 40px",
                   fontSize: "14px",
@@ -185,12 +214,23 @@ function CommandPalette({ isOpen, onClose }) {
                 }}
               />
             </div>
+            {error && (
+              <div role="alert" style={{ marginTop: "8px", fontSize: "12px", color: "var(--red, #ff4d6d)" }}>
+                {error}
+              </div>
+            )}
           </div>
 
-        <div style={{ maxHeight: "calc(70vh - 130px)", overflowY: "auto" }}>
+        <div
+          id="command-palette-listbox"
+          role="listbox"
+          aria-label="Commands"
+          style={{ maxHeight: "calc(70vh - 130px)", overflowY: "auto" }}
+        >
           {Object.entries(groupedCommands).map(([category, cmds]) => (
-            <div key={category}>
+            <div key={category} role="group" aria-label={category}>
               <div
+                aria-hidden="true"
                 style={{
                   padding: "8px 16px",
                   fontSize: "10px",
@@ -215,10 +255,8 @@ function CommandPalette({ isOpen, onClose }) {
                     role="option"
                     aria-selected={isSelected}
                     tabIndex={-1}
-                    onClick={() => {
-                      cmd.action();
-                      onClose();
-                    }}
+                    onClick={() => runCommand(cmd)}
+                    onMouseEnter={() => setSelectedIndex(globalIndex)}
                     style={{
                       padding: "12px 16px",
                       cursor: "pointer",
@@ -232,19 +270,25 @@ function CommandPalette({ isOpen, onClose }) {
                     <div style={{ fontSize: "13px", color: isSelected ? "var(--cyan)" : "var(--text-primary)", fontWeight: isSelected ? 600 : 400 }}>
                       {cmd.label}
                     </div>
-                    {isSelected && <span style={{ fontSize: '12px', color: 'var(--cyan)' }}>↵</span>}
+                    {isSelected && <span aria-hidden="true" style={{ fontSize: '12px', color: 'var(--cyan)' }}>↵</span>}
                   </div>
                 );
               })}
             </div>
           ))}
+        </div>
 
-          {filteredCommands.length === 0 && (
+          {invalidReason && (
+            <div id="command-palette-invalid" role="alert" style={{ padding: "32px", textAlign: "center", color: "var(--red, #ff4d6d)", fontSize: "13px" }}>
+              {invalidReason}
+            </div>
+          )}
+
+          {!invalidReason && filteredCommands.length === 0 && (
             <div role="status" style={{ padding: "48px 32px", textAlign: "center", color: "var(--text-muted)", fontSize: "14px" }}>
               No matching commands found
             </div>
           )}
-        </div>
 
         <div
           style={{
@@ -260,6 +304,7 @@ function CommandPalette({ isOpen, onClose }) {
           <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>↑↓</kbd> Navigate</span>
           <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>↵</kbd> Select</span>
           <span><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>Esc</kbd> Close</span>
+          <span style={{ marginLeft: 'auto' }}><kbd style={{ background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '3px' }}>{getPaletteShortcutLabel()}</kbd> Open</span>
         </div>
         </div>
       </FocusManager>
@@ -513,6 +558,7 @@ const KeyboardNavigation = () => {
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
+        onShowShortcuts={() => setShortcutsHelpOpen(true)}
       />
 
       <ShortcutsHelp

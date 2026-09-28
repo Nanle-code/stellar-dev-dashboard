@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../../lib/store';
 import { signTransactionWithFreighter } from '../../lib/wallet/freighter';
@@ -13,10 +13,17 @@ import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences'
 import type { UserPreferences } from '../../lib/userPreferences';
 import Card from './Card';
 import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation';
+import RiskSummaryPanel from '../security/RiskSummaryPanel';
+import {
+  usePreSignRiskSummary,
+  REVIEW_SHOWN,
+  REVIEW_ERROR,
+} from '../../hooks/usePreSignRiskSummary';
 import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay';
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics';
 import { inspectEnvelope } from '../../utils/feeBumpInspector';
 import type { EnvelopeInfo } from '../../utils/feeBumpInspector';
+import { setCriticalSigningActive } from '../../utils/offline';
 
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore();
@@ -30,6 +37,21 @@ export default function TransactionSigner() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showBiometricOverlay, setShowBiometricOverlay] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
+
+  // #982 — pre-sign risk review.
+  const {
+    summary: riskSummary,
+    reviewError: riskReviewError,
+    onTrustContract: trustRiskContract,
+    beginReview: beginRiskReview,
+    cancelReview: cancelRiskReview,
+    onAcknowledged: acknowledgeRiskReview,
+  } = usePreSignRiskSummary();
+
+  // The envelope that was actually summarised. Held in a ref rather than read
+  // back from `xdr`, because the field stays editable while the review panel is
+  // open and signing whatever it holds then would slip past the review.
+  const reviewedXdrRef = useRef<string | null>(null);
 
   // ─── Behavioral Biometrics ─────────────────────────────────────────────────
   const bio = useBehavioralBiometrics(walletPublicKey);
@@ -71,6 +93,17 @@ export default function TransactionSigner() {
   const handleSign = async () => {
     if (!xdr.trim()) {
       setError('Please enter a transaction XDR to sign');
+      return;
+    }
+
+    // #982 — the pre-sign risk summary is the first step of every signing path,
+    // ahead of the behavioural biometric gate. An envelope that cannot be
+    // decoded is refused here rather than reaching the wallet unreviewed.
+    reviewedXdrRef.current = xdr.trim();
+    const review = await beginRiskReview(reviewedXdrRef.current);
+    if (review === REVIEW_SHOWN) return;
+    if (review === REVIEW_ERROR) {
+      reviewedXdrRef.current = null;
       return;
     }
 
@@ -173,6 +206,9 @@ export default function TransactionSigner() {
     setSigning(true);
     setError(null);
     setSignedXdr(null);
+    // #886 — Protect the signing flow from service-worker activation/reload:
+    // deferred SW updates wait until the flow finishes (finally block below).
+    setCriticalSigningActive(true);
 
     try {
       let result: string | null = null;
@@ -181,7 +217,7 @@ export default function TransactionSigner() {
         const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET';
         result = await measureAsync(
           'TRANSACTION_SIGNING_DURATION',
-          () => signTransactionWithFreighter(xdr.trim(), networkName),
+          () => signTransactionWithFreighter(reviewedXdrRef.current ?? xdr.trim(), networkName),
           { network, walletType: 'freighter' }
         );
       } else if (walletType === 'ledger') {
@@ -200,6 +236,9 @@ export default function TransactionSigner() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSigning(false);
+      // #886 — Signing is over: a service-worker update deferred during the
+      // flow is now safe to activate (and reload) again.
+      setCriticalSigningActive(false);
     }
   };
 
@@ -304,6 +343,24 @@ export default function TransactionSigner() {
           </span>
         </div>
       </Card>
+    );
+  }
+
+  if (riskSummary || riskReviewError) {
+    return (
+      <RiskSummaryPanel
+        summary={riskSummary}
+        reviewError={riskReviewError}
+        proceedLabel="Sign Transaction"
+        sourceLabel={
+          walletPublicKey
+            ? `signer ${walletPublicKey.slice(0, 6)}…${walletPublicKey.slice(-6)}`
+            : undefined
+        }
+        onAcknowledged={() => acknowledgeRiskReview(() => doSign())}
+        onCancel={cancelRiskReview}
+        onTrustContract={trustRiskContract}
+      />
     );
   }
 

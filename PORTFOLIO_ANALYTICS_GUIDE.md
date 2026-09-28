@@ -1,281 +1,109 @@
-# Portfolio Analytics Dashboard - Task #76
+# Portfolio Analytics Guide
 
-## Overview
+This guide covers the portfolio analytics and data export tooling used by the
+2026 DEX accounting workflows. It documents the trade journal export, the cost
+basis helpers, and the realized PnL columns that downstream accounting systems
+consume.
 
-Enhanced the Portfolio Value component with comprehensive analytics capabilities including asset allocation visualization, performance tracking, risk assessment, and detailed portfolio insights.
+## Trade journal export
 
-## Features Implemented
+The trade journal export produces a row per **executed** trade. Trades that are
+pending, cancelled, or failed are excluded from the journal so that realized PnL
+is only computed from settled activity.
 
-### 1. **Multi-View Analytics Interface**
-- **Overview**: Key metrics and asset holdings table
-- **Allocation**: Pie chart visualization and concentration risk analysis
-- **Performance**: Historical performance charts and 24h asset comparison
-- **Risk**: Risk assessment with diversification and volatility metrics
+### Columns
 
-### 2. **Key Metrics Dashboard**
-- Total portfolio value in USD
-- 24-hour portfolio change percentage
-- Diversification score (0-10 scale)
-- Risk level assessment (Low/Medium/High)
+| Column | Description |
+| --- | --- |
+| `trade_id` | Unique identifier of the executed trade. |
+| `timestamp` | Execution time in ISO-8601 UTC. |
+| `market` | Trading pair / market symbol. |
+| `side` | `buy` or `sell`. |
+| `quantity` | Executed base-asset quantity. |
+| `price` | Execution price in quote asset. |
+| `fee` | Fee paid, in quote asset. |
+| `cost_basis` | Cost basis helper: average cost per unit at execution time. |
+| `cost_basis_total` | Cost basis helper: total cost basis consumed by the trade. |
+| `proceeds` | Gross proceeds of the trade (quantity x price). |
+| `realized_pnl` | Realized PnL for the trade (proceeds - cost basis - fees). |
+| `realized_pnl_currency` | Quote asset the realized PnL is denominated in. |
 
-### 3. **Asset Allocation Analysis**
-- Interactive pie chart showing percentage distribution
-- Color-coded asset breakdown with values
-- Concentration risk identification (assets >40% of portfolio)
-- Visual allocation summary with USD values
+### Cost basis helpers
 
-### 4. **Performance Tracking**
-- 30-day historical performance line chart
-- 24-hour asset performance bar chart
-- Individual asset price changes
-- Gain/loss indicators with trend icons
+Cost basis is tracked per market using the average-cost method. The helpers
+below are exposed so accounting workflows can reconcile the journal:
 
-### 5. **Risk Assessment**
-- Multi-factor risk scoring system
-- Volatility calculations
-- Diversification analysis
-- Personalized recommendations based on portfolio composition
+- `cost_basis` — running average cost per unit for the market at the time the
+  trade executed.
+- `cost_basis_total` — the portion of the running cost basis consumed by the
+  trade. For buys this is the added cost; for sells it is the cost basis of the
+  units removed.
 
-## Technical Implementation
+### Realized PnL
 
-### Files Modified
-
-#### `src/lib/store.ts`
-Added price feed state management:
-```typescript
-prices: Record<string, { usd: number | null; usd_24h_change: number | null }>
-pricesLoading: boolean
-pricesError: string | null
-setPrices: (prices) => void
-setPricesLoading: (loading: boolean) => void
-setPricesError: (error: string | null) => void
-```
-
-#### `src/components/dashboard/PortfolioValue.jsx`
-Complete rewrite with:
-- Tab-based navigation system
-- Four specialized view components (Overview, Allocation, Performance, Risk)
-- Integration with Recharts for data visualization
-- Lucide React icons for visual indicators
-- Responsive grid layouts
-
-### Analytics Library Functions Used
-
-From `src/lib/portfolioAnalytics.js`:
-- `calculateAssetAllocation()` - Percentage distribution of assets
-- `calculateDiversificationScore()` - Portfolio diversification metric (0-10)
-- `identifyConcentrationRisks()` - Flags assets >40% of portfolio
-- `calculate24hPortfolioChange()` - Overall portfolio 24h change
-- `generateHistoricalPerformance()` - Simulated 30-day performance data
-- `calculateVolatility()` - Portfolio volatility percentage
-- `assessPortfolioRisk()` - Multi-factor risk assessment
-- `generatePortfolioSummary()` - Comprehensive portfolio summary
-
-## Component Structure
+Realized PnL is only non-zero for sells. It is computed as:
 
 ```
-PortfolioValue (Main Component)
-├── Tab Navigation (4 views)
-├── OverviewView
-│   ├── Key Metrics (4 StatCards)
-│   └── Asset Holdings Table
-├── AllocationView
-│   ├── Pie Chart (Recharts)
-│   ├── Asset Legend
-│   └── Concentration Risks Panel
-├── PerformanceView
-│   ├── Historical Line Chart (30 days)
-│   └── Asset Performance Bar Chart (24h)
-└── RiskView
-    ├── Risk Metrics (3 StatCards)
-    ├── Risk Assessment Details
-    └── Recommendations Panel
+realized_pnl = proceeds - cost_basis_total - fee
 ```
 
-## UI/UX Features
+Buys report `realized_pnl = 0` and update the running cost basis instead.
 
-### Visual Design
-- **Color Palette**: 8-color array for chart differentiation
-- **Hover Effects**: Interactive table rows and buttons
-- **Loading States**: Spinner during price fetching
-- **Empty States**: Friendly message when no account connected
+## Invalid input handling
 
-### Responsive Layout
-- Grid-based layouts with `auto-fit` for responsiveness
-- Minimum column widths ensure readability on all screens
-- Flexible stat card grids adapt to available space
+The export validates its input before producing a journal:
 
-### Interactive Elements
-- Tab switching for different analytics views
-- Hover effects on asset rows
-- Color-coded performance indicators (green/red)
-- Trend icons (TrendingUp/TrendingDown) for quick visual reference
+- Missing or malformed trade records (for example, a non-numeric `quantity` or
+  `price`) are rejected with a descriptive error rather than silently coerced.
+- Trades with a negative quantity or price are treated as invalid input.
+- A trade whose `side` is not `buy` or `sell` is rejected.
 
-## Data Flow
+Invalid records cause the export to fail fast so that accounting workflows do
+not ingest partially-correct journals.
 
-1. **Price Fetching**
-   - Component detects asset codes from account balances
-   - Fetches prices via `fetchPrices()` from priceFeed.js
-   - Stores in Zustand store for cross-component access
-   - Automatic refetch when asset codes change
+## Unsupported environments
 
-2. **Portfolio Calculation**
-   - `calculatePortfolioValue()` combines balances + prices
-   - Returns total USD value and itemized breakdown
-   - Memoized to prevent unnecessary recalculations
+The export requires a runtime with the standard portfolio analytics data
+source available. When the data source is unavailable (for example, an
+unsupported environment or a missing configuration), the export raises an
+explicit "unsupported environment" error instead of returning an empty journal.
+This makes the failure visible to the caller rather than producing misleading
+zero-value output.
 
-3. **Analytics Processing**
-   - All analytics calculated in single `useMemo` hook
-   - Runs only when portfolio data changes
-   - Returns comprehensive analytics object
+## Failure paths
 
-4. **View Rendering**
-   - Active view state controls which component renders
-   - Each view receives relevant analytics data
-   - Charts render with Recharts components
+- **Invalid input** — rejected with a descriptive validation error.
+- **Unsupported environment** — rejected with an explicit unsupported
+  environment error.
+- **Data source failure** — propagated to the caller; the export does not
+  swallow errors or emit a partial journal.
 
-## Chart Configurations
+## Compatibility and migration notes
 
-### Pie Chart (Allocation View)
-- Displays asset percentage distribution
-- Custom labels showing asset code and percentage
-- Tooltip shows percentage and USD value
-- Color-coded cells from CHART_COLORS array
+- The journal schema is additive. New columns may be appended in future
+  releases; consumers should key on column names rather than positional order.
+- `realized_pnl` is denominated in the quote asset reported by
+  `realized_pnl_currency`. Consumers migrating from older exports that lacked
+  this column should treat missing values as `0` and re-run the export to obtain
+  realized PnL.
+- Cost basis is computed with the average-cost method. Workflows that previously
+  assumed FIFO cost basis must migrate to the average-cost helpers documented
+  above.
 
-### Line Chart (Performance View)
-- 30-day historical performance
-- Cartesian grid for readability
-- Formatted Y-axis with USD values
-- Smooth monotone line type
+## Security notes
 
-### Bar Chart (Performance View)
-- Horizontal layout for asset names
-- Color-coded bars (green for gains, red for losses)
-- Tooltip shows percentage and USD value
-- Sorted by performance (best to worst)
+The export contains trade history and cost basis data. Treat exported journals
+as sensitive financial data: restrict access to authorized accounting
+workflows, avoid logging full journals, and store exports in access-controlled
+locations.
 
-## Risk Assessment Logic
+## Testing guidance
 
-### Risk Factors Considered
-1. **Concentration Risk**: Single asset >40% of portfolio
-2. **Diversification**: Number of assets and distribution
-3. **Volatility**: Historical price fluctuations
-4. **Asset Correlation**: (Future enhancement)
+Automated tests for the trade journal export should cover:
 
-### Risk Levels
-- **Low (0-3.5)**: Well-diversified, low volatility
-- **Medium (3.5-7)**: Moderate concentration or volatility
-- **High (7-10)**: High concentration or high volatility
-
-### Recommendations
-Generated based on:
-- Diversification score <7: Suggest adding more assets
-- Concentration risks: Suggest rebalancing
-- High volatility: Suggest stable asset allocation
-
-## Styling Patterns
-
-### CSS Custom Properties Used
-- `--bg-card`: Card backgrounds
-- `--bg-elevated`: Panel backgrounds
-- `--bg-hover`: Hover states
-- `--border`: Border colors
-- `--cyan`, `--green`, `--red`, `--yellow`, `--purple`, `--orange`: Accent colors
-- `--text-primary`, `--text-secondary`, `--text-muted`: Text hierarchy
-- `--font-display`, `--font-mono`: Typography
-- `--radius-sm`, `--radius-md`, `--radius-lg`: Border radius
-- `--transition`: Smooth transitions
-
-### Layout Patterns
-- Flexbox for vertical stacking with gaps
-- Grid for responsive card layouts
-- Inline styles for component-specific styling
-- Consistent padding and spacing (8px, 12px, 16px, 18px)
-
-## Performance Optimizations
-
-1. **Memoization**
-   - `assetCodes` memoized to prevent unnecessary price fetches
-   - `portfolio` memoized to prevent recalculations
-   - `analytics` memoized for expensive computations
-
-2. **Conditional Rendering**
-   - Only active view component renders
-   - Loading states prevent premature rendering
-   - Empty states for missing data
-
-3. **Effect Cleanup**
-   - Price fetch effect includes cancellation flag
-   - Prevents state updates on unmounted component
-
-## Future Enhancements
-
-### Potential Additions
-1. **Historical Data Integration**: Real historical price data instead of simulated
-2. **P&L Tracking**: Actual profit/loss calculations with cost basis
-3. **Correlation Matrix**: Asset correlation heatmap
-4. **Rebalancing Tool**: Interactive rebalancing recommendations
-5. **Export Functionality**: Download portfolio reports as PDF/CSV
-6. **Price Alerts**: Set alerts for price thresholds
-7. **Comparison Mode**: Compare portfolio against benchmarks
-8. **Time Range Selector**: Custom date ranges for performance charts
-
-### Technical Improvements
-1. **Caching**: Cache historical data to reduce API calls
-2. **Real-time Updates**: WebSocket integration for live prices
-3. **Pagination**: For portfolios with many assets
-4. **Filtering**: Filter assets by type, value, or performance
-5. **Sorting**: Sortable table columns
-
-## Testing Recommendations
-
-### Manual Testing Checklist
-- [ ] Connect account with multiple assets
-- [ ] Verify all four tabs render correctly
-- [ ] Check price fetching and loading states
-- [ ] Verify charts display with correct data
-- [ ] Test hover effects on interactive elements
-- [ ] Verify risk assessment calculations
-- [ ] Check concentration risk detection
-- [ ] Test with single asset portfolio
-- [ ] Test with no price data available
-- [ ] Verify responsive layout on different screen sizes
-
-### Edge Cases to Test
-- Account with no balances
-- Assets without price data
-- Single asset portfolio
-- Highly concentrated portfolio (>90% one asset)
-- Portfolio with all negative 24h changes
-- Very small balance amounts
-- Very large balance amounts
-
-## Dependencies
-
-### Required Packages (Already Installed)
-- `recharts`: Chart visualization library
-- `lucide-react`: Icon library
-- `zustand`: State management
-- `@stellar/stellar-sdk`: Stellar blockchain integration
-
-### No New Dependencies Added
-All features implemented using existing project dependencies.
-
-## Build Verification
-
-✅ Build completed successfully with no errors
-✅ All TypeScript types resolved correctly
-✅ No linting errors
-✅ Bundle size within acceptable limits
-
-## Summary
-
-Task #76 successfully implemented a comprehensive portfolio analytics dashboard with:
-- 4 specialized analytics views
-- 8 chart visualizations
-- 10+ calculated metrics
-- Risk assessment system
-- Responsive, interactive UI
-- Full integration with existing codebase patterns
-
-The implementation follows all project conventions, uses existing dependencies, and provides a professional-grade portfolio analysis tool for Stellar blockchain assets.
+- **Primary flow** — a sequence of buys and sells produces the expected cost
+  basis helpers and realized PnL columns.
+- **Boundary case** — a sell that exactly consumes the remaining position
+  (zero remaining quantity) reports the correct realized PnL.
+- **Failure case** — an invalid trade record (for example, a negative quantity)
+  is rejected with a descriptive error.

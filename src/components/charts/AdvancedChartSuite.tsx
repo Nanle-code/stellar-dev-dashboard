@@ -27,6 +27,8 @@ import {
   formatTimeAxis,
   normalizeSeriesForComparison,
 } from '../../lib/chartUtils'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { getAnimationProps } from '../../utils/reducedMotion'
 
 const METRICS = [
   { id: 'balance', label: 'Account Balance', unit: 'XLM' },
@@ -97,6 +99,7 @@ function ControlChip({ active, label, onClick }) {
 export default function AdvancedChartSuite() {
   const { accountData, transactions, operations } = useStore()
   const { isMobile } = useResponsive()
+  const animation = getAnimationProps(useReducedMotion())
 
   const [timeframe, setTimeframe] = useState('30d')
   const [metric, setMetric] = useState('balance')
@@ -226,10 +229,10 @@ export default function AdvancedChartSuite() {
                 formatter={(value) => [Number(value).toLocaleString(), metricConfig.unit]}
               />
               <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 4 : 0 }} layout={isMobile ? 'horizontal' : 'horizontal'} verticalAlign="bottom" align="center" />
-              <Line type="monotone" dataKey="value" name={metricConfig.label} stroke={CHART_COLORS.cyan} dot={false} strokeWidth={2} />
-              {showSMA && <Line type="monotone" dataKey="sma" name="SMA (10)" stroke={CHART_COLORS.amber} dot={false} strokeWidth={1.5} />}
-              {showEMA && <Line type="monotone" dataKey="ema" name="EMA (10)" stroke={CHART_COLORS.green} dot={false} strokeWidth={1.5} />}
-              {showRSI && <Line type="monotone" dataKey="rsi" name="RSI (14)" stroke={CHART_COLORS.red} dot={false} strokeWidth={1.2} />}
+              <Line type="monotone" dataKey="value" name={metricConfig.label} stroke={CHART_COLORS.cyan} dot={false} strokeWidth={2} {...animation} />
+              {showSMA && <Line type="monotone" dataKey="sma" name="SMA (10)" stroke={CHART_COLORS.amber} dot={false} strokeWidth={1.5} {...animation} />}
+              {showEMA && <Line type="monotone" dataKey="ema" name="EMA (10)" stroke={CHART_COLORS.green} dot={false} strokeWidth={1.5} {...animation} />}
+              {showRSI && <Line type="monotone" dataKey="rsi" name="RSI (14)" stroke={CHART_COLORS.red} dot={false} strokeWidth={1.2} {...animation} />}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -248,9 +251,9 @@ export default function AdvancedChartSuite() {
                 <YAxis tick={AXIS_TICK_STYLE} domain={[85, 130]} width={isMobile ? 42 : 56} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value) => [`${Number(value).toFixed(2)}`, 'Indexed']} />
                 <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 4 : 0 }} verticalAlign="bottom" align="center" layout="horizontal" />
-                <Line type="monotone" dataKey="Primary" stroke={CHART_COLORS.cyan} dot={false} strokeWidth={2} />
-                <Line type="monotone" dataKey="Alpha" stroke={CHART_COLORS.amber} dot={false} strokeWidth={1.5} />
-                <Line type="monotone" dataKey="Beta" stroke={CHART_COLORS.green} dot={false} strokeWidth={1.5} />
+                <Line type="monotone" dataKey="Primary" stroke={CHART_COLORS.cyan} dot={false} strokeWidth={2} {...animation} />
+                <Line type="monotone" dataKey="Alpha" stroke={CHART_COLORS.amber} dot={false} strokeWidth={1.5} {...animation} />
+                <Line type="monotone" dataKey="Beta" stroke={CHART_COLORS.green} dot={false} strokeWidth={1.5} {...animation} />
               </LineChart>
             </ResponsiveContainer>
           </div>

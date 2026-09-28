@@ -1,7 +1,13 @@
 /**
  * User analytics and event tracking
  * Integrates with performance monitoring for user behavior analysis
+ *
+ * Outbound delivery is wrapped in a circuit breaker (Issue #828) so an
+ * unavailable analytics collector can never block the dashboard. Analytics is
+ * best-effort, so the default policy is `fail-open`.
  */
+
+import { guardProviderSend } from './providerCircuitBreaker';
 
 const analyticsConfig = {
   enabled: true,
@@ -90,19 +96,31 @@ export const flushEvents = async () => {
   const eventsToSend = [...eventQueue];
   eventQueue = [];
 
-  try {
-    await fetch(analyticsConfig.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        events: eventsToSend,
-        sessionId: analyticsConfig.sessionId,
-        timestamp: new Date().toISOString(),
-      }),
-    });
-  } catch (error) {
-    console.error('Analytics flush failed:', error);
-    eventQueue.unshift(...eventsToSend); // Re-queue on failure
+  const result = await guardProviderSend(
+    'analytics',
+    async () => {
+      const response = await fetch(analyticsConfig.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          events: eventsToSend,
+          sessionId: analyticsConfig.sessionId,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Analytics endpoint responded ${response.status}`);
+      }
+    },
+    { failureThreshold: 3, successThreshold: 1, timeout: 30000 },
+  );
+
+  if (!result.delivered && !result.skipped) {
+    // Transient failure while the circuit is still closed — keep the batch.
+    // When the circuit is OPEN (`skipped`) the batch is intentionally dropped
+    // so the queue cannot grow without bound while the provider is down.
+    console.error('Analytics flush failed:', result.error);
+    eventQueue.unshift(...eventsToSend);
   }
 };
 

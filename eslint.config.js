@@ -47,7 +47,6 @@ export default [
         ...globals.browser,
         ...globals.node,
         ...globals.vitest,
-        ...globals.jest,
       },
     },
     plugins: {

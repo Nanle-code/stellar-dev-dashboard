@@ -58,7 +58,7 @@ Visual tests run on every PR via `.github/workflows/testing.yml` (multi-viewport
 
 - **Chromatic** (optional): set `CHROMATIC_PROJECT_TOKEN` and run `npm run test:chromatic` for Storybook component snapshots.
 - **Mutation testing**: `npm run test:mutation` (Stryker) — runs weekly in CI.
-- **Coverage gate**: `npm run test:coverage:check` enforces thresholds from `testing/coverage-thresholds.json`.
+- **Coverage gate**: `npm run test:coverage:check` enforces thresholds from `vitest.config.js`.
 - **Lighthouse CI**: `npm run test:lighthouse` with route-level Core Web Vitals budgets in `lighthouserc.cjs`, `lighthouserc.desktop.cjs`, and `lighthouserc.mobile.cjs`. Dedicated commands: `npm run test:lighthouse:desktop`, `npm run test:lighthouse:mobile`, and `npm run test:lighthouse:enforce`. See `docs/PERFORMANCE.md`.
 - **Accessibility gate**: `npm run test:a11y` with axe-core WCAG 2.1 AA.
 

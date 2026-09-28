@@ -17,12 +17,15 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 import { Download } from 'lucide-react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { getAnimationProps } from '../../utils/reducedMotion'
 
 const PIE_COLORS = [CHART_COLORS.cyan, CHART_COLORS.amber, CHART_COLORS.green, CHART_COLORS.red, '#8884d8', '#82ca9d']
 
 export default function AccountActivityChart() {
   const { transactions, operations, txLoading, opsLoading } = useStore()
   const { isMobile } = useResponsive()
+  const animation = getAnimationProps(useReducedMotion())
   const [exportOpen, setExportOpen] = useState(false)
   const [selected, setSelected] = useState(null)
   const txChartRef = useRef(null)
@@ -150,8 +153,8 @@ export default function AccountActivityChart() {
                     <YAxis tick={AXIS_TICK_STYLE} allowDecimals={false} width={isMobile ? 32 : 48} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} />
                     <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 4 : 0 }} layout={isMobile ? 'horizontal' : 'horizontal'} verticalAlign="bottom" align="center" />
-                    <Bar dataKey="successful" name="Successful" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="failed" name="Failed" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="successful" name="Successful" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} {...animation} />
+                    <Bar dataKey="failed" name="Failed" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} {...animation} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -174,6 +177,7 @@ export default function AccountActivityChart() {
                       outerRadius={isMobile ? 60 : 80}
                       label={isMobile ? false : ({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                       labelLine={!isMobile}
+                      {...animation}
                       onClick={(entry) => setSelected({ type: 'operation', label: entry.name, value: `${entry.value} operations` })}
                     >
                       {opsByType.map((entry) => (

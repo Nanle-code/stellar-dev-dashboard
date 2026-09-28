@@ -1,112 +1,101 @@
-import * as StellarSdk from "@stellar/stellar-sdk";
-import { getServer, NETWORKS, isValidPublicKey } from "./stellar";
-import { measureAsync, recordCustomMetric } from "./performanceMonitoring";
-import { validateMemo } from "./validation";
+import * as StellarSdk from '@stellar/stellar-sdk';
+import { getServer, NETWORKS, isValidPublicKey } from './stellar';
+import { measureAsync, recordCustomMetric } from './performanceMonitoring';
+import { validateMemo } from './validation';
+import { computeRiskSummary } from './riskSummary';
 
-export const MEMO_TYPES = ["none", "text", "id", "hash", "return"];
+export const MEMO_TYPES = ['none', 'text', 'id', 'hash', 'return'];
 
 export const OPERATION_TYPES = [
-  { value: "payment", label: "Payment" },
-  { value: "createAccount", label: "Create Account" },
-  { value: "changeTrust", label: "Change Trust" },
-  { value: "manageSellOffer", label: "Manage Sell Offer" },
-  { value: "manageBuyOffer", label: "Manage Buy Offer" },
-  { value: "setOptions", label: "Set Options" },
-  { value: "accountMerge", label: "Account Merge" },
-  { value: "manageData", label: "Manage Data" },
+  { value: 'payment', label: 'Payment' },
+  { value: 'createAccount', label: 'Create Account' },
+  { value: 'changeTrust', label: 'Change Trust' },
+  { value: 'manageSellOffer', label: 'Manage Sell Offer' },
+  { value: 'manageBuyOffer', label: 'Manage Buy Offer' },
+  { value: 'setOptions', label: 'Set Options' },
+  { value: 'accountMerge', label: 'Account Merge' },
+  { value: 'manageData', label: 'Manage Data' },
   // Extended operation types (#111)
-  { value: "pathPaymentStrictSend", label: "Path Payment (Strict Send)" },
-  { value: "pathPaymentStrictReceive", label: "Path Payment (Strict Receive)" },
-  { value: "claimClaimableBalance", label: "Claim Claimable Balance" },
-  { value: "createClaimableBalance", label: "Create Claimable Balance" },
-  { value: "bumpSequence", label: "Bump Sequence" },
-  { value: "revokeSponsorship", label: "Revoke Sponsorship" },
-  { value: "beginSponsoringFutureReserves", label: "Begin Sponsoring Future Reserves" },
-  { value: "endSponsoringFutureReserves", label: "End Sponsoring Future Reserves" },
+  { value: 'pathPaymentStrictSend', label: 'Path Payment (Strict Send)' },
+  { value: 'pathPaymentStrictReceive', label: 'Path Payment (Strict Receive)' },
+  { value: 'claimClaimableBalance', label: 'Claim Claimable Balance' },
+  { value: 'createClaimableBalance', label: 'Create Claimable Balance' },
+  { value: 'bumpSequence', label: 'Bump Sequence' },
+  { value: 'revokeSponsorship', label: 'Revoke Sponsorship' },
+  { value: 'beginSponsoringFutureReserves', label: 'Begin Sponsoring Future Reserves' },
+  { value: 'endSponsoringFutureReserves', label: 'End Sponsoring Future Reserves' },
   // Fee-bump, sponsorship, and clawback operations (#196)
-  { value: "feeBump", label: "Fee-Bump Transaction" },
-  { value: "clawback", label: "Clawback" },
+  { value: 'feeBump', label: 'Fee-Bump Transaction' },
+  { value: 'clawback', label: 'Clawback' },
   // Contract invocation
-  { value: "invokeHostFunction", label: "Invoke Host Function (Contract Call)" },
+  { value: 'invokeHostFunction', label: 'Invoke Host Function (Contract Call)' },
 ];
 
 export function createOperation(type, params) {
   switch (type) {
-    case "payment":
+    case 'payment':
       return StellarSdk.Operation.payment({
         destination: params.destination,
         asset:
-          params.assetType === "native"
+          params.assetType === 'native'
             ? StellarSdk.Asset.native()
             : new StellarSdk.Asset(params.assetCode, params.assetIssuer),
         amount: params.amount,
       });
 
-    case "createAccount":
+    case 'createAccount':
       return StellarSdk.Operation.createAccount({
         destination: params.destination,
         startingBalance: params.startingBalance,
       });
 
-    case "changeTrust":
+    case 'changeTrust':
       return StellarSdk.Operation.changeTrust({
         asset: new StellarSdk.Asset(params.assetCode, params.assetIssuer),
         limit: params.limit || undefined,
       });
 
-    case "manageSellOffer":
+    case 'manageSellOffer':
       return StellarSdk.Operation.manageSellOffer({
         selling:
-          params.sellingAssetType === "native"
+          params.sellingAssetType === 'native'
             ? StellarSdk.Asset.native()
-            : new StellarSdk.Asset(
-                params.sellingAssetCode,
-                params.sellingAssetIssuer,
-              ),
+            : new StellarSdk.Asset(params.sellingAssetCode, params.sellingAssetIssuer),
         buying:
-          params.buyingAssetType === "native"
+          params.buyingAssetType === 'native'
             ? StellarSdk.Asset.native()
-            : new StellarSdk.Asset(
-                params.buyingAssetCode,
-                params.buyingAssetIssuer,
-              ),
+            : new StellarSdk.Asset(params.buyingAssetCode, params.buyingAssetIssuer),
         amount: params.amount,
         price: params.price,
       });
 
-    case "manageBuyOffer":
+    case 'manageBuyOffer':
       return StellarSdk.Operation.manageBuyOffer({
         selling:
-          params.sellingAssetType === "native"
+          params.sellingAssetType === 'native'
             ? StellarSdk.Asset.native()
-            : new StellarSdk.Asset(
-                params.sellingAssetCode,
-                params.sellingAssetIssuer,
-              ),
+            : new StellarSdk.Asset(params.sellingAssetCode, params.sellingAssetIssuer),
         buying:
-          params.buyingAssetType === "native"
+          params.buyingAssetType === 'native'
             ? StellarSdk.Asset.native()
-            : new StellarSdk.Asset(
-                params.buyingAssetCode,
-                params.buyingAssetIssuer,
-              ),
+            : new StellarSdk.Asset(params.buyingAssetCode, params.buyingAssetIssuer),
         buyAmount: params.buyAmount,
         price: params.price,
       });
 
-    case "setOptions":
+    case 'setOptions':
       const options = {};
       if (params.homeDomain) options.homeDomain = params.homeDomain;
       if (params.setFlags) options.setFlags = parseInt(params.setFlags);
       if (params.clearFlags) options.clearFlags = parseInt(params.clearFlags);
       return StellarSdk.Operation.setOptions(options);
 
-    case "accountMerge":
+    case 'accountMerge':
       return StellarSdk.Operation.accountMerge({
         destination: params.destination,
       });
 
-    case "manageData":
+    case 'manageData':
       return StellarSdk.Operation.manageData({
         name: params.name,
         value: params.value || null,
@@ -114,54 +103,50 @@ export function createOperation(type, params) {
 
     // ── Extended operations (#111) ──────────────────────────────────────────
 
-    case "pathPaymentStrictSend":
+    case 'pathPaymentStrictSend':
       return StellarSdk.Operation.pathPaymentStrictSend({
         sendAsset:
-          params.sendAssetType === "native"
+          params.sendAssetType === 'native'
             ? StellarSdk.Asset.native()
             : new StellarSdk.Asset(params.sendAssetCode, params.sendAssetIssuer),
         sendAmount: params.sendAmount,
         destination: params.destination,
         destAsset:
-          params.destAssetType === "native"
+          params.destAssetType === 'native'
             ? StellarSdk.Asset.native()
             : new StellarSdk.Asset(params.destAssetCode, params.destAssetIssuer),
         destMin: params.destMin,
-        path: (params.path || []).map(
-          (a) => new StellarSdk.Asset(a.assetCode, a.assetIssuer),
-        ),
+        path: (params.path || []).map((a) => new StellarSdk.Asset(a.assetCode, a.assetIssuer)),
       });
 
-    case "pathPaymentStrictReceive":
+    case 'pathPaymentStrictReceive':
       return StellarSdk.Operation.pathPaymentStrictReceive({
         sendAsset:
-          params.sendAssetType === "native"
+          params.sendAssetType === 'native'
             ? StellarSdk.Asset.native()
             : new StellarSdk.Asset(params.sendAssetCode, params.sendAssetIssuer),
         sendMax: params.sendMax,
         destination: params.destination,
         destAsset:
-          params.destAssetType === "native"
+          params.destAssetType === 'native'
             ? StellarSdk.Asset.native()
             : new StellarSdk.Asset(params.destAssetCode, params.destAssetIssuer),
         destAmount: params.destAmount,
-        path: (params.path || []).map(
-          (a) => new StellarSdk.Asset(a.assetCode, a.assetIssuer),
-        ),
+        path: (params.path || []).map((a) => new StellarSdk.Asset(a.assetCode, a.assetIssuer)),
       });
 
-    case "claimClaimableBalance":
+    case 'claimClaimableBalance':
       return StellarSdk.Operation.claimClaimableBalance({
         balanceId: params.balanceId,
       });
 
-    case "createClaimableBalance": {
+    case 'createClaimableBalance': {
       const claimants = (params.claimants || []).map(
-        (c) => new StellarSdk.Claimant(c.destination, c.predicate),
+        (c) => new StellarSdk.Claimant(c.destination, c.predicate)
       );
       return StellarSdk.Operation.createClaimableBalance({
         asset:
-          params.assetType === "native"
+          params.assetType === 'native'
             ? StellarSdk.Asset.native()
             : new StellarSdk.Asset(params.assetCode, params.assetIssuer),
         amount: params.amount,
@@ -169,17 +154,17 @@ export function createOperation(type, params) {
       });
     }
 
-    case "bumpSequence":
+    case 'bumpSequence':
       return StellarSdk.Operation.bumpSequence({
         bumpTo: params.bumpTo,
       });
 
-    case "revokeSponsorship":
+    case 'revokeSponsorship':
       return StellarSdk.Operation.revokeAccountSponsorship({
         account: params.account,
       });
 
-    case "beginSponsoringFutureReserves": {
+    case 'beginSponsoringFutureReserves': {
       const op = StellarSdk.Operation.beginSponsoringFutureReserves({
         sponsoredId: params.sponsoredId,
       });
@@ -187,13 +172,13 @@ export function createOperation(type, params) {
       return op;
     }
 
-    case "endSponsoringFutureReserves": {
+    case 'endSponsoringFutureReserves': {
       const op = StellarSdk.Operation.endSponsoringFutureReserves({});
       op.type = op._attributes.body._switch;
       return op;
     }
 
-    case "clawback": {
+    case 'clawback': {
       if (parseFloat(params.amount) <= 0) {
         throw new Error('Clawback amount must be positive');
       }
@@ -206,18 +191,18 @@ export function createOperation(type, params) {
       return op;
     }
 
-    case "invokeHostFunction": {
+    case 'invokeHostFunction': {
       const contract = new StellarSdk.Contract(params.contractId);
-      const args = (params.args || []).map(arg => {
+      const args = (params.args || []).map((arg) => {
         switch (arg.type) {
-          case "string":
-            return StellarSdk.nativeToScVal(arg.value, { type: "string" });
-          case "int":
-            return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i128" });
-          case "address":
+          case 'string':
+            return StellarSdk.nativeToScVal(arg.value, { type: 'string' });
+          case 'int':
+            return StellarSdk.nativeToScVal(BigInt(arg.value), { type: 'i128' });
+          case 'address':
             return StellarSdk.Address.fromString(arg.value).toScVal();
-          case "bool":
-            return StellarSdk.nativeToScVal(arg.value === "true", { type: "bool" });
+          case 'bool':
+            return StellarSdk.nativeToScVal(arg.value === 'true', { type: 'bool' });
           default:
             throw new Error(`Unsupported argument type: ${arg.type}`);
         }
@@ -234,19 +219,19 @@ export async function buildTransaction({
   sourceAccount,
   operations,
   memo,
-  memoType = "text",
+  memoType = 'text',
   baseFee = 100,
   timeout = 180,
   timeBounds,
   preconditions,
-  network = "testnet",
+  network = 'testnet',
 }) {
   if (!operations || operations.length === 0) {
-    throw new Error("At least one operation is required");
+    throw new Error('At least one operation is required');
   }
 
-  const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
-  const containsFeeBump = operations.some((op) => op.type === "feeBump");
+  const feeBumpOnly = operations.length === 1 && operations[0].type === 'feeBump';
+  const containsFeeBump = operations.some((op) => op.type === 'feeBump');
 
   if (feeBumpOnly) {
     const op = operations[0];
@@ -259,11 +244,11 @@ export async function buildTransaction({
   }
 
   if (containsFeeBump) {
-    throw new Error("feeBump can only be used as a standalone transaction.");
+    throw new Error('feeBump can only be used as a standalone transaction.');
   }
 
   if (!isValidPublicKey(sourceAccount)) {
-    throw new Error("Invalid source account");
+    throw new Error('Invalid source account');
   }
 
   const server = getServer(network);
@@ -301,8 +286,13 @@ export async function buildTransaction({
       txBuilder.setMinAccountSequenceAge(parseInt(String(preconditions.minSequenceAge), 10));
     }
 
-    if (preconditions.minSequenceLedgerGap !== undefined && preconditions.minSequenceLedgerGap !== '') {
-      txBuilder.setMinAccountSequenceLedgerGap(parseInt(String(preconditions.minSequenceLedgerGap), 10));
+    if (
+      preconditions.minSequenceLedgerGap !== undefined &&
+      preconditions.minSequenceLedgerGap !== ''
+    ) {
+      txBuilder.setMinAccountSequenceLedgerGap(
+        parseInt(String(preconditions.minSequenceLedgerGap), 10)
+      );
     }
 
     if (preconditions.extraSigners && preconditions.extraSigners.length > 0) {
@@ -328,16 +318,16 @@ export async function buildTransaction({
     }
 
     switch (memoType) {
-      case "text":
+      case 'text':
         txBuilder.addMemo(StellarSdk.Memo.text(memo));
         break;
-      case "id":
+      case 'id':
         txBuilder.addMemo(StellarSdk.Memo.id(memo));
         break;
-      case "hash":
+      case 'hash':
         txBuilder.addMemo(StellarSdk.Memo.hash(memo));
         break;
-      case "return":
+      case 'return':
         txBuilder.addMemo(StellarSdk.Memo.return(memo));
         break;
     }
@@ -350,37 +340,36 @@ export async function simulateTransaction(params) {
   try {
     const transaction = await buildTransaction(params);
     const errors = [];
-    const feeBumpOnly = params.operations.length === 1 && params.operations[0].type === "feeBump";
+    const feeBumpOnly = params.operations.length === 1 && params.operations[0].type === 'feeBump';
 
     if (!feeBumpOnly) {
       // Validate non-fee-bump transaction operations
       params.operations.forEach((op, index) => {
-        if (op.type === "payment") {
+        if (op.type === 'payment') {
           if (!isValidPublicKey(op.params.destination)) {
             errors.push(`Operation ${index + 1}: Invalid destination`);
           }
           if (!op.params.amount || parseFloat(op.params.amount) <= 0) {
             errors.push(`Operation ${index + 1}: Invalid amount`);
           }
-        } else if (op.type === "createAccount") {
+        } else if (op.type === 'createAccount') {
           if (!isValidPublicKey(op.params.destination)) {
             errors.push(`Operation ${index + 1}: Invalid destination`);
           }
-          if (
-            !op.params.startingBalance ||
-            parseFloat(op.params.startingBalance) < 1
-          ) {
+          if (!op.params.startingBalance || parseFloat(op.params.startingBalance) < 1) {
+            errors.push(`Operation ${index + 1}: Starting balance must be at least 1 XLM`);
+          }
+        } else if (op.type === 'pathPaymentStrictSend') {
+          if (!op.params.destMin || parseFloat(op.params.destMin) <= 0) {
             errors.push(
-              `Operation ${index + 1}: Starting balance must be at least 1 XLM`,
+              `Operation ${index + 1}: destMin (minimum receive) must be a positive number to enforce slippage protection`
             );
           }
-        } else if (op.type === "pathPaymentStrictSend") {
-          if (!op.params.destMin || parseFloat(op.params.destMin) <= 0) {
-            errors.push(`Operation ${index + 1}: destMin (minimum receive) must be a positive number to enforce slippage protection`);
-          }
-        } else if (op.type === "pathPaymentStrictReceive") {
+        } else if (op.type === 'pathPaymentStrictReceive') {
           if (!op.params.sendMax || parseFloat(op.params.sendMax) <= 0) {
-            errors.push(`Operation ${index + 1}: sendMax (maximum send) must be a positive number to enforce slippage protection`);
+            errors.push(
+              `Operation ${index + 1}: sendMax (maximum send) must be a positive number to enforce slippage protection`
+            );
           }
         }
       });
@@ -397,7 +386,7 @@ export async function simulateTransaction(params) {
       fee,
       operationCount,
       xdr: transaction.toXDR(),
-      hash: transaction.hash().toString("hex"),
+      hash: transaction.hash().toString('hex'),
     };
   } catch (error) {
     return {
@@ -419,32 +408,27 @@ export async function simulateTransaction(params) {
  * @returns {FeeBumpTransaction} The fee-bump transaction envelope
  * @throws {Error} If feeSource is invalid, baseFee is not positive, or innerTransaction XDR is invalid
  */
-export function feeBump({
-  feeSource,
-  baseFee,
-  innerTransaction,
-  network = "testnet",
-}) {
+export function feeBump({ feeSource, baseFee, innerTransaction, network = 'testnet' }) {
   if (!isValidPublicKey(feeSource)) {
-    throw new Error("Invalid fee source account (must be a valid public key)");
+    throw new Error('Invalid fee source account (must be a valid public key)');
   }
 
   const fee = parseInt(baseFee, 10);
   if (!Number.isFinite(fee) || fee <= 0) {
-    throw new Error("Base fee must be a positive integer");
+    throw new Error('Base fee must be a positive integer');
   }
 
-  if (!innerTransaction || typeof innerTransaction !== "string" || innerTransaction.trim() === "") {
-    throw new Error("Inner transaction XDR is required and must be a non-empty string");
+  if (!innerTransaction || typeof innerTransaction !== 'string' || innerTransaction.trim() === '') {
+    throw new Error('Inner transaction XDR is required and must be a non-empty string');
   }
 
   try {
-    const innerTx = new StellarSdk.Transaction(innerTransaction, NETWORKS[network].passphrase)
+    const innerTx = new StellarSdk.Transaction(innerTransaction, NETWORKS[network].passphrase);
     const wrappedTx = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
       feeSource,
       fee.toString(),
       innerTx,
-      NETWORKS[network].passphrase,
+      NETWORKS[network].passphrase
     );
     return wrappedTx;
   } catch (error) {
@@ -452,29 +436,77 @@ export function feeBump({
   }
 }
 
+/**
+ * Sign and submit a transaction with a local secret key.
+ *
+ * #982 — before signing, the transaction is summarised by the ruleset in
+ * `src/lib/riskRules.js`. If anything is flagged the caller must present that
+ * summary to the user and obtain explicit acknowledgement; signing is refused
+ * otherwise. This function cannot render UI, so acknowledgement is delegated to
+ * `options.onReview`, which receives the `RiskSummary` and must resolve to
+ * `true` to allow signing to continue.
+ *
+ * @param {object} transaction
+ * @param {string} secretKey
+ * @param {string} [network]
+ * @param {object} [options]
+ * @param {Function} [options.onReview] — async; receives the RiskSummary
+ * @param {string[]} [options.knownContracts] — allowlisted Soroban contracts
+ * @param {object}  [options.account] — source account snapshot
+ */
 export async function signAndSubmitTransaction(
   transaction,
   secretKey,
-  network = "testnet",
+  network = 'testnet',
+  options: {
+    onReview?: (summary: unknown) => Promise<boolean> | boolean;
+    knownContracts?: string[];
+    account?: unknown;
+  } = {}
 ) {
   if (!StellarSdk.StrKey.isValidEd25519SecretSeed(secretKey)) {
-    throw new Error("Invalid secret key");
+    throw new Error('Invalid secret key');
+  }
+
+  const { onReview, knownContracts = [], account = null } = options;
+
+  // #982 — pre-sign risk review. Fail closed: if we cannot compute a summary
+  // we still must not sign blindly.
+  const summary = computeRiskSummary(transaction, {
+    network,
+    account,
+    sourceAccount: transaction?.source ?? transaction?.innerTransaction?.source ?? null,
+    knownContracts,
+  });
+
+  if (summary.requiresAcknowledgement) {
+    if (typeof onReview !== 'function') {
+      throw new Error(
+        'This transaction contains high-risk operations that must be acknowledged before signing.'
+      );
+    }
+    const approved = await onReview(summary);
+    if (!approved) {
+      throw new Error('Signing cancelled: high-risk operations were not acknowledged.');
+    }
+  } else if (typeof onReview === 'function') {
+    await onReview(summary);
   }
 
   const keypair = StellarSdk.Keypair.fromSecret(secretKey);
   const signingStart = performance.now();
   transaction.sign(keypair);
-  recordCustomMetric("TRANSACTION_SIGNING_DURATION", performance.now() - signingStart, {
+  recordCustomMetric('TRANSACTION_SIGNING_DURATION', performance.now() - signingStart, {
     network,
     operationCount: transaction.operations?.length || 0,
-    signer: "local-keypair",
+    signer: 'local-keypair',
   });
 
   const server = getServer(network);
   const response = await measureAsync(
-    "TRANSACTION_SUBMIT_DURATION",
+    'TRANSACTION_SUBMIT_DURATION',
     () => server.submitTransaction(transaction),
-    { network, operationCount: transaction.operations?.length || 0 },
+    { network, operationCount: transaction.operations?.length || 0 }
   );
 
   return {

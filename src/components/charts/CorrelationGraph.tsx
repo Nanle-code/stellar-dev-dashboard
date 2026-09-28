@@ -1,9 +1,11 @@
 import React, { useRef, useState, useEffect } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useCorrelation } from "../../hooks/useCorrelation";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 
 export default function CorrelationGraph() {
   const { data, loading, error } = useCorrelation();
+  const reducedMotion = useReducedMotion();
   const graphRef = useRef<any>();
   const [selectedLink, setSelectedLink] = useState<any>(null);
 
@@ -66,7 +68,10 @@ export default function CorrelationGraph() {
             linkWidth={(link) => Math.abs(link.value) * 5}
             onLinkClick={(link) => setSelectedLink(link)}
             enableNodeDrag={true}
-            enableZoomPanInteraction={true}
+            enableZoomInteraction={!reducedMotion}
+            cooldownTicks={reducedMotion ? 0 : undefined}
+            d3AlphaDecay={reducedMotion ? 1 : undefined}
+            d3VelocityDecay={reducedMotion ? 1 : undefined}
           />
         </div>
 

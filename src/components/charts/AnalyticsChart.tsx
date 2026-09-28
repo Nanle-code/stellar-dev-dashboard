@@ -11,6 +11,8 @@ import {
   Bar,
 } from "recharts";
 import AccessibleChart from "./AccessibleChart";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
+import { getAnimationProps } from "../../utils/reducedMotion";
 
 function ChartShell({ title, children }) {
   return (
@@ -37,6 +39,7 @@ function ChartShell({ title, children }) {
 }
 
 export function ActivityTrendChart({ data = [] }) {
+  const animation = getAnimationProps(useReducedMotion());
   return (
     <ChartShell title="14-Day Activity">
       <AccessibleChart
@@ -54,7 +57,7 @@ export function ActivityTrendChart({ data = [] }) {
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--text-muted)" }} />
             <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} />
             <Tooltip />
-            <Line dataKey="transactions" stroke="var(--cyan)" strokeWidth={2} dot={false} />
+            <Line dataKey="transactions" stroke="var(--cyan)" strokeWidth={2} dot={false} {...animation} />
           </LineChart>
         </ResponsiveContainer>
       </AccessibleChart>
@@ -63,6 +66,7 @@ export function ActivityTrendChart({ data = [] }) {
 }
 
 export function LatencyTrendChart({ data = [] }) {
+  const animation = getAnimationProps(useReducedMotion());
   return (
     <ChartShell title="Latency (Last 24h)">
       <AccessibleChart
@@ -89,7 +93,7 @@ export function LatencyTrendChart({ data = [] }) {
               unit="ms"
             />
             <Tooltip formatter={(value) => [`${value} ms`, 'Latency']} />
-            <Line dataKey="latency" stroke="var(--cyan)" strokeWidth={2} dot={false} />
+            <Line dataKey="latency" stroke="var(--cyan)" strokeWidth={2} dot={false} {...animation} />
           </LineChart>
         </ResponsiveContainer>
       </AccessibleChart>
@@ -98,6 +102,7 @@ export function LatencyTrendChart({ data = [] }) {
 }
 
 export function FeeTrendChart({ data = [] }) {
+  const animation = getAnimationProps(useReducedMotion());
   return (
     <ChartShell title="Fees (Stroops)">
       <AccessibleChart
@@ -115,7 +120,7 @@ export function FeeTrendChart({ data = [] }) {
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--text-muted)" }} />
             <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} />
             <Tooltip />
-            <Bar dataKey="fees" fill="var(--amber)" />
+            <Bar dataKey="fees" fill="var(--amber)" {...animation} />
           </BarChart>
         </ResponsiveContainer>
       </AccessibleChart>

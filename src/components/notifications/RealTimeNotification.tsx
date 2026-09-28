@@ -1,23 +1,21 @@
-import React, { useEffect, useState } from 'react'
-
-const LEVEL_STYLES = {
-  info: { color: 'var(--cyan, #06b6d4)', accent: 'rgba(6, 182, 212, 0.5)', bg: 'rgba(6, 182, 212, 0.08)' },
-  success: { color: 'var(--success, #22c55e)', accent: 'rgba(34, 197, 94, 0.5)', bg: 'rgba(34, 197, 94, 0.08)' },
-  warning: { color: 'var(--warning, #f59e0b)', accent: 'rgba(245, 158, 11, 0.5)', bg: 'rgba(245, 158, 11, 0.08)' },
-  error: { color: 'var(--error, #ef4444)', accent: 'rgba(239, 68, 68, 0.5)', bg: 'rgba(239, 68, 68, 0.08)' },
-}
+import React, { useEffect, useState } from 'react';
+import {
+  normalizeSeverity,
+  resolveAccessibilityConfig,
+  resolveDismissDuration,
+  SEVERITY_TAXONOMY,
+} from '../../lib/notificationTaxonomy';
 
 function timeAgo(ts) {
-  const diff = Date.now() - ts
-  if (diff < 60_000) return `${Math.max(1, Math.round(diff / 1000))}s ago`
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`
-  return `${Math.round(diff / 3_600_000)}h ago`
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return `${Math.max(1, Math.round(diff / 1000))}s ago`;
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
+  return `${Math.round(diff / 3_600_000)}h ago`;
 }
 
 /**
  * Single toast-style notification used by the floating overlay or inline lists.
- * Auto-dismisses after `autoDismissMs` if provided, otherwise stays until the
- * user clicks ✕.
+ * Auto-dismisses according to centralized severity rules or custom override.
  */
 export default function RealTimeNotification({
   notification,
@@ -25,23 +23,31 @@ export default function RealTimeNotification({
   autoDismissMs,
   compact = false,
 }) {
-  const [visible, setVisible] = useState(true)
+  const [visible, setVisible] = useState(true);
+  const severity = normalizeSeverity(notification.level || notification.severity);
+  const style = SEVERITY_TAXONOMY[severity] || SEVERITY_TAXONOMY.info;
+  const a11y = resolveAccessibilityConfig(severity);
+  const effectiveDismissDuration = resolveDismissDuration(
+    severity,
+    autoDismissMs ?? notification.autoDismissMs ?? notification.timeout
+  );
 
   useEffect(() => {
-    if (!autoDismissMs) return undefined
+    if (effectiveDismissDuration <= 0) return undefined;
     const timer = setTimeout(() => {
-      setVisible(false)
-      onDismiss?.(notification.id)
-    }, autoDismissMs)
-    return () => clearTimeout(timer)
-  }, [autoDismissMs, notification.id, onDismiss])
+      setVisible(false);
+      onDismiss?.(notification.id);
+    }, effectiveDismissDuration);
+    return () => clearTimeout(timer);
+  }, [effectiveDismissDuration, notification.id, onDismiss]);
 
-  if (!visible) return null
-  const style = LEVEL_STYLES[notification.level] ?? LEVEL_STYLES.info
+  if (!visible) return null;
 
   return (
     <div
-      role="status"
+      role={a11y.role}
+      aria-live={a11y['aria-live']}
+      aria-atomic={a11y['aria-atomic']}
       style={{
         background: 'var(--bg-card)',
         border: `1px solid ${style.accent}`,
@@ -76,15 +82,32 @@ export default function RealTimeNotification({
             alignItems: 'baseline',
           }}
         >
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 600,
-              fontSize: compact ? '12px' : '13px',
-              color: 'var(--text-primary)',
-            }}
-          >
-            {notification.title}
+          <div className="flex items-center gap-2">
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                fontSize: compact ? '12px' : '13px',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {notification.title}
+            </span>
+            {severity === 'critical' && (
+              <span
+                style={{
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  padding: '1px 5px',
+                  borderRadius: '3px',
+                  background: 'rgba(168, 85, 247, 0.2)',
+                  color: 'var(--purple, #a855f7)',
+                }}
+              >
+                Critical
+              </span>
+            )}
           </div>
           <div
             style={{
@@ -112,8 +135,8 @@ export default function RealTimeNotification({
         <button
           type="button"
           onClick={() => {
-            setVisible(false)
-            onDismiss(notification.id)
+            setVisible(false);
+            onDismiss(notification.id);
           }}
           aria-label="Dismiss notification"
           style={{
@@ -130,5 +153,5 @@ export default function RealTimeNotification({
         </button>
       )}
     </div>
-  )
+  );
 }

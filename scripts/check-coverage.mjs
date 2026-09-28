@@ -6,9 +6,9 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { coverageThresholds } from '../vitest.config.js';
 
 const SUMMARY_PATH = join(process.cwd(), 'coverage', 'coverage-summary.json');
-const THRESHOLDS_PATH = join(process.cwd(), 'testing', 'coverage-thresholds.json');
 
 function loadJson(path) {
   if (!existsSync(path)) {
@@ -19,7 +19,7 @@ function loadJson(path) {
 }
 
 const summary = loadJson(SUMMARY_PATH);
-const thresholds = loadJson(THRESHOLDS_PATH);
+const thresholds = coverageThresholds;
 const total = summary.total;
 
 if (!total) {

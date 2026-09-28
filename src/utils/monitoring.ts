@@ -25,6 +25,7 @@ import {
 import { initPerformanceMonitoring } from '../lib/performance';
 import { createLogger } from './logger';
 import { loadPreferences } from './preferences';
+import { setProviderPolicy, type ProviderFailurePolicy } from './providerCircuitBreaker';
 
 const logger = createLogger('Monitoring');
 
@@ -43,6 +44,13 @@ export interface MonitoringConfig {
   replaySampleRate: number;
   /** Optional RUM endpoint for the existing performance pipeline. */
   rumEndpoint?: string;
+  /**
+   * Circuit-breaker failure policy per external provider.
+   * Keys are provider names (e.g. `analytics`, `rum`, `errorReporting`,
+   * `sentry`); values are `fail-open` (drop, keep the app running) or
+   * `fail-closed` (propagate so the caller can retry).
+   */
+  providerPolicies?: Record<string, ProviderFailurePolicy>;
 }
 
 const defaultConfig: MonitoringConfig = {
@@ -244,6 +252,13 @@ export function initMonitoring(userConfig: Partial<MonitoringConfig> = {}): void
 
   const cfg: MonitoringConfig = { ...defaultConfig, ...userConfig };
 
+  // 0. Circuit-breaker failure policies for external providers
+  if (cfg.providerPolicies) {
+    Object.entries(cfg.providerPolicies).forEach(([provider, policy]) => {
+      setProviderPolicy(provider, policy);
+    });
+  }
+
   // 1. Sentry SDK
   initialiseSentry(cfg);
 
@@ -413,3 +428,8 @@ export default {
   SentryErrorBoundary,
   revokeSentryConsent,
 };
+
+// ─── External provider circuit-breaker API ───────────────────────────────────
+// Re-exported here so `src/utils/monitoring.ts` remains the single entry point
+// for external analytics / monitoring provider protection. See Issue #828.
+export * from './providerCircuitBreaker';

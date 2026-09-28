@@ -1,6 +1,8 @@
 // Lightweight client-side performance monitoring and profiling
 // Tracks page load metrics, Core Web Vitals (LCP, CLS, FID) and enforces simple performance budgets.
 
+import { guardProviderSend } from '../utils/providerCircuitBreaker';
+
 type PerfConfig = {
   rumEndpoint?: string; // optional endpoint to send RUM events
   budget?: {
@@ -27,14 +29,29 @@ function sendEvent(endpoint: string | undefined, payload: any) {
     return;
   }
 
-  try {
-    navigator.sendBeacon
-      ? navigator.sendBeacon(endpoint, JSON.stringify(payload))
-      : void fetch(endpoint, { method: 'POST', body: JSON.stringify(payload), keepalive: true });
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('RUM send failed', e);
-  }
+  // Fire-and-forget: telemetry must never block or throw into the caller.
+  // The circuit breaker drops samples while the RUM provider is unavailable.
+  void guardProviderSend(
+    'rum',
+    async () => {
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const accepted = navigator.sendBeacon(endpoint, JSON.stringify(payload));
+        if (accepted === false) {
+          throw new Error('RUM sendBeacon rejected payload');
+        }
+        return;
+      }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+      if (!response.ok) {
+        throw new Error(`RUM endpoint responded ${response.status}`);
+      }
+    },
+    { failureThreshold: 3, successThreshold: 1, timeout: 30000 },
+  );
 }
 
 export function initPerformanceMonitoring(userConfig: PerfConfig = {}) {

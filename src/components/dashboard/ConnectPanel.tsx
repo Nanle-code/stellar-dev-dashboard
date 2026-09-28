@@ -15,6 +15,7 @@ import { getOnlineStatus } from '../../utils/offline'
 import { useResponsive } from '../../hooks/useResponsive'
 import { ResponsiveGrid } from '../layout/ResponsiveContainer'
 import { DEMO_MODE_LABEL, getDemoFixtureSummarySafe } from '../../lib/demoMode'
+import Sep10AuthCard from './Sep10AuthCard'
 
 interface FeatureTile {
   icon: string
@@ -472,6 +473,8 @@ export default function ConnectPanel() {
           </div>
         )}
       </div>
+
+      <Sep10AuthCard initialClientAddress={input} />
 
       <ResponsiveGrid
         columns={{ mobile: 1, tablet: 3, desktop: 3 }}

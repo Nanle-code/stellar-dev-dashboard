@@ -107,6 +107,14 @@ let _swRegistration = null;
 let _swUpdateCallbacks = [];
 let _swUpdateAvailable = false;
 
+// #886 — Deferred activation during critical signing flows.
+// While a signing operation is active we must not activate a waiting service
+// worker (and must not reload when it takes control), because both can unload
+// the JS context mid-signature.
+let _criticalFlowActive = false;      // a critical signing flow is running
+let _deferredActivationPending = false; // SKIP_WAITING was requested during a flow
+let _pendingControllerReload = false;   // controllerchange fired during a flow
+
 /**
  * Initialise the controlled service-worker update prompt.
  *
@@ -145,10 +153,18 @@ export function initSWUpdatePrompt(registration) {
   // Reload the page once the new SW takes control, so all assets come from
   // the new version. Use a guard to avoid loops if the reload triggers a
   // controllerchange on the new page.
+  // #886 — While a critical signing flow is active, do NOT reload: a reload
+  // mid-signature can drop the in-flight signature. The transition is
+  // reconciled (single reload) when setCriticalSigningActive(false) ends the
+  // flow, or deferred to the next page load by the browser itself.
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (refreshing || (typeof navigator !== 'undefined' && navigator.webdriver)) return;
     refreshing = true;
+    if (_criticalFlowActive) {
+      _pendingControllerReload = true;
+      return;
+    }
     window.location.reload();
   });
 }
@@ -173,9 +189,33 @@ export function subscribeToSWUpdates(callback) {
  * Does nothing if no update is available.
  */
 export async function applySWUpdate() {
-  if (!_swRegistration || !_swRegistration.waiting) return;
+  if (!_swRegistration || !_swRegistration.waiting) return null;
 
-  _swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  // #886 — Defer activation while a critical signing flow is active.
+  // The waiting worker stays installed; activation happens automatically
+  // once setCriticalSigningActive(false) ends the protected flow.
+  if (_criticalFlowActive) {
+    _deferredActivationPending = true;
+    try {
+      _swRegistration.waiting.postMessage({ type: 'DEFER_ACTIVATION' });
+    } catch (err) {
+      // Message failure must not break the signing flow — the client-side
+      // guard below still defers the reload on controllerchange.
+      logger.warn('Failed to send DEFER_ACTIVATION to waiting worker:', err);
+    }
+    return 'deferred';
+  }
+
+  try {
+    // RESUME_ACTIVATION clears any SW-side deferral (e.g. from another tab)
+    // and activates the waiting worker. SKIP_WAITING is the legacy fallback
+    // for SW versions that predate the #886 protocol.
+    _swRegistration.waiting.postMessage({ type: 'RESUME_ACTIVATION' });
+  } catch (err) {
+    logger.warn('Failed to send RESUME_ACTIVATION to waiting worker:', err);
+    return null;
+  }
+  return 'activated';
 }
 
 /**
@@ -185,6 +225,47 @@ export async function applySWUpdate() {
  */
 export function isSWUpdateAvailable() {
   return _swUpdateAvailable;
+}
+
+/**
+ * Mark the beginning/end of a critical signing flow (#886).
+ *
+ * While active:
+ *  - applySWUpdate() defers instead of activating the waiting worker
+ *  - controllerchange does not reload the page mid-signature
+ *
+ * When the flow ends:
+ *  - a deferred activation is applied immediately (SKIP_WAITING → reload)
+ *  - otherwise a controller transition that happened during signing is
+ *    reconciled with a single reload, once it is safe to do so.
+ *
+ * @param {boolean} active true when entering the flow, false when leaving
+ */
+export function setCriticalSigningActive(active) {
+  _criticalFlowActive = !!active;
+
+  if (_criticalFlowActive) return;
+
+  // Flow finished — flush any work we deferred during it.
+  if (_deferredActivationPending) {
+    _deferredActivationPending = false;
+    applySWUpdate();
+  } else if (_pendingControllerReload) {
+    _pendingControllerReload = false;
+    try { window.location.reload(); } catch (err) {
+      logger.warn('Deferred reload after signing failed:', err);
+    }
+  }
+}
+
+/**
+ * Returns whether a critical signing flow is currently protected from
+ * service-worker activation/reloads.
+ *
+ * @returns {boolean}
+ */
+export function isCriticalSigningActive() {
+  return _criticalFlowActive;
 }
 
 function notifySWUpdateAvailable() {

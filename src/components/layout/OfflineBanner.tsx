@@ -4,14 +4,29 @@
  * Displays:
  *  - "You're offline" notice with cached-data reassurance
  *  - Count of queued write operations waiting to replay
+ *  - What the current view can still do offline (docs/guides/offline-support.md)
  *  - Dismisses automatically when back online
  */
 
 import React, { useEffect, useState, type CSSProperties } from 'react'
 import { WifiOff, X, AlertTriangle } from 'lucide-react'
 import { subscribeToOnlineStatus, getOnlineStatus, getPendingCount } from '../../utils/offline'
+import {
+  OFFLINE_LEVEL_LABELS,
+  getOfflineCapability,
+  type OfflineCapability,
+} from '../../lib/offlineCapabilities'
 
-export default function OfflineBanner() {
+function capabilityFor(routeId: string | undefined): OfflineCapability | null {
+  if (!routeId) return null
+  try {
+    return getOfflineCapability(routeId)
+  } catch {
+    return null
+  }
+}
+
+export default function OfflineBanner({ routeId }: { routeId?: string } = {}) {
   const [offline, setOffline]       = useState<boolean>(!getOnlineStatus())
   const [queueSize, setQueueSize]   = useState<number>(0)
   const [dismissed, setDismissed]   = useState<boolean>(false)
@@ -39,6 +54,8 @@ export default function OfflineBanner() {
 
   if (!offline || dismissed) return null
 
+  const capability = capabilityFor(routeId)
+
   return (
     <div 
       role="status" 
@@ -54,6 +71,13 @@ export default function OfflineBanner() {
         <p className="text-gray-400 text-xs mt-1 leading-relaxed">
           Showing cached data. Modifications will be queued and replayed automatically when you're back online.
         </p>
+
+        {capability && (
+          <p className="text-gray-300 text-xs mt-2 leading-relaxed" data-testid="offline-view-capability">
+            <span className="font-semibold">This view: {OFFLINE_LEVEL_LABELS[capability.level]}.</span>{' '}
+            {capability.notes}
+          </p>
+        )}
         
         {queueSize > 0 && (
           <div className="flex items-center gap-2 mt-3 bg-red-500/10 border border-red-500/10 rounded-lg px-2.5 py-1.5 w-fit">
@@ -67,6 +91,7 @@ export default function OfflineBanner() {
 
       <button
         onClick={() => setDismissed(true)}
+        aria-label="Dismiss offline notice"
         className="text-gray-500 hover:text-white transition-colors p-1"
       >
         <X size={18} />

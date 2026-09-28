@@ -54,6 +54,18 @@ export interface PluginManifest {
   id: string;
   name: string;
   version: string;
+  /**
+   * The plugin API contract this plugin targets, as a semver string
+   * (e.g. `"1.0.0"`). Defaults to the dashboard's supported API version when
+   * omitted for backwards compatibility. See docs/plugins/API_VERSIONING.md.
+   */
+  apiVersion?: string;
+  /** Optional plugin-author deprecation notice for this plugin itself. */
+  deprecated?: {
+    since: string;
+    message: string;
+    removalVersion?: string;
+  };
   description?: string;
   author?: PluginAuthor | string;
   homepageUrl?: string;
@@ -65,6 +77,13 @@ export interface PluginManifest {
   widgets?: PluginWidgetDescriptor[];
   dataSources?: PluginDataSourceDescriptor[];
 }
+
+/**
+ * The currently supported plugin API contract version. Plugin manifests that
+ * target a newer major version, or a minor/patch beyond what the dashboard
+ * supports, are considered unsupported and will not activate.
+ */
+export const PLUGIN_API_VERSION = "1.0.0";
 
 export interface PluginDefinition {
   manifest: PluginManifest;
@@ -123,3 +142,24 @@ export function comparePluginVersions(a: string, b: string): number {
 
   return 0;
 }
+
+export {
+  PLUGIN_API_VERSION as SUPPORTED_PLUGIN_API_VERSION,
+  PLUGIN_API_VERSION_MAJOR,
+  PLUGIN_API_VERSION_MINOR,
+  PLUGIN_API_VERSION_PATCH,
+  parseApiVersion,
+  compareApiVersions,
+  getApiVersionCompatibility,
+  isPluginApiVersionSupported,
+  getDeprecationNoticesForVersion,
+  resolveApiVersion,
+  PLUGIN_API_DEPRECATIONS,
+} from "./pluginVersioning";
+
+export type {
+  ParsedApiVersion,
+  PluginApiDeprecation,
+  ApiVersionCompatibility,
+  ApiVersionResolution,
+} from "./pluginVersioning";

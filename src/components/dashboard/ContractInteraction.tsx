@@ -12,6 +12,7 @@ import { usePreferences } from "../../hooks/usePreferences";
 import { getContractInteractions } from "../../lib/storage";
 import { Sparkles, AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
 import GasCostEstimator from "./GasCostEstimator";
+import FootprintDiffViewer from "./FootprintDiffViewer";
 import MainnetReviewModal from "../security/MainnetReviewModal";
 
 const ARGUMENT_TYPES = [
@@ -187,6 +188,7 @@ export default function ContractInteraction() {
   const [invokeLoading, setInvokeLoading] = useState(false);
   const [error, setError] = useState('');
   const [simulationResult, setSimulationResult] = useState(null);
+  const [previousFootprint, setPreviousFootprint] = useState(null);
   const [invokeResult, setInvokeResult] = useState(null);
   const [invokeStatus, setInvokeStatus] = useState(null);
   const [showMainnetReview, setShowMainnetReview] = useState(false);
@@ -443,6 +445,11 @@ export default function ContractInteraction() {
   }, [form.functionName, contractFunctions]);
 
   function updateField(field, value) {
+    // Changing the contract or function invalidates the footprint baseline:
+    // diffs must only compare successive simulations of the same call (#849).
+    if (field === 'contractId' || field === 'functionName') {
+      setPreviousFootprint(null);
+    }
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -512,6 +519,7 @@ export default function ContractInteraction() {
         sourceAccount: form.sourceAccount || connectedAddress,
         network,
       });
+      setPreviousFootprint(simulationResult?.footprint ?? null);
       setSimulationResult(result);
 
       if (gasPrediction && result.cost) {
@@ -594,6 +602,8 @@ export default function ContractInteraction() {
       args: record.args && record.args.length > 0 ? record.args : [{ type: "string", value: "", name: "" }]
     });
     setSimulationResult(null);
+    // A replayed call starts a fresh footprint baseline (#849).
+    setPreviousFootprint(null);
     setInvokeResult(null);
     setError('');
     setActiveTab('interact');
@@ -989,6 +999,10 @@ export default function ContractInteraction() {
             data={simulationResult.result}
           />
           <ContractEventDisplay events={simulationResult.events} label="Simulation Events" />
+          <FootprintDiffViewer
+            previousFootprint={previousFootprint}
+            currentFootprint={simulationResult.footprint}
+          />
         </div>
       )}
 

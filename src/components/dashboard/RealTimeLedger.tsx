@@ -3,6 +3,8 @@ import { useStore } from '../../lib/store'
 import type { StreamLedger } from '../../lib/store'
 import { connectLedgerStream } from '../../lib/streaming'
 import { format } from 'date-fns'
+import DataSourceCapabilityBadge from '../common/DataSourceCapabilityBadge'
+import RpcRetentionBanner from '../common/RpcRetentionBanner'
 
 interface LedgerDisplayEntry {
   id?: string
@@ -62,10 +64,12 @@ export default function RealTimeLedger() {
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <RpcRetentionBanner retentionLimitLedgers={100000} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700 }}>
           Real-Time Ledgers
         </div>
+        <DataSourceCapabilityBadge network={network} activeSource="rpc" showCapabilities />
         <div style={{
           display: 'flex',
           alignItems: 'center',

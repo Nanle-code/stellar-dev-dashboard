@@ -151,6 +151,23 @@ test.describe('Themes', () => {
     }
     await expect(page).toHaveScreenshot('theme-light.png');
   });
+
+  for (const theme of ['dark', 'light', 'high-contrast']) {
+    test(`design system primitives in ${theme}`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'visual-desktop', 'Theme snapshots use a stable desktop viewport');
+      await page.goto('/tests/e2e/fixtures/design-system-visual.html');
+      const showcase = page.getByTestId('design-system-visual');
+      await expect(showcase).toBeVisible();
+      await page.evaluate((mode) => {
+        document.documentElement.setAttribute('data-theme', mode === 'high-contrast' ? 'dark' : mode);
+        if (mode === 'high-contrast') document.documentElement.setAttribute('data-high-contrast', 'true');
+        else document.documentElement.removeAttribute('data-high-contrast');
+      }, theme);
+      const surfaceColor = await showcase.locator('.ds-card').first().evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(surfaceColor).toBe(theme === 'light' ? 'rgb(255, 255, 255)' : theme === 'high-contrast' ? 'rgb(10, 10, 10)' : 'rgb(15, 24, 32)');
+      await expect(showcase).toHaveScreenshot(`design-system-${theme}.png`);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

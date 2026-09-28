@@ -38,6 +38,26 @@ a codemod command.
 
 ## Active Migration Tracks
 
+### Shareable view links (query parameters)
+
+Shared view links use **query parameters**; the collaboration session feature
+uses a **hash fragment** (`#<base64>`). The two channels do not collide and may
+both be present in one URL. Existing hash-based collaboration links are
+unaffected — no migration is required for links already in the wild.
+
+New store state is **not** shared by default. To put a field in a shared link,
+add it to `ShareableViewState` and `selectShareableState()` in
+`src/lib/shareLinks.ts`, then to the encoder and the decoder. Fields outside
+that path cannot reach a URL.
+
+`ledgerPin` was added to the store and is deliberately excluded from
+`PERSIST_KEYS`: a pin belongs to a shared link and the current session, not to a
+durable preference. Persisting it would leave a stale pin silently applied to
+later, unrelated work in the same browser.
+
+Full details, including the security model and the ledger-pin support matrix,
+are in [SHARED_VIEW_LINKS.md](./SHARED_VIEW_LINKS.md).
+
 ### JavaScript → TypeScript
 
 The codebase is migrating from `.jsx` to `.tsx`. New components **must** be TypeScript.

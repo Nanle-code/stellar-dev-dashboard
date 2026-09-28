@@ -132,6 +132,12 @@ jobs:
       - name: Run Stryker mutation tests
         run: pnpm exec stryker run
 
+      # ── Fee-math mutation gate (#895) ────────────────────────────────────
+      # Blocks the build when the mutation score for critical fee math
+      # (stroop conversion + fee estimation) falls below the 70% threshold.
+      - name: Fee-math mutation gate
+        run: pnpm run test:mutation:feemath
+
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v7

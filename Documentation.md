@@ -40,6 +40,9 @@ Fund any testnet account directly from the dashboard using Stellar's Friendbot. 
 ### 🔌 Wallet Connect
 Connect any Stellar public key (G...) on either Mainnet or Testnet to load account data, history, and balances instantly.
 
+### 🔗 Shareable View Links
+Reproduce a view exactly instead of sending a screenshot. Press **Share** in the dashboard toolbar to get a link that captures the network, tab, selected entity, and active filters — optionally pinned to a specific ledger sequence so the data reflects that point in time. The recipient's dashboard rebuilds the view, and a banner warns them if the link's network differs from theirs. Links never contain wallet keys, session tokens, or connected-wallet data.
+
 ---
 
 ## Screenshots
@@ -138,6 +141,22 @@ This project participates in the **[Stellar Wave Program](https://www.drips.netw
 4. Push to your fork: `git push origin feature/your-feature-name`
 5. Open a Pull Request against `main`
 
+### Unit Testing & Test Runner
+
+This project has consolidated on **Vitest** as the single unit and integration test runner. The legacy parallel Jest runner (`jest.config.js`, `@types/jest`, `test:jest*` scripts, Babel Jest presets) has been retired.
+
+- **Run all unit & integration tests**: `pnpm test`
+- **Watch mode**: `pnpm run test:watch`
+- **Coverage report**: `pnpm run test:coverage`
+- **Unit tests only**: `pnpm run test:unit`
+- **Integration tests only**: `pnpm run test:integration`
+- **Verify coverage thresholds**: `pnpm run test:coverage:check`
+
+When writing tests:
+- Use standard Vitest APIs (`import { describe, it, expect, vi } from 'vitest'`).
+- Do not use `jest` globals; use `vi` (`vi.fn()`, `vi.spyOn()`, `vi.mock()`).
+- All test coverage thresholds and path targets are configured centrally in [vitest.config.js](file:///c:/Users/HomePC/.antigravity-ide/stellar-dev-dashboard/vitest.config.js).
+
 Please make sure your PR:
 - Is scoped to a single issue
 - Includes a clear description of what was changed and why
@@ -165,3 +184,9 @@ MIT © 2025 — See [LICENSE](./LICENSE) for details.
 Built on top of the [Stellar SDK](https://github.com/stellar/js-stellar-sdk) and [Horizon API](https://developers.stellar.org/api/horizon) by the Stellar Development Foundation.
 
 Part of the [Stellar Wave Program](https://www.drips.network/wave/stellar) — funding open-source development on Stellar via [Drips](https://www.drips.network).
+
+### New Features (2026 Q3)
+- **Transactions**: Annotate counterparties with custom nicknames and risk flags in the transaction history view.
+- **DEX**: Visualize liquidity depth and concentration using Order Book Heatmaps for major trading pairs.
+- **Analytics**: Rapidly respond to detected issues using anomaly-to-action playbooks.
+- **UX**: Use the new guided first-run onboarding checklist for a smoother initial setup experience.

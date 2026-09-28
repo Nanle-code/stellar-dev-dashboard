@@ -9,11 +9,11 @@ import { analyzeBundleSize, getOptimizationSuggestions } from '../../src/lib/bun
 
 describe('Issue #420: NLP Search', () => {
   it('should classify search intent correctly', () => {
-    const intent1 = classifyIntent('payment to GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQR');
+    const intent1 = classifyIntent('payment to GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRS');
     expect(intent1.type).toBe('transaction');
     expect(intent1.confidence).toBeGreaterThan(0.8);
 
-    const intent2 = classifyIntent('account GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQR');
+    const intent2 = classifyIntent('account GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRS');
     expect(intent2.type).toBe('account');
 
     const intent3 = classifyIntent('create account operation');
@@ -21,7 +21,7 @@ describe('Issue #420: NLP Search', () => {
   });
 
   it('should extract entities from natural language', () => {
-    const entities = extractEntities('send 100 XLM to GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQR');
+    const entities = extractEntities('send 100 XLM to GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRS');
     expect(entities.amounts).toContain(100);
     expect(entities.assets).toContain('XLM');
     expect(entities.addresses?.length).toBeGreaterThan(0);

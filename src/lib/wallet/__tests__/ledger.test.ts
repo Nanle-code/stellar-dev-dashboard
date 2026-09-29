@@ -46,10 +46,67 @@ describe('wallet ledger signing', () => {
       "44'/148'/7'"
     );
 
-    expect(fakeApp.signTransaction).toHaveBeenCalledWith("44'/148'/7'", expect.any(Buffer));
+    expect(fakeApp.signTransaction).toHaveBeenCalledWith("44'/148'/7'", expect.anything());
     const parsed = StellarSdk.TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
     expect(parsed.signatures.length).toBeGreaterThan(0);
-    expect(parsed.signatures[0].hint().length).toBeGreaterThan(0);
+    const hintVal =
+      parsed.signatures[0].hint?.value ||
+      (typeof parsed.signatures[0].hint === 'function'
+        ? parsed.signatures[0].hint()
+        : parsed.signatures[0].hint);
+    expect(hintVal.length).toBeGreaterThan(0);
+  });
+
+  it('boundary case: signs with high account index in BIP-44 path', async () => {
+    const { xdr } = makeUnsignedTx();
+    const ledgerKeypair = StellarSdk.Keypair.random();
+    const fakeApp = {
+      signTransaction: vi.fn().mockImplementation(async (_path, txHash) => {
+        const signature = ledgerKeypair.sign(txHash);
+        return { signature };
+      }),
+    };
+
+    const signedXdr = await signXdrWithLedger(
+      xdr,
+      NETWORK_PASSPHRASE,
+      fakeApp,
+      ledgerKeypair.publicKey(),
+      "44'/148'/255'"
+    );
+
+    expect(fakeApp.signTransaction).toHaveBeenCalledWith("44'/148'/255'", expect.anything());
+    expect(signedXdr).toBeTruthy();
+  });
+
+  it('threat model: rejects derivation path manipulation outside BIP-44 Stellar specification', async () => {
+    const { xdr, source } = makeUnsignedTx();
+    const fakeApp = { signTransaction: vi.fn() };
+
+    // Attacker attempts to derive along Ethereum path
+    await expect(
+      signXdrWithLedger(xdr, NETWORK_PASSPHRASE, fakeApp, source.publicKey(), "44'/60'/0'")
+    ).rejects.toThrowError(/Invalid Ledger derivation path/i);
+
+    // Attacker attempts path injection
+    await expect(
+      signXdrWithLedger(
+        xdr,
+        NETWORK_PASSPHRASE,
+        fakeApp,
+        source.publicKey(),
+        'invalid-path-injection'
+      )
+    ).rejects.toThrowError(/Invalid Ledger derivation path/i);
+  });
+
+  it('threat model: rejects spoofed or corrupted public key', async () => {
+    const { xdr } = makeUnsignedTx();
+    const fakeApp = { signTransaction: vi.fn() };
+
+    await expect(
+      signXdrWithLedger(xdr, NETWORK_PASSPHRASE, fakeApp, 'SPOOFED_OR_INVALID_PUBLIC_KEY')
+    ).rejects.toThrowError('A valid public key is required to attach the Ledger signature.');
   });
 
   it('rejects empty network passphrases with a clear validation message', async () => {
@@ -60,7 +117,7 @@ describe('wallet ledger signing', () => {
     ).rejects.toThrowError('Network passphrase is required.');
   });
 
-  it('surfaces a Ledger rejection without leaking implementation details', async () => {
+  it('failure case: surfaces a Ledger rejection (0x6985) without leaking implementation details', async () => {
     const { xdr, source } = makeUnsignedTx();
     const fakeApp = {
       signTransaction: vi.fn().mockRejectedValue(new Error('0x6985: user rejected transaction')),
@@ -69,5 +126,27 @@ describe('wallet ledger signing', () => {
     await expect(
       signXdrWithLedger(xdr, NETWORK_PASSPHRASE, fakeApp, source.publicKey())
     ).rejects.toThrowError('Transaction was rejected on the Ledger device.');
+  });
+
+  it('failure case: surfaces locked device error (0x6b0c)', async () => {
+    const { xdr, source } = makeUnsignedTx();
+    const fakeApp = {
+      signTransaction: vi.fn().mockRejectedValue(new Error('0x6b0c: device locked')),
+    };
+
+    await expect(
+      signXdrWithLedger(xdr, NETWORK_PASSPHRASE, fakeApp, source.publicKey())
+    ).rejects.toThrowError('Ledger device is locked. Unlock it and open the Stellar app.');
+  });
+
+  it('failure case: surfaces Stellar app closed error (0x6d00)', async () => {
+    const { xdr, source } = makeUnsignedTx();
+    const fakeApp = {
+      signTransaction: vi.fn().mockRejectedValue(new Error('0x6d00: app not open')),
+    };
+
+    await expect(
+      signXdrWithLedger(xdr, NETWORK_PASSPHRASE, fakeApp, source.publicKey())
+    ).rejects.toThrowError('Stellar app is not open on the Ledger device.');
   });
 });

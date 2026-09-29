@@ -65,6 +65,30 @@ jobs:
       - name: Type check
         run: pnpm run type-check
 
+  strict-type-check:
+    name: Strict TypeScript Ratchet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate strict allowlist ratchet
+        run: pnpm run check:strict-tsconfig
+
+      - name: Type check strict allowlist
+        run: pnpm run type-check:strict
+
   test:
     name: Unit & Integration Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest

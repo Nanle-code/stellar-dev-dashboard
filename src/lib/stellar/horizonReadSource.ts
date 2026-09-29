@@ -1,5 +1,5 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { getServer, NetworkName } from '../stellar';
+import { getServer, NetworkName } from './networks.js';
 import {
   StellarReadSource,
   GetLedgersParams,
@@ -16,6 +16,21 @@ import {
   NormalizedEvent,
   NormalizedOffer,
 } from './types';
+
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const toString = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value;
+  if (value === undefined || value === null) return fallback;
+  return String(value);
+};
 
 export class HorizonReadSource implements StellarReadSource {
   private network: NetworkName;
@@ -58,21 +73,25 @@ export class HorizonReadSource implements StellarReadSource {
     }
 
     const response = await builder.call();
-    const records = response.records || [];
+    const records = Array.isArray(response.records) ? response.records : [];
 
-    const ledgers: NormalizedLedger[] = records.map((r: any) => ({
-      sequence: r.sequence,
-      hash: r.hash || r.id || `ledger-${r.sequence}`,
-      closeTime: r.closed_at || r.closeTime || new Date().toISOString(),
-      transactionCount: (r.successful_transaction_count ?? 0) + (r.failed_transaction_count ?? 0),
-      operationCount: r.operation_count ?? 0,
-      successfulTransactionCount: r.successful_transaction_count,
-      failedTransactionCount: r.failed_transaction_count,
-      headerXdr: r.header_xdr,
-      source: 'horizon',
-    }));
+    const ledgers: NormalizedLedger[] = records.map((record) => {
+      const r = record as Record<string, unknown>;
+      const sequence = toNumber(r.sequence, 0);
+      return {
+        sequence,
+        hash: toString(r.hash ?? r.id ?? `ledger-${sequence}`, `ledger-${sequence}`),
+        closeTime: toString(r.closed_at ?? r.closeTime ?? new Date().toISOString()),
+        transactionCount: toNumber(r.successful_transaction_count, 0) + toNumber(r.failed_transaction_count, 0),
+        operationCount: toNumber(r.operation_count, 0),
+        successfulTransactionCount: toNumber(r.successful_transaction_count, 0),
+        failedTransactionCount: toNumber(r.failed_transaction_count, 0),
+        headerXdr: typeof r.header_xdr === 'string' ? r.header_xdr : undefined,
+        source: 'horizon',
+      };
+    });
 
-    const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : undefined;
+    const nextCursor = records.length > 0 ? toString((records[records.length - 1] as Record<string, unknown>).paging_token) || undefined : undefined;
 
     return {
       ledgers,
@@ -97,23 +116,27 @@ export class HorizonReadSource implements StellarReadSource {
     }
 
     const response = await builder.call();
-    const records = response.records || [];
+    const records = Array.isArray(response.records) ? response.records : [];
 
-    const transactions: NormalizedTransaction[] = records.map((r: any) => ({
-      hash: r.hash,
-      ledger: r.ledger ?? r.ledger_attr ?? 0,
-      createdAt: r.created_at || new Date().toISOString(),
-      status: r.successful !== false ? 'SUCCESS' : 'FAILED',
-      sourceAccount: r.source_account,
-      feePaid: r.fee_charged,
-      operationCount: r.operation_count,
-      envelopeXdr: r.envelope_xdr,
-      resultXdr: r.result_xdr,
-      resultMetaXdr: r.result_meta_xdr,
-      source: 'horizon',
-    }));
+    const transactions: NormalizedTransaction[] = records.map((record) => {
+      const r = record as Record<string, unknown>;
+      const ledger = toNumber(r.ledger ?? r.ledger_attr, 0);
+      return {
+        hash: toString(r.hash, `tx-${ledger}`),
+        ledger,
+        createdAt: toString(r.created_at ?? new Date().toISOString()),
+        status: r.successful !== false ? 'SUCCESS' : 'FAILED',
+        sourceAccount: typeof r.source_account === 'string' ? r.source_account : undefined,
+        feePaid: r.fee_charged,
+        operationCount: toNumber(r.operation_count, 0),
+        envelopeXdr: typeof r.envelope_xdr === 'string' ? r.envelope_xdr : undefined,
+        resultXdr: typeof r.result_xdr === 'string' ? r.result_xdr : undefined,
+        resultMetaXdr: typeof r.result_meta_xdr === 'string' ? r.result_meta_xdr : undefined,
+        source: 'horizon',
+      };
+    });
 
-    const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : undefined;
+    const nextCursor = records.length > 0 ? toString((records[records.length - 1] as Record<string, unknown>).paging_token) || undefined : undefined;
 
     return {
       transactions,
@@ -133,22 +156,27 @@ export class HorizonReadSource implements StellarReadSource {
     }
 
     const response = await builder.call();
-    const records = response.records || [];
+    const records = Array.isArray(response.records) ? response.records : [];
 
-    const events: NormalizedEvent[] = records.map((r: any) => ({
-      id: String(r.id),
-      type: (r.type === 'invoke_host_function' ? 'contract' : 'system') as 'contract' | 'system',
-      ledger: r.ledger ?? r.ledger_attr ?? 0,
-      ledgerClosedAt: r.created_at || new Date().toISOString(),
-      contractId: r.contract_id,
-      topic: r.function_name ? [r.function_name] : [],
-      value: r.details || r,
-      txHash: r.transaction_hash,
-      pagingToken: r.paging_token,
-      source: 'horizon',
-    }));
+    const events: NormalizedEvent[] = records.map((record) => {
+      const r = record as Record<string, unknown>;
+      const ledger = toNumber(r.ledger ?? r.ledger_attr, 0);
+      const functionName = typeof r.function_name === 'string' ? r.function_name : undefined;
+      return {
+        id: toString(r.id, `event-${ledger}`),
+        type: r.type === 'invoke_host_function' ? 'contract' : 'system',
+        ledger,
+        ledgerClosedAt: toString(r.created_at ?? new Date().toISOString()),
+        contractId: typeof r.contract_id === 'string' ? r.contract_id : undefined,
+        topic: functionName ? [functionName] : [],
+        value: r.details ?? r,
+        txHash: typeof r.transaction_hash === 'string' ? r.transaction_hash : undefined,
+        pagingToken: typeof r.paging_token === 'string' ? r.paging_token : undefined,
+        source: 'horizon',
+      };
+    });
 
-    const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : undefined;
+    const nextCursor = records.length > 0 ? toString((records[records.length - 1] as Record<string, unknown>).paging_token) || undefined : undefined;
 
     return {
       events,
@@ -169,20 +197,27 @@ export class HorizonReadSource implements StellarReadSource {
     }
 
     const response = await builder.call();
-    const records = response.records || [];
+    const records = Array.isArray(response.records) ? response.records : [];
 
-    const offers: NormalizedOffer[] = records.map((r: any) => ({
-      id: String(r.id),
-      seller: r.seller,
-      sellingAsset: r.selling.asset_type === 'native' ? 'XLM' : `${r.selling.asset_code}:${r.selling.asset_issuer}`,
-      buyingAsset: r.buying.asset_type === 'native' ? 'XLM' : `${r.buying.asset_code}:${r.buying.asset_issuer}`,
-      amount: r.amount,
-      price: r.price,
-      lastModifiedLedger: r.last_modified_ledger,
-      source: 'horizon',
-    }));
+    const offers: NormalizedOffer[] = records.map((record) => {
+      const r = record as Record<string, unknown>;
+      const selling = (r.selling ?? {}) as Record<string, unknown>;
+      const buying = (r.buying ?? {}) as Record<string, unknown>;
+      const sellingAssetType = typeof selling.asset_type === 'string' ? selling.asset_type : 'unknown';
+      const buyingAssetType = typeof buying.asset_type === 'string' ? buying.asset_type : 'unknown';
+      return {
+        id: toString(r.id, `offer-${toNumber(r.last_modified_ledger, 0)}`),
+        seller: toString(r.seller),
+        sellingAsset: sellingAssetType === 'native' ? 'XLM' : `${toString(selling.asset_code)}:${toString(selling.asset_issuer)}`,
+        buyingAsset: buyingAssetType === 'native' ? 'XLM' : `${toString(buying.asset_code)}:${toString(buying.asset_issuer)}`,
+        amount: toString(r.amount),
+        price: toString(r.price),
+        lastModifiedLedger: toNumber(r.last_modified_ledger, 0),
+        source: 'horizon',
+      };
+    });
 
-    const nextCursor = records.length > 0 ? records[records.length - 1].paging_token : undefined;
+    const nextCursor = records.length > 0 ? toString((records[records.length - 1] as Record<string, unknown>).paging_token) || undefined : undefined;
 
     return {
       offers,

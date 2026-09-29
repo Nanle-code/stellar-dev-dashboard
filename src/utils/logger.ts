@@ -1,5 +1,3 @@
-import { redactError, redactString, redactValue } from '../lib/observability/redact';
-
 export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
@@ -15,8 +13,6 @@ import {
   createLogger as createStructuredLogger,
   NamespaceLogger as StructuredNamespaceLogger,
 } from '../lib/logging/logger';
-
-export { LogLevel } from '../lib/logging/logger';
 
 export interface LogEntry {
   timestamp: string;
@@ -75,65 +71,9 @@ export const addLogHandler = (handler: LogHandler): void => {
 };
 
 export const removeLogHandler = (handler: LogHandler): void => {
-  logHandlers = logHandlers.filter(h => h !== handler);
+  const index = registeredHandlers.indexOf(handler);
+  if (index >= 0) registeredHandlers.splice(index, 1);
 };
-
-function formatLogEntry(
-  level: LogLevel,
-  message: string,
-  context: Record<string, unknown> = {},
-  error: Error | null = null
-): LogEntry {
-  const timestamp = new Date().toISOString();
-  const entry: LogEntry = {
-    timestamp,
-    level: LogLevelNames[level],
-    levelValue: level,
-    message: redactString(message),
-    context: redactValue<Record<string, unknown>>(context),
-    sessionId,
-    url: typeof window !== 'undefined' ? redactString(window.location.href) : null,
-    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
-  };
-
-  if (error) {
-    const info = redactError(error);
-    entry.error = {
-      name: info.name,
-      message: info.message,
-      stack: info.stack ?? undefined,
-    };
-  }
-
-  return entry;
-}
-
-function log(
-  level: LogLevel,
-  message: string,
-  context: Record<string, unknown> = {},
-  error: Error | null = null
-): void {
-  if (level < currentLogLevel) return;
-
-  const entry = formatLogEntry(level, message, context, error);
-
-  // Console output in development (entry is already redacted)
-  const consoleFn = (['debug', 'info', 'warn', 'error', 'error'] as const)[level];
-  if (typeof console !== 'undefined' && console[consoleFn]) {
-    console[consoleFn](`[${entry.level}] ${entry.message}`, entry.context);
-    if (entry.error) console.error(entry.error);
-  }
-
-  // Call registered handlers
-  logHandlers.forEach(handler => {
-    try {
-      handler(entry);
-    } catch (err) {
-      console.error('Log handler error:', err);
-    }
-  });
-}
 
 export const debug = (message: string, context: Record<string, unknown> = {}): void => {
   structuredLogger.debug(message, context);

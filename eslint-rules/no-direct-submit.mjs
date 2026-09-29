@@ -39,6 +39,7 @@ const noDirectSubmit = {
       'src/lib/contractInvoker',
       'src/lib/horizonRetry',
       'src/lib/bulkOperations',  // batch layer, calls signAndSubmitTransaction internally
+      'src/lib/stellar/soroban',
     ];
 
     const filename = context.getFilename().replace(/\\/g, '/');

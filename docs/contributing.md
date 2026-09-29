@@ -58,6 +58,18 @@ docs/
 └── contributing.md   # This file
 ```
 
+### Stellar library modules
+
+The stable Stellar API is exported from `src/lib/stellar.ts`, which forwards to
+the domain barrel at `src/lib/stellar/index.ts`. Existing imports from
+`src/lib/stellar` remain supported. New internal code may import a focused
+module such as `src/lib/stellar/networks.ts`, `horizon.ts`, `addresses.ts`,
+`soroban.ts`, `pricing.ts`, `claimableBalances.ts`, or `reserves.ts` when it
+needs only that domain. Prefer `getServer`; the `ee` alias is deprecated and
+retained temporarily for compatibility. Custom-network auth headers continue
+to be stored in session storage (not local storage); do not put wallet secrets
+or signing keys in network configuration.
+
 ---
 
 ## Coding Conventions

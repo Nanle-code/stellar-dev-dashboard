@@ -253,7 +253,6 @@ describe('Contract Invoker Flows', () => {
           owner: MOCK_PUBKEY
         }
       });
-      });
     });
   });
 

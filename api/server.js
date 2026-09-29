@@ -12,6 +12,8 @@ import { router as behaviorRouter } from './routes/behavior.js';
 import { router as accessControlRouter } from './routes/accessControl.js';
 import { router as notificationSummariesRouter } from './routes/notificationSummaries.js';
 import { router as gasPredictionRouter } from './routes/gasPrediction.js';
+import { router as analyticsRouter } from './routes/analytics.js';
+import { router as migrationRouter } from './routes/migration.js';
 
 export const app = express();
 export const server = createServer(app);
@@ -31,7 +33,9 @@ app.use('/api/v1/transactions', oauthAuth, transactionsRouter);
 app.use('/api/v1/behavior', oauthAuth, behaviorRouter);
 app.use('/api/v1/access-control', oauthAuth, requireRole('admin'), accessControlRouter);
 app.use('/api/v1/notification-summaries', oauthAuth, notificationSummariesRouter);
-app.use('/api/v1', oauthAuth, gasPredictionRouter);
+app.use('/api/v1/analytics', oauthAuth, requireRole('admin'), analyticsRouter);
+app.use('/api/v1/migration', migrationRouter); // Public migration endpoints (before catch-all)
+app.use('/api/v1', oauthAuth, gasPredictionRouter); // Catch-all for gas prediction must be last
 
 app.get('/api/docs', (req, res) => {
   res.json({
@@ -63,6 +67,15 @@ app.get('/api/docs', (req, res) => {
       '/api/v1/gas/record': 'POST - Record actual gas cost for accuracy',
       '/api/v1/gas/metrics': 'GET - Gas prediction accuracy metrics',
       '/api/v1/gas/thresholds': 'GET/POST - Cost threshold configuration',
+      '/api/v1/analytics/version-usage': 'GET - Version adoption metrics (admin only)',
+      '/api/v1/analytics/deprecated-routes': 'GET - Deprecated route usage (admin only)',
+      '/api/v1/analytics/adoption': 'GET - API version adoption rates (admin only)',
+      '/api/v1/migration/guides': 'GET - Migration guides for all version transitions',
+      '/api/v1/migration/guides/:from/:to': 'GET - Specific migration guide',
+      '/api/v1/migration/compatibility/:version': 'GET - Check version compatibility',
+      '/api/v1/migration/breaking-changes': 'GET - List breaking changes',
+      '/api/v1/migration/version-info': 'GET - Current version information',
+      '/api/v1/migration/sunset-policy': 'GET - API sunset policy',
       '/ws': 'WebSocket - Subscribe to real-time updates',
     },
   });

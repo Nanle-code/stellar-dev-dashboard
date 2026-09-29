@@ -1,4 +1,4 @@
-import { NetworkName, getNetworkDetails } from '../stellar';
+import { NetworkName, getNetworkDetails } from './networks.js';
 import { HorizonReadSource } from './horizonReadSource';
 import { RpcReadSource } from './rpcReadSource';
 import {

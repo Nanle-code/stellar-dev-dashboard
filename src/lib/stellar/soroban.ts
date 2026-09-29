@@ -25,7 +25,7 @@ export async function fetchContractData(
   contractId: string,
   key: StellarSdk.xdr.ScVal | string,
   network: NetworkName = 'testnet',
-  durability: StellarSdk.rpc.Durability = StellarSdk.SorobanRpc.Durability.Persistent
+  durability: StellarSdk.rpc.Durability = StellarSdk.rpc.Durability.Persistent
 ): Promise<any> {
   const server = getSorobanServer(network);
 

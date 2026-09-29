@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { getStoredValue } from './storage'
 import { syncState, onStateChange, resolveStateConflict, loadSyncedState, getTabId } from '../utils/stateSync'
 import type { NetworkName, NetworkStats } from './stellar'
-import type { Horizon, SorobanRpc } from '@stellar/stellar-sdk'
+import type { Horizon, rpc } from '@stellar/stellar-sdk'
 import { generateInsights, type AnalyticsSummary } from './analytics'
 import { accountRequests } from './requestCancellation'
 import { applyCustomThemeToDOM, removeCustomThemeFromDOM, saveThemeVarsToStorage, clearThemeVarsFromStorage, type ThemeDefinition } from '../styles/themeTypes'
@@ -93,7 +93,7 @@ export interface NetworkSlice {
   faucetLoading: boolean
   faucetResult: unknown
   contractId: string
-  contractData: SorobanRpc.Api.LedgerEntryResult | null
+  contractData: rpc.Api.LedgerEntryResult | null
   contractLoading: boolean
   contractError: string | null
   deploymentStatus: Record<string, unknown> | null
@@ -242,7 +242,7 @@ export interface StoreState extends NetworkSlice, SessionSlice, AccountSlice, Ui
   setFaucetResult: (r: unknown) => void
 
   setContractId: (id: string) => void
-  setContractData: (data: SorobanRpc.Api.LedgerEntryResult) => void
+  setContractData: (data: rpc.Api.LedgerEntryResult) => void
   setContractLoading: (v: boolean) => void
   setContractError: (e: string | null) => void
 

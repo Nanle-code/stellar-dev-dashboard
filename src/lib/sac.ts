@@ -56,7 +56,7 @@ export async function inspectSac(asset: SacAsset, network: NetworkName): Promise
     await server.getContractData(
       contractId,
       StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
-      StellarSdk.SorobanRpc.Durability.Persistent,
+      StellarSdk.rpc.Durability.Persistent,
     )
     return { contractId, deployed: true, metadata }
   } catch (error) {

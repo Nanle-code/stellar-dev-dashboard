@@ -217,7 +217,7 @@ export async function fetchSacBalances(
       const simResponse = await server.simulateTransaction(tx)
 
       if (
-        StellarSdk.SorobanRpc.Api.isSimulationSuccess(simResponse) &&
+        StellarSdk.rpc.Api.isSimulationSuccess(simResponse) &&
         simResponse.result?.retval
       ) {
         const retval = simResponse.result.retval
@@ -363,7 +363,7 @@ export async function fetchSmartWalletAccount(
 
         const simResp = await server.simulateTransaction(tx)
         if (
-          StellarSdk.SorobanRpc.Api.isSimulationSuccess(simResp) &&
+          StellarSdk.rpc.Api.isSimulationSuccess(simResp) &&
           simResp.result?.retval
         ) {
           const native = StellarSdk.scValToNative(simResp.result.retval)

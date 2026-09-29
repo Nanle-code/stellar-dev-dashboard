@@ -36,19 +36,19 @@ export const RPC_RETENTION_LIMIT_LEDGERS = 100_000;
 export class RpcReadSource implements StellarReadSource {
   private network: NetworkName;
   private retentionLimit: number;
-  private serverGetter?: (_network: NetworkName) => StellarSdk.SorobanRpc.Server;
+  private serverGetter?: (_network: NetworkName) => StellarSdk.rpc.Server;
 
   constructor(
     network: NetworkName = 'testnet',
     retentionLimit: number = RPC_RETENTION_LIMIT_LEDGERS,
-    serverGetter?: (_network: NetworkName) => StellarSdk.SorobanRpc.Server
+    serverGetter?: (_network: NetworkName) => StellarSdk.rpc.Server
   ) {
     this.network = network;
     this.retentionLimit = retentionLimit;
     this.serverGetter = serverGetter;
   }
 
-  private getServer(): StellarSdk.SorobanRpc.Server {
+  private getServer(): StellarSdk.rpc.Server {
     if (this.serverGetter) {
       return this.serverGetter(this.network);
     }

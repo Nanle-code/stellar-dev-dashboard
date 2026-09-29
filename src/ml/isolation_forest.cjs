@@ -1,5 +1,4 @@
 // Simple Isolation Forest implementation (approximate)
-const fs = require('fs');
 
 function c(n) {
   if (n <= 1) return 0;
@@ -77,11 +76,13 @@ class IsolationForest {
   }
 
   save(path) {
+    const fs = require('fs');
     fs.mkdirSync(require('path').dirname(path), { recursive: true });
     fs.writeFileSync(path, JSON.stringify(this.toJSON()));
   }
 
   static load(path) {
+    const fs = require('fs');
     const raw = fs.readFileSync(path, 'utf8');
     const obj = JSON.parse(raw);
     const f = new IsolationForest(obj.nTrees, obj.sampleSize);

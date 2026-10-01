@@ -3,6 +3,11 @@ import { Cache, TTL } from '../cache.js';
 import { rateLimiter } from '../rateLimiter.js';
 import auditTrail from '../auditTrail.js';
 import { getCircuitBreaker, type CircuitState } from '../errorHandling/CircuitBreaker';
+import {
+  coalesceRequest,
+  createHorizonFetchKey,
+  installSdkGetCoalescing,
+} from './requestCoalescing.js';
 
 // ─── Cache setup ──────────────────────────────────────────────────────────────
 
@@ -18,7 +23,6 @@ export { stellarCache };
 // ─── Network config ───────────────────────────────────────────────────────────
 
 export type NetworkName = 'mainnet' | 'testnet' | 'futurenet' | 'local' | 'custom';
-
 
 export interface NetworkConfig {
   name: string;
@@ -106,6 +110,25 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     },
   },
 };
+
+function isConfiguredHorizonUrl(value: string): boolean {
+  try {
+    const requestUrl = new URL(value);
+    return Object.values(NETWORKS).some((config) => {
+      if (!config.horizonUrl) return false;
+      const baseUrl = new URL(config.horizonUrl);
+      const basePath = baseUrl.pathname.replace(/\/$/, '');
+      return (
+        requestUrl.origin === baseUrl.origin &&
+        (!basePath ||
+          requestUrl.pathname === basePath ||
+          requestUrl.pathname.startsWith(`${basePath}/`))
+      );
+    });
+  } catch {
+    return false;
+  }
+}
 
 const CUSTOM_NETWORK_HEADERS_KEY = 'stellar-custom-network-headers';
 
@@ -199,34 +222,40 @@ export async function rateLimitedFetch(
     // Log the API call (options without secret headers — sanitized by auditTrail)
     auditTrail.logAPICall(url, mergedOptions.method || 'GET', mergedOptions, {});
 
-    // Check rate limits first
-    const check = rateLimiter.checkRequest('stellar_client', rateLimiter.extractEndpoint(url));
-
-    if (!check.allowed) {
-      // Queue the request if rate limited
-      const response = await rateLimiter.queueRequest(
-        { url, options: mergedOptions, priority },
-        'stellar_client'
-      );
-      const responseTime = Date.now() - startTime;
-
-      auditTrail.logAPICall(url, mergedOptions.method || 'GET', mergedOptions, {
-        status: response.status,
-        responseTime,
-        queued: true,
-      });
-
-      return response;
-    }
-
-    // Execute request immediately if allowed
-    const response = await fetch(url, mergedOptions);
+    const requestKey = isConfiguredHorizonUrl(url)
+      ? createHorizonFetchKey(url, mergedOptions, { priority })
+      : null;
+    const execute = async (
+      signal?: AbortSignal
+    ): Promise<{ response: Response; queued: boolean }> => {
+      const requestOptions = signal ? { ...mergedOptions, signal } : mergedOptions;
+      const check = rateLimiter.checkRequest('stellar_client', rateLimiter.extractEndpoint(url));
+      if (!check.allowed) {
+        const response = await rateLimiter.queueRequest(
+          { url, options: requestOptions, priority },
+          'stellar_client'
+        );
+        return { response: response as Response, queued: true };
+      }
+      return { response: await fetch(url, requestOptions), queued: false };
+    };
+    const result: { response: Response; queued: boolean } = requestKey
+      ? await coalesceRequest<{ response: Response; queued: boolean }>(
+          requestKey,
+          execute,
+          mergedOptions.signal ?? undefined
+        )
+      : await execute(mergedOptions.signal ?? undefined);
+    const response =
+      requestKey && typeof result.response.clone === 'function'
+        ? result.response.clone()
+        : result.response;
     const responseTime = Date.now() - startTime;
 
     auditTrail.logAPICall(url, mergedOptions.method || 'GET', mergedOptions, {
       status: response.status,
       responseTime,
-      queued: false,
+      queued: result.queued,
     });
 
     return response;
@@ -279,10 +308,15 @@ export async function loadCustomNetworkProfiles() {
 
 export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.Server {
   const config = NETWORKS[network];
-  return new StellarSdk.Horizon.Server(
+  const server = new StellarSdk.Horizon.Server(
     config.horizonUrl || NETWORKS.testnet.horizonUrl,
     getServerOptions(network)
   );
+  installSdkGetCoalescing(
+    server.httpClient as any,
+    `horizon:${server.serverURL.toString()}:${JSON.stringify(getNetworkHeaders(network))}`
+  );
+  return server;
 }
 
 /** @deprecated Use getServer directly. */
@@ -414,6 +448,5 @@ export async function probeAllNetworks(): Promise<NetworkProbeResult[]> {
 
   return Promise.all(probes);
 }
-
 
 export { StellarSdk };

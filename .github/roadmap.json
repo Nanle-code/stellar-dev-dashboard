@@ -1,0 +1,106 @@
+{
+  "project": {
+    "title": "Stellar Dev Dashboard Roadmap",
+    "owner": "Nanle-code",
+    "repository": "Nanle-code/stellar-dev-dashboard",
+    "statusOptions": ["Todo", "In Progress", "In Review", "Done"],
+    "views": [
+      { "name": "By theme", "layout": "board", "groupBy": "Theme" },
+      { "name": "By milestone", "layout": "table", "groupBy": "Milestone" },
+      { "name": "By status", "layout": "board", "groupBy": "Status" }
+    ]
+  },
+  "defaultMilestone": "v1.0",
+  "priorityLabels": {
+    "bug": "v0.2",
+    "security": "v0.2"
+  },
+  "milestones": [
+    {
+      "id": "v0.2",
+      "title": "v0.2 — Solid foundation",
+      "summary": "Reliable CI, tests and contributor workflow so every later change lands safely.",
+      "exitCriteria": [
+        "Every required CI workflow is green on master for 14 consecutive days.",
+        "Unit, integration and Playwright critical-path suites run on every pull request.",
+        "No open issues labelled bug or security are assigned to this milestone.",
+        "Contributor guide, starter-issue guide and roadmap are published and linked from the README."
+      ]
+    },
+    {
+      "id": "v0.3",
+      "title": "v0.3 — Protocol-current",
+      "summary": "Track the current Stellar protocol, Soroban RPC and wallet ecosystem.",
+      "exitCriteria": [
+        "The dashboard reads and simulates against the current Soroban RPC and protocol version on testnet and mainnet.",
+        "Freighter, Ledger and wallet-adapter flows have E2E coverage for success and rejection paths.",
+        "Soroban simulation failures (auth, resource limits, archived state) are classified and explained in the UI.",
+        "Deprecated Horizon endpoints have an RPC-first replacement or a documented migration."
+      ]
+    },
+    {
+      "id": "v1.0",
+      "title": "v1.0 — Production ready",
+      "summary": "Performance, accessibility, observability and security hardening for everyday production use.",
+      "exitCriteria": [
+        "Lighthouse performance and accessibility budgets pass on desktop and mobile.",
+        "WCAG 2.2 AA audit has no open blocking findings.",
+        "An external or maintainer-led security review of wallet, auth and audit paths is complete.",
+        "User documentation covers every top-level dashboard tab, with a published upgrade and support policy."
+      ]
+    }
+  ],
+  "themes": [
+    {
+      "id": "testing",
+      "name": "Testing & CI",
+      "milestone": "v0.2",
+      "titlePrefixes": ["Testing", "CI"],
+      "keywords": ["test", "e2e", "playwright", "fixture", "coverage", "mutation", "ci ", "workflow"]
+    },
+    {
+      "id": "community",
+      "name": "Community & Docs",
+      "milestone": "v0.2",
+      "titlePrefixes": ["Community", "Docs"],
+      "labels": ["documentation", "good first issue"],
+      "keywords": ["roadmap", "contributor", "documentation", "readme", "guide"]
+    },
+    {
+      "id": "security",
+      "name": "Security",
+      "milestone": "v0.2",
+      "titlePrefixes": ["Security"],
+      "labels": ["security"],
+      "keywords": ["security", "audit", "threat", "csp", "vulnerab"]
+    },
+    {
+      "id": "protocol",
+      "name": "Soroban & Protocol",
+      "milestone": "v0.3",
+      "titlePrefixes": ["Protocol", "Soroban"],
+      "keywords": ["soroban", "protocol", "contract", "rpc", "sep-", "xdr", "horizon"]
+    },
+    {
+      "id": "wallets",
+      "name": "Wallets & Accounts",
+      "milestone": "v0.3",
+      "titlePrefixes": ["Wallet"],
+      "keywords": ["wallet", "freighter", "ledger", "multisig", "signer", "account"]
+    },
+    {
+      "id": "ai",
+      "name": "AI & Analytics",
+      "milestone": "v1.0",
+      "titlePrefixes": ["AI", "Analytics"],
+      "keywords": ["ai-powered", "ai ", "machine learning", "prediction", "analytics", "anomaly"]
+    },
+    {
+      "id": "experience",
+      "name": "Performance, Mobile & Accessibility",
+      "milestone": "v1.0",
+      "titlePrefixes": ["Performance", "Mobile", "A11y", "Accessibility", "UX"],
+      "keywords": ["performance", "mobile", "accessib", "wcag", "i18n", "responsive", "lighthouse"]
+    }
+  ]
+}

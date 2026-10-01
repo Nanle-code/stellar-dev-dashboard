@@ -186,9 +186,11 @@ export default function ContractInteraction() {
   });
 
   const [contractFunctions, setContractFunctions] = useState([]);
+  const [contractSpec, setContractSpec] = useState<any>(null);
   const [simulateLoading, setSimulateLoading] = useState(false);
   const [invokeLoading, setInvokeLoading] = useState(false);
   const [error, setError] = useState('');
+  const [specArgError, setSpecArgError] = useState('');
   const [simulationResult, setSimulationResult] = useState(null);
   const [previousFootprint, setPreviousFootprint] = useState(null);
   const [invokeResult, setInvokeResult] = useState(null);
@@ -356,6 +358,7 @@ export default function ContractInteraction() {
   useEffect(() => {
     if (!form.contractId || !isValidContractId(form.contractId.trim())) {
       setContractFunctions([]);
+      setContractSpec(null);
       return;
     }
     let isCurrent = true;
@@ -363,6 +366,7 @@ export default function ContractInteraction() {
       .then(res => {
         if (isCurrent && res && res.functions) {
           setContractFunctions(res.functions);
+          setContractSpec(res.spec ?? null);
         }
       })
       .catch(err => {
@@ -454,11 +458,13 @@ export default function ContractInteraction() {
     // diffs must only compare successive simulations of the same call (#849).
     if (field === 'contractId' || field === 'functionName') {
       setPreviousFootprint(null);
+      setSpecArgError('');
     }
     setForm((current) => ({ ...current, [field]: value }));
   }
 
   function updateArgument(index, field, value) {
+    setSpecArgError('');
     setForm((current) => ({
       ...current,
       args: current.args.map((arg, i) => (i === index ? { ...arg, [field]: value } : arg)),
@@ -512,8 +518,28 @@ export default function ContractInteraction() {
 
   async function handleSimulate() {
     setError('');
+    setSpecArgError('');
     setInvokeResult(null);
     setSimulationResult(null);
+
+    // Pre-validate args against the on-chain spec before hitting the RPC.
+    if (contractSpec && typeof contractSpec.funcArgsToScVals === 'function' && parameterDefinitions.length > 0) {
+      try {
+        const namedArgs: Record<string, unknown> = {};
+        for (const arg of form.args) {
+          if (!arg.name) continue;
+          const val = arg.value.trim();
+          if (arg.type === 'bool') namedArgs[arg.name] = val === 'true';
+          else if (arg.type === 'int') namedArgs[arg.name] = BigInt(val);
+          else namedArgs[arg.name] = val;
+        }
+        contractSpec.funcArgsToScVals(form.functionName, namedArgs);
+      } catch (validationErr: any) {
+        setSpecArgError(validationErr?.message || 'Arguments do not match the contract spec');
+        return;
+      }
+    }
+
     setSimulateLoading(true);
 
     try {
@@ -523,6 +549,7 @@ export default function ContractInteraction() {
         args: form.args.filter((arg) => arg.value.trim() !== ''),
         sourceAccount: form.sourceAccount || connectedAddress,
         network,
+        spec: contractSpec,
       });
       setPreviousFootprint(simulationResult?.footprint ?? null);
       setSimulationResult(result);
@@ -570,6 +597,7 @@ export default function ContractInteraction() {
         sourceAccount: form.sourceAccount || connectedAddress,
         secretKey: form.secretKey,
         network,
+        spec: contractSpec,
         onStatus: (status) => setInvokeStatus(status),
       });
       setInvokeResult(result);
@@ -901,6 +929,17 @@ export default function ContractInteraction() {
                       <option value="true">True</option>
                       <option value="false">False</option>
                     </select>
+                  ) : hasSpecName && parameterDefinitions[index]?.schema?.enum?.length > 0 ? (
+                    <select
+                      value={arg.value}
+                      onChange={(e) => updateArgument(index, "value", e.target.value)}
+                      style={textInputStyle(fieldAnomalies.some(a => a.severity === 'error'))}
+                    >
+                      <option value="">Select variant...</option>
+                      {(parameterDefinitions[index].schema.enum as string[]).map((variant) => (
+                        <option key={variant} value={variant}>{variant}</option>
+                      ))}
+                    </select>
                   ) : (
                     <input
                       value={arg.value}
@@ -1010,6 +1049,19 @@ export default function ContractInteraction() {
             }}
           >
             {error}
+          </div>
+        )}
+
+        {specArgError && (
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "12px",
+              color: "var(--red)",
+              lineHeight: 1.5,
+            }}
+          >
+            Spec validation: {specArgError}
           </div>
         )}
       </Panel>

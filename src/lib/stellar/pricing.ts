@@ -1,5 +1,6 @@
 import { TTL } from '../cache.js';
 import { NETWORKS, stellarCache, withNetworkHeaders, type NetworkName } from './networks.js';
+import { coalescedHorizonFetch } from './requestCoalescing.js';
 
 const COINGECKO_XLM_PRICE_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd';
@@ -76,7 +77,7 @@ export async function fetchAssetPrice(
     buying_asset_type: 'native',
   });
 
-  const response = await fetch(
+  const response = await coalescedHorizonFetch(
     `${NETWORKS[network].horizonUrl}/order_book?${params.toString()}`,
     withNetworkHeaders({}, network)
   );

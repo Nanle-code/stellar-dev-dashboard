@@ -64,6 +64,9 @@ jobs:
 
       - name: Type check
         run: pnpm run type-check
+        # Hard gate: non-zero exit from `tsc --noEmit` blocks the merge.
+        # The wrapper in scripts/type-check.mjs exits:
+        #   0 - pass, 1 - type errors found, 2 - invalid input/env.
 
   strict-type-check:
     name: Strict TypeScript Ratchet

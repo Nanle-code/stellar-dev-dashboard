@@ -34,6 +34,11 @@ jobs:
       - name: Validate governance files
         run: node scripts/validate-governance.mjs
 
+      # Dependency-free: validates .github/roadmap.json and fails when the
+      # docs-site roadmap page drifts from it (#1005).
+      - name: Validate roadmap
+        run: node scripts/roadmap.mjs --check
+
   sync-labels:
     name: Sync issue labels
     needs: policy

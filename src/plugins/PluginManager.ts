@@ -4,6 +4,7 @@ import {
   PLUGIN_API_VERSION,
   getApiVersionCompatibility,
   getDeprecationNoticesForVersion,
+  enforceApiVersionCompatibility,
 } from "./pluginVersioning";
 import {
   loadInstalledPlugins,
@@ -69,7 +70,7 @@ function normalizeManifest(plugin) {
   const permissions = Array.isArray(manifest.permissions)
     ? manifest.permissions.filter(
         (permission) =>
-          typeof permission === "string" && ALLOWED_PERMISSION_SCOPES.includes(permission)
+          typeof permission === "string" && ALLOWED_PERMISSION_SCOPES.includes(permission as any)
       )
     : [];
 
@@ -395,7 +396,7 @@ export class PluginManager {
         enabled: installedRecord.enabled !== false,
         installedAt: installedRecord.installedAt || new Date().toISOString(),
         initializedAt: installedRecord.initializedAt || null,
-        status: installedRecord.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED,
+        status: (installedRecord.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED) as any,
         error: installedRecord.error || null,
         runtimeLoaded: manifest.runtime.mode !== "module" || !runtimeLoader,
       });
@@ -437,7 +438,7 @@ export class PluginManager {
     }
   }
 
-  register(rawPlugin, options = {}) {
+  register(rawPlugin: any, options: any = {}) {
     const plugin = normalizePlugin(rawPlugin);
     const validationError = this.validate(plugin);
     const safePlugin = validationError
@@ -496,7 +497,7 @@ export class PluginManager {
       enabled: options.enabled !== false,
       installedAt: options.installedAt || null,
       initializedAt: options.initializedAt || null,
-      status: options.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED,
+      status: (options.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED) as any,
       error: validationError || options.error || null,
       runtimeLoaded: options.runtimeLoaded !== undefined ? options.runtimeLoaded : manifest.runtime.mode !== "module" || !runtimeLoader,
     });
@@ -651,7 +652,7 @@ export class PluginManager {
     }));
   }
 
-  getWidgets({ placement } = {}) {
+  getWidgets({ placement }: any = {}) {
     return Array.from(this.plugins.values())
       .flatMap((record) => {
         if (record.status === PLUGIN_STATUSES.FAILED || record.status === PLUGIN_STATUSES.DISABLED) {
@@ -748,7 +749,7 @@ export class PluginManager {
     };
   }
 
-  async installPlugin(manifest, { approvedPermissions } = {}) {
+  async installPlugin(manifest: any, { approvedPermissions }: any = {}) {
     enforceApiVersionCompatibility(manifest);
     const normalizedManifest = normalizeManifest(manifest);
     if (!normalizedManifest) {

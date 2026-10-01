@@ -179,6 +179,14 @@ All profiles must have:
 3. **No Credentials**: Don't store sensitive API keys in profile data
 4. **Headers Management**: Use separate auth header system if needed
 
+## Endpoint Validation
+
+Before activating a custom network or modifying `NETWORKS.custom`, endpoints must be validated using `validateHorizonEndpoint` and `validateSorobanEndpoint` from `src/lib/stellar/endpointValidation.ts`.
+This ensures protocol compatibility by asserting:
+- **Horizon**: Valid HTTP GET response containing `horizon_version` and `core_version`.
+- **Soroban RPC**: Valid JSON-RPC response to `getHealth` indicating `status: 'healthy'`.
+Validation includes tracking response latency, which is surfaced in the UI.
+
 ## File Structure
 
 ```

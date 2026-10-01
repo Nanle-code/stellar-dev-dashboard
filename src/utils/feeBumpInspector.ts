@@ -85,11 +85,11 @@ export function inspectEnvelope(
       ok: true,
       envelope: {
         type: 'fee_bump',
-        hash: parsed.hash().toString('hex'),
+        hash: (parsed as any).hash().toString('hex'),
         feeSource: parsed.feeSource,
         fee: parsed.fee,
         innerTransaction: {
-          hash: inner.hash().toString('hex'),
+          hash: (inner as any).hash().toString('hex'),
           source: inner.source,
           fee: inner.fee,
           operationCount: inner.operations.length,
@@ -110,7 +110,7 @@ export function inspectEnvelope(
     ok: true,
     envelope: {
       type: 'transaction',
-      hash: tx.hash().toString('hex'),
+      hash: (tx as any).hash().toString('hex'),
       source: tx.source,
       fee: tx.fee,
       operationCount: tx.operations.length,

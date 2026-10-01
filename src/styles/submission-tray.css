@@ -1,0 +1,168 @@
+/**
+ * Styles for the transaction submission tray.
+ *
+ * Class-based rather than inline so the tray can be themed from the same CSS
+ * variables as the rest of the dashboard, and so status colours have a single
+ * place to be defined.
+ */
+
+.submission-tray {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.submission-tray__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.submission-tray__title {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.submission-tray__clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  padding: 4px 8px;
+}
+
+.submission-tray__clear:hover {
+  color: var(--text-primary);
+}
+
+.submission-tray__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.submission-tray__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.submission-tray__item--SUCCESS {
+  border-left-color: var(--green);
+}
+
+.submission-tray__item--FAILED,
+.submission-tray__item--EXPIRED {
+  border-left-color: var(--red);
+}
+
+.submission-tray__item--TRY_AGAIN_LATER,
+.submission-tray__item--DUPLICATE {
+  border-left-color: var(--amber);
+}
+
+.submission-tray__item--SUBMITTING,
+.submission-tray__item--PENDING {
+  border-left-color: var(--cyan);
+}
+
+.submission-tray__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.submission-tray__label {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submission-tray__status {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.submission-tray__hash {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submission-tray__error {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.submission-tray__suggestion {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.submission-tray__empty {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 640px) {
+  .submission-tray {
+    right: 8px;
+    left: 8px;
+    bottom: 8px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .submission-tray__item--SUBMITTING .submission-tray__status,
+  .submission-tray__item--PENDING .submission-tray__status,
+  .submission-tray__item--TRY_AGAIN_LATER .submission-tray__status {
+    animation: submission-tray-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes submission-tray-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

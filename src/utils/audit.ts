@@ -65,7 +65,7 @@ const _ring = [];
 let _lastHash = '0';
 let _sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 let _hydrated = false;
-const _subscribers = new Set();
+const _subscribers = new Set<(entry: any) => void>();
 
 // ─── Hashing (browser SubtleCrypto with fallback) ─────────────────────────────
 
@@ -171,7 +171,7 @@ export async function recordAudit({
   environment = null,
   source = null,
   correlationId = null,
-} = {}) {
+}: any = {}) {
   if (!action || typeof action !== 'string') {
     throw new Error('audit.record requires a string action');
   }
@@ -205,7 +205,7 @@ export async function recordAudit({
   _lastHash = hash;
 
   // Mirror critical events to the console for live debugging
-  if (severity === AuditSeverity.CRITICAL || severity === AuditSeverity.HIGH) {
+  if ((severity as any) === AuditSeverity.CRITICAL || (severity as any) === AuditSeverity.HIGH) {
     // eslint-disable-next-line no-console
     console.warn(`[audit:${severity}] ${action}`, metadata);
   }
@@ -232,7 +232,7 @@ export function getAuditEntries({
   environment,
   source,
   correlationId,
-} = {}) {
+}: any = {}) {
   let entries = _ring.slice();
 
   if (category) entries = entries.filter((e) => e.category === category);
@@ -321,7 +321,7 @@ export async function bulkRecordAudit(entries) {
 // ─── Enhanced stats with compliance breakdown ────────────────────────────────
 
 export function getAuditStats({ includeComplianceBreakdown = false } = {}) {
-  const stats = {
+  const stats: any = {
     total: _ring.length,
     bySeverity: {},
     byCategory: {},

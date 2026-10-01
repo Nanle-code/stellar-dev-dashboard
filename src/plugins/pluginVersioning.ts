@@ -199,3 +199,11 @@ export function resolveApiVersion(
     deprecationNotices: getDeprecationNoticesForVersion(version) ?? [],
   };
 }
+
+export function enforceApiVersionCompatibility(manifest: any): void {
+  const status = getApiVersionCompatibility(manifest?.apiVersion);
+  if (status === "unsupported" || status === "invalid") {
+    throw new Error(`Incompatible plugin API version: "${manifest?.apiVersion}"`);
+  }
+}
+

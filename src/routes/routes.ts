@@ -26,13 +26,10 @@ export type RouteLoader = () => Promise<{ default: TabComponent }>;
 
 /** Sidebar grouping keys. `SYSTEM` exists for views that are routed but not shown in the sidebar. */
 export type RouteGroup =
-  | 'analytics'
-  | 'network'
-  | 'build'
   | 'explore'
-  | 'payments'
-  | 'tools'
-  | 'system';
+  | 'build'
+  | 'monitor'
+  | 'admin';
 
 /** Metadata for entity views that expose a URL path parameter. */
 export interface RouteParam {
@@ -92,7 +89,7 @@ export const ROUTES: AppRoute[] = [
     path: '/overview',
     title: 'Overview',
     icon: '◈',
-    group: 'analytics',
+    group: 'monitor',
     aliases: ['/'],
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -101,7 +98,7 @@ export const ROUTES: AppRoute[] = [
     path: '/account/:address?',
     title: 'Account',
     icon: '◉',
-    group: 'analytics',
+    group: 'monitor',
     param: { name: 'address', store: 'connectedAddress' },
     loader: defaultLoader(() => import('../components/dashboard/Account')),
   },
@@ -110,7 +107,7 @@ export const ROUTES: AppRoute[] = [
     path: '/claimableBalances',
     title: 'Claimable',
     icon: '⊛',
-    group: 'analytics',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/ClaimableBalances')),
   },
   {
@@ -118,7 +115,7 @@ export const ROUTES: AppRoute[] = [
     path: '/compare',
     title: 'Compare',
     icon: '◫',
-    group: 'analytics',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/AccountComparison')),
   },
   {
@@ -126,7 +123,7 @@ export const ROUTES: AppRoute[] = [
     path: '/transactions/:hash?',
     title: 'Transactions',
     icon: '⇄',
-    group: 'analytics',
+    group: 'monitor',
     param: { name: 'hash', store: 'selectedTxHash' },
     loader: defaultLoader(() => import('../components/dashboard/Transactions')),
   },
@@ -135,7 +132,7 @@ export const ROUTES: AppRoute[] = [
     path: '/contracts/:contractId?',
     title: 'Contracts',
     icon: '◻',
-    group: 'analytics',
+    group: 'build',
     param: { name: 'contractId', store: 'contractId' },
     loader: defaultLoader(() => import('../components/dashboard/Contracts')),
   },
@@ -144,7 +141,7 @@ export const ROUTES: AppRoute[] = [
     path: '/assets',
     title: 'Assets',
     icon: '💎',
-    group: 'analytics',
+    group: 'explore',
     loader: namedLoader(() => import('../components/assets'), 'AssetDiscovery'),
   },
   {
@@ -152,7 +149,7 @@ export const ROUTES: AppRoute[] = [
     path: '/anchors',
     title: 'Anchors',
     icon: '⚓',
-    group: 'analytics',
+    group: 'explore',
     loader: namedLoader(() => import('../components/anchors'), 'AnchorIntegration'),
   },
   {
@@ -160,7 +157,7 @@ export const ROUTES: AppRoute[] = [
     path: '/search',
     title: 'Search',
     icon: '🔍',
-    group: 'analytics',
+    group: 'explore',
     loader: defaultLoader(() => import('../components/dashboard/AdvancedSearch')),
   },
 
@@ -170,7 +167,7 @@ export const ROUTES: AppRoute[] = [
     path: '/network',
     title: 'Network Info',
     icon: '◎',
-    group: 'network',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/NetworkStats')),
   },
   {
@@ -178,7 +175,7 @@ export const ROUTES: AppRoute[] = [
     path: '/validatorPredictor',
     title: 'Validator AI',
     icon: '🛡️',
-    group: 'network',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/NetworkStats')),
   },
@@ -187,7 +184,7 @@ export const ROUTES: AppRoute[] = [
     path: '/realtime',
     title: 'Real-Time',
     icon: '◉',
-    group: 'network',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/RealTimeLedger')),
   },
   {
@@ -195,7 +192,7 @@ export const ROUTES: AppRoute[] = [
     path: '/liveActivity',
     title: 'Live Activity',
     icon: '⚡',
-    group: 'network',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/LiveActivityFeed')),
   },
   {
@@ -203,7 +200,7 @@ export const ROUTES: AppRoute[] = [
     path: '/cacheStats',
     title: 'Cache Stats',
     icon: '⊞',
-    group: 'network',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/CacheStats')),
   },
   {
@@ -211,7 +208,7 @@ export const ROUTES: AppRoute[] = [
     path: '/performance',
     title: 'Performance',
     icon: 'P',
-    group: 'network',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/PerformanceMonitor')),
   },
   {
@@ -219,7 +216,7 @@ export const ROUTES: AppRoute[] = [
     path: '/feeForecast',
     title: 'Fee Forecast',
     icon: '📈',
-    group: 'network',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/NetworkFeeForecast')),
   },
@@ -232,6 +229,14 @@ export const ROUTES: AppRoute[] = [
     icon: '⚒',
     group: 'build',
     loader: defaultLoader(() => import('../components/dashboard/Builder')),
+  },
+  {
+    id: 'assetIssuance',
+    path: '/assetIssuance',
+    title: 'Asset Issuance',
+    icon: '◆',
+    group: 'build',
+    loader: defaultLoader(() => import('../components/dashboard/AssetIssuanceWizard')),
   },
   {
     id: 'txSimulator',
@@ -336,7 +341,7 @@ export const ROUTES: AppRoute[] = [
     path: '/paymentChannels',
     title: 'Pay Channels',
     icon: '⇶',
-    group: 'payments',
+    group: 'build',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -347,7 +352,7 @@ export const ROUTES: AppRoute[] = [
     path: '/wallet',
     title: 'Wallet',
     icon: '⊡',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/WalletConnect')),
   },
@@ -356,7 +361,7 @@ export const ROUTES: AppRoute[] = [
     path: '/signer',
     title: 'Signer',
     icon: '✎',
-    group: 'tools',
+    group: 'build',
     loader: defaultLoader(() => import('../components/dashboard/TransactionSigner')),
   },
   {
@@ -364,7 +369,7 @@ export const ROUTES: AppRoute[] = [
     path: '/multisig',
     title: 'Multisig',
     icon: '⊕',
-    group: 'tools',
+    group: 'build',
     loader: namedLoader(() => import('../components/multisig'), 'MultisigManager'),
   },
   {
@@ -372,7 +377,7 @@ export const ROUTES: AppRoute[] = [
     path: '/did',
     title: 'DID',
     icon: '🆔',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -381,7 +386,7 @@ export const ROUTES: AppRoute[] = [
     path: '/alertRules',
     title: 'Alerts',
     icon: '🔔',
-    group: 'tools',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -390,7 +395,7 @@ export const ROUTES: AppRoute[] = [
     path: '/portfolio',
     title: 'Portfolio',
     icon: '◐',
-    group: 'tools',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -399,7 +404,7 @@ export const ROUTES: AppRoute[] = [
     path: '/portfolioAnalytics',
     title: 'Portfolio Analytics',
     icon: '📊',
-    group: 'tools',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -408,7 +413,7 @@ export const ROUTES: AppRoute[] = [
     path: '/sandboxAnalytics',
     title: 'Sandbox Demos',
     icon: '🧪',
-    group: 'tools',
+    group: 'explore',
     loader: defaultLoader(() => import('../components/dashboard/SandboxAnalyticsDemo')),
   },
   {
@@ -416,7 +421,7 @@ export const ROUTES: AppRoute[] = [
     path: '/autonomousTrading',
     title: 'Trading Agent',
     icon: '🤖',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -425,7 +430,7 @@ export const ROUTES: AppRoute[] = [
     path: '/charts',
     title: 'Charts',
     icon: '▤',
-    group: 'tools',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/ChartsTab')),
   },
   {
@@ -433,7 +438,7 @@ export const ROUTES: AppRoute[] = [
     path: '/dataStorytelling',
     title: 'Data Stories',
     icon: '📖',
-    group: 'tools',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -442,7 +447,7 @@ export const ROUTES: AppRoute[] = [
     path: '/analytics',
     title: 'Analytics',
     icon: '◍',
-    group: 'tools',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/Analytics')),
   },
   {
@@ -450,7 +455,7 @@ export const ROUTES: AppRoute[] = [
     path: '/designSystem',
     title: 'Design System',
     icon: '◈',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/DesignSystem')),
   },
   {
@@ -458,7 +463,7 @@ export const ROUTES: AppRoute[] = [
     path: '/featureFlags',
     title: 'Flags',
     icon: '🚩',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/FeatureFlags')),
   },
   {
@@ -466,7 +471,7 @@ export const ROUTES: AppRoute[] = [
     path: '/codeReview',
     title: 'Code Review',
     icon: '🔍',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -475,7 +480,7 @@ export const ROUTES: AppRoute[] = [
     path: '/txPatterns',
     title: 'AI Patterns',
     icon: '🧠',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -484,7 +489,7 @@ export const ROUTES: AppRoute[] = [
     path: '/anomalyViz',
     title: 'Anomaly Viz',
     icon: '◉',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -493,7 +498,7 @@ export const ROUTES: AppRoute[] = [
     path: '/systemHealth',
     title: 'Health',
     icon: '⚕',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/SystemHealth')),
   },
   {
@@ -501,7 +506,7 @@ export const ROUTES: AppRoute[] = [
     path: '/monitoringDashboards',
     title: 'Monitoring',
     icon: '📊',
-    group: 'tools',
+    group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/MonitoringDashboards')),
   },
   {
@@ -509,7 +514,7 @@ export const ROUTES: AppRoute[] = [
     path: '/throughputForecast',
     title: 'Forecast',
     icon: '📈',
-    group: 'tools',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -518,7 +523,7 @@ export const ROUTES: AppRoute[] = [
     path: '/dataExport',
     title: 'Export',
     icon: '⬇',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -527,7 +532,7 @@ export const ROUTES: AppRoute[] = [
     path: '/collaboration',
     title: 'Collaboration',
     icon: '◌',
-    group: 'tools',
+    group: 'admin',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/Overview')),
   },
@@ -536,7 +541,7 @@ export const ROUTES: AppRoute[] = [
     path: '/governance',
     title: 'Governance',
     icon: '🗳',
-    group: 'tools',
+    group: 'explore',
     loader: defaultLoader(() => import('../components/dashboard/Governance')),
   },
   {
@@ -544,7 +549,7 @@ export const ROUTES: AppRoute[] = [
     path: '/settings',
     title: 'Settings',
     icon: '⚙',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/Settings')),
   },
   {
@@ -552,7 +557,7 @@ export const ROUTES: AppRoute[] = [
     path: '/audit',
     title: 'Audit',
     icon: '⊟',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/AuditLog')),
   },
   {
@@ -560,7 +565,7 @@ export const ROUTES: AppRoute[] = [
     path: '/personalization',
     title: 'AI Personalization',
     icon: '🧠',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/PersonalizationPanel')),
   },
   {
@@ -568,7 +573,7 @@ export const ROUTES: AppRoute[] = [
     path: '/security',
     title: 'Security',
     icon: '🛡️',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/SecurityDashboard')),
   },
   {
@@ -576,7 +581,7 @@ export const ROUTES: AppRoute[] = [
     path: '/dependencyManagement',
     title: 'Dependencies',
     icon: '📦',
-    group: 'tools',
+    group: 'admin',
     loader: defaultLoader(() => import('../components/dashboard/DependencyManagement')),
   },
 
@@ -622,7 +627,7 @@ export const ROUTES: AppRoute[] = [
     path: '/txAnalytics',
     title: 'Transaction Analytics',
     icon: '📊',
-    group: 'analytics',
+    group: 'monitor',
     nav: false,
     loader: defaultLoader(() => import('../components/dashboard/TransactionAnalyticsDashboard')),
   },
@@ -631,7 +636,7 @@ export const ROUTES: AppRoute[] = [
     path: '/compliance',
     title: 'Compliance',
     icon: '📋',
-    group: 'system',
+    group: 'admin',
     nav: false,
     minExpertise: 'expert',
     loader: defaultLoader(() => import('../components/dashboard/ComplianceDashboard')),
@@ -641,7 +646,7 @@ export const ROUTES: AppRoute[] = [
     path: '/devToolbar',
     title: 'Dev Toolbar',
     icon: '🛠',
-    group: 'system',
+    group: 'admin',
     nav: false,
     minExpertise: 'expert',
     featureFlag: 'dev-toolbar',
@@ -659,13 +664,10 @@ export const ROUTES_BY_ID: Record<string, AppRoute> = Object.freeze(
 );
 
 export const GROUP_LABELS: Record<RouteGroup, string> = {
-  analytics: 'ANALYTICS',
-  network: 'NETWORK',
-  build: 'BUILD',
-  explore: 'EXPLORE',
-  payments: 'PAYMENTS',
-  tools: 'TOOLS',
-  system: 'SYSTEM',
+  explore: 'Explore',
+  build: 'Build',
+  monitor: 'Monitor',
+  admin: 'Admin / Diagnostics',
 };
 
 export function getRouteById(id: string): AppRoute | undefined {
@@ -724,18 +726,28 @@ export interface NavGroup {
   routes: AppRoute[];
 }
 
-/** Sidebar groups in first-appearance order, each with its nav routes. */
-export function getNavGroups(): NavGroup[] {
-  const groups: NavGroup[] = [];
-  for (const route of getNavRoutes()) {
-    let group = groups.find((g) => g.group === route.group);
-    if (!group) {
-      group = { group: route.group, label: GROUP_LABELS[route.group], routes: [] };
-      groups.push(group);
-    }
+function groupRoutes(routes: AppRoute[]): NavGroup[] {
+  const groups: NavGroup[] = (Object.keys(GROUP_LABELS) as RouteGroup[]).map((group) => ({
+    group,
+    label: GROUP_LABELS[group],
+    routes: [],
+  }));
+  for (const route of routes) {
+    const group = groups.find((candidate) => candidate.group === route.group);
+    if (!group) continue;
     group.routes.push(route);
   }
-  return groups;
+  return groups.filter((group) => group.routes.length > 0);
+}
+
+/** Sidebar workspaces in task-oriented order, each with its nav routes. */
+export function getNavGroups(): NavGroup[] {
+  return groupRoutes(getNavRoutes());
+}
+
+/** Workspace grouping for the curated mobile subset, including its extra routes. */
+export function getMobileNavGroups(): NavGroup[] {
+  return groupRoutes(getMobileNavRoutes());
 }
 
 // ─── Progressive disclosure ───────────────────────────────────────────────────

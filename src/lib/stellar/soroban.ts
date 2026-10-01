@@ -25,7 +25,7 @@ export async function fetchContractData(
   contractId: string,
   key: StellarSdk.xdr.ScVal | string,
   network: NetworkName = 'testnet',
-  durability: StellarSdk.rpc.Durability = StellarSdk.SorobanRpc.Durability.Persistent
+  durability: StellarSdk.rpc.Durability = StellarSdk.rpc.Durability.Persistent
 ): Promise<any> {
   const server = getSorobanServer(network);
 
@@ -58,6 +58,7 @@ export async function fetchContractData(
 export interface ContractInvocationArg {
   type: 'string' | 'int' | 'address' | 'bool';
   value: string;
+  name?: string;
 }
 
 export interface SerializedLedgerKey {
@@ -131,6 +132,35 @@ export function serializeDiagnosticEvent(event: StellarSdk.xdr.DiagnosticEvent):
   };
 }
 
+// When a contract spec is available, use it to encode args with full type fidelity.
+// Falls back to the 4-type manual encoder so existing callers keep working.
+function encodeArgsWithSpec(
+  spec: any,
+  functionName: string,
+  args: ContractInvocationArg[]
+): StellarSdk.xdr.ScVal[] | null {
+  if (!spec || typeof spec.funcArgsToScVals !== 'function') return null;
+  try {
+    // Build a named-param object from the positional args array.
+    // ContractInteraction sets arg.name from the spec, so we can use it.
+    const namedArgs: Record<string, unknown> = {};
+    for (const arg of args) {
+      if (!arg.name) return null; // fall back if names are missing
+      const val = arg.value.trim();
+      if (arg.type === 'bool') {
+        namedArgs[arg.name] = val === 'true';
+      } else if (arg.type === 'int') {
+        namedArgs[arg.name] = BigInt(val);
+      } else {
+        namedArgs[arg.name] = val;
+      }
+    }
+    return spec.funcArgsToScVals(functionName, namedArgs);
+  } catch {
+    return null;
+  }
+}
+
 function parseContractArgument(arg: ContractInvocationArg, index: number): StellarSdk.xdr.ScVal {
   const trimmedValue = arg.value?.trim?.() ?? '';
 
@@ -172,12 +202,14 @@ interface BuildContractInvocationParams {
   args?: ContractInvocationArg[];
   sourceAccount: string;
   network?: NetworkName;
+  // Optional spec object from parseContractWasm — enables full type-safe ScVal encoding.
+  spec?: any;
 }
 
 async function buildContractInvocationTransaction(
   params: BuildContractInvocationParams
 ): Promise<StellarSdk.Transaction> {
-  const { contractId, functionName, args = [], sourceAccount, network = 'testnet' } = params;
+  const { contractId, functionName, args = [], sourceAccount, network = 'testnet', spec } = params;
 
   if (!isValidContractId(contractId)) {
     throw new Error('Invalid contract address');
@@ -194,7 +226,11 @@ async function buildContractInvocationTransaction(
   const horizon = getServer(network);
   const account = await horizon.loadAccount(sourceAccount);
   const contract = new StellarSdk.Contract(contractId.trim());
-  const parsedArgs = args.map(parseContractArgument);
+
+  // Use spec-driven encoding when the spec is available — handles complex types
+  // like Vec, Map, enums, and custom structs that the manual encoder can't cover.
+  const specEncoded = encodeArgsWithSpec(spec, functionName, args);
+  const parsedArgs = specEncoded ?? args.map(parseContractArgument);
 
   return new StellarSdk.TransactionBuilder(account, {
     fee: StellarSdk.BASE_FEE.toString(),

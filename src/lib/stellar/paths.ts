@@ -1,4 +1,5 @@
 import { NETWORKS, withNetworkHeaders, type NetworkName } from './networks.js';
+import { coalescedHorizonFetch } from './requestCoalescing.js';
 import { isValidPublicKey } from './addresses.js';
 
 // ─── Path payments ────────────────────────────────────────────────────────────
@@ -38,10 +39,7 @@ export interface FetchPaymentPathsParams {
 }
 
 export type PathPaymentErrorCode =
-  | 'INVALID_INPUT'
-  | 'UNSUPPORTED_NETWORK'
-  | 'HORIZON_ERROR'
-  | 'REQUEST_FAILED';
+  'INVALID_INPUT' | 'UNSUPPORTED_NETWORK' | 'HORIZON_ERROR' | 'REQUEST_FAILED';
 
 /** A user-safe path quote failure with a stable code for UI handling. */
 export class PathPaymentError extends Error {
@@ -55,15 +53,16 @@ export class PathPaymentError extends Error {
   }
 }
 
-
-
 export async function fetchPaymentPaths(
   params: FetchPaymentPathsParams
 ): Promise<PaymentPathRecord[]> {
   const { sourceAsset, destAsset, amount, mode = 'strict-send', network = 'testnet' } = params;
 
   if (mode !== 'strict-send' && mode !== 'strict-receive') {
-    throw new PathPaymentError('INVALID_INPUT', 'Choose either strict-send or strict-receive mode.');
+    throw new PathPaymentError(
+      'INVALID_INPUT',
+      'Choose either strict-send or strict-receive mode.'
+    );
   }
 
   if (!/^\d+(\.\d{1,7})?$/.test(amount) || Number(amount) <= 0) {
@@ -79,10 +78,16 @@ export async function fetchPaymentPaths(
     }
     if (asset.type === 'credit') {
       if (!/^[a-zA-Z0-9]{1,12}$/.test(asset.code)) {
-        throw new PathPaymentError('INVALID_INPUT', `${label} asset code must contain 1 to 12 letters or numbers.`);
+        throw new PathPaymentError(
+          'INVALID_INPUT',
+          `${label} asset code must contain 1 to 12 letters or numbers.`
+        );
       }
       if (!asset.issuer || !isValidPublicKey(asset.issuer)) {
-        throw new PathPaymentError('INVALID_INPUT', `${label} asset issuer must be a valid Stellar G address.`);
+        throw new PathPaymentError(
+          'INVALID_INPUT',
+          `${label} asset issuer must be a valid Stellar G address.`
+        );
       }
     }
   }
@@ -121,7 +126,7 @@ export async function fetchPaymentPaths(
 
   let res: Response;
   try {
-    res = await fetch(url, withNetworkHeaders({}, network));
+    res = await coalescedHorizonFetch(url, withNetworkHeaders({}, network));
   } catch {
     throw new PathPaymentError(
       'REQUEST_FAILED',
@@ -152,20 +157,22 @@ export async function fetchPaymentPaths(
     throw new PathPaymentError('HORIZON_ERROR', 'Horizon returned an invalid path quote response.');
   }
 
-  const amountFor = (record: PaymentPathRecord) => Number(
-    mode === 'strict-send' ? record.destination_amount : record.source_amount
+  const amountFor = (record: PaymentPathRecord) =>
+    Number(mode === 'strict-send' ? record.destination_amount : record.source_amount);
+  const validRecords = records.filter(
+    (record) => Number.isFinite(amountFor(record)) && amountFor(record) > 0
   );
-  const validRecords = records.filter((record) => Number.isFinite(amountFor(record)) && amountFor(record) > 0);
-  validRecords.sort((a, b) => mode === 'strict-send'
-    ? amountFor(b) - amountFor(a)
-    : amountFor(a) - amountFor(b));
+  validRecords.sort((a, b) =>
+    mode === 'strict-send' ? amountFor(b) - amountFor(a) : amountFor(a) - amountFor(b)
+  );
 
   const bestAmount = validRecords[0] ? amountFor(validRecords[0]) : 0;
   return validRecords.map((record) => {
     const quotedAmount = amountFor(record);
-    const slippage = mode === 'strict-send'
-      ? ((bestAmount - quotedAmount) / bestAmount) * 100
-      : ((quotedAmount - bestAmount) / bestAmount) * 100;
+    const slippage =
+      mode === 'strict-send'
+        ? ((bestAmount - quotedAmount) / bestAmount) * 100
+        : ((quotedAmount - bestAmount) / bestAmount) * 100;
     return { ...record, slippagePct: slippage.toFixed(2) };
   });
 }

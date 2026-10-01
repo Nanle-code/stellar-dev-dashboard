@@ -14,6 +14,7 @@ const sidebars = {
         'getting-started/networks',
       ],
     },
+    'roadmap',
   ],
 
   apiReference: [

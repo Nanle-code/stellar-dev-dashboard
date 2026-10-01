@@ -85,7 +85,7 @@ export async function registerServiceWorker() {
     // Initialise background sync if supported
     if ('sync' in registration) {
       try {
-        await registration.sync.register('sync-offline-queue');
+        await (registration as any).sync.register('sync-offline-queue');
         logger.info('Background sync registered');
       } catch (err) {
         logger.warn('Background sync registration failed:', err);
@@ -329,7 +329,7 @@ export async function showTestNotification() {
       data: {
         url: window.location.origin
       }
-    });
+    } as any);
   }
 }
 
@@ -388,7 +388,7 @@ export const getPendingRequests = () => [..._memoryQueue.values()];
 
 /** Returns count of IDB-persisted queued ops (survives reload). */
 export const getPendingCount = async () => {
-  const queue = await getOfflineQueue();
+  const queue: any = await getOfflineQueue();
   return queue.length;
 };
 
@@ -408,7 +408,7 @@ export async function flushOfflineQueue() {
   logger.info('Flushing offline queue…');
 
   // Read IDB to find persisted ops; match them to in-memory fn references.
-  const persisted = await getOfflineQueue();
+  const persisted: any = await getOfflineQueue();
 
   // Sort by priority desc, then queuedAt asc
   persisted.sort((a, b) => {

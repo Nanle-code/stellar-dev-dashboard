@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { visualizer } from 'rollup-plugin-visualizer'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -30,21 +30,21 @@ export default defineConfig({
       name: 'emit-bundle-module-map',
       apply: 'build',
       generateBundle(_outputOptions, bundle) {
-        const chunks = {}
+        const chunks = {};
         for (const [fileName, output] of Object.entries(bundle)) {
-          if (output.type !== 'chunk') continue
+          if (output.type !== 'chunk') continue;
           chunks[fileName] = {
             name: output.name,
             isEntry: Boolean(output.isEntry),
             isDynamicEntry: Boolean(output.isDynamicEntry),
             moduleIds: Object.keys(output.modules).map((id) => id.replace(/\\/g, '/')),
-          }
+          };
         }
         this.emitFile({
           type: 'asset',
           fileName: 'bundle-modules.json',
           source: JSON.stringify({ generatedAt: new Date().toISOString(), chunks }, null, 2),
-        })
+        });
       },
     },
   ],
@@ -80,30 +80,30 @@ export default defineConfig({
         // Manual chunks keep large libraries and feature areas cacheable while
         // route-level dynamic imports keep the app shell small.
         manualChunks(id) {
-          const normalizedId = id.replace(/\\/g, '/')
+          const normalizedId = id.replace(/\\/g, '/');
           if (!normalizedId.includes('node_modules')) {
-            if (normalizedId.includes('/src/components/charts/')) return 'charts'
-            if (normalizedId.includes('/src/components/assets/')) return 'assets'
-            if (normalizedId.includes('/src/components/multisig/')) return 'multisig'
-            if (normalizedId.includes('/src/components/deployment/')) return 'deployment'
-            return undefined
+            if (normalizedId.includes('/src/components/charts/')) return 'charts';
+            if (normalizedId.includes('/src/components/assets/')) return 'assets';
+            if (normalizedId.includes('/src/components/multisig/')) return 'multisig';
+            if (normalizedId.includes('/src/components/deployment/')) return 'deployment';
+            return undefined;
           }
 
-          if (normalizedId.includes('@stellar/stellar-sdk')) return 'stellar-sdk'
-          if (normalizedId.includes('recharts')) return 'charts-vendor'
-          if (normalizedId.includes('@tensorflow/')) return 'ml-vendor'
+          if (normalizedId.includes('@stellar/stellar-sdk')) return 'stellar-sdk';
+          if (normalizedId.includes('recharts')) return 'charts-vendor';
+          if (normalizedId.includes('@tensorflow/')) return 'ml-vendor';
           if (
             normalizedId.includes('react-force-graph') ||
             normalizedId.includes('force-graph') ||
             normalizedId.includes('d3-force-3d')
           ) {
-            return 'graph-vendor'
+            return 'graph-vendor';
           }
-          if (normalizedId.includes('lucide-react')) return 'icons-vendor'
-          if (normalizedId.includes('i18next')) return 'i18n'
-          if (normalizedId.includes('date-fns')) return 'date-vendor'
+          if (normalizedId.includes('lucide-react')) return 'icons-vendor';
+          if (normalizedId.includes('i18next')) return 'i18n';
+          if (normalizedId.includes('date-fns')) return 'date-vendor';
 
-          return 'vendor'
+          return 'vendor';
         },
       },
     },
@@ -111,6 +111,9 @@ export default defineConfig({
 
   // Allow the dev server to serve sw.js at the root scope
   server: {
+    proxy: {
+      '/api': process.env.VITE_API_URL || 'http://localhost:4000',
+    },
     headers: {
       'Service-Worker-Allowed': '/',
     },
@@ -125,4 +128,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom'],
   },
-})
+});

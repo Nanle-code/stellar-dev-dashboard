@@ -134,6 +134,27 @@ describe('useDataExport', () => {
     expect(click).toHaveBeenCalledTimes(1);
   });
 
+  it('exportTransactions triggers a JSON download when format is json', async () => {
+    const { result } = renderHook(() => useDataExport());
+    await act(async () => {
+      await result.current.exportTransactions([{ id: '1', hash: 'abc' }], 'json');
+    });
+
+    // Check last call
+    const blob = createObjectURL.mock.calls[createObjectURL.mock.calls.length - 1][0];
+    expect(blob.type).toBe('application/json');
+    expect(click).toHaveBeenCalled();
+  });
+
+  it('exportTransactions handles Parquet format error on missing dependencies/empty data', async () => {
+    const { result } = renderHook(() => useDataExport());
+    await act(async () => {
+      await result.current.exportTransactions([], 'parquet');
+    });
+
+    expect(result.current.exportError).toMatch(/Cannot export empty data to Parquet/);
+  });
+
   it('importBackup: valid backup restores state and sets importSuccess', async () => {
     const { result } = renderHook(() => useDataExport());
     const backup = JSON.stringify({

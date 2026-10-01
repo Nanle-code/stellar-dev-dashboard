@@ -55,7 +55,7 @@ async function loadDataset() {
 
 async function train() {
   const samples = await loadDataset();
-  const X = tf.tensor2d(samples.map((s) => Object.values(s.features)));
+  const X = tf.tensor2d(samples.map((s) => Object.values(s.features)) as number[][]);
   const y = tf.tensor2d(samples.map((s) => [s.target]));
 
   const model = tf.sequential();

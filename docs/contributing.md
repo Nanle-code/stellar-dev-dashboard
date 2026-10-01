@@ -127,6 +127,29 @@ Test files live alongside the source they cover: `src/utils/export.test.js` test
 
 New utility functions **must** have unit tests. New React components **should** have at least a smoke-render test.
 
+### TypeScript type check (CI gate)
+
+TypeScript is enforced as a **required CI gate** on every pull request. The `type-check` job runs `tsc --noEmit` and blocks merges when it fails.
+
+```bash
+npm run type-check      # wrapper with input/env validation (recommended)
+npm run type-check:tsc  # raw tsc --noEmit
+```
+
+Exit codes from `scripts/type-check.mjs`:
+
+| Code | Meaning                                                                              |
+| ---- | ------------------------------------------------------------------------------------ |
+| `0`  | Type check passed                                                                    |
+| `1`  | Type errors found — fix before merging                                               |
+| `2`  | Invalid input or unsupported environment (missing `tsc`, bad `--project`, Node < 18) |
+
+**Compatibility notes:**
+
+- Node.js **≥ 18** is required (declared in `package.json` `engines`).
+- `tsc` is resolved from `node_modules/.bin/tsc` first, so the gate uses the compiler version pinned in `devDependencies`.
+- `tsconfig.json` covers `src/**/*.ts` and `src/**/*.tsx` with `strict` enabled. JavaScript files are not type-checked (`checkJs: false`), so the gate focuses on the TypeScript migration surface.
+
 ### End-to-end tests (Playwright)
 
 ```bash
@@ -306,4 +329,3 @@ All pull requests that touch interactive UI components must satisfy the followin
 - [ ] Icons used as buttons have aria-label, not just title
 - [ ] ARIA live regions present for async feedback
 - [ ] Page has a logical heading hierarchy (h1 → h2 → h3)
-

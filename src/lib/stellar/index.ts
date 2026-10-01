@@ -16,6 +16,7 @@ export * from './assets.js';
 export * from './assetMarketData.js';
 export * from './readSources.js';
 export * from './endpointValidation.js';
+export { OPERATION_LABELS, getOperationLabel } from '@stellar-dev-dashboard/core';
 export { importBatchXdr, simulateBatchXdr, validateXdrForBroadcast } from '../batchXdrImport.js';
 export type { BatchXdrImportResult, BatchXdrImportOptions, ValidationReportItem, XdrImportItem } from '../batchXdrImport.js';
 export { StellarSdk };

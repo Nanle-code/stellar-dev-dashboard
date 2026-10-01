@@ -8,8 +8,18 @@ import {
   createHorizonFetchKey,
   installSdkGetCoalescing,
 } from './requestCoalescing.js';
+import {
+  type NetworkName,
+  type NetworkConfig,
+  NETWORKS as CORE_NETWORKS,
+  getServer as coreGetServer,
+  getSorobanServer as coreGetSorobanServer,
+  updateCustomNetworkConfig as coreUpdateCustomNetworkConfig,
+} from '@stellar-dev-dashboard/core';
 
-// ─── Cache setup ──────────────────────────────────────────────────────────────
+export type { NetworkName, NetworkConfig };
+
+export const NETWORKS = CORE_NETWORKS;
 
 const stellarCache = new Cache({
   namespace: 'stellar',
@@ -19,97 +29,6 @@ const stellarCache = new Cache({
 });
 
 export { stellarCache };
-
-// ─── Network config ───────────────────────────────────────────────────────────
-
-export type NetworkName = 'mainnet' | 'testnet' | 'futurenet' | 'local' | 'custom';
-
-export interface NetworkConfig {
-  name: string;
-  horizonUrl: string;
-  sorobanUrl?: string;
-  passphrase: string;
-  faucetUrl?: string;
-  customHeaders?: Record<string, string>;
-  headers?: Record<string, string>;
-  capabilities?: import('./types').NetworkCapabilities;
-}
-
-export const NETWORKS: Record<NetworkName, NetworkConfig> = {
-  mainnet: {
-    name: 'Mainnet',
-    horizonUrl: 'https://horizon.stellar.org',
-    sorobanUrl: 'https://soroban-rpc.stellar.org',
-    passphrase: StellarSdk.Networks.PUBLIC,
-    capabilities: {
-      ledgers: true,
-      transactions: true,
-      events: true,
-      accountOffers: true,
-      fullHistory: true,
-      defaultReadSource: 'rpc',
-    },
-  },
-  testnet: {
-    name: 'Testnet',
-    horizonUrl: 'https://horizon-testnet.stellar.org',
-    sorobanUrl: 'https://soroban-testnet.stellar.org',
-    passphrase: StellarSdk.Networks.TESTNET,
-    faucetUrl: 'https://friendbot.stellar.org',
-    capabilities: {
-      ledgers: true,
-      transactions: true,
-      events: true,
-      accountOffers: true,
-      fullHistory: true,
-      defaultReadSource: 'rpc',
-    },
-  },
-  futurenet: {
-    name: 'Futurenet',
-    horizonUrl: 'https://horizon-futurenet.stellar.org',
-    sorobanUrl: 'https://soroban-futurenet.stellar.org',
-    passphrase: StellarSdk.Networks.FUTURENET,
-    faucetUrl: 'https://friendbot-futurenet.stellar.org',
-    capabilities: {
-      ledgers: true,
-      transactions: true,
-      events: true,
-      accountOffers: true,
-      fullHistory: true,
-      defaultReadSource: 'rpc',
-    },
-  },
-  local: {
-    name: 'Local',
-    horizonUrl: 'http://localhost:8000',
-    sorobanUrl: 'http://localhost:8000/soroban/rpc',
-    passphrase: 'Standalone Network ; February 2017',
-    capabilities: {
-      ledgers: true,
-      transactions: true,
-      events: true,
-      accountOffers: true,
-      fullHistory: true,
-      defaultReadSource: 'rpc',
-    },
-  },
-  custom: {
-    name: 'Custom',
-    horizonUrl: '',
-    sorobanUrl: '',
-    passphrase: '',
-    headers: {},
-    capabilities: {
-      ledgers: true,
-      transactions: true,
-      events: true,
-      accountOffers: true,
-      fullHistory: true,
-      defaultReadSource: 'rpc',
-    },
-  },
-};
 
 function isConfiguredHorizonUrl(value: string): boolean {
   try {
@@ -199,8 +118,6 @@ function getServerOptions(network: NetworkName) {
   return Object.keys(headers).length ? { headers } : undefined;
 }
 
-// ─── Rate Limited Fetch Wrapper ───────────────────────────────────────────────
-
 export async function rateLimitedFetch(
   url: string,
   options?: RequestInit,
@@ -209,7 +126,6 @@ export async function rateLimitedFetch(
 ): Promise<Response> {
   const startTime = Date.now();
 
-  // Merge custom network headers (e.g. API keys) without mutating caller options
   const mergedOptions: RequestInit =
     extraHeaders && Object.keys(extraHeaders).length > 0
       ? {
@@ -219,7 +135,6 @@ export async function rateLimitedFetch(
       : (options ?? {});
 
   try {
-    // Log the API call (options without secret headers — sanitized by auditTrail)
     auditTrail.logAPICall(url, mergedOptions.method || 'GET', mergedOptions, {});
 
     const requestKey = isConfiguredHorizonUrl(url)
@@ -265,22 +180,17 @@ export async function rateLimitedFetch(
   }
 }
 
-// ─── Servers ──────────────────────────────────────────────────────────────────
-
 export function getNetworkDetails(network: NetworkName): NetworkConfig {
   return NETWORKS[network];
 }
 
 export function updateCustomNetworkConfig(config: Partial<NetworkConfig>) {
+  coreUpdateCustomNetworkConfig(config);
   const { headers, ...networkConfig } = config;
   Object.assign(NETWORKS.custom, networkConfig);
   if (headers) saveCustomNetworkAuthHeaders(headers);
 }
 
-/**
- * Switch to a custom network profile (Issue #188).
- * Updates NETWORKS.custom with profile data and creates new clients.
- */
 export async function switchToCustomProfile(profileId: string): Promise<void> {
   const { getNetworkProfile } = await import('../userPreferences');
   const profile = await getNetworkProfile(profileId);
@@ -289,7 +199,6 @@ export async function switchToCustomProfile(profileId: string): Promise<void> {
     throw new Error(`Network profile "${profileId}" not found`);
   }
 
-  // Update the custom network config
   updateCustomNetworkConfig({
     name: profile.name,
     horizonUrl: profile.horizonUrl,
@@ -298,9 +207,6 @@ export async function switchToCustomProfile(profileId: string): Promise<void> {
   });
 }
 
-/**
- * Load profiles from storage and return them (Issue #188).
- */
 export async function loadCustomNetworkProfiles() {
   const { loadNetworkProfiles } = await import('../userPreferences');
   return loadNetworkProfiles();
@@ -319,7 +225,6 @@ export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.
   return server;
 }
 
-/** @deprecated Use getServer directly. */
 export const ee = getServer;
 
 export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {

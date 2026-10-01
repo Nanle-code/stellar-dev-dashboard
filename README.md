@@ -56,6 +56,27 @@ Details and how-tos are in docs-site, not in long root markdown files.
 
 Root one-off guides were moved under docs-site/docs so there is one navigable docs home.
 
+## Architecture: Shared Core Package
+
+Since 2026, platform-agnostic Stellar logic is extracted into a shared workspace package:
+
+- **`packages/core/`** — `@stellar-dev-dashboard/core`
+  - Network configuration (`NETWORKS`, `getServer`, `getSorobanServer`)
+  - Validation (addresses, amounts, memos, contracts, URLs)
+  - Formatters (XLM, addresses, stroops, dates, relative time)
+  - Address utilities (validation, resolution, SEP-29 memo check)
+  - Reserve calculations
+  - Operation labels
+  - High-level services (`fetchAccount`, `fetchTransactions`, `fetchNetworkStats`, `fetchXLMPrice`)
+  - Comprehensive test suite
+
+- **Web app (`src/`)** — Imports from `@stellar-dev-dashboard/core`, keeps web-specific code (rate limiting, request coalescing, browser storage, network probing)
+- **Mobile app (`mobile/`)** — Imports from `@stellar-dev-dashboard/core`, keeps mobile-specific code (AsyncStorage caching, React Native hooks)
+
+This eliminates parity issues (#883) by ensuring both platforms share identical validation, formatting, and data-access logic.
+
+See `packages/core/README.md` for full API reference and migration notes.
+
 ## License
 
 ### SEP-38 Integration

@@ -26,10 +26,7 @@ export type RouteLoader = () => Promise<{ default: TabComponent }>;
 
 /** Sidebar grouping keys. `SYSTEM` exists for views that are routed but not shown in the sidebar. */
 export type RouteGroup =
-  | 'explore'
-  | 'build'
-  | 'monitor'
-  | 'admin';
+  'analytics' | 'network' | 'build' | 'explore' | 'payments' | 'tools' | 'system';
 
 /** Metadata for entity views that expose a URL path parameter. */
 export interface RouteParam {
@@ -69,15 +66,12 @@ export interface AppRoute {
 
 // ─── Loader helpers ───────────────────────────────────────────────────────────
 
-const defaultLoader = (
-  loader: () => Promise<{ default: TabComponent }>,
-): RouteLoader => loader;
+const defaultLoader = (loader: () => Promise<{ default: TabComponent }>): RouteLoader => loader;
 
-const namedLoader = (
-  loader: () => Promise<Record<string, unknown>>,
-  exportName: string,
-): RouteLoader => () =>
-  loader().then((module) => ({ default: module[exportName] as TabComponent }));
+const namedLoader =
+  (loader: () => Promise<Record<string, unknown>>, exportName: string): RouteLoader =>
+  () =>
+    loader().then((module) => ({ default: module[exportName] as TabComponent }));
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Order matters: it defines sidebar order within each group and match priority.
@@ -262,7 +256,10 @@ export const ROUTES: AppRoute[] = [
     title: 'Soroban Debugging',
     icon: '🐞',
     group: 'build',
-    loader: namedLoader(() => import('../components/dashboard/SorobanDebugTutorial'), 'SorobanDebugTutorial'),
+    loader: namedLoader(
+      () => import('../components/dashboard/SorobanDebugTutorial'),
+      'SorobanDebugTutorial'
+    ),
   },
   {
     id: 'learningHub',
@@ -449,6 +446,14 @@ export const ROUTES: AppRoute[] = [
     icon: '◍',
     group: 'monitor',
     loader: defaultLoader(() => import('../components/dashboard/Analytics')),
+  },
+  {
+    id: 'cohortRetention',
+    path: '/cohortRetention',
+    title: 'Cohort Retention',
+    icon: '👥',
+    group: 'analytics',
+    loader: defaultLoader(() => import('../components/dashboard/CohortRetentionView')),
   },
   {
     id: 'designSystem',
@@ -660,7 +665,7 @@ export const ROUTES_BY_ID: Record<string, AppRoute> = Object.freeze(
   ROUTES.reduce<Record<string, AppRoute>>((acc, route) => {
     acc[route.id] = route;
     return acc;
-  }, {}),
+  }, {})
 );
 
 export const GROUP_LABELS: Record<RouteGroup, string> = {
@@ -715,8 +720,8 @@ const MOBILE_NAV_IDS = [
 ] as const;
 
 export function getMobileNavRoutes(): AppRoute[] {
-  return MOBILE_NAV_IDS.map((id) => ROUTES_BY_ID[id]).filter(
-    (route): route is AppRoute => Boolean(route),
+  return MOBILE_NAV_IDS.map((id) => ROUTES_BY_ID[id]).filter((route): route is AppRoute =>
+    Boolean(route)
   );
 }
 
@@ -769,10 +774,7 @@ export interface RouteVisibilityOptions {
  * `minExpertise` / `featureFlag` always pass, so the default sidebar is
  * unchanged for existing users.
  */
-export function isRouteVisible(
-  route: AppRoute,
-  options: RouteVisibilityOptions = {},
-): boolean {
+export function isRouteVisible(route: AppRoute, options: RouteVisibilityOptions = {}): boolean {
   if (route.minExpertise && options.expertiseLevel) {
     if (LEVEL_RANK[options.expertiseLevel] < LEVEL_RANK[route.minExpertise]) {
       return false;
@@ -793,19 +795,13 @@ export function isRouteVisible(
  *   buildPath('account', { address: 'G...' })    // → '/account/G...'
  *   buildPath('account')                         // → '/account' (optional param omitted)
  */
-export function buildPath(
-  id: string,
-  params: Record<string, string | number> = {},
-): string {
+export function buildPath(id: string, params: Record<string, string | number> = {}): string {
   const route = ROUTES_BY_ID[id];
   if (!route) return '/';
   let path = route.path;
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null || value === '') continue;
-    path = path.replace(
-      new RegExp(`:${key}\\??`),
-      encodeURIComponent(String(value)),
-    );
+    path = path.replace(new RegExp(`:${key}\\??`), encodeURIComponent(String(value)));
   }
   // Drop any optional segments the caller did not supply.
   path = path.replace(/\/:[^/]+\?/g, '');

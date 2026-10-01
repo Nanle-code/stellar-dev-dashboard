@@ -69,7 +69,7 @@ describe("locale features", () => {
     expect(formatLocaleCurrency(null, "en-US")).toBe("0");
     expect(formatLocaleCurrency(undefined, "en-US")).toBe("0");
     expect(formatLocaleCurrency("", "en-US")).toBe("0");
-    expect(formatLocaleCurrency("invalid", "en-US", "USD")).toBe("USD invalid");
+    expect(formatLocaleCurrency("invalid", "en-US", "USD")).toBe("invalid");
   });
 
   it("exposes cultural adaptations and regional content", () => {

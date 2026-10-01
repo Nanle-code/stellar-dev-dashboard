@@ -122,6 +122,12 @@ async function _finishConnect(transport, derivationPath = DERIVATION_PATH) {
   const stellarApp = new StellarLedger(transport);
   const result = await stellarApp.getPublicKey(normalizedPath);
 
+  if (!result?.publicKey || !StellarSdk.StrKey.isValidEd25519PublicKey(result.publicKey)) {
+    transport.close();
+    ledgerStatus = LEDGER_STATUS.ERROR;
+    throw new Error('Ledger returned an invalid or spoofed public key.');
+  }
+
   ledgerStatus = LEDGER_STATUS.CONNECTED;
   _activeStellarApp = stellarApp;
   _activePublicKey = result.publicKey;
@@ -139,6 +145,11 @@ function derivingPath(derivationPath = DERIVATION_PATH) {
   const value = typeof derivationPath === 'string' ? derivationPath.trim() : '';
   if (!value) {
     throw new Error('Ledger derivation path is required.');
+  }
+  if (!/^44'\/148'(\/\d+'?)*$/.test(value)) {
+    throw new Error(
+      "Invalid Ledger derivation path. Must follow BIP-44 Stellar specification (44'/148'/...)."
+    );
   }
   return value;
 }

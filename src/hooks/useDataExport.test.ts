@@ -20,6 +20,8 @@ const revokeObjectURL = vi.fn();
 const createObjectURL = vi.fn(() => 'blob:mock');
 const click = vi.fn();
 
+const originalCreateElement = document.createElement.bind(document);
+
 beforeEach(() => {
   vi.restoreAllMocks();
 
@@ -34,10 +36,10 @@ beforeEach(() => {
       const anchor = { href: '', download: '', click, style: {} };
       return anchor;
     }
-    return document.createElement.wrappedJSObject?.(tag) ?? {};
+    return originalCreateElement(tag);
   });
-  vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
-  vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+  vi.spyOn(document.body, 'appendChild').mockImplementation((child) => child);
+  vi.spyOn(document.body, 'removeChild').mockImplementation((child) => child);
 });
 
 // ── Stub Zustand store ───────────────────────────────────────────────────────
@@ -130,6 +132,27 @@ describe('useDataExport', () => {
     const blob = createObjectURL.mock.calls[0][0];
     expect(blob.type).toBe('text/csv');
     expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('exportTransactions triggers a JSON download when format is json', async () => {
+    const { result } = renderHook(() => useDataExport());
+    await act(async () => {
+      await result.current.exportTransactions([{ id: '1', hash: 'abc' }], 'json');
+    });
+
+    // Check last call
+    const blob = createObjectURL.mock.calls[createObjectURL.mock.calls.length - 1][0];
+    expect(blob.type).toBe('application/json');
+    expect(click).toHaveBeenCalled();
+  });
+
+  it('exportTransactions handles Parquet format error on missing dependencies/empty data', async () => {
+    const { result } = renderHook(() => useDataExport());
+    await act(async () => {
+      await result.current.exportTransactions([], 'parquet');
+    });
+
+    expect(result.current.exportError).toMatch(/Cannot export empty data to Parquet/);
   });
 
   it('importBackup: valid backup restores state and sets importSuccess', async () => {

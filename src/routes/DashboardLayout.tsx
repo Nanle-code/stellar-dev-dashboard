@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { matchRoute, buildPath, getDocumentTitle, ROUTES_BY_ID, type TabComponent } from './routes';
+import { matchRoute, getDocumentTitle, type TabComponent } from './routes';
 import { getRouteComponent } from './routeComponents';
 import NotFound from './NotFound';
 import Sidebar from '../components/layout/Sidebar';
@@ -25,6 +25,9 @@ import { TourLauncher } from '../components/tutorial';
 import GlobalSearch from '../components/search/GlobalSearch';
 import UserPreferences from '../components/preferences/UserPreferences';
 import NetworkIndicator from '../components/layout/NetworkIndicator';
+import NetworkSafetyBadge from '../components/layout/NetworkSafetyBadge';
+import { useWriteGuard } from '../hooks/useWriteGuard';
+import SubmissionTray from '../components/dashboard/SubmissionTray';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import KeyboardNavigation from '../components/accessibility/KeyboardNavigation';
 import SkipLink from '../components/accessibility/SkipLink';
@@ -50,6 +53,7 @@ import { useWalletSessionListeners } from '../hooks/useWalletSessionListeners';
 import ShareViewButton from '../components/share/ShareViewButton';
 import SharedViewBanner from '../components/share/SharedViewBanner';
 import { useSharedView } from '../hooks/useSharedView';
+import { useAIKillSwitch } from '../context/AIKillSwitchContext';
 import {
   DEMO_MODE_LABEL,
   DEMO_MODE_BADGE,
@@ -105,6 +109,12 @@ function NotificationBell({
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeMatch = matchRoute(location.pathname);
+  const activeRoute = routeMatch?.route ?? null;
+  const isConnectRoute = location.pathname === '/connect';
+  const sharedView = useSharedView();
+  const demoSummary = getDemoFixtureSummarySafe();
   const {
     connectedAddress,
     activeTab,
@@ -124,6 +134,7 @@ export default function DashboardLayout() {
     exitDemoMode,
   } = useStore() as any;
   const { isMobile, isTablet } = useResponsive();
+  const { enabled: aiEnabled, ready: aiControlReady } = useAIKillSwitch();
   const { level, isNovice, setLevel, updateSignals } = useExpertise();
   const { trackFeatureInteraction } = useExpertiseTracking({ enabled: true });
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
@@ -194,13 +205,32 @@ export default function DashboardLayout() {
     document.title = getDocumentTitle(activeRoute);
   }, [activeRoute]);
 
+  // Route ids the app can actually render, handed to the shared-view decoder so
+  // an unrecognised `t=` in a link degrades to the overview instead of routing
+  // somewhere unexpected (#988).
+  const shareableTabs = React.useMemo(() => Object.keys(ROUTES_BY_ID), []);
+  const sharedView = useSharedView({ knownTabs: shareableTabs });
+
+  // #875 — counts shown in the read-only demo banner.
+  const demoSummary = isDemoMode ? getDemoFixtureSummarySafe() : null;
+
+  // #983 — mainnet write guard (shared across child tabs via context or prop-drilling)
+  const { isReadOnlyLocked, lockReadOnly, unlockReadOnly } = useWriteGuard();
+
   useRouteFocus(activeTab);
   useStorageQuotaAlerts();
   useWalletSessionListeners();
 
+  const location = useLocation();
+  const routeMatch = matchRoute(location.pathname);
+  const activeRoute = routeMatch?.route;
+  const isConnectRoute = location.pathname === '/connect';
+  const sharedView = useSharedView();
+  const demoSummary = getDemoFixtureSummarySafe();
+
   useEffect(() => {
     // v2: full multi-layer cache initialization (warm, prune, SW bridge)
-    initCache(useStore.getState().network, useStore.getState().connectedAddress ?? undefined).catch(
+    initCache(useStore.getState().network.networkId, useStore.getState().connectedAddress ?? undefined).catch(
       () => {}
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -284,6 +314,8 @@ export default function DashboardLayout() {
     : null;
   const txHash = activeRoute?.id === 'transactions' ? routeMatch?.params.hash : undefined;
   const isNotFound = Boolean(connectedAddress) && !routeMatch && !isConnectRoute;
+  const aiPanelRoutes = new Set(['liquidityPrediction', 'pathExplorer', 'personalization', 'txPatterns']);
+  const isDisabledAIPanel = Boolean(activeRoute && aiPanelRoutes.has(activeRoute.id) && (!aiEnabled || !aiControlReady));
 
   const handleRetry = async (): Promise<void> => {
     addBreadcrumb('App-level retry attempted', 'user_action');
@@ -333,8 +365,14 @@ export default function DashboardLayout() {
               <GlobalSearch onSelectResult={handleSearchResult} />
             </div>
             <ThemeToggle />
-            <div className="dashboard-toolbar__network">
-              <NetworkIndicator />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* #983 – NetworkSafetyBadge replaces NetworkIndicator; amber chrome on mainnet */}
+              <NetworkSafetyBadge
+                isReadOnlyLocked={isReadOnlyLocked}
+                onLockToggle={isReadOnlyLocked ? unlockReadOnly : lockReadOnly}
+              />
+              {/* Keep the compact dot indicator for quick reference in dense layouts */}
+              <NetworkIndicator compact />
             </div>
             <div className="dashboard-toolbar__expertise">
               <ExpertiseBadge
@@ -410,6 +448,12 @@ export default function DashboardLayout() {
                   <p>Transaction detail view not available. <a href="/transactions" onClick={(e) => { e.preventDefault(); navigate('/transactions'); }}>View all transactions</a></p>
                 </div>
               </Suspense>
+            ) : isDisabledAIPanel ? (
+              <div role="status" style={{ padding: 24, color: 'var(--text-muted)' }}>
+                {aiControlReady
+                  ? 'AI-assisted panels are temporarily disabled by the operator.'
+                  : 'AI-assisted panels are unavailable because runtime status could not be verified.'}
+              </div>
             ) : ActiveComponent ? (
               <RouteErrorBoundary
                 routeName={activeRoute?.title || activeTab}
@@ -428,8 +472,13 @@ export default function DashboardLayout() {
           </ErrorBoundary>
         </main>
         <TourLauncher />
+        {/* Issue #981: submission progress lives in a module-level tracker, so
+            this survives every route change below it. */}
+        <SubmissionTray />
         <DevToolbar />
-        <PredictiveFeatureSuggestions onNavigate={(tab: string) => navigate(`/${tab}`)} />
+        {aiEnabled && aiControlReady && (
+          <PredictiveFeatureSuggestions onNavigate={(tab: string) => navigate(`/${tab}`)} />
+        )}
         <NotificationBell
           onClick={() => setNotificationsOpen(true)}
           mobile={isMobile}
@@ -438,27 +487,31 @@ export default function DashboardLayout() {
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
         />
-        <DebugAssistantButton
-          onClick={() => toggleDebugAssistant()}
-          isOpen={debugAssistantOpen}
-          issueCount={debugAssistantIssueCount}
-        />
-        {debugAssistantOpen && <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />}
+        {aiEnabled && aiControlReady && (
+          <>
+            <DebugAssistantButton
+              onClick={() => toggleDebugAssistant()}
+              isOpen={debugAssistantOpen}
+              issueCount={debugAssistantIssueCount}
+            />
+            {debugAssistantOpen && <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />}
+          </>
+        )}
 
         {/* Conversational Navigation Button */}
-        <button
+        {aiEnabled && aiControlReady && <button
           type="button"
           onClick={() => setConversationOpen(!conversationOpen)}
           aria-label={conversationOpen ? 'Close navigation assistant' : 'Open navigation assistant'}
           className={`dashboard-conversation-trigger${conversationOpen ? ' dashboard-conversation-trigger--open' : ''}${isMobile ? ' dashboard-conversation-trigger--mobile' : ''}`}
         >
           <span aria-hidden="true">{conversationOpen ? '✕' : '💬'}</span>
-        </button>
+        </button>}
 
-        <ConversationPanel isOpen={conversationOpen} onClose={() => setConversationOpen(false)} />
+        {aiEnabled && aiControlReady && <ConversationPanel isOpen={conversationOpen} onClose={() => setConversationOpen(false)} />}
 
         {isMobile && <MobileNavigation />}
-        <TipButton />
+        {aiEnabled && aiControlReady && <TipButton />}
         {preferencesOpen && (
           <div
             role="presentation"

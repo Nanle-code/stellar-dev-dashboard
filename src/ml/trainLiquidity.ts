@@ -8,6 +8,7 @@ import * as tf from '@tensorflow/tfjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from '../lib/logging/index.js';
 
 // Resolve __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -54,7 +55,7 @@ async function loadDataset() {
 
 async function train() {
   const samples = await loadDataset();
-  const X = tf.tensor2d(samples.map((s) => Object.values(s.features)));
+  const X = tf.tensor2d(samples.map((s) => Object.values(s.features)) as number[][]);
   const y = tf.tensor2d(samples.map((s) => [s.target]));
 
   const model = tf.sequential();
@@ -63,18 +64,18 @@ async function train() {
   model.compile({ optimizer: tf.train.adam(0.001), loss: 'meanSquaredError' });
 
   const Xseq = X.reshape([X.shape[0], X.shape[1], 1]);
-  console.log('Training LSTM model on', samples.length, 'synthetic samples');
+  logger.info(`Training LSTM model on ${samples.length} synthetic samples`);
   await model.fit(Xseq, y, { epochs: 1, batchSize: 32, verbose: 1 });
 
   const modelDir = path.resolve(__dirname, '..', '..', 'model', 'liquidity');
   fs.mkdirSync(modelDir, { recursive: true });
   await model.save('file://' + modelDir);
-  console.log('Liquidity LSTM model saved to', modelDir);
+  logger.info(`Liquidity LSTM model saved to ${modelDir}`);
 }
 
 if (import.meta.url === `file://${__filename}`) {
   train().catch((err) => {
-    console.error(err);
+    logger.error(err.message, undefined, undefined, err);
     process.exit(1);
   });
 }

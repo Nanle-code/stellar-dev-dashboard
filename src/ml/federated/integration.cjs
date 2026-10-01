@@ -4,6 +4,7 @@ const { FederatedServer } = require('./server.cjs');
 const { PrivacyPreservingCollector } = require('./privacy.cjs');
 const { scoreTransaction, loadModels } = require('../scoringEngine.cjs');
 const { IsolationForest } = require('../isolation_forest.cjs');
+const { logger } = require('../../lib/logging/logger.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -30,7 +31,7 @@ class FederatedLearningIntegration {
   // Initialize federated learning system
   async initialize() {
     if (!this.enableFederatedLearning) {
-      console.log('Federated learning is disabled');
+      logger.info('Federated learning is disabled');
       return false;
     }
 
@@ -45,10 +46,10 @@ class FederatedLearningIntegration {
       await loadModels();
 
       this.isInitialized = true;
-      console.log('Federated learning integration initialized');
+      logger.info('Federated learning integration initialized');
       return true;
     } catch (error) {
-      console.error('Failed to initialize federated learning:', error.message);
+      logger.error('Failed to initialize federated learning: ' + error.message);
       return false;
     }
   }
@@ -71,7 +72,7 @@ class FederatedLearningIntegration {
         federatedScore = result[0][1]; // Probability of fraud
         prediction.dispose();
       } catch (error) {
-        console.error('Federated scoring error:', error.message);
+        logger.error('Federated scoring error: ' + error.message);
       }
     }
 
@@ -96,7 +97,7 @@ class FederatedLearningIntegration {
   // Participate in federated learning round with local data
   async participateInFederatedRound(transactions) {
     if (!this.isInitialized || !this.federatedClient) {
-      console.log('Federated learning not initialized');
+      logger.info('Federated learning not initialized');
       return null;
     }
 
@@ -113,17 +114,17 @@ class FederatedLearningIntegration {
         dataBatch.labels
       );
 
-      console.log('Federated learning round completed:', result);
+      logger.info('Federated learning round completed', { result });
       return result;
     } catch (error) {
-      console.error('Federated learning round failed:', error.message);
+      logger.error('Federated learning round failed: ' + error.message);
       throw error;
     }
   }
 
   // Train hybrid model combining Isolation Forest and Federated Learning
   async trainHybridModel(transactions, labels) {
-    console.log('Training hybrid model...');
+    logger.info('Training hybrid model...');
 
     // Train Isolation Forest (existing)
     const features = transactions.map(tx => {
@@ -157,7 +158,7 @@ class FederatedLearningIntegration {
       await this.federatedClient.model.save('file://' + path.join(modelsDir, 'federated_model_hybrid'));
     }
 
-    console.log('Hybrid model training completed');
+    logger.info('Hybrid model training completed');
     return { success: true };
   }
 
@@ -202,7 +203,7 @@ class FederatedLearningIntegration {
       
       return { success: true };
     } catch (error) {
-      console.error('Feedback collection failed:', error.message);
+      logger.error('Feedback collection failed: ' + error.message);
       throw error;
     }
   }
@@ -258,12 +259,12 @@ class FederatedLearningIntegration {
       const loaded = await this.federatedClient.loadGlobalModel();
       
       if (loaded) {
-        console.log('Synced with federated server');
+        logger.info('Synced with federated server');
       }
       
       return loaded;
     } catch (error) {
-      console.error('Sync failed:', error.message);
+      logger.error('Sync failed: ' + error.message);
       return false;
     }
   }

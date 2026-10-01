@@ -7,6 +7,12 @@ import CustomReports from './CustomReports';
 import CohortRetentionView from './CohortRetentionView';
 import type { AlertEntry } from './types';
 
+const RISK_SIGNAL_COLUMNS = [
+  { id: 'label', label: 'Risk Signal', width: '2fr' },
+  { id: 'severity', label: 'Severity', width: '1fr' },
+  { id: 'status', label: 'Status', width: '1fr' },
+];
+
 function RiskItem({ signal }: { signal: AlertEntry }) {
   const color =
     signal.severity === 'high'
@@ -37,6 +43,9 @@ export default function Analytics() {
   const tx = analytics?.transactions || {};
   const network = analytics?.network || {};
   const risks: AlertEntry[] = analytics?.risks || [];
+
+  // Table presets for risk signals
+  const riskPresets = useTablePresets('analytics-risk-signals', ['label', 'severity', 'status'], 'comfortable');
 
   return (
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

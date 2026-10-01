@@ -16,7 +16,7 @@
  * @see capacityPrediction.ts — correlates fee trends with capacity utilization
  */
 
-import { IsolationForest } from './isolation_forest'
+import { IsolationForest } from './isolationForest'
 import type { StellarTransaction, StellarOperation } from './transactionPatternAnalysis'
 
 // ---- Fee Prediction Models ----

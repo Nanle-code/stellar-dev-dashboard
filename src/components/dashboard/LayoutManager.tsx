@@ -9,11 +9,17 @@ import {
   duplicateLayout,
   exportLayout,
   importLayout,
+  encodeLayoutForUrl,
+  applyLayout,
   PRESET_LAYOUTS,
   generateLayoutId,
   createEmptyLayout,
-  type DashboardLayout 
+  extractLayoutFromCurrentUrl,
+  pushLayoutHistory,
+  type DashboardLayout,
+  type LayoutHistoryEntry,
 } from '../../lib/dashboardLayouts';
+import LayoutExportImport from './LayoutExportImport';
 import { generateOptimizedLayout } from '../../lib/layoutOptimizer';
 import { useResponsive } from '../../hooks/useResponsive';
 import { addBreadcrumb } from '../../lib/errorReporting';
@@ -22,7 +28,8 @@ import {
   Copy, 
   Trash2, 
   Download, 
-  Upload, 
+  Upload,
+  History,
   X, 
   Check, 
   LayoutTemplate,
@@ -44,13 +51,19 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
   const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showExportImport, setShowExportImport] = useState(false);
+  const [exportImportLayout, setExportImportLayout] = useState<DashboardLayout | null>(null);
   const [newLayoutName, setNewLayoutName] = useState('');
   const [importData, setImportData] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [urlLayoutBanner, setUrlLayoutBanner] = useState<DashboardLayout | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       loadLayouts();
+      // Check URL hash for a shared layout
+      const urlLayout = extractLayoutFromCurrentUrl();
+      if (urlLayout) setUrlLayoutBanner(urlLayout);
     }
   }, [isOpen]);
 
@@ -72,8 +85,7 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
       span: w.span,
     }));
 
-    await saveLayout(newLayout);
-    await setActiveLayout(newLayout.id);
+    await applyLayout(newLayout, { snapshotPrevious: false });
     await loadLayouts();
     setShowCreateModal(false);
     setNewLayoutName('');
@@ -81,7 +93,8 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
   };
 
   const handleSwitchLayout = async (layout: DashboardLayout) => {
-    await setActiveLayout(layout.id);
+    // Snapshot current layout before switching so it can be restored from history
+    await applyLayout(layout, { snapshotPrevious: true, reason: 'before-switch' });
     setActiveLayoutId(layout.id);
     onLayoutChange(layout.widgets);
     addBreadcrumb('Layout switched', 'user_action', { layoutId: layout.id, name: layout.name });
@@ -120,7 +133,8 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
 
     try {
       const imported = importLayout(importData);
-      await saveLayout(imported);
+      await applyLayout(imported, { snapshotPrevious: true, reason: 'before-import' });
+      onLayoutChange(imported.widgets);
       await loadLayouts();
       setShowImportModal(false);
       setImportData('');
@@ -128,6 +142,40 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
     } catch (error) {
       alert(`Failed to import layout: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  /** Called from the LayoutExportImport modal */
+  const handleExportImportImport = async (layout: DashboardLayout) => {
+    await applyLayout(layout, { snapshotPrevious: true, reason: 'before-import' });
+    await loadLayouts();
+    addBreadcrumb('Layout imported via ExportImport modal', 'user_action', { layoutId: layout.id });
+  };
+
+  /** Called when user restores a history snapshot */
+  const handleHistoryRestore = async (entry: LayoutHistoryEntry) => {
+    const restoredLayout: DashboardLayout = {
+      ...entry,
+      id: generateLayoutId(),
+      name: `${entry.layoutName} (Restored)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await applyLayout(restoredLayout, { snapshotPrevious: true, reason: 'before-import' });
+    onLayoutChange(entry.widgets);
+    await loadLayouts();
+    addBreadcrumb('Layout restored from history', 'user_action', { historyId: entry.id });
+  };
+
+  /** Accept a layout from the URL hash banner */
+  const handleUrlLayoutImport = async () => {
+    if (!urlLayoutBanner) return;
+    await applyLayout(urlLayoutBanner, { snapshotPrevious: true, reason: 'before-import' });
+    onLayoutChange(urlLayoutBanner.widgets);
+    await loadLayouts();
+    setUrlLayoutBanner(null);
+    // Clear the hash so it won't be picked up again
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    addBreadcrumb('Layout imported from URL hash', 'user_action', { layoutId: urlLayoutBanner.id });
   };
 
   const handleApplyPreset = async (presetId: string) => {
@@ -144,8 +192,7 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
       isPreset: true,
     };
 
-    await saveLayout(newLayout);
-    await setActiveLayout(newLayout.id);
+    await applyLayout(newLayout, { snapshotPrevious: true, reason: 'before-switch' });
     onLayoutChange(preset.widgets);
     await loadLayouts();
     addBreadcrumb('Preset layout applied', 'user_action', { presetId: preset.id });
@@ -182,11 +229,16 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
     })
   }
 
-  const handleShareLayout = (layout: DashboardLayout) => {
-    const exported = exportLayout(layout);
-    const shareToken = btoa(exported);
-    navigator.clipboard.writeText(shareToken);
-    alert('Layout share code copied to clipboard!');
+  const handleShareLayout = async (layout: DashboardLayout) => {
+    // encodeLayoutForUrl is UTF-8 + base64url safe; a bare btoa() throws on
+    // non-Latin1 characters such as emoji or accented layout names.
+    const shareToken = encodeLayoutForUrl(layout);
+    try {
+      await navigator.clipboard.writeText(shareToken);
+      alert('Layout share code copied to clipboard!');
+    } catch {
+      alert('Could not access the clipboard. Use Export → Share via URL instead.');
+    }
     addBreadcrumb('Layout shared', 'user_action', { layoutId: layout.id });
   };
 
@@ -215,6 +267,7 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
   };
 
   return (
+    <>
     <div style={overlayStyles} onClick={onClose}>
       <div style={modalStyles} onClick={e => e.stopPropagation()}>
         {/* Header */}
@@ -334,7 +387,69 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
               <Upload size={14} />
               {!isMobile && 'Import'}
             </button>
+
+            {/* Export / History button — opens LayoutExportImport modal */}
+            <button
+              id="layout-manager-export-history-btn"
+              onClick={() => {
+                const active = layouts.find(l => l.id === activeLayoutId) || null;
+                setExportImportLayout(active);
+                setShowExportImport(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <Download size={14} />
+              {!isMobile && 'Export / History'}
+            </button>
           </div>
+
+          {/* URL-hash shared layout banner */}
+          {urlLayoutBanner && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              background: 'linear-gradient(135deg, rgba(6,182,212,.12), rgba(99,102,241,.12))',
+              border: '1px solid rgba(6,182,212,.4)',
+              borderRadius: 'var(--radius)',
+            }}>
+              <Share2 size={16} style={{ color: 'var(--cyan)', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                  Shared layout detected in URL
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  "{urlLayoutBanner.name}" — {urlLayoutBanner.widgets.length} widgets
+                </div>
+              </div>
+              <button
+                onClick={handleUrlLayoutImport}
+                style={{ padding: '6px 14px', background: 'var(--cyan)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Import
+              </button>
+              <button
+                onClick={() => setUrlLayoutBanner(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Preset Layouts */}
           <div style={{ marginBottom: '32px' }}>
@@ -746,5 +861,15 @@ export default function LayoutManager({ isOpen, currentWidgets, onLayoutChange, 
         )}
       </div>
     </div>
+
+    {/* Export / Import / History modal — rendered at top-level so it can overlay the main modal */}
+    <LayoutExportImport
+      isOpen={showExportImport}
+      layout={exportImportLayout}
+      onImport={handleExportImportImport}
+      onHistoryRestore={handleHistoryRestore}
+      onClose={() => setShowExportImport(false)}
+    />
+  </>
   );
-}
+}

@@ -1,10 +1,10 @@
 import React from "react";
-import { getEnvironmentConfig, loadConfigProfiles, getActiveProfileName } from "../lib/config";
 import { useStore } from "../lib/store";
 import {
   PLUGIN_API_VERSION,
   getApiVersionCompatibility,
   getDeprecationNoticesForVersion,
+  enforceApiVersionCompatibility,
 } from "./pluginVersioning";
 import {
   loadInstalledPlugins,
@@ -15,6 +15,15 @@ import {
 } from "./pluginStorage";
 import { fetchMarketplacePlugins, fetchMarketplacePluginById } from "./pluginCatalog";
 import SandboxedPluginFrame from "./pluginSandbox";
+import {
+  PluginCapabilityController,
+  createSandboxedDashboardApi,
+  validateCapabilityScope,
+  isCapabilityScope,
+  CapabilityError,
+  CAPABILITY_ERROR_CODES,
+  CAPABILITY_SCOPES,
+} from "./capabilitySandbox";
 
 const PLUGIN_STATUSES = Object.freeze({
   REGISTERED: "registered",
@@ -25,69 +34,7 @@ const PLUGIN_STATUSES = Object.freeze({
   DISABLED: "disabled",
 });
 
-const ALLOWED_PERMISSION_SCOPES = Object.freeze([
-  "dashboard:read",
-  "dashboard:write",
-  "data:read",
-  "data:write",
-  "notifications:write",
-  "network:request",
-  "storage:read",
-  "storage:write",
-  "window:open",
-]);
-
-/**
- * Enforce the plugin API version contract. Throws when a manifest explicitly
- * declares an `apiVersion` that this dashboard cannot run (unsupported future
- * major, a minor/patch beyond what is shipped, or an unparseable string).
- *
- * Omitting `apiVersion` is allowed (defaults to the dashboard version) so
- * existing plugins keep working.
- */
-function enforceApiVersionCompatibility(manifest) {
-  const declared =
-    manifest &&
-    manifest.apiVersion != null &&
-    String(manifest.apiVersion).trim() !== "";
-  if (!declared) return;
-
-  const compatibility = getApiVersionCompatibility(manifest.apiVersion);
-  if (compatibility === "unsupported" || compatibility === "invalid") {
-    throw new Error(
-      `Plugin apiVersion "${manifest.apiVersion}" is not supported by this dashboard (supported: ${PLUGIN_API_VERSION}). Upgrade the dashboard or relax the plugin's apiVersion.`
-    );
-  }
-}
-
-const SAFE_STATE_KEYS = Object.freeze([
-  "network",
-  "theme",
-  "activeTab",
-  "connectedAddress",
-  "accountData",
-  "transactions",
-  "operations",
-  "networkStats",
-  "prices",
-  "walletConnected",
-  "walletType",
-  "walletPublicKey",
-  "streamStatus",
-  "streamLedgers",
-  "searchFilters",
-  "notificationHistory",
-  "unreadNotificationCount",
-]);
-
-const SAFE_ACTION_KEYS = Object.freeze([
-  "setActiveTab",
-  "setNetwork",
-  "setConnectedAddress",
-  "setSearchFilters",
-  "addNotification",
-  "removeNotification",
-]);
+const ALLOWED_PERMISSION_SCOPES = CAPABILITY_SCOPES;
 
 const pluginModules = import.meta.glob("./**/*Plugin.{js,jsx,ts,tsx}", {
   eager: false,
@@ -107,15 +54,6 @@ function freezePlainObject(value) {
   );
 }
 
-function pickSafeState(state) {
-  return freezePlainObject(
-    SAFE_STATE_KEYS.reduce((slice, key) => {
-      if (state[key] !== undefined) slice[key] = state[key];
-      return slice;
-    }, {})
-  );
-}
-
 function normalizePlugin(rawPlugin) {
   const plugin = rawPlugin?.default || rawPlugin?.plugin || rawPlugin?.createPlugin || rawPlugin;
   if (typeof plugin === "function") return plugin();
@@ -132,7 +70,7 @@ function normalizeManifest(plugin) {
   const permissions = Array.isArray(manifest.permissions)
     ? manifest.permissions.filter(
         (permission) =>
-          typeof permission === "string" && ALLOWED_PERMISSION_SCOPES.includes(permission)
+          typeof permission === "string" && ALLOWED_PERMISSION_SCOPES.includes(permission as any)
       )
     : [];
 
@@ -277,68 +215,112 @@ function createRecord({
 }
 
 export class PluginManager {
+  store: any;
+  plugins: Map<string, any>;
+  controllers: Map<string, PluginCapabilityController>;
+  listeners: Set<(_manager: PluginManager) => void>;
+  initializing: Promise<any> | null;
+  marketplace: Map<string, any>;
+  hydrated: boolean;
+
   constructor({ store = useStore } = {}) {
     this.store = store && typeof store.getState === "function" ? store : useStore;
     this.plugins = new Map();
+    this.controllers = new Map();
     this.listeners = new Set();
     this.initializing = null;
     this.marketplace = new Map();
     this.hydrated = false;
   }
 
-  createDashboardApi(pluginId, manifest) {
-    const currentState = this.store.getState();
-    const permissions = Array.isArray(manifest?.permissions) ? manifest.permissions : [];
-
-    const actions = {};
-    if (permissions.includes("dashboard:write")) {
-      SAFE_ACTION_KEYS.forEach((key) => {
-        const action = currentState[key];
-        if (typeof action === "function") {
-          actions[key] = (...args) => action(...args);
-        }
-      });
+  getCapabilityController(pluginId: string): PluginCapabilityController | undefined {
+    if (this.controllers.has(pluginId)) {
+      return this.controllers.get(pluginId);
     }
-
-    if (permissions.includes("notifications:write")) {
-      const addNotification = currentState.addNotification;
-      const removeNotification = currentState.removeNotification;
-      if (typeof addNotification === "function") {
-        actions.addNotification = (...args) => addNotification(...args);
-      }
-      if (typeof removeNotification === "function") {
-        actions.removeNotification = (...args) => removeNotification(...args);
-      }
+    const record = this.plugins.get(pluginId);
+    if (!record) {
+      return undefined;
     }
+    const initialCapabilities =
+      record.permissionsGranted ||
+      (Array.isArray(record.manifest?.permissions) ? record.manifest.permissions : []);
+    const controller = new PluginCapabilityController(pluginId, initialCapabilities);
+    this.controllers.set(pluginId, controller);
+    return controller;
+  }
 
-    return Object.freeze({
+  createDashboardApi(pluginId: string, manifest?: any) {
+    let controller = this.getCapabilityController(pluginId);
+    if (!controller) {
+      controller = new PluginCapabilityController(pluginId, manifest?.permissions || []);
+      this.controllers.set(pluginId, controller);
+    }
+    return createSandboxedDashboardApi({
       pluginId,
+      controller,
+      store: this.store,
       manifest,
-      apiVersion: manifest.apiVersion || PLUGIN_API_VERSION,
-      apiVersionCompatibility: getApiVersionCompatibility(manifest.apiVersion),
-      deprecationNotices: getDeprecationNoticesForVersion(manifest.apiVersion),
-      permissions: Object.freeze([...permissions]),
-      version: "1.0.0",
-      getState: () => pickSafeState(this.store.getState()),
-      getConfig: () =>
-        freezePlainObject({
-          environment: getEnvironmentConfig(),
-          activeProfileName: getActiveProfileName(),
-          profiles: loadConfigProfiles(),
-        }),
-      actions: Object.freeze(actions),
-      subscribe: (listener) => {
-        if (typeof listener !== "function" || !permissions.includes("dashboard:read")) {
-          return () => {};
-        }
-        return this.store.subscribe((state) => listener(pickSafeState(state)));
-      },
-      logger: Object.freeze({
-        info: (...args) => console.info(`[plugin:${pluginId}]`, ...args),
-        warn: (...args) => console.warn(`[plugin:${pluginId}]`, ...args),
-        error: (...args) => console.error(`[plugin:${pluginId}]`, ...args),
-      }),
     });
+  }
+
+  grantCapability(pluginId: string, capability: string) {
+    const record = this.plugins.get(pluginId);
+    if (!record) {
+      throw new Error(`Plugin "${pluginId}" is not installed.`);
+    }
+    validateCapabilityScope(capability, pluginId);
+    const controller = this.getCapabilityController(pluginId);
+    if (!controller) {
+      throw new Error(`Plugin capability controller not found for "${pluginId}".`);
+    }
+    controller.grant(capability);
+    record.permissionsGranted = controller.getGrantedCapabilities();
+    this.persistRecord(record);
+    this.emitChange();
+    return record;
+  }
+
+  revokeCapability(pluginId: string, capability: string) {
+    const record = this.plugins.get(pluginId);
+    if (!record) {
+      throw new Error(`Plugin "${pluginId}" is not installed.`);
+    }
+    validateCapabilityScope(capability, pluginId);
+    const controller = this.getCapabilityController(pluginId);
+    if (!controller) {
+      throw new Error(`Plugin capability controller not found for "${pluginId}".`);
+    }
+    controller.revoke(capability);
+    record.permissionsGranted = controller.getGrantedCapabilities();
+    this.persistRecord(record);
+    this.emitChange();
+    return record;
+  }
+
+  revokeAllCapabilities(pluginId: string) {
+    const record = this.plugins.get(pluginId);
+    if (!record) {
+      throw new Error(`Plugin "${pluginId}" is not installed.`);
+    }
+    const controller = this.getCapabilityController(pluginId);
+    if (!controller) {
+      throw new Error(`Plugin capability controller not found for "${pluginId}".`);
+    }
+    controller.revokeAll();
+    record.permissionsGranted = [];
+    this.persistRecord(record);
+    this.emitChange();
+    return record;
+  }
+
+  hasCapability(pluginId: string, capability: string): boolean {
+    const controller = this.controllers.get(pluginId);
+    return controller ? controller.hasCapability(capability) : false;
+  }
+
+  getGrantedCapabilities(pluginId: string): string[] {
+    const controller = this.controllers.get(pluginId);
+    return controller ? controller.getGrantedCapabilities() : [];
   }
 
   emitChange() {
@@ -414,7 +396,7 @@ export class PluginManager {
         enabled: installedRecord.enabled !== false,
         installedAt: installedRecord.installedAt || new Date().toISOString(),
         initializedAt: installedRecord.initializedAt || null,
-        status: installedRecord.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED,
+        status: (installedRecord.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED) as any,
         error: installedRecord.error || null,
         runtimeLoaded: manifest.runtime.mode !== "module" || !runtimeLoader,
       });
@@ -456,7 +438,7 @@ export class PluginManager {
     }
   }
 
-  register(rawPlugin, options = {}) {
+  register(rawPlugin: any, options: any = {}) {
     const plugin = normalizePlugin(rawPlugin);
     const validationError = this.validate(plugin);
     const safePlugin = validationError
@@ -515,7 +497,7 @@ export class PluginManager {
       enabled: options.enabled !== false,
       installedAt: options.installedAt || null,
       initializedAt: options.initializedAt || null,
-      status: options.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED,
+      status: (options.enabled === false ? PLUGIN_STATUSES.DISABLED : PLUGIN_STATUSES.REGISTERED) as any,
       error: validationError || options.error || null,
       runtimeLoaded: options.runtimeLoaded !== undefined ? options.runtimeLoaded : manifest.runtime.mode !== "module" || !runtimeLoader,
     });
@@ -670,7 +652,7 @@ export class PluginManager {
     }));
   }
 
-  getWidgets({ placement } = {}) {
+  getWidgets({ placement }: any = {}) {
     return Array.from(this.plugins.values())
       .flatMap((record) => {
         if (record.status === PLUGIN_STATUSES.FAILED || record.status === PLUGIN_STATUSES.DISABLED) {
@@ -722,6 +704,9 @@ export class PluginManager {
               srcDoc: widget.srcDoc || record.manifest.runtime.srcDoc || undefined,
               sandbox: widget.sandbox || record.manifest.runtime.sandbox,
               height: widget.height || 220,
+              pluginId: record.id,
+              controller: this.getCapabilityController(record.id),
+              api: this.createDashboardApi(record.id, record.manifest),
               ...iframeProps,
             })
         : Component,
@@ -764,7 +749,7 @@ export class PluginManager {
     };
   }
 
-  async installPlugin(manifest, { approvedPermissions } = {}) {
+  async installPlugin(manifest: any, { approvedPermissions }: any = {}) {
     enforceApiVersionCompatibility(manifest);
     const normalizedManifest = normalizeManifest(manifest);
     if (!normalizedManifest) {
@@ -837,6 +822,11 @@ export class PluginManager {
   }
 
   async uninstallPlugin(pluginId) {
+    const controller = this.controllers.get(pluginId);
+    if (controller) {
+      controller.dispose();
+      this.controllers.delete(pluginId);
+    }
     this.plugins.delete(pluginId);
     this.removePersistedRecord(pluginId);
     this.emitChange();
@@ -926,4 +916,13 @@ export async function registerActivePlugins(manager = pluginManager) {
   return registrationPromise;
 }
 
-export { PLUGIN_STATUSES };
+export {
+  PLUGIN_STATUSES,
+  PluginCapabilityController,
+  CapabilityError,
+  CAPABILITY_ERROR_CODES,
+  CAPABILITY_SCOPES,
+  isCapabilityScope,
+  validateCapabilityScope,
+};
+

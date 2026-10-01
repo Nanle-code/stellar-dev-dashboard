@@ -16,7 +16,9 @@ import {
   REVIEW_ERROR,
 } from '../../hooks/usePreSignRiskSummary';
 import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay';
+import MainnetConfirmDialog from '../security/MainnetConfirmDialog';
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics';
+import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { inspectEnvelope } from '../../utils/feeBumpInspector';
 import type { EnvelopeInfo } from '../../utils/feeBumpInspector';
 import { setCriticalSigningActive } from '../../utils/offline';
@@ -39,6 +41,9 @@ export default function TransactionSigner() {
   const [ledgerPrompt, setLedgerPrompt] = useState(false);
   const [showMainnetReview, setShowMainnetReview] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // #983 — mainnet write guard
+  const { guard, isReadOnlyLocked, dialogProps } = useWriteGuard();
   const [showBiometricOverlay, setShowBiometricOverlay] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
 
@@ -61,7 +66,6 @@ export default function TransactionSigner() {
   const bio = useBehavioralBiometrics(walletPublicKey);
 
   const [accountInfo, setAccountInfo] = useState<any>(null);
-  const networkPassphrase = NETWORKS[network].passphrase;
 
   useEffect(() => {
     async function fetchPreferences() {
@@ -94,25 +98,19 @@ export default function TransactionSigner() {
     [bio, network]
   );
 
-  // networkPassphrase moved up
+  // networkPassphrase
+  const networkPassphrase = NETWORKS[network]?.passphrase ?? NETWORKS.testnet.passphrase;
   const handleSign = async () => {
     if (!xdr.trim()) {
       setError('Please enter a transaction XDR to sign');
       return;
     }
+    // #983 — route through central write guard; it handles mainnet confirmation
+    // and session read-only lock before proceeding to the biometric/confirmation flow.
+    guard({ action: 'sign & submit transaction', onConfirm: _runSignFlow });
+  };
 
-    // #982 — the pre-sign risk summary is the first step of every signing path,
-    // ahead of the behavioural biometric gate. An envelope that cannot be
-    // decoded is refused here rather than reaching the wallet unreviewed.
-    reviewedXdrRef.current = xdr.trim();
-    const review = await beginRiskReview(reviewedXdrRef.current);
-    if (review === REVIEW_SHOWN) return;
-    if (review === REVIEW_ERROR) {
-      reviewedXdrRef.current = null;
-      return;
-    }
-
-    // Run biometric check if enabled
+  const _runSignFlow = async () => {
     if (bio.enabled && bio.isEstablished) {
       const result = await bio.evaluateAndRecord();
       if (result) {
@@ -329,6 +327,24 @@ export default function TransactionSigner() {
 
   return (
     <>
+      {/* #983 — mainnet write guard dialog */}
+      <MainnetConfirmDialog {...dialogProps} />
+      {isReadOnlyLocked && (
+        <div style={{
+          background: 'rgba(255,23,68,0.08)',
+          border: '1px solid var(--red)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '12px',
+          fontSize: '12px',
+          color: 'var(--red)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          🔒 Mainnet read-only lock is active — signing is blocked this session.
+        </div>
+      )}
       <Card title="Transaction Signer" subtitle={`Signing with ${walletType}`}>
         <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div
@@ -517,27 +533,6 @@ export default function TransactionSigner() {
             </div>
           )}
 
-          <button
-            onClick={handleSign}
-            disabled={signing || !xdr.trim()}
-            style={{
-              padding: '12px 20px',
-              background: signing ? 'transparent' : 'var(--cyan-glow)',
-              border: `1px solid ${signing ? 'var(--border)' : 'var(--cyan)'}`,
-              borderRadius: 'var(--radius-md)',
-              color: signing ? 'var(--text-muted)' : 'var(--cyan)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              cursor: signing ? 'wait' : 'pointer',
-              transition: 'var(--transition)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              opacity: !xdr.trim() ? 0.5 : 1,
-            }}
-          />
         </div>
 
         {envelopeInfo && <EnvelopeDetails info={envelopeInfo} />}

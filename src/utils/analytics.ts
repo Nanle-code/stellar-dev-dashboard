@@ -8,6 +8,10 @@
  */
 
 import { guardProviderSend } from './providerCircuitBreaker';
+import {
+  hasCurrentAnalyticsConsent,
+  subscribeToAnalyticsConsent,
+} from './analyticsConsent';
 
 const analyticsConfig = {
   enabled: true,
@@ -18,12 +22,20 @@ const analyticsConfig = {
 };
 
 let eventQueue = [];
+const activeFlushes = new Set<AbortController>();
+
+subscribeToAnalyticsConsent(allowed => {
+  if (allowed) return;
+  eventQueue = [];
+  activeFlushes.forEach(controller => controller.abort());
+  activeFlushes.clear();
+});
 
 /**
  * Track a custom event
  */
 export const trackEvent = (eventName, properties = {}) => {
-  if (!analyticsConfig.enabled) return;
+  if (!analyticsConfig.enabled || !hasCurrentAnalyticsConsent()) return;
 
   const event = {
     name: eventName,
@@ -91,36 +103,45 @@ export const trackApiCall = (endpoint, method, duration, status) => {
  * Flush pending events to analytics endpoint
  */
 export const flushEvents = async () => {
-  if (eventQueue.length === 0 || !analyticsConfig.endpoint) return;
+  if (!analyticsConfig.enabled || !hasCurrentAnalyticsConsent() || eventQueue.length === 0 || !analyticsConfig.endpoint) return;
 
   const eventsToSend = [...eventQueue];
   eventQueue = [];
+  if (typeof AbortController === 'undefined') return;
+  const controller = new AbortController();
+  activeFlushes.add(controller);
 
-  const result = await guardProviderSend(
-    'analytics',
-    async () => {
-      const response = await fetch(analyticsConfig.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          events: eventsToSend,
-          sessionId: analyticsConfig.sessionId,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`Analytics endpoint responded ${response.status}`);
-      }
-    },
-    { failureThreshold: 3, successThreshold: 1, timeout: 30000 },
-  );
+  try {
+    const result = await guardProviderSend(
+      'analytics',
+      async () => {
+        if (!hasCurrentAnalyticsConsent()) return;
+        const response = await fetch(analyticsConfig.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            events: eventsToSend,
+            sessionId: analyticsConfig.sessionId,
+            timestamp: new Date().toISOString(),
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Analytics endpoint responded ${response.status}`);
+        }
+      },
+      { failureThreshold: 3, successThreshold: 1, timeout: 30000 },
+    );
 
-  if (!result.delivered && !result.skipped) {
-    // Transient failure while the circuit is still closed — keep the batch.
-    // When the circuit is OPEN (`skipped`) the batch is intentionally dropped
-    // so the queue cannot grow without bound while the provider is down.
-    console.error('Analytics flush failed:', result.error);
-    eventQueue.unshift(...eventsToSend);
+    if (!result.delivered && !result.skipped && hasCurrentAnalyticsConsent()) {
+      // Transient failure while the circuit is still closed — keep the batch.
+      // When the circuit is OPEN (`skipped`) the batch is intentionally dropped
+      // so the queue cannot grow without bound while the provider is down.
+      console.error('Analytics flush failed:', result.error);
+      eventQueue.unshift(...eventsToSend);
+    }
+  } finally {
+    activeFlushes.delete(controller);
   }
 };
 

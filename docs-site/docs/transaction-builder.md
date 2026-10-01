@@ -264,3 +264,7 @@ These three operations are essential for Stellar developers:
 - Maintains compatibility with existing codebase patterns
 - Tests added for all four new operations (builder, validation, component) with ≥90% coverage
 - TypeScript types already defined in `transactionBuilder.js`
+
+### State Archival and TTL Extension
+- Added support for extending footprint TTLs directly from the Transaction Builder.
+- ContractABI view now includes a panel to automatically calculate cost preview and build the transaction for extending the instance and its Wasm.

@@ -159,6 +159,7 @@ describe('feeBump builder function', () => {
           amount: '5',
         })
       )
+      .setTimeout(180)
       .build()
     innerTx.sign(keypair)
 
@@ -196,6 +197,7 @@ describe('feeBump builder function', () => {
           amount: '5',
         })
       )
+      .setTimeout(180)
       .build()
     innerTx.sign(keypair)
 

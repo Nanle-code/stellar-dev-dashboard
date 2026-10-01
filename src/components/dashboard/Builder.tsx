@@ -6,6 +6,7 @@ import { predictTransactionFailure } from '../../lib/transactionFailurePredictio
 import AdvancedTransactionSimulation from './AdvancedTransactionSimulation'
 import FeeAttributionBreakdown from './FeeAttributionBreakdown'
 import { StatCard } from './Card'
+import { useOfflineStatus } from '../../hooks/useCachedData'
 import { Plus, Trash2, Play, Copy, AlertCircle, CheckCircle } from 'lucide-react'
 
 const OPERATION_TYPES = [
@@ -19,6 +20,7 @@ const OPERATION_TYPES = [
 
 export default function Builder() {
   const { network } = useStore()
+  const { offline } = useOfflineStatus()
   const [operations, setOperations] = useState([])
   const [memo, setMemo] = useState('')
   const [baseFee, setBaseFee] = useState('100')

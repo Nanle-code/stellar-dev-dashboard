@@ -1,7 +1,130 @@
 import React, { useState } from "react";
+import * as StellarSdk from "@stellar/stellar-sdk";
 import { parseContractWasm } from "../../lib/contractInvoker";
 import { useStore } from "../../lib/store";
+import { simulateTransaction } from "../../lib/transactionBuilder";
 
+function TtlExtensionPanel({ contractData, network }) {
+  const { connectedAddress } = useStore();
+  const [extendTo, setExtendTo] = useState("535670");
+  const [simulation, setSimulation] = useState(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  async function handleSimulate() {
+    setIsSimulating(true);
+    setSimulation(null);
+
+    try {
+      const instanceKey = StellarSdk.xdr.LedgerKey.contractData(
+        new StellarSdk.xdr.LedgerKeyContractData({
+          contract: StellarSdk.Address.fromString(contractData.contractId).toScAddress(),
+          key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
+          durability: StellarSdk.xdr.ContractDataDurability.persistent(),
+        })
+      );
+
+      const readOnly = [instanceKey];
+
+      try {
+        const entryData = StellarSdk.xdr.LedgerEntryData.fromXDR(contractData.ledgerEntry, "base64");
+        const executable = entryData.contractData().val().instance().executable();
+        if (executable.switch().name === "contractExecutableWasm") {
+          const wasmKey = StellarSdk.xdr.LedgerKey.contractCode(
+            new StellarSdk.xdr.LedgerKeyContractCode({
+              hash: executable.wasmHash(),
+            })
+          );
+          readOnly.push(wasmKey);
+        }
+      } catch (e) {
+        // Ignore parsing errors for Wasm
+      }
+
+      const sorobanData = new StellarSdk.xdr.SorobanTransactionData({
+        ext: new StellarSdk.xdr.ExtensionPoint(0),
+        resources: new StellarSdk.xdr.SorobanResources({
+          footprint: new StellarSdk.xdr.LedgerFootprint({
+            readOnly: readOnly,
+            readWrite: [],
+          }),
+          instructions: 0,
+          readBytes: 0,
+          writeBytes: 0,
+        }),
+        resourceFee: StellarSdk.xdr.Int64.fromString("0"),
+      }).toXDR("base64");
+
+      const result = await simulateTransaction({
+        // Default to the contract address if not connected, just to build it
+        sourceAccount: connectedAddress || contractData.contractId,
+        operations: [
+          {
+            id: Date.now(),
+            type: "extendFootprintTtl",
+            params: { extendTo },
+          }
+        ],
+        memo: "",
+        memoType: "text",
+        baseFee: 100,
+        timeout: 300,
+        network,
+        sorobanData
+      });
+
+      setSimulation(result);
+    } catch (error) {
+      setSimulation({ success: false, errors: [error?.message || String(error)], fee: 0, operationCount: 1 });
+    } finally {
+      setIsSimulating(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="State Archival & TTL Extension"
+      subtitle="Extend the Time-To-Live (TTL) for this contract instance and its associated Wasm code."
+    >
+      <div style={{ display: "grid", gap: "12px" }}>
+        <input
+          value={extendTo}
+          onChange={(e) => setExtendTo(e.target.value)}
+          placeholder="Target Ledger Count (e.g. 535670)"
+          style={textInputStyle()}
+        />
+        <ActionButton
+          label={isSimulating ? "Simulating..." : "Preview Bulk Extension Cost"}
+          onClick={handleSimulate}
+          disabled={isSimulating || !extendTo}
+        />
+
+        {simulation && (
+          <div style={{
+            marginTop: "12px",
+            padding: "14px",
+            background: simulation.success ? "var(--green-glow)" : "var(--red-glow)",
+            border: `1px solid ${simulation.success ? "var(--green)" : "var(--red)"}`,
+            borderRadius: "var(--radius-md)",
+            fontSize: "12px",
+          }}>
+            {simulation.success ? (
+              <div>
+                <div style={{ fontWeight: 600, color: "var(--green)", marginBottom: "8px" }}>Cost Preview:</div>
+                <div>Estimated Fee: {simulation.fee} stroops</div>
+                <div>Contract instance and WASM included in footprint.</div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontWeight: 600, color: "var(--red)", marginBottom: "8px" }}>Simulation Failed:</div>
+                {simulation.errors.map((err, i) => <div key={i}>{err}</div>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
 function Panel({ title, subtitle, children }) {
   return (
     <div
@@ -1129,6 +1252,8 @@ export default function ContractABI() {
               </details>
             </div>
           </Panel>
+
+          <TtlExtensionPanel contractData={contractData} network={network} />
         </>
       )}
     </div>

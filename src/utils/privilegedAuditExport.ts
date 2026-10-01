@@ -117,8 +117,8 @@ function isValidIso8601(value: string): boolean {
 
 function isPrivileged(entry: AuditEntry): boolean {
   return (
-    PRIVILEGED_CATEGORIES.has(entry.category as string) ||
-    PRIVILEGED_SEVERITIES.has(entry.severity as string)
+    PRIVILEGED_CATEGORIES.has(entry.category as any) ||
+    PRIVILEGED_SEVERITIES.has(entry.severity as any)
   );
 }
 
@@ -215,7 +215,7 @@ export async function exportPrivilegedAudit(
   // ── Fetch and filter entries ─────────────────────────────────────────────
   let entries: AuditEntry[];
   try {
-    entries = getAuditEntries({ since, until, actor, limit: 10_000 }) as AuditEntry[];
+    entries = getAuditEntries({ since, until, actor, limit: 10_000 } as any) as AuditEntry[];
   } catch (err) {
     throw new AuditExportError(
       'STORE_UNAVAILABLE',

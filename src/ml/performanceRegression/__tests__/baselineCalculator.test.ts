@@ -63,7 +63,7 @@ describe('computeBaseline', () => {
   };
   
   it('computes baseline from recent observations within lookback window', () => {
-    const observations = makeObservations(10, 5); // 10 obs, 5-15 days ago
+    const observations = makeObservations(10, 4); // 10 obs, 4-13 days ago
     const baseline = computeBaseline(observations, 14);
     
     expect(baseline.count).toBe(10);

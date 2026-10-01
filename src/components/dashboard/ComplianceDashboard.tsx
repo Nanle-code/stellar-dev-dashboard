@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
+import { Download, FileText, Printer } from 'lucide-react';
 import Card, { StatCard } from './Card';
 import {
   useComplianceReport,

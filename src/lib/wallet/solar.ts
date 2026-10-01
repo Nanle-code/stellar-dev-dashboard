@@ -10,6 +10,9 @@
  * SEP-0007 spec: https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0007.md
  */
 
+import { Networks } from '@stellar/stellar-sdk'
+import { buildSep7TxUri } from '../sep7'
+
 const SOLAR_EXTENSION_KEY = 'solarWallet'
 const SEP7_PENDING_KEY = 'solar-sep7-pending-xdr'
 
@@ -74,15 +77,11 @@ export function signWithSolarSEP7(xdr, network = 'TESTNET') {
     // ignore
   }
 
-  const networkPassphrase =
-    network === 'PUBLIC'
-      ? 'Public Global Stellar Network ; September 2015'
-      : 'Test SDF Network ; September 2015'
-
-  const sep7Uri =
-    `web+stellar:tx?xdr=${encodeURIComponent(xdr)}` +
-    `&network_passphrase=${encodeURIComponent(networkPassphrase)}` +
-    `&callback=url:${encodeURIComponent(window.location.href)}`
+  const sep7Uri = buildSep7TxUri({
+    xdr,
+    networkPassphrase: network === 'PUBLIC' ? Networks.PUBLIC : Networks.TESTNET,
+    callback: window.location.href,
+  })
 
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
   if (isMobile) {

@@ -9,7 +9,14 @@ import { ALERT_RULE_TYPE, ALERT_CHANNEL } from "../../lib/alerts";
 import PluginRegistryView from "./PluginRegistryView";
 import DataExport from "./DataExport";
 import LanguageSettings from "./LanguageSettings";
-import { revokeSentryConsent } from "../../utils/monitoring";
+import LayoutExportImport from "./LayoutExportImport";
+import {
+  getEffectiveActiveLayout,
+  applyLayout,
+  generateLayoutId,
+  type DashboardLayout,
+  type LayoutHistoryEntry,
+} from "../../lib/dashboardLayouts";
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
 
@@ -165,6 +172,39 @@ export default function Settings() {
   const [installOutcome, setInstallOutcome] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [layoutModalTab, setLayoutModalTab] = useState<"export" | "import" | null>(null);
+  const [activeLayout, setActiveLayout] = useState<DashboardLayout | null>(null);
+  const [layoutNotice, setLayoutNotice] = useState<string | null>(null);
+  const [consentSaveError, setConsentSaveError] = useState<string | null>(null);
+
+  /** Load the layout the user is currently looking at, so Export has something to export. */
+  const openLayoutModal = useCallback(async (tab: "export" | "import") => {
+    setLayoutNotice(null);
+    setActiveLayout(await getEffectiveActiveLayout());
+    setLayoutModalTab(tab);
+  }, []);
+
+  /** Apply an imported layout: snapshot current, save, and make it active. */
+  const handleLayoutImport = useCallback(async (layout: DashboardLayout) => {
+    await applyLayout(layout, { snapshotPrevious: true, reason: "before-import" });
+    setActiveLayout(await getEffectiveActiveLayout());
+    setLayoutNotice(`Imported "${layout.name}" — it is now your active dashboard layout.`);
+    setLayoutModalTab(null);
+  }, []);
+
+  const handleLayoutHistoryRestore = useCallback(async (entry: LayoutHistoryEntry) => {
+    const restored: DashboardLayout = {
+      id: generateLayoutId(),
+      name: `${entry.layoutName} (Restored)`,
+      widgets: entry.widgets,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await applyLayout(restored, { snapshotPrevious: true, reason: "before-import" });
+    setActiveLayout(await getEffectiveActiveLayout());
+    setLayoutNotice(`Restored "${entry.layoutName}" from history.`);
+    setLayoutModalTab(null);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -410,31 +450,36 @@ export default function Settings() {
         <div style={styles.card}>
           <div style={styles.row}>
             <div>
-              <p style={styles.label}>Allow diagnostic data collection</p>
+              <p style={styles.label}>Allow analytics and diagnostic data collection</p>
               <p style={styles.description}>
-                Share crash reports and performance data to help improve Stellar Dev Dashboard.
+                Share page activity, browser and device details, performance measurements, redacted crash reports, and masked session replay data for errors to help improve Stellar Dev Dashboard. Data is sent only to configured monitoring providers and retained for up to 30 days.
               </p>
               <p style={{ ...styles.description, marginTop: "4px", fontSize: "11px", color: "var(--text-muted)" }}>
-                <strong>Data Retention Policy:</strong> Diagnostic data is anonymized and retained for a maximum of 30 days. It is used exclusively to improve application reliability.
+                This setting is optional. You can withdraw consent at any time; material policy changes require a new review.
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="checkbox"
-                checked={!!preferences.diagnosticsConsent}
+                checked={!!preferences.analyticsConsent}
                 onChange={(e) => {
                   const consent = e.target.checked;
-                  setPreference('diagnosticsConsent', consent);
-                  if (!consent) {
-                    revokeSentryConsent();
+                  try {
+                    setPreference('analyticsConsent', consent);
+                    setConsentSaveError(null);
+                  } catch {
+                    setConsentSaveError(consent
+                      ? 'Your choice could not be saved. Analytics remains off.'
+                      : 'Consent was withdrawn for this session, but the choice could not be saved. Retry before closing the app.');
                   }
                 }}
                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                aria-label="Toggle diagnostics consent"
+                aria-label="Toggle analytics and diagnostics consent"
               />
-              <span style={{ fontSize: '13px', fontWeight: 600 }}>{preferences.diagnosticsConsent ? 'Enabled' : 'Disabled'}</span>
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>{preferences.analyticsConsent ? 'Enabled' : 'Disabled'}</span>
             </div>
           </div>
+          {consentSaveError && <p role="alert" style={{ ...styles.description, color: 'var(--red)', marginTop: 8 }}>{consentSaveError}</p>}
         </div>
       </div>
 
@@ -453,6 +498,82 @@ export default function Settings() {
         </div>
         <DataExport />
       </div>
+
+      {/* Dashboard Layout Export / Import */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px", display: "flex", flexDirection: "column", gap: "10px", marginTop: "1rem" }}>
+        <FieldLabel>Dashboard Layout</FieldLabel>
+        <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+          Export your current dashboard layout as JSON, share it via URL, or import a layout shared by someone else.
+          History snapshots let you restore previous configurations.
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            id="settings-export-layout-btn"
+            onClick={() => openLayoutModal("export")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 14px",
+              background: "var(--cyan)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ⬇ Export Layout
+          </button>
+          <button
+            id="settings-import-layout-btn"
+            onClick={() => openLayoutModal("import")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 14px",
+              background: "var(--bg-elevated)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ⬆ Import Layout
+          </button>
+        </div>
+        {layoutNotice && (
+          <div style={{
+            fontSize: "11px",
+            color: "var(--text-secondary)",
+            padding: "8px 10px",
+            background: "rgba(34, 197, 94, 0.1)",
+            border: "1px solid var(--green)",
+            borderRadius: "var(--radius-sm)",
+          }}>
+            {layoutNotice}
+          </div>
+        )}
+        <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: 0 }}>
+          Exports use a versioned JSON schema, so layouts stay importable across future updates.
+        </p>
+      </div>
+
+      {layoutModalTab && (
+        <LayoutExportImport
+          isOpen
+          layout={activeLayout}
+          initialTab={layoutModalTab}
+          onImport={handleLayoutImport}
+          onHistoryRestore={handleLayoutHistoryRestore}
+          onClose={() => setLayoutModalTab(null)}
+        />
+      )}
+
     </div>
   );
 }

@@ -1,0 +1,35 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    "noUncheckedIndexedAccess": true,
+    "useUnknownInCatchVariables": true
+  },
+  "files": [
+    "src/lib/stellar/index.ts",
+    "src/lib/stellar/types.ts",
+    "src/lib/stellar/horizonReadSource.ts",
+    "src/lib/stellar/rpcReadSource.ts",
+    "src/lib/stellar/rpcFirstReadSource.ts",
+    "src/design-system/colors.ts",
+    "src/design-system/components.tsx",
+    "src/design-system/index.ts",
+    "src/design-system/spacing.ts",
+    "src/design-system/tokens.ts",
+    "src/design-system/typography.ts",
+    "src/design-system/variants.ts",
+    "src/types/accountWatch.ts",
+    "src/types/alerts.ts",
+    "src/types/analytics.ts",
+    "src/types/audit.ts",
+    "src/types/components.ts",
+    "src/types/error.ts",
+    "src/types/sentiment.ts",
+    "src/types/trade.ts"
+  ]
+}

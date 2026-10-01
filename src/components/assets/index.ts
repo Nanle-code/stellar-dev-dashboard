@@ -6,3 +6,4 @@ export { default as AssetCard } from './AssetCard';
 export { default as PopularAssets } from './PopularAssets';
 export { default as TrustlineRecommendations } from './TrustlineRecommendations';
 export { default as AssetTrustStatus } from './AssetTrustStatus';
+export { default as SacInspector } from './SacInspector';

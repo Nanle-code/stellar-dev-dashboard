@@ -7,9 +7,9 @@ import {
   getCachedUserTransactionTemplates,
   upsertUserTransactionTemplate,
 } from "../../lib/transactionTemplateVault.ts";
-import { fetchContractData, checkDestinationMemoRequirement } from "../../lib/stellar";
+import { fetchContractData, checkDestinationMemoRequirement, resolveFederatedAddress, fetchAccount, isValidPublicKey } from "../../lib/stellar";
 import { validateMemo } from "../../lib/validation";
-import { fetchContractData, resolveFederatedAddress } from "../../lib/stellar";
+import { computeNextReservedSequence, detectSequenceConflicts as detectSeqConflicts, formatReservationNotice } from "../../lib/sequenceReservation";
 import { useTransactionHistory } from "../../lib/txHistory";
 import { Copy, Play, Download, AlertCircle, CheckCircle, ArrowDown, GripVertical, Trash2, Plus, Zap } from "lucide-react";
 import { useExpertise } from "../../context/ExpertiseContext";
@@ -306,6 +306,8 @@ export default function TransactionBuilder() {
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
   const [draftsList, setDraftsList] = useState([]);
   const [memoRequirement, setMemoRequirement] = useState({ checking: false, required: false, error: null, destination: null });
+  const [reservationNotice, setReservationNotice] = useState(null);
+  const [draftWarnings, setDraftWarnings] = useState({ conflicts: [], unresolved: [] });
 
   function addOperation() {
     setOperations([
@@ -477,6 +479,12 @@ export default function TransactionBuilder() {
   const memoRequiredWarning = memoRequirement.required && !memo;
 
   const feeBumpOnly = operations.length === 1 && operations[0].type === "feeBump";
+
+  const sourceAccountDraftConflicts = useMemo(() => {
+    if (!sourceAccount) return { conflicts: [], unresolved: [] };
+    const accountDrafts = txHistory.getReservedDrafts().filter((d) => d.sourceAccount === sourceAccount);
+    return detectSeqConflicts(accountDrafts);
+  }, [sourceAccount, draftsList]);
   const canSimulate = operations.length > 0 && Object.keys(validationErrors).length === 0 && memoValidation.valid && (sourceAccount || feeBumpOnly);
   
   // Transaction history (undo/redo) + drafts
@@ -511,10 +519,14 @@ export default function TransactionBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceAccount, memo, memoType, baseFee, timeout, operations]);
   
+  const [sorobanData, setSorobanData] = useState(null);
+
   async function handleSimulate() {
     if (!canSimulate) return;
     
     setIsSimulating(true);
+    // Keep the previous simulation around to maintain restorePreamble
+    const previousSimulation = simulation;
     setSimulation(null);
     
     try {
@@ -525,8 +537,15 @@ export default function TransactionBuilder() {
         memoType,
         baseFee: parseInt(baseFee),
         timeout: parseInt(timeout),
-        network
+        network,
+        sorobanData: previousSimulation?.sorobanMetrics?.restorePreamble?.transactionData || sorobanData,
       });
+      
+      // If result successful, it might have new restorePreamble. We don't overwrite the user's manual sorobanData though.
+      if (result.sorobanMetrics?.restorePreamble?.transactionData) {
+        setSorobanData(result.sorobanMetrics.restorePreamble.transactionData);
+      }
+      
       setSimulation(result);
     } catch (error) {
       setSimulation({
@@ -549,7 +568,8 @@ export default function TransactionBuilder() {
         memoType,
         baseFee: parseInt(baseFee),
         timeout: parseInt(timeout),
-        network
+        network,
+        sorobanData
       });
       const xdr = transaction.toXDR();
       await navigator.clipboard.writeText(xdr);
@@ -580,6 +600,61 @@ export default function TransactionBuilder() {
       window.alert(t("builder.templateSaved"));
     } catch (error) {
       window.alert(t("builder.templateSaveFailed", { message: error.message }));
+    }
+  }
+
+  async function handleSaveDraft() {
+    const name = window.prompt("Draft name:", "My Draft");
+    if (!name) return;
+
+    setReservationNotice(null);
+    let reservedSequence = null;
+    let reservationError = null;
+
+    const canReserve =
+      sourceAccount &&
+      isValidPublicKey(sourceAccount) &&
+      network !== "local" &&
+      network !== "custom";
+
+    if (canReserve) {
+      try {
+        const account = await fetchAccount(sourceAccount, network);
+        const existing = txHistory.getReservedDrafts();
+        reservedSequence = computeNextReservedSequence(
+          existing,
+          account.sequence,
+          sourceAccount
+        );
+      } catch (error) {
+        reservationError =
+          error?.message || "Unable to fetch account sequence from the network.";
+      }
+    }
+
+    setReservationNotice(
+      formatReservationNotice(sourceAccount, network, reservedSequence, reservationError)
+    );
+
+    try {
+      txHistory.saveDraft(name, getSnapshot(), {
+        reservedSequence,
+        network,
+      });
+      setDraftsList(txHistory.listDrafts());
+      const notice = formatReservationNotice(
+        sourceAccount,
+        network,
+        reservedSequence,
+        reservationError
+      );
+      window.alert(
+        reservedSequence
+          ? `Draft saved (reserved sequence ${reservedSequence}).`
+          : `Draft saved. ${notice.message}`
+      );
+    } catch (error) {
+      window.alert(`Failed to save draft: ${error.message}`);
     }
   }
 
@@ -1020,6 +1095,25 @@ export default function TransactionBuilder() {
         );
       }
 
+      case "extendFootprintTtl":
+        return (
+          <LabeledField label="Extend To (Ledger Count)">
+            <input
+              value={op.params.extendTo || ""}
+              onChange={(e) => updateOperation(op.id, "extendTo", e.target.value)}
+              placeholder="e.g. 535670"
+              style={textInputStyle(hasErrors)}
+            />
+          </LabeledField>
+        );
+
+      case "restoreFootprint":
+        return (
+          <div style={{ fontSize: "12px", color: "var(--text-muted)", padding: "10px", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+            This operation restores the footprint from the archived state. No additional parameters required.
+          </div>
+        );
+
       default:
         return (
           <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
@@ -1178,21 +1272,72 @@ export default function TransactionBuilder() {
       {/* Transaction Settings */}
       <Panel title={t("builder.transactionSettings")} subtitle={t("builder.transactionSettingsSubtitle")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "14px" }}>
-          <LabeledField label={t("builder.sourceAccount")}>
-            <FederatedAddressInput
-              value={sourceAccount}
-              onChange={(val) => setSourceAccount(val)}
-              placeholder={connectedAddress || t("builder.sourceAccountPlaceholder")}
-              style={textInputStyle(!sourceAccount && !feeBumpOnly)}
-              network={network}
-              hasError={!sourceAccount && !feeBumpOnly}
-            />
-            {feeBumpOnly && (
-              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }}>
-                {t("builder.sourceAccountOptionalFeeBump")}
-              </div>
-            )}
-          </LabeledField>
+           <LabeledField label="Source Account">
+             <FederatedAddressInput
+               value={sourceAccount}
+               onChange={(val) => setSourceAccount(val)}
+               placeholder={connectedAddress || "G... source account (or name*domain)"}
+               style={textInputStyle(!sourceAccount && !feeBumpOnly)}
+               network={network}
+               hasError={!sourceAccount && !feeBumpOnly}
+             />
+             {feeBumpOnly && (
+               <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }}>
+                 Source account is optional for fee-bump transactions. The fee source account is defined in the fee bump operation.
+               </div>
+             )}
+           </LabeledField>
+
+           {!isNovice && sourceAccountDraftConflicts.conflicts.length > 0 && (
+             <div style={{
+               marginTop: "14px",
+               padding: "10px 14px",
+               background: "var(--red-glow)",
+               border: "1px solid var(--red)",
+               borderRadius: "var(--radius-md)",
+               fontSize: "12px",
+               color: "var(--red)",
+               display: "flex",
+               alignItems: "center",
+               gap: "8px",
+             }}>
+               <AlertCircle size={14} />
+               Multiple saved drafts for this source account share the same sequence number. Submitting one transaction will invalidate the sequence of the others.
+             </div>
+           )}
+
+           {!isNovice && sourceAccountDraftConflicts.unresolved.length > 0 && (
+             <div style={{
+               marginTop: "14px",
+               padding: "10px 14px",
+               background: "var(--amber-glow)",
+               border: "1px solid var(--amber)",
+               borderRadius: "var(--radius-md)",
+               fontSize: "12px",
+               color: "var(--amber)",
+               display: "flex",
+               alignItems: "center",
+               gap: "8px",
+             }}>
+               <AlertCircle size={14} />
+               Some drafts for this source account could not reserve a sequence number — reload or re-save them after confirming account access.
+             </div>
+           )}
+
+           {reservationNotice && (
+             <div style={{
+               marginTop: "10px",
+               padding: "8px 12px",
+               background: reservationNotice.type === "reserved" ? "var(--green-glow)" : "var(--red-glow)",
+               border: `1px solid ${reservationNotice.type === "reserved" ? "var(--green)" : "var(--red)"}`,
+               borderRadius: "var(--radius-md)",
+               fontSize: "11px",
+               color: reservationNotice.type === "reserved" ? "var(--green)" : "var(--red)",
+               fontFamily: "var(--font-mono)",
+             }}>
+               {reservationNotice.message}
+             </div>
+           )}
 
           <LabeledField label={t("builder.baseFee")}>
             <input
@@ -1567,19 +1712,9 @@ export default function TransactionBuilder() {
           {t("builder.exportXdr")}
         </button>
 
-        {!isNovice && (
+         {!isNovice && (
           <button
-            onClick={async () => {
-              const name = window.prompt(t("builder.draftNamePrompt"), "My Draft");
-              if (!name) return;
-              try {
-                txHistory.saveDraft(name, getSnapshot());
-                setDraftsList(txHistory.listDrafts());
-                window.alert(t("builder.draftSaved"));
-              } catch (e) {
-                window.alert(t("builder.draftSaveFailed"));
-              }
-            }}
+            onClick={handleSaveDraft}
             style={{
             padding: "12px 20px",
             background: "transparent",
@@ -1595,8 +1730,8 @@ export default function TransactionBuilder() {
             gap: "8px",
             transition: "var(--transition)",
           }}
-        >
-            {t("builder.saveDraft")}
+          >
+            Save Draft
           </button>
         )}
 
@@ -1606,6 +1741,7 @@ export default function TransactionBuilder() {
               onClick={() => {
                 const list = txHistory.listDrafts();
                 setDraftsList(list);
+                setDraftWarnings(txHistory.detectSequenceConflicts());
                 setShowDraftsPanel(!showDraftsPanel);
               }}
               style={{
@@ -1633,17 +1769,40 @@ export default function TransactionBuilder() {
                 borderRadius: "var(--radius-sm)",
                 padding: "8px",
                 minWidth: "260px",
-                zIndex: 60,
-              }}>
+              zIndex: 60,
+               }}>
+                {draftWarnings.conflicts.length > 0 && (
+                  <div style={{ padding: "8px", fontSize: "11px", color: "var(--red)" }}>
+                    <div style={{ fontWeight: 600, marginBottom: "4px" }}>Sequence conflicts</div>
+                    {draftWarnings.conflicts.map((c, i) => (
+                      <div key={i}>• Account {c.sourceAccount.slice(0, 8)}... reserves sequence {c.reservedSequence} in {c.count} drafts — submitting one will invalidate the rest.</div>
+                    ))}
+                  </div>
+                )}
+                {draftWarnings.unresolved.length > 0 && (
+                  <div style={{ padding: "8px", fontSize: "11px", color: "var(--amber)" }}>
+                    <div style={{ fontWeight: 600, marginBottom: "4px" }}>Unresolved reservations</div>
+                    {draftWarnings.unresolved.map((u, i) => (
+                      <div key={i}>• {u.reason}</div>
+                    ))}
+                  </div>
+                )}
                 {draftsList.length === 0 && (
                   <div style={{ padding: "8px", color: "var(--text-muted)" }}>{t("builder.noDraftsSaved")}</div>
                 )}
                 {draftsList.map((d) => (
-                  <div key={d.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", padding: "6px 4px" }}>
-                    <div style={{ fontSize: "13px", color: "var(--text-primary)" }}>{d.name}</div>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button onClick={() => { txHistory.loadDraft(d.id); setShowDraftsPanel(false); }} style={{ padding: "6px", fontSize: "12px" }}>{t("builder.load")}</button>
-                      <button onClick={() => { txHistory.deleteDraft(d.id); setDraftsList(txHistory.listDrafts()); }} style={{ padding: "6px", fontSize: "12px", color: "var(--red)" }}>{t("builder.delete")}</button>
+                  <div key={d.id} style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "6px 4px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                      <div style={{ fontSize: "13px", color: "var(--text-primary)" }}>{d.name}</div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button onClick={() => { txHistory.loadDraft(d.id); setShowDraftsPanel(false); }} style={{ padding: "6px", fontSize: "12px" }}>Load</button>
+                        <button onClick={() => { txHistory.deleteDraft(d.id); setDraftsList(txHistory.listDrafts()); setDraftWarnings(txHistory.detectSequenceConflicts()); }} style={{ padding: "6px", fontSize: "12px", color: "var(--red)" }}>Delete</button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "11px", color: d.reservedSequence ? "var(--text-secondary)" : "var(--text-muted)" }}>
+                      {d.reservedSequence
+                        ? `Reserved sequence ${d.reservedSequence}`
+                        : "Sequence not reserved"}
                     </div>
                   </div>
                 ))}
@@ -1711,6 +1870,33 @@ export default function TransactionBuilder() {
                 </div>
               </div>
             </div>
+
+            {simulation.sorobanMetrics?.restorePreamble && (
+              <div style={{
+                padding: "14px",
+                background: "var(--amber-glow)",
+                border: "1px solid var(--amber)",
+                borderRadius: "var(--radius-md)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--amber)", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertCircle size={16} /> Archived State Detected
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  This transaction touches archived contract state. It will fail unless you restore the footprint first.
+                </div>
+                <div>
+                  <ActionButton 
+                    label="Add RestoreFootprint Operation" 
+                    onClick={() => {
+                      setOperations([{ id: Date.now(), type: "restoreFootprint", params: {} }, ...operations]);
+                    }} 
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Fee Breakdown */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>

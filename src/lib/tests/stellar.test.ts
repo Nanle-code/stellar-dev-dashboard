@@ -20,6 +20,7 @@ import {
   shortAddress,
   updateCustomNetworkConfig,
 } from '../stellar';
+import { OPERATION_EXPLANATIONS, getResultCodeExplanation } from '../explanation/content'
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -137,3 +138,17 @@ describe('OPERATION_LABELS / getOperationLabel', () => {
     expect(label.toLowerCase()).toContain('swap');
   });
 });
+
+describe('operation explanation content', () => {
+  it('has typed content for every supported operation', () => {
+    for (const [type, title] of Object.entries(OPERATION_LABELS)) {
+      expect(OPERATION_EXPLANATIONS[type].title).toBe(title)
+      expect(OPERATION_EXPLANATIONS[type].keyFields.length).toBeGreaterThan(0)
+      expect(OPERATION_EXPLANATIONS[type].docsUrl).toMatch(/^https:\/\//)
+    }
+  })
+
+  it('provides a safe fallback for unknown result codes', () => {
+    expect(getResultCodeExplanation('op_future_code').commonFailureCodes).toEqual(['op_future_code'])
+  })
+})

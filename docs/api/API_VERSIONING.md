@@ -54,6 +54,21 @@ Currently deprecated:
 
 Version headers are informational only. Authentication, rate limits, and authorization remain enforced by existing middleware.
 
+## API Lifecycle Management
+
+For comprehensive information about API versioning, deprecation, migration tools, and sunset policies, see:
+
+- **[API_LIFECYCLE_MANAGEMENT.md](./API_LIFECYCLE_MANAGEMENT.md)** - Complete lifecycle guide with:
+  - Version analytics and monitoring
+  - Migration tools and guides
+  - Breaking changes tracking
+  - Sunset policy enforcement
+  - Best practices for API consumers
+
+## Version History
+
+See [VERSION_HISTORY.md](./VERSION_HISTORY.md) for detailed release notes and changes.
+
 ## Compatibility
 
 - Existing `/api/v1/*` clients continue to work without changes.

@@ -144,22 +144,10 @@ export function comparePluginVersions(a: string, b: string): number {
 }
 
 export {
-  PLUGIN_API_VERSION as SUPPORTED_PLUGIN_API_VERSION,
-  PLUGIN_API_VERSION_MAJOR,
-  PLUGIN_API_VERSION_MINOR,
-  PLUGIN_API_VERSION_PATCH,
-  parseApiVersion,
-  compareApiVersions,
-  getApiVersionCompatibility,
-  isPluginApiVersionSupported,
-  getDeprecationNoticesForVersion,
-  resolveApiVersion,
-  PLUGIN_API_DEPRECATIONS,
-} from "./pluginVersioning";
+  CapabilityError,
+  CAPABILITY_ERROR_CODES,
+  createSandboxClient,
+  type SandboxClient,
+  type CapabilityScope,
+} from "./capabilitySandbox";
 
-export type {
-  ParsedApiVersion,
-  PluginApiDeprecation,
-  ApiVersionCompatibility,
-  ApiVersionResolution,
-} from "./pluginVersioning";

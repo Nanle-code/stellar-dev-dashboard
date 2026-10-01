@@ -1,5 +1,7 @@
 import { createLogger } from '../utils/logger';
+import { hasCurrentAnalyticsConsent, subscribeToAnalyticsConsent } from '../utils/analyticsConsent';
 import { guardProviderSend } from '../utils/providerCircuitBreaker';
+import { redactError, redactString, redactUrl, redactValue } from './observability/redact';
 
 const logger = createLogger('ErrorReporting');
 
@@ -82,6 +84,19 @@ export interface Breadcrumb {
 let errorQueue: ErrorReport[] = [];
 let errorCount = 0;
 let sessionId = generateSessionId();
+let errorReportingRequested = ERROR_REPORTING_CONFIG.enabled;
+const activeErrorRequests = new Set<AbortController>();
+let errorListenersAttached = false;
+
+subscribeToAnalyticsConsent(allowed => {
+  ERROR_REPORTING_CONFIG.enabled = errorReportingRequested && allowed;
+  if (!allowed) {
+    errorQueue = [];
+    activeErrorRequests.forEach(controller => controller.abort());
+    activeErrorRequests.clear();
+    clearErrorData();
+  }
+});
 
 function generateSessionId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -103,30 +118,16 @@ interface SanitizedData {
   [key: string]: unknown;
 }
 
-function sanitizeErrorData(error: unknown, errorInfo: SanitizedData): SanitizedData {
-  const sanitized = { ...errorInfo };
-  
-  if (sanitized.props) {
-    const newProps = { ...sanitized.props };
-    delete newProps.children;
-    delete newProps.apiKey;
-    delete newProps.token;
-    delete newProps.password;
-    sanitized.props = newProps;
+function sanitizeErrorData(_error: unknown, errorInfo: SanitizedData): SanitizedData {
+  // Deep-redact every field, not just a hard-coded allowlist: secret keys,
+  // signed XDR envelopes, JWTs, mnemonics and credential-looking keys are
+  // stripped wherever they appear in the payload.
+  const sanitized = redactValue<SanitizedData>({ ...errorInfo });
+
+  if (typeof sanitized.url === 'string') {
+    sanitized.url = redactUrl(sanitized.url);
   }
-  
-  if (sanitized.url) {
-    try {
-      const url = new URL(sanitized.url);
-      url.searchParams.delete('token');
-      url.searchParams.delete('key');
-      url.searchParams.delete('secret');
-      sanitized.url = url.toString();
-    } catch (e) {
-      // Keep original URL if parsing fails
-    }
-  }
-  
+
   return sanitized;
 }
 
@@ -172,10 +173,10 @@ function getUserContext() {
 function generateErrorFingerprint(error: unknown, errorInfo: SanitizedData): string {
   const err = error as Record<string, unknown> | null | undefined;
   const components = [
-    String(err?.name || 'Unknown'),
-    String(err?.message || 'Unknown'),
-    (errorInfo.category as string) || 'unknown',
-    (errorInfo.context as string) || 'unknown'
+    redactString(String(err?.name || 'Unknown')),
+    redactString(String(err?.message || 'Unknown')),
+    String(errorInfo.category || 'unknown'),
+    String(errorInfo.context || 'unknown')
   ];
   
   return btoa(components.join('|')).substring(0, 16);
@@ -194,23 +195,23 @@ function getNetworkInfo() {
 }
 
 export const reportError = (error: unknown, errorInfo: Record<string, unknown> | null = null): void => {
-  if (!ERROR_REPORTING_CONFIG.enabled || errorCount >= ERROR_REPORTING_CONFIG.maxErrorsPerSession) {
+  if (!hasCurrentAnalyticsConsent() || !ERROR_REPORTING_CONFIG.enabled || errorCount >= ERROR_REPORTING_CONFIG.maxErrorsPerSession) {
     return;
   }
 
   errorCount++;
 
   const userContext = getUserContext();
-  const sanitizedErrorInfo = errorInfo ? sanitizeErrorData(error, errorInfo as SanitizedData) : {};
-  const err = error as Record<string, unknown> | null | undefined;
-  
+  const sanitizedErrorInfo = errorInfo ? sanitizeErrorData(error, errorInfo as SanitizedData) : ({} as SanitizedData);
+  const redactedError = redactError(error);
+
   const errorReport: ErrorReport = {
     id: `error-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
     error: {
-      name: String(err?.name || 'Unknown'),
-      message: String(err?.message || 'Unknown error'),
-      stack: typeof err?.stack === 'string' ? err.stack : null,
-      code: typeof err?.code === 'string' || typeof err?.code === 'number' ? err.code : null,
+      name: redactedError.name,
+      message: redactedError.message,
+      stack: redactedError.stack,
+      code: redactedError.code,
       type: typeof error
     },
     context: userContext,
@@ -232,7 +233,7 @@ export const reportError = (error: unknown, errorInfo: Record<string, unknown> |
     category: errorReport.category,
     severity: errorReport.severity,
     url: userContext.url,
-  }, error instanceof Error ? error : new Error(String(error)));
+  }, undefined, error instanceof Error ? error : new Error(String(error)));
 
   errorQueue.push(errorReport);
 
@@ -259,11 +260,12 @@ export const reportError = (error: unknown, errorInfo: Record<string, unknown> |
 let breadcrumbs: Breadcrumb[] = [];
 
 export const addBreadcrumb = (message: string, category = 'info', data: Record<string, unknown> = {}): void => {
+  if (!hasCurrentAnalyticsConsent()) return;
   breadcrumbs.push({
     timestamp: new Date().toISOString(),
-    message,
+    message: redactString(message),
     category,
-    data
+    data: redactValue<Record<string, unknown>>(data)
   });
   
   if (breadcrumbs.length > 20) {
@@ -276,12 +278,15 @@ function getBreadcrumbs(): Breadcrumb[] {
 }
 
 async function flushErrorQueue(): Promise<void> {
-  if (errorQueue.length === 0) return;
+  if (!hasCurrentAnalyticsConsent() || !ERROR_REPORTING_CONFIG.enabled || errorQueue.length === 0) return;
 
   const errorsToSend = [...errorQueue];
   errorQueue = [];
 
   if (ERROR_REPORTING_CONFIG.endpoint) {
+    if (typeof AbortController === 'undefined') return;
+    const controller = new AbortController();
+    activeErrorRequests.add(controller);
     try {
       // Error reporting is delivery-oriented: `fail-closed` propagates failures
       // so the batch is re-queued below and retried after the breaker cools down.
@@ -297,7 +302,8 @@ async function flushErrorQueue(): Promise<void> {
               errors: errorsToSend,
               sessionId,
               timestamp: new Date().toISOString()
-            })
+            }),
+            signal: controller.signal,
           });
           if (!response.ok) {
             throw new Error(`Error reporting endpoint responded ${response.status}`);
@@ -306,28 +312,38 @@ async function flushErrorQueue(): Promise<void> {
         { failureThreshold: 5, successThreshold: 2, timeout: 60000 },
       );
     } catch (e) {
-      console.error('Failed to send errors to reporting service:', e);
-      errorQueue.unshift(...errorsToSend);
+      if (!controller.signal.aborted) {
+        console.error('Failed to send errors to reporting service:', e);
+      }
+      if (hasCurrentAnalyticsConsent() && ERROR_REPORTING_CONFIG.enabled) {
+        errorQueue.unshift(...errorsToSend);
+      }
+    } finally {
+      activeErrorRequests.delete(controller);
     }
   }
 }
 
 export const reportWarning = (message: string, data: Record<string, unknown> | null = null, category = 'warning'): void => {
+  if (!hasCurrentAnalyticsConsent()) return;
+  const safeMessage = redactString(message);
+  const safeData = data ? redactValue<Record<string, unknown>>(data) : data;
   const warningReport = {
     id: `warning-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
     level: 'warning',
-    message,
-    data,
+    message: safeMessage,
+    data: safeData,
     category,
     context: getUserContext(),
     timestamp: new Date().toISOString()
   };
 
-  console.warn(`[Error Reporting Service - Warning] ${message}`, warningReport);
-  addBreadcrumb(message, category, data || {});
+  console.warn(`[Error Reporting Service - Warning] ${safeMessage}`, warningReport);
+  addBreadcrumb(safeMessage, category, safeData || {});
 };
 
 export const reportPerformance = (metric: string, value: number, context: Record<string, unknown> = {}): void => {
+  if (!hasCurrentAnalyticsConsent()) return;
   const performanceReport = {
     id: `perf-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
     level: 'info',
@@ -335,16 +351,22 @@ export const reportPerformance = (metric: string, value: number, context: Record
     value,
     context: {
       ...getUserContext(),
-      ...context
+      ...redactValue<Record<string, unknown>>(context)
     },
     timestamp: new Date().toISOString()
   };
 
-  console.info(`[Error Reporting Service - Performance] ${metric}: ${value}`, performanceReport);
+  logger.info(`[Error Reporting Service - Performance] ${metric}: ${value}`, { performanceReport });
 };
 
 export const initializeErrorReporting = (config: Partial<ErrorReportingConfig> = {}): void => {
-  Object.assign(ERROR_REPORTING_CONFIG, config);
+  const { enabled, ...otherConfig } = config;
+  Object.assign(ERROR_REPORTING_CONFIG, otherConfig);
+  if (typeof enabled === 'boolean') errorReportingRequested = enabled;
+  ERROR_REPORTING_CONFIG.enabled = errorReportingRequested && hasCurrentAnalyticsConsent();
+
+  if (errorListenersAttached || typeof window === 'undefined') return;
+  errorListenersAttached = true;
   
   setInterval(flushErrorQueue, ERROR_REPORTING_CONFIG.flushInterval);
   window.addEventListener('beforeunload', flushErrorQueue);
@@ -368,7 +390,7 @@ export const initializeErrorReporting = (config: Partial<ErrorReportingConfig> =
     });
   });
 
-  console.log('[Error Reporting Service] Initialized with config:', ERROR_REPORTING_CONFIG);
+  logger.info('Initialized with config', { config: ERROR_REPORTING_CONFIG });
 };
 
 export const getErrorStats = () => {

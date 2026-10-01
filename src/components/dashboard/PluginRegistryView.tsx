@@ -375,6 +375,15 @@ export default function PluginRegistryView({ placement = "settings" }: { placeme
     }
   };
 
+  const handleRevokeCapability = async (pluginId: string, capability: string) => {
+    setError(null);
+    try {
+      await pluginManager.revokeCapability(pluginId, capability);
+    } catch (revokeError: unknown) {
+      setError((revokeError as Error)?.message || String(revokeError));
+    }
+  };
+
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div
@@ -444,6 +453,44 @@ export default function PluginRegistryView({ placement = "settings" }: { placeme
                   <div style={{ color: plugin.error ? "var(--red)" : "var(--text-muted)", fontSize: "11px" }}>
                     {plugin.error || plugin.id}
                   </div>
+                  {Array.isArray(plugin.permissionsGranted) && plugin.permissionsGranted.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                      {plugin.permissionsGranted.map((cap) => (
+                        <span
+                          key={cap}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "rgba(56, 189, 248, 0.12)",
+                            color: "var(--cyan)",
+                            border: "1px solid rgba(56, 189, 248, 0.3)",
+                          }}
+                        >
+                          {cap}
+                          <button
+                            type="button"
+                            title={`Revoke capability ${cap}`}
+                            onClick={() => handleRevokeCapability(plugin.id, cap)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "var(--red)",
+                              cursor: "pointer",
+                              padding: "0 2px",
+                              fontSize: "10px",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   {plugin.updateAvailable ? (

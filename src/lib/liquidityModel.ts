@@ -8,6 +8,7 @@
 
 import * as tf from '@tensorflow/tfjs-node';
 import { TimeSeriesFeatures, LiquidityPredictionResult } from '../ml/liquidityPredictionModel';
+import { logger } from './logging';
 
 export class LiquidityModel {
   private model: tf.LayersModel | null = null;
@@ -21,9 +22,9 @@ export class LiquidityModel {
   async loadModel(): Promise<void> {
     try {
       this.model = await tf.loadLayersModel(`file://${this.modelPath}/model.json`);
-      console.info('[LiquidityModel] Model loaded from', this.modelPath);
+      logger.info(`[LiquidityModel] Model loaded from ${this.modelPath}`);
     } catch (err) {
-      console.error('[LiquidityModel] Failed to load model:', err);
+      logger.error('[LiquidityModel] Failed to load model', { error: err });
       throw err;
     }
   }

@@ -24,6 +24,12 @@ export interface DashboardGridProps {
   onLayoutChange?: (layout: Widget[]) => void;
   onWidgetResize?: (widget: Widget, size: { height: number; span: number }) => void;
   onWidgetRemove?: (widget: Widget) => void;
+  /**
+   * Fired once when the user begins a drag or resize gesture, before any
+   * mutation. Used to snapshot the pre-edit layout into history so the
+   * gesture is undoable as a single step.
+   */
+  onEditStart?: (reason: 'drag' | 'resize') => void;
   editable?: boolean;
   columns?: GridColumns;
   gap?: number;
@@ -40,6 +46,7 @@ export default function DashboardGrid({
   onLayoutChange,
   onWidgetResize,
   onWidgetRemove,
+  onEditStart,
   editable = false,
   columns = { mobile: 1, tablet: 2, desktop: 3 },
   gap = 16,
@@ -95,6 +102,7 @@ export default function DashboardGrid({
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>, widget: Widget, index: number) => {
     if (!editable) return;
 
+    onEditStart?.('drag');
     setDraggedWidget({ widget, index });
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/html', (event.target as HTMLElement).outerHTML);
@@ -107,7 +115,7 @@ export default function DashboardGrid({
   };
 
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-    (event.currentTarget as HTMLElement).style.opacity = '1';
+    (e.currentTarget as HTMLElement).style.opacity = '1';
     setDraggedWidget(null);
     setDragOverIndex(null);
   };
@@ -148,6 +156,7 @@ export default function DashboardGrid({
     event.preventDefault();
     event.stopPropagation();
 
+    onEditStart?.('resize');
     const rect = ((event.currentTarget as HTMLElement).closest('.widget-container') as HTMLElement).getBoundingClientRect();
     setResizingWidget({
       widget,

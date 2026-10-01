@@ -4,7 +4,6 @@ import { describe, it, expect } from "vitest";
 
 const NETWORK_PASSPHRASE = StellarSdk.Networks.TESTNET;
 const BASE_FEE = "100";
-const MIN_AMOUNT = 0.0000001;
 const MAX_SAFE_AMOUNT = 9000000000000000;
 
 function keypairArb() {
@@ -55,6 +54,7 @@ function extremeAmountArb() {
 function validMemoArb() {
   return fc.oneof(
     fc.record({ type: fc.constant("MEMO_TEXT"), value: fc.string({ maxLength: 28 }) }),
+    fc.record({ type: fc.constant("MEMO_ID"), value: fc.bigInt({ min: 0n, max: 2n ** 64n - 1n }).map(String) }),
     fc.record({ type: fc.constant("MEMO_ID"), value: fc.bigInt({ min: 0n, max: 2n ** 63n - 1n }).map(String) }),
     fc.record({ type: fc.constant("MEMO_HASH"), value: fc.stringMatching(/^[0-9a-fA-F]{64}$/) }),
     fc.record({ type: fc.constant("MEMO_RETURN"), value: fc.stringMatching(/^[0-9a-fA-F]{64}$/) }),
@@ -65,6 +65,7 @@ function validMemoArb() {
 function invalidMemoArb() {
   return fc.oneof(
     fc.record({ type: fc.constant("MEMO_TEXT"), value: fc.string({ minLength: 29, maxLength: 100 }) }),
+    fc.record({ type: fc.constant("MEMO_ID"), value: fc.constant("not_a_valid_memo_id") }),
     fc.record({ type: fc.constant("MEMO_ID"), value: fc.constant("not-a-number") }),
     fc.record({ type: fc.constant("MEMO_HASH"), value: fc.stringMatching(/^[0-9a-fA-F]{1,63}$/) }),
     fc.record({ type: fc.constant("MEMO_RETURN"), value: fc.stringMatching(/^[0-9a-fA-F]{65,128}$/) }),
@@ -159,6 +160,7 @@ describe("Property-based: XDR round-trips", () => {
   it("changeTrust transaction round-trips through toXDR/fromXDR", () => {
     fc.assert(
       fc.property(
+        fc.stringMatching(/^[A-Z0-9]{1,4}$/),
         fc.stringMatching(/^[a-zA-Z0-9]{1,4}$/),
         publicKeyArb(),
         validAmountArb(),
@@ -195,6 +197,7 @@ describe("Property-based: Amount boundary rejection", () => {
   it("rejects zero, negative, and extreme amounts in payment operations", () => {
     fc.assert(
       fc.property(publicKeyArb(), extremeAmountArb(), (dest, amount) => {
+        const source = buildAccount();
         const num = Number(amount);
         const isInvalid = !/^\d+(\.\d{1,7})?$/.test(amount) || isNaN(num) || num <= 0 || !isFinite(num) || num > MAX_SAFE_AMOUNT;
 
@@ -213,6 +216,7 @@ describe("Property-based: Amount boundary rejection", () => {
             amount: String(amount),
           });
           expect(op).toBeDefined();
+          expect(op).toBeTruthy();
         }
       }),
       { numRuns: 200, verbose: false }

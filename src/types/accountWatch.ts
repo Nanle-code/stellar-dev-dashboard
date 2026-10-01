@@ -97,3 +97,13 @@ export interface AccountWatchState {
   rules: WatchRule[]
   network: NetworkName
 }
+
+export interface WatchChange {
+  accountAddress: string
+  label?: string
+  balanceDeltas: NormalizedBalance[]
+  newOperations: number
+  trustlineChanges: number
+  contractEvents: number
+  observedAt: number
+}

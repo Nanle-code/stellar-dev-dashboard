@@ -3,6 +3,7 @@ import bodyParser from 'body-parser';
 import * as tf from '@tensorflow/tfjs';
 import { predictImpact, recordFeedback, trainModel, getModelStatus, resetModel } from './predictor.js';
 import { extractFeatures } from './feature_extraction.js';
+import { logger } from '../../lib/logging/index.js';
 
 const app = express();
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -77,5 +78,5 @@ app.get('/health', (req, res) => {
 
 const port = process.env.UPGRADE_ML_PORT || 4003;
 app.listen(port, () => {
-  console.log(`[upgrade_impact] Server running on port ${port}`);
+  logger.info(`[upgrade_impact] Server running on port ${port}`);
 });

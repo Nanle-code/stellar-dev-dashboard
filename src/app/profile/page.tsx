@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { WalletContext } from '@/context/WalletContext'; // Adjust if your context path is different
+import { logger } from '../../lib/logging';
 
 export default function ProfilePage() {
   const { wallet, connected, disconnect } = React.useContext(WalletContext);
@@ -16,7 +17,7 @@ export default function ProfilePage() {
 
   const handleSave = () => {
     // TODO: Connect to backend later
-    console.log("Profile saved:", profile);
+    logger.info("Profile saved", { profile });
     setIsEditing(false);
   };
 

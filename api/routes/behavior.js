@@ -24,8 +24,21 @@ import {
   clearPersonalizationData,
 } from '../../src/lib/personalizationEngine.js';
 import { requireSelfOrAdmin } from '../middleware/auth.js';
+import { getAIKillSwitch } from '../services/aiKillSwitch.js';
 
 export const router = express.Router();
+
+router.use(async (_req, res, next) => {
+  try {
+    const { enabled } = await getAIKillSwitch();
+    if (!enabled) {
+      return res.status(503).json({ error: 'ai_disabled', message: 'AI-assisted behavior features are temporarily disabled.' });
+    }
+    return next();
+  } catch {
+    return res.status(503).json({ error: 'ai_control_unavailable', message: 'AI features are unavailable until runtime controls can be verified.' });
+  }
+});
 
 router.use((req, res, next) => {
   const userId = req.headers['x-user-id'] || req.query.userId || req.user?.id;

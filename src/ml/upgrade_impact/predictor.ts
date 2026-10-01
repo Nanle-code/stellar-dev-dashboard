@@ -1,4 +1,5 @@
 import { extractFeatures, featureVector, getDefaultFeatures } from './feature_extraction.js'
+import { logger } from '../../lib/logging/index.js'
 
 let model = null
 let modelLoaded = false
@@ -236,7 +237,7 @@ export async function trainModel(tf) {
     callbacks: {
       onEpochEnd: (epoch, logs) => {
         if ((epoch + 1) % 10 === 0) {
-          console.log(`[upgrade_impact] Epoch ${epoch + 1}: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}`)
+          logger.info(`[upgrade_impact] Epoch ${epoch + 1}: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}`)
         }
       },
     },

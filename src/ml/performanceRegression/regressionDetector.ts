@@ -107,7 +107,7 @@ export function detectRegression(metricName, value, baseline, options = {}) {
   
   // Check threshold
   const exceeds = bidirectional 
-    ? absZScore > threshold 
+    ? absZScore >= threshold 
     : zScore > threshold; // Only flag degradations (positive z-score = worse performance)
   
   if (!exceeds) {

@@ -596,7 +596,7 @@ function AllocationView({ analytics }) {
                     {item.code}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                    ${item.valueUsd.toFixed(2)}
+                    {item.valueUsd !== null ? `$${item.valueUsd.toFixed(2)}` : '—'}
                   </div>
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--cyan)' }}>

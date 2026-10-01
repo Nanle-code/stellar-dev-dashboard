@@ -1,12 +1,11 @@
 import {
-  type OfflineDraft,
-  saveOfflineDraft,
-  getOfflineDraft,
-  listOfflineDrafts,
-  deleteOfflineDraft,
-} from './offlineDrafts';
+  detectSequenceConflicts as detectConflicts,
+  loadSequenceCache,
+  saveSequenceCache,
+} from "./sequenceReservation";
+import type { ReservedDraft, SequenceWarnings } from "./sequenceReservation";
 
-export type TxSnapshot = {
+type TxSnapshot = {
   sourceAccount: string;
   memo: string;
   memoType: string;
@@ -16,7 +15,16 @@ export type TxSnapshot = {
   [key: string]: any;
 };
 
-export type Draft = OfflineDraft;
+type Draft = {
+  id: string;
+  name: string;
+  createdAt: number;
+  snapshot: TxSnapshot;
+  /** Reserved transaction sequence number for the draft's source account (null when unknown). */
+  reservedSequence: string | null;
+  network: string;
+  reservedAt: number | null;
+};
 
 const MAX_HISTORY = 50;
 
@@ -96,13 +104,52 @@ export function useTransactionHistory(opts: {
     return drafts;
   }
 
-  function saveDraft(name: string, snapshot: TxSnapshot) {
-    const d = saveOfflineDraft({
+  function toReservedDraft(d: Draft): ReservedDraft {
+    return {
+      id: d.id,
+      name: d.name,
+      sourceAccount: d.snapshot?.sourceAccount || "",
+      reservedSequence: d.reservedSequence ?? null,
+      network: d.network || "testnet",
+      reservedAt: d.reservedAt ?? null,
+      createdAt: d.createdAt,
+    };
+  }
+
+  function saveDraft(
+    name: string,
+    snapshot: TxSnapshot,
+    options: { reservedSequence?: string | null; network?: string } = {}
+  ) {
+    const d: Draft = {
+      id: `${Date.now()}`,
       name,
+      createdAt: Date.now(),
       snapshot: clone(snapshot),
-    });
-    drafts = listOfflineDrafts();
+      reservedSequence: options.reservedSequence ?? null,
+      network: options.network || "testnet",
+      reservedAt: options.reservedSequence ? Date.now() : null,
+    };
+    drafts = [d, ...loadDraftsFromStorage()].slice(0, MAX_DRAFTS);
+    saveDraftsToStorage(drafts);
     return d;
+  }
+
+  function detectSequenceConflicts(): SequenceWarnings {
+    const loaded = loadDraftsFromStorage();
+    return detectConflicts(loaded.map(toReservedDraft));
+  }
+
+  function getReservedDrafts(): ReservedDraft[] {
+    return loadDraftsFromStorage().map(toReservedDraft);
+  }
+
+  function getSequenceCache(): Record<string, string> {
+    return loadSequenceCache();
+  }
+
+  function setSequenceCache(cache: Record<string, string>) {
+    saveSequenceCache(cache);
   }
 
   function loadDraft(id: string) {
@@ -137,6 +184,10 @@ export function useTransactionHistory(opts: {
     saveDraft,
     loadDraft,
     deleteDraft,
+    detectSequenceConflicts,
+    getReservedDrafts,
+    getSequenceCache,
+    setSequenceCache,
   };
 }
 

@@ -20,12 +20,7 @@ import {
 import anchorService from '../../lib/anchors.js';
 import auditTrail from '../../lib/auditTrail.js';
 import { connectFreighter, signTransactionWithFreighter } from '../../lib/wallet/freighter.js';
-import RiskSummaryPanel from '../security/RiskSummaryPanel';
-import {
-  usePreSignRiskSummary,
-  REVIEW_PASS,
-  REVIEW_ERROR,
-} from '../../hooks/usePreSignRiskSummary';
+import Sep38Quotes from './Sep38Quotes.js';
 
 const METHOD_ICONS = {
   bank_transfer: BanknoteIcon,
@@ -783,6 +778,7 @@ export default function AnchorIntegration() {
               Visit {instructions.anchorName}
             </button>
           </div>
+          <Sep38Quotes anchorId={selectedAnchor.id} anchorSession={anchorSession} />
         </div>
       )}
     </div>

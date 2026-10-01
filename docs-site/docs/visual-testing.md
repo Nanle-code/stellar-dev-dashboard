@@ -39,6 +39,27 @@ Tests run at three viewports for each major widget:
 
 Widgets tested: Connect Panel, Overview, Account, Transactions, NetworkStats, DEXExplorer, PathExplorer, RealTimeLedger, AccountComparison, PortfolioValue, plus Sidebar, Themes (dark/light), and Multisig panels.
 
+### Contract interaction form (#894)
+
+`tests/e2e/contract-interaction/visual.spec.ts` captures the contract
+invocation form at every breakpoint: empty form, filled form, successful
+simulation result, invalid contract id, oversized argument values, and a
+Soroban RPC error state. Soroban/Horizon endpoints are mocked from
+`tests/e2e/contract-interaction/fixtures.ts` so results are deterministic and
+offline-safe. See `docs/features/contract-interaction-visual-regression.md`.
+
+Baseline-aware behaviour: when a baseline is missing the suite attaches the
+actual image and annotates the test as `baseline-missing` instead of failing
+(the CI cache may be cold on the first run). Record baselines with:
+
+```bash
+UPDATE_VISUAL_BASELINES=1 npx playwright test --project=visual-desktop
+```
+
+Once baselines are committed/cached, set `VISUAL_REQUIRE_BASELINE=1` to make a
+missing baseline a hard failure.
+
+
 ## Configuration
 
 | Setting           | Value                                                             |

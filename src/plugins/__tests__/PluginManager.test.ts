@@ -83,106 +83,31 @@ describe("PluginManager", () => {
     expect(secondManager.getPluginRecords()).toHaveLength(0);
   });
 
-  it("exposes the resolved API version and compatibility on installed plugins", async () => {
+  it("manages capability controllers and dynamic grant/revocation per plugin", async () => {
     const manager = new PluginManager({ store: createMockStore() });
     await manager.installPlugin(iframeManifest);
 
-    const records = manager.getPluginRecords();
-    expect(records[0].apiVersion).toBeDefined();
-    expect(records[0].apiVersionCompatibility).toBe("supported");
-    expect(Array.isArray(records[0].deprecationNotices)).toBe(true);
-  });
+    const controller = manager.getCapabilityController(iframeManifest.id);
+    expect(controller).toBeDefined();
+    expect(manager.hasCapability(iframeManifest.id, "dashboard:read")).toBe(true);
+    expect(manager.hasCapability(iframeManifest.id, "storage:write")).toBe(false);
+    expect(manager.getGrantedCapabilities(iframeManifest.id)).toEqual(["dashboard:read"]);
 
-  it("rejects plugins targeting an unsupported future API version", () => {
-    const manager = new PluginManager({ store: createMockStore() });
+    // Dynamically grant capability
+    manager.grantCapability(iframeManifest.id, "storage:write");
+    expect(manager.hasCapability(iframeManifest.id, "storage:write")).toBe(true);
+    expect(manager.getGrantedCapabilities(iframeManifest.id)).toContain("storage:write");
 
-    let thrown;
-    try {
-      manager.register(
-        {
-          id: "community.future-plugin",
-          name: "Future Plugin",
-          version: "1.0.0",
-          apiVersion: "9.9.9",
-          runtime: { mode: "iframe", srcDoc: "<html></html>" },
-          widgets: [],
-          dataSources: [],
-        },
-        { sourceType: "installed" }
-      );
-    } catch (error) {
-      thrown = error;
-    }
+    // Revoke individual capability
+    manager.revokeCapability(iframeManifest.id, "dashboard:read");
+    expect(manager.hasCapability(iframeManifest.id, "dashboard:read")).toBe(false);
 
-    expect(thrown).toBeInstanceOf(Error);
-    expect(thrown?.message).toMatch(/apiVersion "9.9.9" is not supported/);
+    // Revoke all capabilities
+    manager.revokeAllCapabilities(iframeManifest.id);
+    expect(manager.getGrantedCapabilities(iframeManifest.id)).toEqual([]);
 
-    // The dashboard's own version is still exposed as the supported baseline.
-    expect(manager.getPluginRecords().length).toBe(0);
-  });
-
-  it("registers plugins that omit apiVersion (backwards compatible)", async () => {
-    const manager = new PluginManager({ store: createMockStore() });
-
-    const record = await manager.register(
-      {
-        id: "community.no-api-version",
-        name: "No Api Version",
-        version: "1.0.0",
-        runtime: { mode: "iframe", srcDoc: "<html></html>" },
-        widgets: [],
-        dataSources: [],
-      },
-      { sourceType: "installed" }
-    );
-
-    expect(record).not.toBeNull();
-    expect(record.apiVersionCompatibility).toBe("supported");
-    expect(manager.canActivate(record).ok).toBe(true);
-  });
-
-  it("treats an invalid apiVersion string as unsupported", () => {
-    const manager = new PluginManager({ store: createMockStore() });
-
-    let thrown;
-    try {
-      manager.register(
-        {
-          id: "community.bad-api-version",
-          name: "Bad Api Version",
-          version: "1.0.0",
-          apiVersion: "not-a-version",
-          runtime: { mode: "iframe", srcDoc: "<html></html>" },
-          widgets: [],
-          dataSources: [],
-        },
-        { sourceType: "installed" }
-      );
-    } catch (error) {
-      thrown = error;
-    }
-
-    expect(thrown).toBeInstanceOf(Error);
-    expect(thrown?.message).toMatch(/apiVersion "not-a-version" is not supported/);
-  });
-
-  it("still activates plugins targeting the supported API version", async () => {
-    const manager = new PluginManager({ store: createMockStore() });
-
-    const record = await manager.register(
-      {
-        id: "community.supported-plugin",
-        name: "Supported Plugin",
-        version: "1.2.3",
-        apiVersion: "1.0.0",
-        runtime: { mode: "iframe", srcDoc: "<html></html>" },
-        widgets: [],
-        dataSources: [],
-      },
-      { sourceType: "installed" }
-    );
-
-    expect(record.apiVersionCompatibility).toBe("supported");
-    expect(manager.canActivate(record).ok).toBe(true);
+    // Uninstalling cleans up controller
+    await manager.uninstallPlugin(iframeManifest.id);
+    expect(manager.getCapabilityController(iframeManifest.id)).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { getContractInteractions, clearContractInteractions, getWasmHashHistory } from "../../lib/storage";
-import { Hash, ExternalLink } from "lucide-react";
+import { getContractInteractions, clearContractInteractions } from "../../lib/storage";
+import ResourceRegressionBenchmarks from "./ResourceRegressionBenchmarks";
 
 function textInputStyle() {
   return {
@@ -408,6 +408,8 @@ export default function ContractHistory({ onReplay }) {
           </div>
         )}
       </div>
+
+      <ResourceRegressionBenchmarks initialContractId={filters.contractId} />
     </div>
   );
 }

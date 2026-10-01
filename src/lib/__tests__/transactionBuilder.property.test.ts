@@ -197,6 +197,7 @@ describe("Property-based: Amount boundary rejection", () => {
   it("rejects zero, negative, and extreme amounts in payment operations", () => {
     fc.assert(
       fc.property(publicKeyArb(), extremeAmountArb(), (dest, amount) => {
+        const source = buildAccount();
         const num = Number(amount);
         const isInvalid = !/^\d+(\.\d{1,7})?$/.test(amount) || isNaN(num) || num <= 0 || !isFinite(num) || num > MAX_SAFE_AMOUNT;
 

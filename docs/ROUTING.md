@@ -74,6 +74,29 @@ When a URL contains a bound param, `DashboardLayout` writes the decoded value
 into the Zustand store, so refreshing or sharing the link restores the same
 view. `buildPath('account', { address })` generates the forward link.
 
+## Global context (network & time range) (#987)
+
+Alongside path params, the dashboard keeps a global **network + time-range**
+context in the query string:
+
+```
+?network=mainnet&range=7d
+?network=testnet&range=custom&from=2026-09-01&to=2026-09-14
+```
+
+- Parsing/serialisation is pure and React-free in
+  `src/lib/context/url-context.ts`; the React binding lives in
+  `src/context/DashboardContext.tsx` (`DashboardProvider` /
+  `useDashboardContext`).
+- The URL is canonical. Invalid values degrade to defaults and surface an inline
+  message; the parser never throws. See
+  [CONTEXT_BAR.md](./CONTEXT_BAR.md) for the full contract.
+- Network changes are mirrored into the Zustand store, so all existing views
+  that read `store.network` follow the context without changes.
+- The context is written with `setSearchParams` (push), so back/forward restores
+  it. `DashboardLayout` appends `location.search` when it syncs the active tab,
+  so view changes never drop the context.
+
 ## Not found (404)
 
 `matchRoute(pathname)` returns `null` for unknown paths rather than silently
@@ -119,4 +142,8 @@ Migration notes:
   resolves from its generated path), boundary cases (optional params, trailing
   slashes, query strings, encoded/malformed params, auth gating), and failure
   cases (unknown paths → 404, unknown ids → `null`/`undefined`).
+- `src/lib/context/__tests__/url-context.test.ts` and
+  `src/context/__tests__/DashboardContext.test.tsx` cover the global context
+  (#987): URL parsing/serialisation, back/forward restoration, and safe
+  fallbacks for unknown networks and invalid ranges.
 - Run the focused suite with `pnpm run test` (Vitest).

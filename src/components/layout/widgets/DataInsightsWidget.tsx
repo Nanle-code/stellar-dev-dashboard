@@ -1,12 +1,14 @@
 import React, { useEffect } from 'react';
 import WidgetBase from './WidgetBase';
 import { useStore } from '../../../lib/store';
+import { useAIKillSwitch } from '../../../context/AIKillSwitchContext';
 
 interface DataInsightsWidgetProps {
   onRefresh?: () => void;
 }
 
 export default function DataInsightsWidget({ onRefresh }: DataInsightsWidgetProps) {
+  const { enabled, ready } = useAIKillSwitch();
   const {
     analytics,
     isGeneratingInsights,
@@ -17,10 +19,12 @@ export default function DataInsightsWidget({ onRefresh }: DataInsightsWidgetProp
   } = useStore();
 
   useEffect(() => {
-    if (connectedAddress && (transactions.length > 0 || operations.length > 0)) {
+    if (enabled && ready && connectedAddress && (transactions.length > 0 || operations.length > 0)) {
       generateDataInsights();
     }
-  }, [connectedAddress, transactions, operations, generateDataInsights]);
+  }, [enabled, ready, connectedAddress, transactions, operations, generateDataInsights]);
+
+  if (!enabled || !ready) return null;
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

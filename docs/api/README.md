@@ -457,6 +457,8 @@ This directory documents the public JavaScript modules exposed by the dashboard.
 | [transactionBuilder.js](./transactionBuilder.md)     | Multi-operation transaction builder and simulator             |
 | [transactionTemplates.js](./transactionTemplates.md) | Pre-built transaction templates                               |
 | [import.js / export.js](./dataExport.md)             | Dashboard backup, export, and import utilities                |
+| [riskRules.js](./riskRules.md)                  | Declarative pre-sign risk ruleset with plain-language descriptions    |
+| [riskSummary.js](./riskSummary.md)              | Per-transaction pre-sign risk summary                                 |
 
 ## Quick Start
 

@@ -12,6 +12,9 @@ import ChunkLoadErrorBoundary from './components/ChunkLoadErrorBoundary';
 import { DeveloperTools } from './components/DeveloperTools';
 import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import { TipProvider } from './components/ai/TipProvider';
+import AnalyticsConsentPrompt from './components/AnalyticsConsentPrompt';
+import { needsAnalyticsConsentReview } from './utils/analyticsConsent';
+import { AIKillSwitchProvider } from './context/AIKillSwitchContext';
 
 const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
 
@@ -43,31 +46,44 @@ function AppLoadingFallback() {
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = React.useState(false);
+  const [showConsentPrompt, setShowConsentPrompt] = React.useState(() => needsAnalyticsConsentReview());
 
   React.useEffect(() => {
-    const hasCompleted = localStorage.getItem('hasCompletedOnboarding');
-    if (!hasCompleted) {
-      setShowOnboarding(true);
+    try {
+      const hasCompleted = localStorage.getItem('hasCompletedOnboarding');
+      if (!hasCompleted) setShowOnboarding(true);
+    } catch {
+      // The app can still run when browser storage is unavailable.
     }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== 'user-preferences' && event.key !== null) return;
+      setShowConsentPrompt(needsAnalyticsConsentReview());
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   return (
     <I18nProvider>
       <AccessibilityProvider>
         <ExpertiseProvider>
-          <DashboardProvider>
-            <ErrorBoundary maxRetries={2}>
-              {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
-              <ChunkLoadErrorBoundary>
-                <Suspense fallback={<AppLoadingFallback />}>
-                  <Routes>
-                    <Route path="/connect" element={<DashboardLayout />} />
-                    <Route path="/*" element={<DashboardLayout />} />
-                  </Routes>
-                </Suspense>
-              </ChunkLoadErrorBoundary>
-              <DeveloperTools />
-            </ErrorBoundary>
+<DashboardProvider>
+            <AIKillSwitchProvider>
+              <ErrorBoundary maxRetries={2}>
+                {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
+                {showConsentPrompt && <AnalyticsConsentPrompt onDecision={() => setShowConsentPrompt(false)} />}
+                <ChunkLoadErrorBoundary>
+                  <Suspense fallback={<AppLoadingFallback />}>
+                    <Routes>
+                      <Route path="/connect" element={<DashboardLayout />} />
+                      <Route path="/*" element={<DashboardLayout />} />
+                    </Routes>
+                  </Suspense>
+                </ChunkLoadErrorBoundary>
+                <DeveloperTools />
+              </ErrorBoundary>
+            </AIKillSwitchProvider>
           </DashboardProvider>
         </ExpertiseProvider>
       </AccessibilityProvider>

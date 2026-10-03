@@ -9,6 +9,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const { logger } = require('../../lib/logging/logger');
 
 let model = null;
 
@@ -18,10 +19,10 @@ async function loadModel() {
     if (fs.existsSync(path.join(modelsDir, 'model.json'))) {
       const tf = require('@tensorflow/tfjs-node');
       model = await tf.loadLayersModel('file://' + path.join(modelsDir, 'model.json'));
-      console.log('Backup ML model loaded');
+      logger.info('Backup ML model loaded');
     }
   } catch (err) {
-    console.warn('Could not load backup ML model:', err.message);
+    logger.warn('Could not load backup ML model:', { error: err.message });
   }
 }
 
@@ -103,6 +104,6 @@ app.get('/backup/health', (req, res) => {
 
 const port = process.env.BACKUP_ML_PORT || 4003;
 app.listen(port, () => {
-  console.log('Backup ML server running on port', port);
+  logger.info(`Backup ML server running on port ${port}`);
   loadModel();
 });

@@ -1,22 +1,34 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
+import * as StellarSdk from '@stellar/stellar-sdk';
 import { useStore } from '../../lib/store';
-import { signTransactionWithFreighter } from '../../lib/wallet/freighter';
-import {
-  signXdrWithLedger,
-  isLedgerSupported,
-  getActiveLedgerSession,
-} from '../../lib/wallet/ledger';
+import { getWalletAdapter } from '../../lib/wallet/adapters';
 import { NETWORKS } from '../../lib/stellar';
 import { measureAsync } from '../../lib/performanceMonitoring';
 import { loadPreferences, DEFAULT_PREFERENCES } from '../../lib/userPreferences';
 import type { UserPreferences } from '../../lib/userPreferences';
 import Card from './Card';
 import EnhancedTransactionConfirmation from '../security/EnhancedTransactionConfirmation';
+import RiskSummaryPanel from '../security/RiskSummaryPanel';
+import {
+  usePreSignRiskSummary,
+  REVIEW_SHOWN,
+  REVIEW_ERROR,
+} from '../../hooks/usePreSignRiskSummary';
 import BiometricAuthOverlay from '../biometrics/BiometricAuthOverlay';
+import MainnetConfirmDialog from '../security/MainnetConfirmDialog';
 import { useBehavioralBiometrics } from '../../hooks/useBehavioralBiometrics';
+import { useWriteGuard } from '../../hooks/useWriteGuard';
 import { inspectEnvelope } from '../../utils/feeBumpInspector';
 import type { EnvelopeInfo } from '../../utils/feeBumpInspector';
+import { setCriticalSigningActive } from '../../utils/offline';
+
+interface MainnetReviewItem {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  mono?: boolean;
+}
 
 export default function TransactionSigner() {
   const { walletConnected, walletType, walletPublicKey, network } = useStore();
@@ -27,9 +39,28 @@ export default function TransactionSigner() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [ledgerPrompt, setLedgerPrompt] = useState(false);
+  const [showMainnetReview, setShowMainnetReview] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // #983 — mainnet write guard
+  const { guard, isReadOnlyLocked, dialogProps } = useWriteGuard();
   const [showBiometricOverlay, setShowBiometricOverlay] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
+
+  // #982 — pre-sign risk review.
+  const {
+    summary: riskSummary,
+    reviewError: riskReviewError,
+    onTrustContract: trustRiskContract,
+    beginReview: beginRiskReview,
+    cancelReview: cancelRiskReview,
+    onAcknowledged: acknowledgeRiskReview,
+  } = usePreSignRiskSummary();
+
+  // The envelope that was actually summarised. Held in a ref rather than read
+  // back from `xdr`, because the field stays editable while the review panel is
+  // open and signing whatever it holds then would slip past the review.
+  const reviewedXdrRef = useRef<string | null>(null);
 
   // ─── Behavioral Biometrics ─────────────────────────────────────────────────
   const bio = useBehavioralBiometrics(walletPublicKey);
@@ -67,14 +98,19 @@ export default function TransactionSigner() {
     [bio, network]
   );
 
-  // networkPassphrase moved up
+  // networkPassphrase
+  const networkPassphrase = NETWORKS[network]?.passphrase ?? NETWORKS.testnet.passphrase;
   const handleSign = async () => {
     if (!xdr.trim()) {
       setError('Please enter a transaction XDR to sign');
       return;
     }
+    // #983 — route through central write guard; it handles mainnet confirmation
+    // and session read-only lock before proceeding to the biometric/confirmation flow.
+    guard({ action: 'sign & submit transaction', onConfirm: _runSignFlow });
+  };
 
-    // Run biometric check if enabled
+  const _runSignFlow = async () => {
     if (bio.enabled && bio.isEstablished) {
       const result = await bio.evaluateAndRecord();
       if (result) {
@@ -173,23 +209,18 @@ export default function TransactionSigner() {
     setSigning(true);
     setError(null);
     setSignedXdr(null);
+    // #886 — Protect the signing flow from service-worker activation/reload:
+    // deferred SW updates wait until the flow finishes (finally block below).
+    setCriticalSigningActive(true);
 
     try {
-      let result: string | null = null;
-
-      if (walletType === 'freighter') {
-        const networkName = network === 'mainnet' ? 'PUBLIC' : 'TESTNET';
-        result = await measureAsync(
-          'TRANSACTION_SIGNING_DURATION',
-          () => signTransactionWithFreighter(xdr.trim(), networkName),
-          { network, walletType: 'freighter' }
-        );
-      } else if (walletType === 'ledger') {
-        await _signWithLedger();
-        return;
-      } else {
-        throw new Error('No wallet connected. Connect a wallet first.');
-      }
+      if (!walletType) throw new Error('No wallet connected. Connect a wallet first.');
+      setLedgerPrompt(walletType === 'ledger');
+      const result = await measureAsync(
+        'TRANSACTION_SIGNING_DURATION',
+        () => getWalletAdapter(walletType).signTransaction(xdr.trim(), network),
+        { network, walletType }
+      );
 
       setSignedXdr(result);
       // Record this successful sign to the behavioral profile
@@ -199,7 +230,11 @@ export default function TransactionSigner() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setLedgerPrompt(false);
       setSigning(false);
+      // #886 — Signing is over: a service-worker update deferred during the
+      // flow is now safe to activate (and reload) again.
+      setCriticalSigningActive(false);
     }
   };
 
@@ -227,54 +262,6 @@ export default function TransactionSigner() {
   const handleBiometricDismiss = async () => {
     setShowBiometricOverlay(false);
     await _proceedToSign();
-  };
-
-  const _signWithLedger = async () => {
-    const supported = await isLedgerSupported();
-    if (!supported) {
-      setError(
-        'WebUSB/WebHID is not supported in this browser. ' +
-          'Please use Chrome or a Chromium-based browser to sign with Ledger.'
-      );
-      setSigning(false);
-      return;
-    }
-
-    const { stellarApp, publicKey, derivationPath } = getActiveLedgerSession();
-    if (!stellarApp) {
-      setError(
-        'Ledger session not found. Please connect your Ledger in the Wallet tab first, ' +
-          'then return here to sign.'
-      );
-      setSigning(false);
-      return;
-    }
-
-    try {
-      setLedgerPrompt(true);
-      const signed = await measureAsync(
-        'TRANSACTION_SIGNING_DURATION',
-        () =>
-          signXdrWithLedger(
-            xdr.trim(),
-            networkPassphrase,
-            stellarApp,
-            publicKey || walletPublicKey,
-            derivationPath
-          ),
-        { network, walletType: 'ledger' }
-      );
-      setSignedXdr(signed as string);
-      // Record this successful sign to the behavioral profile
-      if (bio.enabled) {
-        bio.recordSuccessfulSign().catch(() => {});
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLedgerPrompt(false);
-      setSigning(false);
-    }
   };
 
   const handleCopy = () => {
@@ -307,6 +294,24 @@ export default function TransactionSigner() {
     );
   }
 
+  if (riskSummary || riskReviewError) {
+    return (
+      <RiskSummaryPanel
+        summary={riskSummary}
+        reviewError={riskReviewError}
+        proceedLabel="Sign Transaction"
+        sourceLabel={
+          walletPublicKey
+            ? `signer ${walletPublicKey.slice(0, 6)}…${walletPublicKey.slice(-6)}`
+            : undefined
+        }
+        onAcknowledged={() => acknowledgeRiskReview(() => doSign())}
+        onCancel={cancelRiskReview}
+        onTrustContract={trustRiskContract}
+      />
+    );
+  }
+
   if (showConfirmation) {
     return (
       <EnhancedTransactionConfirmation
@@ -322,6 +327,24 @@ export default function TransactionSigner() {
 
   return (
     <>
+      {/* #983 — mainnet write guard dialog */}
+      <MainnetConfirmDialog {...dialogProps} />
+      {isReadOnlyLocked && (
+        <div style={{
+          background: 'rgba(255,23,68,0.08)',
+          border: '1px solid var(--red)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '12px',
+          fontSize: '12px',
+          color: 'var(--red)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          🔒 Mainnet read-only lock is active — signing is blocked this session.
+        </div>
+      )}
       <Card title="Transaction Signer" subtitle={`Signing with ${walletType}`}>
         <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div
@@ -510,27 +533,6 @@ export default function TransactionSigner() {
             </div>
           )}
 
-          <button
-            onClick={handleSign}
-            disabled={signing || !xdr.trim()}
-            style={{
-              padding: '12px 20px',
-              background: signing ? 'transparent' : 'var(--cyan-glow)',
-              border: `1px solid ${signing ? 'var(--border)' : 'var(--cyan)'}`,
-              borderRadius: 'var(--radius-md)',
-              color: signing ? 'var(--text-muted)' : 'var(--cyan)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              cursor: signing ? 'wait' : 'pointer',
-              transition: 'var(--transition)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              opacity: !xdr.trim() ? 0.5 : 1,
-            }}
-          />
         </div>
 
         {envelopeInfo && <EnvelopeDetails info={envelopeInfo} />}

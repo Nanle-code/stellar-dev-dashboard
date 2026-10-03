@@ -1,18 +1,19 @@
 import * as tf from '@tensorflow/tfjs';
 import { trainModel } from './predictor.js';
+import { logger } from '../../lib/logging/index.js';
 
 async function main() {
-  console.log('[upgrade_impact] Starting training pipeline...');
+  logger.info('[upgrade_impact] Starting training pipeline...');
 
   try {
     const result = await trainModel(tf);
     if (result.trained) {
-      console.log(`[upgrade_impact] Model trained successfully on ${result.samples} samples (${result.epochs} epochs)`);
+      logger.info(`[upgrade_impact] Model trained successfully on ${result.samples} samples (${result.epochs} epochs)`);
     } else {
-      console.log(`[upgrade_impact] Training skipped: ${result.reason} (${result.samples}/${result.minRequired})`);
+      logger.info(`[upgrade_impact] Training skipped: ${result.reason} (${result.samples}/${result.minRequired})`);
     }
-  } catch (err) {
-    console.error('[upgrade_impact] Training failed:', err.message);
+  } catch (err: any) {
+    logger.error('[upgrade_impact] Training failed:', undefined, undefined, err instanceof Error ? err : new Error(String(err?.message || err)));
     process.exit(1);
   }
 }

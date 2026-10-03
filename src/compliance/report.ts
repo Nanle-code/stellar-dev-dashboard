@@ -1,4 +1,5 @@
 import { Finding } from './engine';
+import { logger } from '../lib/logging';
 
 export interface ComplianceReport {
   accountId: string;
@@ -24,7 +25,6 @@ export function generateReport(accountId: string, findings: Finding[]): Complian
     summary: `Found ${findings.length} issues for account ${accountId}`,
   };
 
-  // eslint-disable-next-line no-console
-  console.info('Compliance Report:', JSON.stringify(report));
+  logger.info('Compliance Report: ' + JSON.stringify(report));
   return report;
 }

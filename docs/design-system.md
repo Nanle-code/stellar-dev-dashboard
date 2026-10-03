@@ -3,7 +3,7 @@
 This document is the authoritative reference for the Stellar Dev Dashboard design system.
 The interactive token catalog, variant browser, accessibility guidelines, performance budgets,
 and migration guides all live in Storybook under the **Design System** section — run
-`npm run storybook` and navigate to **Design System / Tokens**.
+`npm run storybook` and navigate to **Design System / Tokens** or **Design System / Primitives**.
 
 ---
 
@@ -145,6 +145,22 @@ Variant statuses:
 
 See the **Design System / Component Variants** story in Storybook for the interactive catalog.
 
+### Shared Primitives
+
+Import common layout and data patterns from `src/design-system/components`:
+
+```tsx
+import { Badge, Card, Skeleton, Stack, Table } from '../design-system';
+```
+
+The shared primitives are styled with runtime CSS custom properties and have examples in
+Storybook under **Design System / Primitives**. Prefer these components and token-backed
+classes for static presentation. Inline styles are acceptable only when a value is truly
+computed at runtime (for example, a measured chart coordinate); do not use inline objects
+for fixed spacing, color, borders, typography, or responsive layout. The lint command runs
+`scripts/check-inline-style-budget.mjs`, which tracks the migrated `DashboardLayout` area
+and enforces an 80% reduction from its recorded baseline.
+
 ---
 
 ## 3. Consistency
@@ -165,6 +181,11 @@ npm run test:visual          # Playwright visual snapshots
 npm run test:visual:update   # Update snapshots after intentional changes
 npm run test:chromatic        # Chromatic cloud snapshots (CI)
 ```
+
+The shared primitives have a standalone Playwright visual fixture with snapshots for dark,
+light, and high-contrast palettes. Update those baselines only when the visual change is
+intentional and reviewed in all three modes. The inline-style budget can also be run directly:
+`node scripts/check-inline-style-budget.mjs`.
 
 ### CI Checks
 

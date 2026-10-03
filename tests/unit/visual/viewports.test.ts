@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { countInlineStyleObjects, meetsInlineStyleReduction } from '../../../scripts/check-inline-style-budget.mjs';
 import {
   VISUAL_VIEWPORTS,
   VISUAL_VIEWPORT_LIST,
@@ -25,5 +26,16 @@ describe('visual viewports config', () => {
 
   it('uses 0.2% pixel diff threshold', () => {
     expect(VISUAL_DIFF_THRESHOLD).toBe(0.002);
+  });
+});
+
+describe('inline style budget', () => {
+  it('counts literal style objects but permits runtime-derived styles', () => {
+    expect(countInlineStyleObjects('<div style={{ color: "red" }} /><div style={computed} />')).toBe(1);
+  });
+
+  it('accepts the 80% target and rejects a reduction below the threshold', () => {
+    expect(meetsInlineStyleReduction(20, 4)).toBe(true);
+    expect(meetsInlineStyleReduction(20, 5)).toBe(false);
   });
 });

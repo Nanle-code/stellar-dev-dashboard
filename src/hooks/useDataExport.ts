@@ -10,10 +10,14 @@ import {
   buildBackupPayload,
   exportJson,
   exportCsv,
+  exportRowsJson,
+  exportParquet,
   flattenTransaction,
   flattenBalance,
 } from "../utils/export";
 import { readFileAsText, parseBackup, validateBackupPayload, applyBackupToStore } from "../lib/import";
+
+export type ExportFormat = "csv" | "json" | "parquet";
 
 /**
  * A generic exportable row (transaction or balance record).
@@ -30,8 +34,8 @@ export interface UseDataExportReturn {
   importError: string | null;
   importSuccess: boolean;
   exportDashboard: () => void;
-  exportTransactions: (transactions: ExportableRow[]) => void;
-  exportBalances: (balances: ExportableRow[]) => void;
+  exportTransactions: (transactions: ExportableRow[], format?: ExportFormat) => Promise<void>;
+  exportBalances: (balances: ExportableRow[], format?: ExportFormat) => Promise<void>;
   importBackup: (file: File) => Promise<void>;
 }
 
@@ -62,12 +66,18 @@ export function useDataExport(): UseDataExportReturn {
     }
   }, [store]);
 
-  const exportTransactions = useCallback((transactions: ExportableRow[]): void => {
+  const exportTransactions = useCallback(async (transactions: ExportableRow[], format: ExportFormat = "csv"): Promise<void> => {
     setIsExporting(true);
     setExportError(null);
     try {
       const rows = (transactions || []).map(flattenTransaction);
-      exportCsv(rows, "stellar-transactions");
+      if (format === "csv") {
+        exportCsv(rows, "stellar-transactions");
+      } else if (format === "json") {
+        exportRowsJson(rows, "stellar-transactions");
+      } else if (format === "parquet") {
+        await exportParquet(rows, "stellar-transactions");
+      }
     } catch (err) {
       setExportError(err.message);
     } finally {
@@ -75,12 +85,18 @@ export function useDataExport(): UseDataExportReturn {
     }
   }, []);
 
-  const exportBalances = useCallback((balances: ExportableRow[]): void => {
+  const exportBalances = useCallback(async (balances: ExportableRow[], format: ExportFormat = "csv"): Promise<void> => {
     setIsExporting(true);
     setExportError(null);
     try {
       const rows = (balances || []).map(flattenBalance);
-      exportCsv(rows, "stellar-balances");
+      if (format === "csv") {
+        exportCsv(rows, "stellar-balances");
+      } else if (format === "json") {
+        exportRowsJson(rows, "stellar-balances");
+      } else if (format === "parquet") {
+        await exportParquet(rows, "stellar-balances");
+      }
     } catch (err) {
       setExportError(err.message);
     } finally {

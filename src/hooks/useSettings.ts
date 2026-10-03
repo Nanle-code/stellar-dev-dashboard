@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   getActiveProfileName,
   loadConfigProfiles,
@@ -12,6 +12,7 @@ import {
   savePreferences,
   updatePreference,
 } from "../utils/preferences";
+import { saveAnalyticsConsentDecision } from "../utils/analyticsConsent";
 
 export interface ConfigProfile {
   name: string;
@@ -24,6 +25,9 @@ export interface SettingsPreferences {
   autoRefreshDashboard: boolean;
   defaultSearchScope: string;
   diagnosticsConsent: boolean;
+  analyticsConsent: boolean;
+  analyticsConsentPolicyVersion: string | null;
+  analyticsConsentReviewedVersion: string | null;
   [key: string]: unknown;
 }
 
@@ -43,6 +47,17 @@ export function useSettings(): UseSettingsReturn {
   const [profiles, setProfiles] = useState<ConfigProfile[]>(() => loadConfigProfiles() as ConfigProfile[]);
   const [activeProfileName, setActiveNameState] = useState<string>(() => getActiveProfileName() as string);
   const [preferences, setPreferences] = useState<SettingsPreferences>(() => loadPreferences() as SettingsPreferences);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'user-preferences' || event.key === null) {
+        setPreferences(loadPreferences() as SettingsPreferences);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const activeProfile = useMemo(() => {
     return (
@@ -76,6 +91,20 @@ export function useSettings(): UseSettingsReturn {
   }
 
   function setPreference(key: string, value: unknown): void {
+    if (key === "analyticsConsent" || key === "diagnosticsConsent") {
+      const allowed = value === true;
+      try {
+        setPreferences(saveAnalyticsConsentDecision(allowed) as SettingsPreferences);
+      } catch (error) {
+        setPreferences({
+          ...loadPreferences(),
+          analyticsConsent: false,
+          diagnosticsConsent: false,
+        } as SettingsPreferences);
+        throw error;
+      }
+      return;
+    }
     setPreferences(updatePreference(key, value) as SettingsPreferences);
   }
 

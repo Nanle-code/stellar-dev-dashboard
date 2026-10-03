@@ -1,8 +1,6 @@
-closes #550
-
 # Stellar Dev Dashboard
 
-A real-time developer dashboard for the Stellar network with advanced features including AI-enhanced transaction fee prediction.
+Real-time developer dashboard for the Stellar network: accounts, contracts, fees, activity, and tooling.
 
 ## Package manager policy
 
@@ -186,61 +184,64 @@ The dashboard provides auto-generated controls for smart contract interaction wh
 - Compatible with existing `ContractInteraction` components. No migration of user settings is necessary.
 - Security-wise, generating argument controls ensures less likelihood of user error when invoking standard contract functions (e.g. incorrect mapping of manual types to required ABI types).
 
-## Development
+Full guides live in the docs site under docs-site/. This README is only the entry point.
 
-### Node.js support
+## Requirements
 
-This project supports Node.js **22 through 26**. Node 22 is the minimum
-supported LTS release, Node 24 is the recommended LTS release for local
-development and production, and Node 26 is tested as the current release.
-Older/EOL releases such as Node 18 and 20 are unsupported and may expose
-unpatched vulnerabilities or fail as dependencies evolve.
+- Node.js: 22.x to 26.x (engines: >=22 <27)
+- pnpm: 9+ (this repo package manager)
 
-Use `npm run check:node` to validate the active runtime. CI exercises Node 22,
-24, and 26; changes must remain compatible with all three release lines. When
-Node changes its active release schedule, update `package.json` engines, the CI
-matrix, and `scripts/node-version-policy.mjs` together.
+Install:
 
-### Adding New Prediction Models
+    corepack enable
+    pnpm install
+    pnpm run check:node
+    pnpm run check:package-manager
 
-Create a new model by:
+Supported: Node 22-26 with pnpm 9+ and the repo lockfile.
+Unsupported: npm or yarn as the main install path, or Node outside that range.
+If package-lock.json appears, remove it before install.
 
-1. Implementing `FeeModel` interface in `src/lib/feePredictor.ts`
-2. Adding it to the `FeePredictor` class
-3. Registering it in the model registry
+## Quick start
 
-### Improving Accuracy
+    git clone https://github.com/Nanle-code/stellar-dev-dashboard.git
+    cd stellar-dev-dashboard
+    corepack enable
+    pnpm install
+    pnpm dev
 
-1. Collect prediction accuracy data
-2. Use `FeePredictor.updateAccuracy()` with actual vs predicted values
-3. Trigger model retraining when accuracy falls below threshold
-4. Configure automatic retraining in production
+Open the URL Vite prints (usually http://localhost:5173).
 
-### API Extensions
+Useful commands:
 
-Add new endpoints by:
+- pnpm dev — local app
+- pnpm test — unit tests
+- pnpm run type-check — TypeScript
+- pnpm run build — production build
 
-1. Creating new routes in `api/routes/transactions.js`
-2. Implementing handlers in `src/lib/feePredictionIntegration.ts`
-3. Updating TypeScript definitions in TypeScript types
+## Features
 
-## API Authentication Boundaries
+- Network-aware account and contract views
+- Transaction building and simulation helpers
+- Fee insights and related tooling
+- Demo / read-only explore flows where enabled
 
-The server-side API uses a narrow trust boundary for user-specific and operational data:
+Details and how-tos are in docs-site, not in long root markdown files.
 
-- `Authorization: Bearer <token>` is required on all protected endpoints.
-- Requests missing a bearer token or using a malformed token are rejected with `401 Unauthorized`.
-- Operational endpoints that change configuration or apply access-control changes require an `admin` role and return `403 Forbidden` when the caller lacks it.
-- Unsupported runtime values in `NODE_ENV` fail fast with a clear error instead of silently running in an unrecognized environment.
-- Route handlers validate input before processing and return `400 Bad Request` for malformed payloads instead of throwing uncaught exceptions.
+## Documentation
 
-This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.
+- Docs site: docs-site/
+- Contributing: CONTRIBUTING.md
+- Security: SECURITY.md
+- Code of conduct: CODE_OF_CONDUCT.md
+- Changelog: CHANGELOG.md
 
-## Canary Deployment Health Probes
+Root one-off guides were moved under docs-site/docs so there is one navigable docs home.
 
-The API service includes automated canary deployment health probes and auto-abort reliability gating:
+## License
 
-- **Docker Compose Canary Service**: Run `docker compose --profile canary up -d --build redis api-canary` to start the staged canary API candidate on port 4001 with active healthchecks.
-- **Critical Route Health Probing**: `pnpm run canary:probe` exercises critical API routes (`/health`, `/health/deep`, `/api/docs`, accounts, transactions, gas prediction) across configurable test iterations.
-- **Error Budget Auto-Abort**: Automatically halts rollouts and executes rollback commands when error budget (default: 5%) or p95 latency thresholds (default: 2000ms) are breached.
-- **Full Guide**: See [docs/CANARY_DEPLOYMENT.md](docs/CANARY_DEPLOYMENT.md) for full architecture, CLI flags, Docker Compose setup, and deployment workflow details.
+### SEP-38 Integration
+- **Quotes**: Added support for SEP-38 Quotes API. Now discovers ANCHOR_QUOTE_SERVER and can retrieve /info, /prices, /price and request authenticated /quote.
+- **Security**: Authentication leverages SEP-10 tokens for quotes. Be aware that tokens can expire, and quotes have an expiration window handled gracefully with a countdown timer.
+...
+...

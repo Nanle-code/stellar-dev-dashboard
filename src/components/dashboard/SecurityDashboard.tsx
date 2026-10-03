@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { analyzeDependencies } from '../../lib/dependencyManagement';
 import PredictiveVulnerabilityScanner from './PredictiveVulnerabilityScanner';
+import CspViolationTriage from './CspViolationTriage';
 import {
   SAMPLE_AUDIT,
   SAMPLE_LOCK_PACKAGES,
@@ -697,6 +698,7 @@ const STEPS = [
   { id: 'sast', label: 'SAST', icon: '🔎', shortLabel: 'SAST' },
   { id: 'dast', label: 'DAST', icon: '⚡', shortLabel: 'DAST' },
   { id: 'predictive', label: 'Predictive Scanning', icon: '🧠', shortLabel: 'Predictive' },
+  { id: 'csp', label: 'CSP Violations', icon: '🚨', shortLabel: 'CSP' },
   { id: 'scorecard', label: 'Scorecard', icon: '📊', shortLabel: 'Scorecard' },
 ] as const;
 
@@ -714,7 +716,7 @@ export default function SecurityDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
           <span style={{ fontSize: '24px' }}>🛡️</span>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 800, margin: 0 }}>Security Dashboard</h1>
-          <Badge label="5 Checks" variant="info" />
+          <Badge label={`${STEPS.length} Checks`} variant="info" />
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>
           End-to-end security pipeline — scanning, analysis, testing, and scoring in one place.
@@ -757,6 +759,7 @@ export default function SecurityDashboard() {
         {activeStep === 'sast' && <SAST />}
         {activeStep === 'dast' && <DAST />}
         {activeStep === 'predictive' && <PredictiveVulnerabilityScanner />}
+        {activeStep === 'csp' && <CspViolationTriage />}
         {activeStep === 'scorecard' && <Scorecard />}
       </div>
 

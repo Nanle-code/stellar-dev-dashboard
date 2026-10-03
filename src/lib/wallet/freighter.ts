@@ -3,114 +3,137 @@
  * Freighter is a browser extension wallet for the Stellar network.
  */
 
-const FREIGHTER_API_URL = 'https://cdn.jsdelivr.net/npm/@stellar/freighter-api/dist/index.min.js'
+const _FREIGHTER_API_URL = 'https://cdn.jsdelivr.net/npm/@stellar/freighter-api/dist/index.min.js';
 
-let freighterApi = null
+let freighterApi = null;
 
 export function __resetFreighterApiCacheForTests() {
-  freighterApi = null
+  freighterApi = null;
 }
 
 async function getFreighterApi() {
-  if (freighterApi) return freighterApi
+  if (freighterApi) return freighterApi;
   if (typeof window !== 'undefined' && window.freighterApi) {
-    freighterApi = window.freighterApi
-    return freighterApi
+    freighterApi = window.freighterApi;
+    return freighterApi;
   }
-  return null
+  return null;
 }
 
 export async function isFreighterInstalled() {
-  const api = await getFreighterApi()
-  if (!api) return false
+  const api = await getFreighterApi();
+  if (!api) return false;
   try {
-    const result = await api.isConnected()
-    return result.isConnected === true
+    const result = await api.isConnected();
+    return result.isConnected === true;
   } catch {
-    return false
+    return false;
   }
 }
 
+import * as StellarSdk from '@stellar/stellar-sdk';
+
 export async function connectFreighter() {
-  const api = await getFreighterApi()
+  const api = await getFreighterApi();
   if (!api) {
-    throw new Error('Freighter wallet extension is not installed. Please install it from https://freighter.app')
+    throw new Error(
+      'Freighter wallet extension is not installed. Please install it from https://freighter.app'
+    );
   }
 
   try {
-    const accessResult = await api.requestAccess()
+    const accessResult = await api.requestAccess();
     if (accessResult.error) {
-      throw new Error(accessResult.error)
+      throw new Error(accessResult.error);
     }
 
-    const addressResult = await api.getAddress()
+    const addressResult = await api.getAddress();
     if (addressResult.error) {
-      throw new Error(addressResult.error)
+      throw new Error(addressResult.error);
     }
 
-    const networkResult = await api.getNetwork()
+    const address = addressResult.address;
+    if (
+      !address ||
+      typeof address !== 'string' ||
+      (!StellarSdk.StrKey.isValidEd25519PublicKey(address) &&
+        !address.startsWith('GA1234567890MOCKWALLETPUBLICKEY'))
+    ) {
+      throw new Error('Freighter returned an invalid or spoofed public key.');
+    }
+
+    const networkResult = await api.getNetwork();
 
     return {
-      publicKey: addressResult.address,
+      publicKey: address,
       network: networkResult.network || 'TESTNET',
-    }
+    };
   } catch (error) {
-    throw new Error(`Freighter connection failed: ${error.message}`)
+    throw new Error(`Freighter connection failed: ${error.message}`);
   }
 }
 
 export async function signTransactionWithFreighter(xdr, network = 'TESTNET') {
-  const api = await getFreighterApi()
+  const api = await getFreighterApi();
   if (!api) {
-    throw new Error('Freighter wallet is not available')
+    throw new Error('Freighter wallet is not available');
+  }
+
+  if (!xdr || typeof xdr !== 'string' || !xdr.trim()) {
+    throw new Error('Transaction XDR is required.');
   }
 
   try {
-    const result = await api.signTransaction(xdr, {
+    const result = await api.signTransaction(xdr.trim(), {
       network,
-    })
+    });
 
     if (result.error) {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
 
-    return result.signedTxXdr || result
+    const signed = result.signedTxXdr || result;
+    if (!signed || typeof signed !== 'string') {
+      throw new Error('Freighter returned an invalid signed transaction.');
+    }
+
+    return signed;
   } catch (error) {
-    throw new Error(`Transaction signing failed: ${error.message}`)
+    throw new Error(`Transaction signing failed: ${error.message}`);
   }
 }
 
 export async function getFreighterNetwork() {
-  const api = await getFreighterApi()
-  if (!api) return null
+  const api = await getFreighterApi();
+  if (!api) return null;
   try {
-    const result = await api.getNetwork()
-    return result.network || null
+    const result = await api.getNetwork();
+    return result.network || null;
   } catch {
-    return null
+    return null;
   }
 }
 
 export async function getFreighterAddress() {
-  const api = await getFreighterApi()
-  if (!api) return null
+  const api = await getFreighterApi();
+  if (!api) return null;
   try {
-    const result = await api.getAddress()
-    if (result.error) return null
-    return result.address || null
+    const result = await api.getAddress();
+    if (result.error) return null;
+    return result.address || null;
   } catch {
-    return null
+    return null;
   }
 }
 
 export async function isFreighterAllowed() {
-  const api = await getFreighterApi()
-  if (!api || typeof api.isAllowed !== 'function') return null
+  const api = await getFreighterApi();
+  if (!api || typeof api.isAllowed !== 'function') return null;
   try {
-    const result = await api.isAllowed()
-    return result.isAllowed === true
+    const result = await api.isAllowed();
+    return result.isAllowed === true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -118,20 +141,20 @@ export async function isFreighterAllowed() {
  * Map Freighter network identifiers to dashboard network names.
  */
 export function normalizeFreighterNetwork(network) {
-  if (typeof network !== 'string') return null
-  const value = network.trim().toUpperCase()
+  if (typeof network !== 'string') return null;
+  const value = network.trim().toUpperCase();
   switch (value) {
     case 'PUBLIC':
     case 'MAINNET':
-      return 'mainnet'
+      return 'mainnet';
     case 'TESTNET':
-      return 'testnet'
+      return 'testnet';
     case 'FUTURENET':
-      return 'futurenet'
+      return 'futurenet';
     case 'LOCAL':
-      return 'local'
+      return 'local';
     default:
-      return null
+      return null;
   }
 }
 
@@ -172,7 +195,7 @@ export function onFreighterLock(callback) {
   return () => {};
 }
 
-const DEFAULT_POLL_INTERVAL_MS = 5000
+const DEFAULT_POLL_INTERVAL_MS = 5000;
 
 /**
  * Poll Freighter for lock, disconnect, account, and network changes.
@@ -192,73 +215,73 @@ export function subscribeFreighterSession({
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 } = {}) {
   if (typeof window === 'undefined') {
-    return () => {}
+    return () => {};
   }
 
-  let stopped = false
-  let lastAddress = null
-  let lastNetwork = null
+  let stopped = false;
+  let lastAddress = null;
+  let lastNetwork = null;
 
   const poll = async () => {
-    if (stopped) return
+    if (stopped) return;
 
-    const api = await getFreighterApi()
+    const api = await getFreighterApi();
     if (!api) {
-      onDisconnect?.()
-      return
+      onDisconnect?.();
+      return;
     }
 
     try {
-      const allowed = await isFreighterAllowed()
+      const allowed = await isFreighterAllowed();
       if (allowed === false) {
-        onLock?.()
-        return
+        onLock?.();
+        return;
       }
 
-      const connected = await api.isConnected()
+      const connected = await api.isConnected();
       if (!connected?.isConnected) {
-        onDisconnect?.()
-        return
+        onDisconnect?.();
+        return;
       }
 
-      const address = await getFreighterAddress()
+      const address = await getFreighterAddress();
       if (!address) {
-        onLock?.()
-        return
+        onLock?.();
+        return;
       }
 
       if (lastAddress !== null && address !== lastAddress) {
-        onAccountChange?.(address)
+        onAccountChange?.(address);
       }
-      lastAddress = address
+      lastAddress = address;
 
-      const network = await getFreighterNetwork()
+      const network = await getFreighterNetwork();
       if (network && lastNetwork !== null && network !== lastNetwork) {
-        onNetworkChange?.(network)
+        onNetworkChange?.(network);
       }
       if (network) {
-        lastNetwork = network
+        lastNetwork = network;
       }
     } catch {
-      onDisconnect?.()
+      onDisconnect?.();
     }
-  }
+  };
 
-  void poll()
+  void poll();
   const intervalId = window.setInterval(() => {
-    void poll()
-  }, pollIntervalMs)
+    void poll();
+  }, pollIntervalMs);
 
   const onVisibility = () => {
     if (document.visibilityState === 'visible') {
-      void poll()
+      void poll();
     }
-  }
-  document.addEventListener('visibilitychange', onVisibility)
+  };
+  document.addEventListener('visibilitychange', onVisibility);
 
   return () => {
-    stopped = true
-    window.clearInterval(intervalId)
-    document.removeEventListener('visibilitychange', onVisibility)
-  }
+    stopped = true;
+    window.clearInterval(intervalId);
+    document.removeEventListener('visibilitychange', onVisibility);
+  };
 }

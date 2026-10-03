@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "dataVersion": 3,
+  "lastUpdated": "2026-09-26",
+  "updateGuide": "docs/features/protocol-upgrade-tracker.md",
+  "capIndexUrl": "https://github.com/stellar/stellar-protocol/blob/master/core/README.md",
+  "schema": {
+    "description": "Curated, versioned list of Stellar protocol upgrade windows and scheduled testnet resets. Current protocol versions are shown from live ledger headers; the referenceProtocolVersions map below is only a last-verified fallback for networks with no live ledger available.",
+    "fieldNotes": {
+      "lastUpdated": "ISO date (YYYY-MM-DD) the curated entries were last reviewed by a maintainer.",
+      "referenceProtocolVersions[network].version": "Integer protocol version read from that network's Horizon ledger header at lastVerified.",
+      "upgrades[].status": "One of: in-development | scheduled | activated.",
+      "upgrades[].activationDate": "ISO date, or null when the exact date is unknown.",
+      "upgrades[].activationWindow": "Estimated { start, end } ISO dates, or null when no window is known.",
+      "upgrades[].dateConfidence": "One of: confirmed | estimated | unknown. Never present an estimated date as confirmed.",
+      "upgrades[].caps[].assignment": "confirmed when the CAP index maps the CAP to this protocol version, tbd when it is only a candidate.",
+      "testnetResets[].scheduledFor": "ISO date, or null when the reset has not been announced yet."
+    }
+  },
+  "referenceProtocolVersions": {
+    "mainnet": {
+      "version": 28,
+      "lastVerified": "2026-09-26",
+      "source": "Horizon /ledgers ledger header protocol_version"
+    },
+    "testnet": {
+      "version": 28,
+      "lastVerified": "2026-09-26",
+      "source": "Horizon /ledgers ledger header protocol_version"
+    },
+    "futurenet": {
+      "version": 29,
+      "lastVerified": "2026-09-26",
+      "source": "Horizon /ledgers ledger header protocol_version"
+    }
+  },
+  "upgrades": [
+    {
+      "protocolVersion": 29,
+      "status": "in-development",
+      "networks": ["futurenet"],
+      "targetNetworks": ["testnet", "mainnet"],
+      "activationDate": null,
+      "activationWindow": {
+        "start": "2026-11-01",
+        "end": "2026-12-31"
+      },
+      "dateConfidence": "estimated",
+      "dateNote": "No SDF activation date was announced as of 2026-09-26. This window is the maintainer's estimate; replace activationDate/dateConfidence once the Core team confirms the vote.",
+      "title": "Protocol 29 (in development on Futurenet)",
+      "summary": "Futurenet already reports protocol 29 in its ledger headers while Mainnet and Testnet remain on 28. Treat protocol 29 as upcoming and test against Futurenet before it activates on Testnet.",
+      "impacts": [
+        "New host functions may ship in this version; re-run Soroban contract tests against Futurenet.",
+        "Consensus timing and resource limits can change, so hard-coded fee or TTL assumptions should be re-checked.",
+        "CAP numbers listed here are candidates only until the CAP index assigns them to protocol 29."
+      ],
+      "capsNote": "The CAP index does not yet map any CAP to protocol 29, so the entries below are TBD-status candidates and are not guaranteed to ship in this version.",
+      "caps": [
+        {
+          "number": "CAP-0088",
+          "title": "Millisecond-Resolution Close Times",
+          "url": "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0088.md",
+          "assignment": "tbd"
+        },
+        {
+          "number": "CAP-0087",
+          "title": "Host functions for ML-DSA signature verification",
+          "url": "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0087.md",
+          "assignment": "tbd"
+        },
+        {
+          "number": "CAP-0081",
+          "title": "TTL-Ordered Eviction",
+          "url": "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0081.md",
+          "assignment": "tbd"
+        }
+      ]
+    },
+    {
+      "protocolVersion": 28,
+      "status": "activated",
+      "networks": ["mainnet", "testnet"],
+      "targetNetworks": ["mainnet", "testnet"],
+      "activationDate": null,
+      "activationWindow": null,
+      "dateConfidence": "unknown",
+      "dateNote": "Already active on Mainnet and Testnet as of the last verification. This dataset does not record the original activation day.",
+      "title": "Protocol 28 (active)",
+      "summary": "Protocol 28 is the protocol version currently reported by Mainnet and Testnet ledger headers. It adds validator-controlled transaction set dropping, externally managed contract executables, and Symbol-keyed host functions.",
+      "impacts": [
+        "Validators can vote to drop the current transaction set; retry logic should tolerate a dropped closed ledger.",
+        "Externally managed contract executables change how large Wasm is uploaded and referenced by contracts.",
+        "New Symbol-keyed map host functions reduce the cost of building keyed contract data."
+      ],
+      "caps": [
+        {
+          "number": "CAP-0083",
+          "title": "Allow validators to vote to drop the transaction set from the current ledger",
+          "url": "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0083.md",
+          "assignment": "confirmed"
+        },
+        {
+          "number": "CAP-0085",
+          "title": "Externally managed contract executables",
+          "url": "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0085.md",
+          "assignment": "confirmed"
+        },
+        {
+          "number": "CAP-0086",
+          "title": "Host functions for sparse Symbol-keyed map creation and unpacking",
+          "url": "https://github.com/stellar/stellar-protocol/blob/master/core/cap-0086.md",
+          "assignment": "confirmed"
+        }
+      ]
+    }
+  ],
+  "testnetResets": [
+    {
+      "network": "testnet",
+      "scheduledFor": "2026-11-05",
+      "dateConfidence": "estimated",
+      "dateNote": "Estimated to fall inside the Protocol 29 rollout window. Testnet resets are announced shortly beforehand; update scheduledFor and set dateConfidence to confirmed once SDF publishes the notice.",
+      "summary": "A Testnet reset is expected around the Protocol 29 rollout. Everything on Testnet is wiped: account balances, trustlines, deployed Soroban contracts, and stored contract data will not survive.",
+      "impacts": [
+        "Re-fund accounts from Friendbot and recreate trustlines.",
+        "Redeploy Soroban contracts and re-run any initialization or seeding scripts.",
+        "Re-seed dashboard/demo fixtures with `pnpm demo:seed`.",
+        "Refresh saved contract IDs and transaction hashes in local configs."
+      ],
+      "reSeedGuideUrl": "https://github.com/Nanle-code/stellar-dev-dashboard/blob/master/docs/features/protocol-upgrade-tracker.md#re-seeding-testnet-fixtures",
+      "reSeedCommand": "pnpm demo:seed"
+    }
+  ]
+}

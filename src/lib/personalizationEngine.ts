@@ -328,18 +328,24 @@ export async function clearPersonalizationData(userId: string): Promise<void> {
 const PROFILE_STORAGE_KEY = 'stellar_personalization_profile'
 
 export interface PersonalizationProfile {
-  /** Total number of recorded interactions */
-  interactionCount: number
+  userId?: string
+  version?: number
+  /** List of recorded interactions (each with type, target, timestamp) */
+  interactionHistory: Array<{ type: string; target: string; timestamp: number; metadata?: Record<string, unknown> }>
   /** Map of tab name → visit count */
-  tabVisits: Record<string, number>
-  /** Map of widget type → usage count */
-  widgetUsage: Record<string, number>
+  tabFrequency: Record<string, number>
+  /** Map of widget type → net usage count */
+  widgetFrequency: Record<string, number>
+  /** Map of feature name → usage count */
+  featureFrequency: Record<string, number>
+  /** Map of correction target → correction count */
+  corrections: Record<string, number>
+  /** Map of widget target → explicit preference value */
+  explicitPreferences: Record<string, number>
   /** Dismissed widget suggestions */
-  dismissedWidgets: string[]
+  dismissedSuggestions: string[]
   /** Accepted widget suggestions */
-  acceptedWidgets: string[]
-  /** Hourly activity counts (index = hour 0–23) */
-  hourlyActivity: number[]
+  acceptedSuggestions: string[]
   /** Whether learning mode is active */
   learningEnabled: boolean
   /** How much transparency to show: full / summary / minimal */
@@ -354,6 +360,7 @@ export interface PersonalizationStats {
   uniqueWidgetsUsed: number
   suggestionsAccepted: number
   estimatedEfficiencyGain: number
+  learningActive: boolean
   topTabs: Array<{ tab: string; count: number }>
   topWidgets: Array<{ widget: string; count: number }>
 }
@@ -364,28 +371,38 @@ export interface WidgetScore {
   reason: string
 }
 
-function defaultProfile(): PersonalizationProfile {
+export function createDefaultProfile(userId?: string): PersonalizationProfile {
   return {
-    interactionCount: 0,
-    tabVisits: {},
-    widgetUsage: {},
-    dismissedWidgets: [],
-    acceptedWidgets: [],
-    hourlyActivity: new Array(24).fill(0),
+    userId: userId ?? `user-${Math.random().toString(36).slice(2, 9)}`,
+    version: 1,
+    interactionHistory: [],
+    tabFrequency: {},
+    widgetFrequency: {},
+    featureFrequency: {},
+    corrections: {},
+    explicitPreferences: {},
+    dismissedSuggestions: [],
+    acceptedSuggestions: [],
     learningEnabled: true,
     transparencyLevel: 'full',
     lastUpdated: new Date().toISOString(),
   }
 }
 
+export function getWidgetEfficiencyScore(profile: PersonalizationProfile, widgetType: string): number {
+  const usage = profile.widgetFrequency[widgetType] ?? 0
+  const corrections = profile.corrections[`widget_${widgetType}`] ?? profile.corrections[widgetType] ?? 0
+  return Math.max(0, 50 + usage * 10 - corrections * 10)
+}
+
 export async function loadPersonalizationProfile(): Promise<PersonalizationProfile> {
   try {
     const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
-    if (raw) return { ...defaultProfile(), ...JSON.parse(raw) }
+    if (raw) return { ...createDefaultProfile(), ...JSON.parse(raw) }
   } catch {
     // ignore parse errors
   }
-  return defaultProfile()
+  return createDefaultProfile()
 }
 
 export async function savePersonalizationProfile(profile: PersonalizationProfile): Promise<void> {
@@ -397,7 +414,7 @@ export async function savePersonalizationProfile(profile: PersonalizationProfile
 }
 
 export async function resetPersonalization(): Promise<PersonalizationProfile> {
-  const fresh = defaultProfile()
+  const fresh = createDefaultProfile()
   await savePersonalizationProfile(fresh)
   return fresh
 }
@@ -409,20 +426,34 @@ export async function recordInteraction(
   if (!profile.learningEnabled) return profile
   const updated: PersonalizationProfile = {
     ...profile,
-    interactionCount: profile.interactionCount + 1,
-    tabVisits:
+    interactionHistory: [
+      ...profile.interactionHistory,
+      { type: event.type, target: event.target, timestamp: Date.now(), metadata: event.metadata },
+    ],
+    tabFrequency:
       event.type === 'tab_visit'
-        ? { ...profile.tabVisits, [event.target]: (profile.tabVisits[event.target] ?? 0) + 1 }
-        : profile.tabVisits,
-    widgetUsage:
-      event.type === 'widget_use'
-        ? { ...profile.widgetUsage, [event.target]: (profile.widgetUsage[event.target] ?? 0) + 1 }
-        : profile.widgetUsage,
+        ? { ...profile.tabFrequency, [event.target]: (profile.tabFrequency[event.target] ?? 0) + 1 }
+        : profile.tabFrequency,
+    widgetFrequency:
+      event.type === 'widget_add'
+        ? { ...profile.widgetFrequency, [event.target]: (profile.widgetFrequency[event.target] ?? 0) + 1 }
+        : event.type === 'widget_remove'
+          ? { ...profile.widgetFrequency, [event.target]: Math.max(0, (profile.widgetFrequency[event.target] ?? 0) - 1) }
+          : profile.widgetFrequency,
+    featureFrequency:
+      event.type === 'feature_use'
+        ? { ...profile.featureFrequency, [event.target]: (profile.featureFrequency[event.target] ?? 0) + 1 }
+        : profile.featureFrequency,
+    corrections:
+      event.type === 'correction'
+        ? { ...profile.corrections, [event.target]: (profile.corrections[event.target] ?? 0) + 1 }
+        : profile.corrections,
+    explicitPreferences:
+      event.type === 'explicit_feedback'
+        ? { ...profile.explicitPreferences, [event.target]: Number(event.metadata?.value) || 0 }
+        : profile.explicitPreferences,
+    lastUpdated: new Date().toISOString(),
   }
-  const hour = new Date().getHours()
-  const hourly = [...updated.hourlyActivity]
-  hourly[hour] = (hourly[hour] ?? 0) + 1
-  updated.hourlyActivity = hourly
   await savePersonalizationProfile(updated)
   return updated
 }
@@ -433,8 +464,9 @@ export async function recordSuggestionAccepted(
 ): Promise<PersonalizationProfile> {
   const updated: PersonalizationProfile = {
     ...profile,
-    acceptedWidgets: [...new Set([...profile.acceptedWidgets, widgetType])],
-    dismissedWidgets: profile.dismissedWidgets.filter(w => w !== widgetType),
+    acceptedSuggestions: [...new Set([...profile.acceptedSuggestions, widgetType])],
+    dismissedSuggestions: profile.dismissedSuggestions.filter(w => w !== widgetType),
+    lastUpdated: new Date().toISOString(),
   }
   await savePersonalizationProfile(updated)
   return updated
@@ -446,31 +478,35 @@ export async function recordSuggestionDismissed(
 ): Promise<PersonalizationProfile> {
   const updated: PersonalizationProfile = {
     ...profile,
-    dismissedWidgets: [...new Set([...profile.dismissedWidgets, widgetType])],
-    acceptedWidgets: profile.acceptedWidgets.filter(w => w !== widgetType),
+    dismissedSuggestions: [...new Set([...profile.dismissedSuggestions, widgetType])],
+    acceptedSuggestions: profile.acceptedSuggestions.filter(w => w !== widgetType),
+    lastUpdated: new Date().toISOString(),
   }
   await savePersonalizationProfile(updated)
   return updated
 }
 
 export function computePersonalizationStats(profile: PersonalizationProfile): PersonalizationStats {
-  const topTabs = Object.entries(profile.tabVisits)
+  const topTabs = Object.entries(profile.tabFrequency)
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([tab, count]) => ({ tab, count }))
 
-  const topWidgets = Object.entries(profile.widgetUsage)
+  const topWidgets = Object.entries(profile.widgetFrequency)
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([widget, count]) => ({ widget, count }))
 
-  const uniqueTabsVisited = Object.keys(profile.tabVisits).length
-  const uniqueWidgetsUsed = Object.keys(profile.widgetUsage).length
+  const uniqueTabsVisited = topTabs.length
+  const uniqueWidgetsUsed = topWidgets.length
 
   return {
-    totalInteractions: profile.interactionCount,
+    totalInteractions: profile.interactionHistory.length,
     uniqueTabsVisited,
     uniqueWidgetsUsed,
-    suggestionsAccepted: profile.acceptedWidgets.length,
-    estimatedEfficiencyGain: Math.min(95, Math.round(profile.interactionCount / 10)),
+    suggestionsAccepted: profile.acceptedSuggestions.length,
+    estimatedEfficiencyGain: Math.min(95, Math.round(profile.interactionHistory.length / 10) + profile.acceptedSuggestions.length * 5),
+    learningActive: profile.learningEnabled,
     topTabs,
     topWidgets,
   }
@@ -479,43 +515,58 @@ export function computePersonalizationStats(profile: PersonalizationProfile): Pe
 export function computeWidgetRecommendations(
   profile: PersonalizationProfile,
   availableTypes: string[],
-  _currentWidgets: string[],
+  currentWidgets: string[],
+  limit?: number,
 ): WidgetScore[] {
-  return availableTypes
-    .filter(type => !profile.dismissedWidgets.includes(type))
+  const excluded = new Set(currentWidgets)
+  const recs = availableTypes
+    .filter(type => !excluded.has(type))
     .map(type => {
-      const usage = profile.widgetUsage[type] ?? 0
-      const accepted = profile.acceptedWidgets.includes(type)
-      const score = Math.min(100, (usage * 10) + (accepted ? 30 : 0) + Math.random() * 20)
+      const usage = profile.widgetFrequency[type] ?? 0
+      const accepted = profile.acceptedSuggestions.includes(type)
+      const dismissed = profile.dismissedSuggestions.includes(type)
+      const corrections = profile.corrections[`widget_${type}`] ?? profile.corrections[type] ?? 0
+      let score = 5 + usage * 10
+      if (accepted) score += 30
+      if (dismissed) score -= 80
+      score -= corrections * 5
+      score += Math.random() * 5
       const reason =
-        usage > 5
+        usage > 0
           ? `You've used this widget ${usage} times — it fits your workflow well.`
           : accepted
-          ? 'Previously added to your layout.'
-          : 'Might complement your existing setup.'
+            ? 'Previously added to your layout.'
+            : dismissed
+              ? 'Marked as not useful; you can add it manually.'
+              : 'Might complement your existing setup.'
       return { widgetType: type, score, reason }
     })
     .sort((a, b) => b.score - a.score)
+  return limit ? recs.slice(0, limit) : recs
 }
 
 export function identifyPeakUsageHours(profile: PersonalizationProfile): number[] {
-  return profile.hourlyActivity
-    .map((count, hour) => ({ hour, count }))
-    .sort((a, b) => b.count - a.count)
+  const hourCounts = new Map<number, number>()
+  for (const entry of profile.interactionHistory) {
+    const hour = new Date(entry.timestamp).getHours()
+    hourCounts.set(hour, (hourCounts.get(hour) ?? 0) + 1)
+  }
+  return [...hourCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .filter(e => e.count > 0)
-    .map(e => e.hour)
+    .map(([hour]) => hour)
 }
 
 export function detectPowerUser(profile: PersonalizationProfile): boolean {
-  return profile.interactionCount > 100 || Object.keys(profile.tabVisits).length > 6
+  return profile.interactionHistory.length > 100 || Object.keys(profile.tabFrequency).length > 6
 }
 
 export function detectCasualUser(profile: PersonalizationProfile): boolean {
-  return profile.interactionCount < 20
+  return Object.keys(profile.tabFrequency).length < 3
 }
 
 export function computeLayoutCompactnessScore(profile: PersonalizationProfile): number {
-  const widgetCount = Object.keys(profile.widgetUsage).length
-  return Math.min(1, widgetCount / 8)
+  if (detectPowerUser(profile)) return 0.7
+  if (detectCasualUser(profile)) return 0.3
+  return 0.5
 }

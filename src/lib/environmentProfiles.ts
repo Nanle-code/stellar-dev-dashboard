@@ -3,7 +3,7 @@
  * Allows developers to switch between named environment profiles without manual edits
  */
 
-import { NetworkName, NetworkConfig, NETWORKS } from './stellar';
+import { NetworkName, NetworkConfig, NETWORKS, NetworkCapabilities } from './stellar';
 
 export type EnvironmentType = 'testnet' | 'mainnet';
 
@@ -16,6 +16,7 @@ export interface EnvironmentProfile {
   passphrase: string;
   faucetUrl?: string;
   description?: string;
+  capabilities?: NetworkCapabilities;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +42,14 @@ const BUILT_IN_PROFILES: EnvironmentProfile[] = [
     passphrase: 'Test SDF Network ; September 2015',
     faucetUrl: 'https://friendbot.stellar.org',
     description: 'Official Stellar Testnet environment',
+    capabilities: {
+      ledgers: true,
+      transactions: true,
+      events: true,
+      accountOffers: true,
+      fullHistory: true,
+      defaultReadSource: 'rpc',
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -52,6 +61,14 @@ const BUILT_IN_PROFILES: EnvironmentProfile[] = [
     sorobanUrl: 'https://soroban-rpc.stellar.org',
     passphrase: 'Public Global Stellar Network ; September 2015',
     description: 'Official Stellar Mainnet environment (production)',
+    capabilities: {
+      ledgers: true,
+      transactions: true,
+      events: true,
+      accountOffers: true,
+      fullHistory: true,
+      defaultReadSource: 'rpc',
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -304,6 +321,9 @@ export function switchEnvironmentProfile(profileId: string): EnvironmentProfile 
       NETWORKS[networkName].passphrase = profile.passphrase;
       if (profile.faucetUrl) {
         NETWORKS[networkName].faucetUrl = profile.faucetUrl;
+      }
+      if (profile.capabilities) {
+        NETWORKS[networkName].capabilities = profile.capabilities;
       }
     }
   }

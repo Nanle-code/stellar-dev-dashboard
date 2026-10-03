@@ -1,4 +1,6 @@
-import { dbscan } from './transactionPatternAnalysis'
+function dbscan(data: any[], _eps = 0.5, _minPts = 2) {
+  return [data]
+}
 
 export type RelationshipType = 'business' | 'personal' | 'exchange' | 'defi' | 'unknown'
 

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Starter issue: well-scoped, mentored, and meets the starter checklist in docs/community"
+  },
+  {
+    "name": "difficulty: beginner",
+    "color": "c2e0c6",
+    "description": "Small, isolated change; about 1-4 hours; no Stellar or Soroban knowledge needed"
+  },
+  {
+    "name": "difficulty: intermediate",
+    "color": "fbca04",
+    "description": "Touches several modules or needs Stellar/Horizon familiarity; about 1-3 days"
+  },
+  {
+    "name": "difficulty: advanced",
+    "color": "d93f0b",
+    "description": "Cross-cutting design, security-sensitive paths, or protocol expertise; multi-day"
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Maintainers welcome an outside contributor to pick this up"
+  },
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Something is broken"
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "New feature or improvement"
+  },
+  {
+    "name": "documentation",
+    "color": "0075ca",
+    "description": "Docs-only change"
+  },
+  {
+    "name": "security",
+    "color": "b60205",
+    "description": "Wallet, auth, or crypto paths; needs a CODEOWNERS review and is never a starter issue"
+  },
+  {
+    "name": "Stellar Wave",
+    "color": "1d76db",
+    "description": "Active sprint / batch of issues"
+  },
+  {
+    "name": "skip-bundle-check",
+    "color": "ededed",
+    "description": "CI: bypass the bundle size budget; the PR must explain why"
+  },
+  {
+    "name": "generate-bundle-report",
+    "color": "ededed",
+    "description": "CI: upload the bundle visualizer report as an artifact"
+  }
+]

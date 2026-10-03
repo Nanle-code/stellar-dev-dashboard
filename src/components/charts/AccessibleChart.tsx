@@ -11,6 +11,7 @@ import {
   isRenderableChartData,
   type ChartSeriesConfig,
 } from "../../utils/chartAccessibility";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 
 export interface AccessibleChartProps {
   /** Title announced to screen readers and shown above the chart */
@@ -47,6 +48,7 @@ export default function AccessibleChart({
   height = 250,
 }: AccessibleChartProps) {
   const [showTable, setShowTable] = useState(false);
+  const reducedMotion = useReducedMotion();
   const summaryId = useId();
   const hasData = isRenderableChartData(data);
 
@@ -56,7 +58,7 @@ export default function AccessibleChart({
     : { headers: [], rows: [] };
 
   return (
-    <div>
+    <div data-reduced-motion={reducedMotion ? "true" : "false"}>
       <p id={summaryId} className="sr-only">
         {summary}
       </p>

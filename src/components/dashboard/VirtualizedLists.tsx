@@ -5,6 +5,8 @@ import VirtualList from '../common/VirtualList';
 import CopyableValue from './CopyableValue';
 import { shortAddress, getOperationLabel } from '../../lib/stellar';
 import AddressLabelBadge from '../addressLabels/AddressLabelBadge';
+import ExplainPopover from '../explanations/ExplainPopover';
+import { getOperationExplanation } from '../../lib/explanation/content';
 
 export const TX_ROW_HEIGHT = 86;
 export const OP_ROW_HEIGHT = 74;
@@ -169,6 +171,7 @@ export const VirtualOpList = ({ items, network, onLoadMore, hasMore, loading }: 
                 }}
               >
                 {getOperationLabel(op.type)}
+                <ExplainPopover content={getOperationExplanation(op.type)} />
               </span>
             </div>
             {'from' in op && op.from && (

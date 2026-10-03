@@ -26,9 +26,11 @@ import type {
   RiskAlert,
   WatchRule,
   WatchedAccount,
+  WatchChange,
 } from '../types/accountWatch'
 
 import { AnomalyDetectionPipeline } from './anomalyDetectionPipeline';
+import { registerSubscription } from './subscriptionRegistry'
 export const anomalyPipeline = new AnomalyDetectionPipeline();
 
 const STORAGE_KEY = 'stellar:account-watch:v1'
@@ -263,6 +265,8 @@ export interface AccountWatchUpdate {
   insights: AggregatedInsights
   alerts: RiskAlert[]
   anomalies: Anomaly[]
+  changes: WatchChange[]
+  lastVisitAt: number
 }
 
 export interface AccountWatchOptions {
@@ -285,8 +289,10 @@ export class AccountWatchSystem {
   private lastSnapshots = new Map<string, AccountSnapshot>()
   private listeners = new Set<Listener>()
   private timer: ReturnType<typeof setInterval> | null = null
+  private timerCleanup: (() => void) | null = null
   private refreshing = false
   private adaptiveControllers = new Map<string, AdaptiveThresholdController>()
+  private lastVisitByNetwork = new Map<NetworkName, number>()
 
   constructor(options: AccountWatchOptions = {}) {
     this.network = options.network ?? 'testnet'
@@ -322,6 +328,17 @@ export class AccountWatchSystem {
     this.network = network
     this.lastSnapshots.clear()
     this.persist()
+  }
+
+  getLastVisit(): number {
+    return this.lastVisitByNetwork.get(this.network) ?? 0
+  }
+
+  markAllSeen(): number {
+    const timestamp = now()
+    this.lastVisitByNetwork.set(this.network, timestamp)
+    this.persist()
+    return timestamp
   }
 
   // — Rule management —
@@ -364,6 +381,7 @@ export class AccountWatchSystem {
     this.timer = setInterval(() => {
       void this.refresh()
     }, this.pollIntervalMs)
+    this.timerCleanup = registerSubscription('interval', `account-watch:${this.network}`)
   }
 
   stop(): void {
@@ -371,6 +389,8 @@ export class AccountWatchSystem {
       clearInterval(this.timer)
       this.timer = null
     }
+    this.timerCleanup?.()
+    this.timerCleanup = null
   }
 
   /** Fetch every watched account once, aggregate, evaluate rules and emit. */
@@ -403,7 +423,7 @@ export class AccountWatchSystem {
 
       this.lastSnapshots = new Map(snapshots.map((s) => [s.address, s]))
 
-      const update = this.buildUpdate(snapshots, alerts, anomalies)
+      const update = this.buildUpdate(snapshots, alerts, anomalies, previous)
       for (const listener of this.listeners) listener(update)
       return update
     } finally {
@@ -415,8 +435,27 @@ export class AccountWatchSystem {
     snapshots: AccountSnapshot[],
     alerts: RiskAlert[],
     anomalies: Anomaly[],
+    previousSnapshots: Map<string, AccountSnapshot> = this.lastSnapshots,
   ): AccountWatchUpdate {
-    return { snapshots, insights: aggregateBalances(snapshots), alerts, anomalies }
+    const changes = snapshots.map((snapshot) => {
+      const previous = previousSnapshots.get(snapshot.address)
+      const previousBalances = previous?.balances ?? []
+      const balanceDeltas = snapshot.balances.map((balance) => {
+        const before = previousBalances.find((candidate) => candidate.assetCode === balance.assetCode)?.balance ?? 0
+        return { ...balance, balance: balance.balance - before }
+      }).filter((balance) => balance.balance !== 0)
+      const account = this.accounts.find((candidate) => candidate.address === snapshot.address)
+      return {
+        accountAddress: snapshot.address,
+        label: account?.label,
+        balanceDeltas,
+        newOperations: 0,
+        trustlineChanges: 0,
+        contractEvents: 0,
+        observedAt: snapshot.fetchedAt,
+      }
+    }).filter((change) => change.balanceDeltas.length > 0)
+    return { snapshots, insights: aggregateBalances(snapshots), alerts, anomalies, changes, lastVisitAt: this.getLastVisit() }
   }
 
   recordFeedback(ruleId: string, feedback: AlertFeedback, currentValue?: number, baselineThreshold?: number): void {
@@ -481,8 +520,9 @@ export class AccountWatchSystem {
         JSON.stringify({
           accounts: this.accounts,
           rules: this.rules,
-          network: this.network,
-          adaptiveThresholds,
+        network: this.network,
+        adaptiveThresholds,
+        lastVisitByNetwork: Object.fromEntries(this.lastVisitByNetwork.entries()),
         }),
       )
     } catch {
@@ -500,10 +540,16 @@ export class AccountWatchSystem {
         rules: WatchRule[]
         network: NetworkName
         adaptiveThresholds: Record<string, unknown>
+        lastVisitByNetwork: Partial<Record<NetworkName, number>>
       }>
       if (Array.isArray(parsed.accounts)) this.accounts = parsed.accounts
       if (Array.isArray(parsed.rules)) this.rules = parsed.rules
       if (parsed.network) this.network = parsed.network
+      if (parsed.lastVisitByNetwork && typeof parsed.lastVisitByNetwork === 'object') {
+        this.lastVisitByNetwork = new Map(
+          Object.entries(parsed.lastVisitByNetwork).filter((entry): entry is [NetworkName, number] => typeof entry[1] === 'number'),
+        )
+      }
       if (parsed.adaptiveThresholds && typeof parsed.adaptiveThresholds === 'object') {
         this.adaptiveControllers = new Map(
           Object.entries(parsed.adaptiveThresholds).map(([ruleId, snapshot]) => [

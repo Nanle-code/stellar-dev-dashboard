@@ -89,6 +89,8 @@ export function toHTML(report: RefactorReport): string {
     '</style></head><body>',
     `<h1>🔧 AI Refactoring Report <span class="pill">${report.codeQualityScore}/100</span></h1>`,
     `<p><strong>Generated:</strong> ${report.generatedAt} · <strong>Files:</strong> ${report.totalFilesAnalysed} · <strong>Functions:</strong> ${report.totalFunctionsAnalysed}</p>`,
+    '<h2>Code Quality</h2>',
+    `<p>Overall code quality score: <strong>${report.codeQualityScore}/100</strong></p>`,
     '<h2>Summary</h2>',
     `<p>${report.totalSuggestions} suggestions · est. acceptance ${report.averageAcceptanceProbability}% · lines saved ${report.impact.totalLinesSaved} · complexity ↓ ${report.impact.totalComplexityReduction} · maintainability ↑ ${report.impact.totalMaintainabilityGain}</p>`,
     '<h2>Hotspots</h2>',

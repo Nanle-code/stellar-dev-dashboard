@@ -12,7 +12,7 @@
  * Replace it with your own at https://cloud.walletconnect.com
  */
 
-const WC_PROJECT_ID = 'YOUR_WALLETCONNECT_PROJECT_ID'
+const WC_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || ''
 const STELLAR_NAMESPACE = 'stellar'
 const STELLAR_CHAIN_MAINNET = 'stellar:pubnet'
 const STELLAR_CHAIN_TESTNET = 'stellar:testnet'
@@ -49,7 +49,10 @@ export function clearWCSession() {
  * @param {'mainnet'|'testnet'} network
  * @returns {{ publicKey: string, session: object }}
  */
-export async function connectWalletConnect(network = 'testnet') {
+export async function connectWalletConnect(network: 'mainnet' | 'testnet' = 'testnet'): Promise<{ publicKey: string; session: object }> {
+  if (!WC_PROJECT_ID) {
+    throw new Error('Set VITE_WALLETCONNECT_PROJECT_ID to enable WalletConnect.')
+  }
   const chain = network === 'mainnet' ? STELLAR_CHAIN_MAINNET : STELLAR_CHAIN_TESTNET
 
   const { SignClient } = await dynamicImport('@walletconnect/sign-client')
@@ -70,10 +73,10 @@ export async function connectWalletConnect(network = 'testnet') {
     chains: [chain],
   })
 
-  return new Promise((resolve, reject) => {
+  return new Promise<{ publicKey: string; session: object }>((resolve, reject) => {
     let settled = false
 
-    const done = (err, value) => {
+    const done = (err, value = undefined) => {
       if (settled) return
       settled = true
       _wcModal?.closeModal()
@@ -133,7 +136,7 @@ export async function connectWalletConnect(network = 'testnet') {
  * @param {'mainnet'|'testnet'} network
  * @returns {Promise<string>}  signed XDR
  */
-export async function signXdrWithWalletConnect(xdr, network = 'testnet') {
+export async function signXdrWithWalletConnect(xdr: string, network: 'mainnet' | 'testnet' = 'testnet') {
   if (!_wcClient || !_wcSession) {
     throw new Error('WalletConnect session not active. Please reconnect.')
   }

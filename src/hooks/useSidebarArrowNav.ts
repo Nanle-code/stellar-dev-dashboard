@@ -16,7 +16,9 @@ export function useSidebarArrowNav(navRef: React.RefObject<HTMLElement>, enabled
         return;
       }
 
-      const items = Array.from(nav.querySelectorAll<HTMLButtonElement>(itemSelector));
+      const items = Array.from(nav.querySelectorAll<HTMLButtonElement>(itemSelector)).filter(
+        (item) => !item.closest('[hidden]'),
+      );
       if (items.length === 0) return;
 
       const active = document.activeElement as HTMLButtonElement | null;

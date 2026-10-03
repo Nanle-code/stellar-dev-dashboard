@@ -1,5 +1,5 @@
-import React, { useRef, type ReactNode } from "react";
-import { useDataExport } from "../../hooks/useDataExport";
+import React, { useRef, useState, type ReactNode } from "react";
+import { useDataExport, type ExportFormat } from "../../hooks/useDataExport";
 import { useStore } from "../../lib/store";
 
 interface ActionButtonProps {
@@ -62,6 +62,7 @@ function StatusMessage({ error, success }: StatusMessageProps) {
 
 export default function DataExport() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
   const { transactions, account } = useStore();
   const {
     isExporting,
@@ -119,23 +120,45 @@ export default function DataExport() {
             Download your dashboard settings and account data as files you can
             restore later or open in a spreadsheet.
           </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "10px" }}>
+            <label htmlFor="exportFormatSelect" style={{ fontSize: "12px", color: "var(--text-primary)", fontWeight: 600 }}>Format:</label>
+            <select
+              id="exportFormatSelect"
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border)",
+                background: "var(--bg-elevated)",
+                color: "var(--text-primary)",
+                fontSize: "12px",
+                outline: "none",
+                cursor: "pointer"
+              }}
+            >
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+              <option value="parquet">Parquet</option>
+            </select>
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
             <ActionButton onClick={exportDashboard} disabled={isExporting}>
               ⬇ Export Dashboard Backup (JSON)
             </ActionButton>
             <ActionButton
-              onClick={() => exportTransactions(txList)}
+              onClick={() => exportTransactions(txList, exportFormat)}
               disabled={isExporting || txList.length === 0}
               variant="secondary"
             >
-              ⬇ Export Transactions (CSV)
+              ⬇ Export Transactions
             </ActionButton>
             <ActionButton
-              onClick={() => exportBalances(balances)}
+              onClick={() => exportBalances(balances, exportFormat)}
               disabled={isExporting || balances.length === 0}
               variant="secondary"
             >
-              ⬇ Export Balances (CSV)
+              ⬇ Export Balances
             </ActionButton>
           </div>
           {exportError && (

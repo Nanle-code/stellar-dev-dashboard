@@ -1,4 +1,4 @@
-// src/ml/liquidityServer.js
+// src/ml/liquidityServer.ts
 /**
  * Minimal ML server exposing the trained liquidity LSTM model.
  * It loads the model from `model/liquidity` on startup and provides a
@@ -8,6 +8,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { LiquidityModel } from '../lib/liquidityModel';
+import { logger } from '../lib/logging';
 
 const app = express();
 app.use(express.json());
@@ -21,11 +22,11 @@ app.post('/predict', async (req, res) => {
     const prediction = await model.predict(features);
     res.json(prediction);
   } catch (err) {
-    console.error('Liquidity ML server error:', err);
+    logger.error('Liquidity ML server error:', undefined, undefined, err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Prediction failed' });
   }
 });
 
 const server = createServer(app);
 const PORT = process.env.ML_PORT || 5002; // separate port to avoid clash with existing ML server
-server.listen(PORT, () => console.log(`Liquidity ML server listening on port ${PORT}`));
+server.listen(PORT, () => logger.info(`Liquidity ML server listening on port ${PORT}`));

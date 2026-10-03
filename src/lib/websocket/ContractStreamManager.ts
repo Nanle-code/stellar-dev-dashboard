@@ -15,6 +15,7 @@ import type {
   StreamStatusChange,
   StreamUnsubscribe,
 } from './StreamTypes'
+import { registerSubscription } from '../subscriptionRegistry'
 
 const DEFAULT_POLL_INTERVAL_MS = 4_000
 const MIN_POLL_INTERVAL_MS = 1_000
@@ -34,6 +35,7 @@ interface PollState {
   ledgerCursor: number | null
   consecutiveErrors: number
   lastMessageAt?: number
+  registryCleanup: (() => void) | null
 }
 
 function pollKey(contractId: string, network: NetworkName) {
@@ -67,6 +69,7 @@ export class ContractStreamManager {
         timer: null,
         ledgerCursor: null,
         consecutiveErrors: 0,
+        registryCleanup: registerSubscription('poll', `contract:${contractId}`),
       }
       this.polls.set(key, state)
       this.startPolling(state)
@@ -135,6 +138,8 @@ export class ContractStreamManager {
       clearTimeout(state.timer)
       state.timer = null
     }
+    state.registryCleanup?.()
+    state.registryCleanup = null
     this.setStatus(state, 'disconnected')
   }
 

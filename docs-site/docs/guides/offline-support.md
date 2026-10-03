@@ -97,8 +97,31 @@ When a new version of the dashboard is deployed, the service worker installs in 
 1. The new SW installs and enters a **waiting** state.
 2. The application detects the waiting worker and sets `updateAvailable = true`.
 3. A UI banner (SWUpdatePrompt) invites the user to update.
-4. When the user clicks **Update**, the app sends a `SKIP_WAITING` message to the waiting worker.
+4. When the user clicks **Update**, the app sends a `RESUME_ACTIVATION` message to the waiting worker.
 5. The SW activates, takes control of all clients, and the page reloads with the new version.
+
+### Deferred activation during signing (issue #886)
+
+Activating a waiting service worker makes it take control of the page, which is usually followed by a reload so all assets come from the new version. Interrupting a wallet signature mid-flight would lose the user's work, so critical signing flows are protected:
+
+- While a signing operation is active, `applySWUpdate()` **defers** activation. The waiting worker is told `DEFER_ACTIVATION` and stays installed; nothing reloads.
+- If the new worker takes control during a signing flow (e.g. another tab activated it), the reload is **postponed** until the flow ends.
+- When `setCriticalSigningActive(false)` ends the flow, a deferred update is activated automatically and the page reloads once.
+- The SWUpdatePrompt banner shows "Update scheduled" instead of appearing to do nothing.
+
+```ts
+import { setCriticalSigningActive, isCriticalSigningActive } from '@/utils/offline';
+
+// Wrap any critical signing operation:
+setCriticalSigningActive(true);
+try {
+  await signTransaction(tx);   // SW activation/reload is blocked for this window
+} finally {
+  setCriticalSigningActive(false); // pending update activates + reloads now
+}
+```
+
+`TransactionSigner` already wraps its signing flow this way. The protection is best-effort: if the browser discards the page (tab closed, crash), the update simply applies on the next load.
 
 **Developer API:**
 
@@ -107,6 +130,8 @@ import {
   subscribeToSWUpdates,
   applySWUpdate,
   isSWUpdateAvailable,
+  setCriticalSigningActive,
+  isCriticalSigningActive,
 } from '@/utils/offline';
 
 // Subscribe to update availability
@@ -119,13 +144,22 @@ if (isSWUpdateAvailable()) {
   // Show update UI
 }
 
-// Activate the update
-await applySWUpdate(); // sends SKIP_WAITING, triggers reload
+// Activate the update (or defer it if a signing flow is active)
+// Returns 'activated' | 'deferred' | null
+const result = await applySWUpdate();
 ```
 
-**Compatibility:** Requires `'serviceWorker' in navigator`. Functions are no-ops in unsupported environments.
+**Service-worker messaging protocol** (`public/sw.js`):
 
-**Security:** The `SKIP_WAITING` message is only posted to the same-origin service worker registered by the application. No user data is transmitted during the update flow.
+| Message | Behaviour |
+|---|---|
+| `RESUME_ACTIVATION` | Clears any deferral and activates immediately (`skipWaiting()`). |
+| `DEFER_ACTIVATION` | Marks activation as postponed; the worker stays in the waiting state. |
+| `SKIP_WAITING` | Legacy immediate activation kept for backwards compatibility. |
+
+**Compatibility:** Requires `'serviceWorker' in navigator`. Functions are no-ops in unsupported environments. Older cached SW versions that only understand `SKIP_WAITING` still activate normally — the client falls back gracefully.
+
+**Security:** Activation messages are only posted to the same-origin service worker registered by the application. No user data is transmitted during the update flow, and signing operations are never interrupted by an activation message.
 
 ## Cache invalidation
 

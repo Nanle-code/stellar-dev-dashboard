@@ -8,7 +8,8 @@
  * no external AI API key is required.
  */
 
-import * as tf from '@tensorflow/tfjs'
+import type { LayersModel, Tensor } from '@tensorflow/tfjs'
+import { loadTfRuntime, requireTfRuntime } from './mlRuntime'
 
 // ---------------------------------------------------------------------------
 // Core Types
@@ -246,14 +247,15 @@ function predictionToStoryPoints(prediction: number): number {
  */
 export async function estimateComplexity(
   issue: IssueMetadata,
-  model?: tf.LayersModel
+  model?: LayersModel
 ): Promise<ComplexityEstimate> {
   const features = extractComplexityFeatures(issue)
 
   if (model) {
     try {
+      const tf = requireTfRuntime()
       const input = tf.tensor2d([features])
-      const predictionTensor = model.predict(input) as tf.Tensor
+      const predictionTensor = model.predict(input) as Tensor
       const prediction = (await predictionTensor.array()) as number[][]
       input.dispose()
 
@@ -336,12 +338,15 @@ function explainComplexity(
 /**
  * Train a simple TFJS model for complexity estimation.
  */
-let complexityModel: tf.LayersModel | null = null
+let complexityModel: LayersModel | null = null
 
 export async function initComplexityModel(
   inputDim = 8
-): Promise<tf.LayersModel> {
+): Promise<LayersModel> {
   if (complexityModel) return complexityModel
+
+  // TensorFlow.js is loaded on demand through the `mlRuntime` facade (#969).
+  const tf = await loadTfRuntime()
 
   try {
     complexityModel = await tf.loadLayersModel(
@@ -390,6 +395,7 @@ export async function trainComplexityModel(
   }
 
   const model = await initComplexityModel(8)
+  const tf = requireTfRuntime()
   const xs = tf.tensor2d(features)
   const ys = tf.tensor2d(
     storyPointLabels.map((sp) => [sp])

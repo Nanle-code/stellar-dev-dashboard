@@ -1,5 +1,6 @@
 // Federated Learning Aggregation Server
 const express = require('express');
+const { logger } = require('../../lib/logging/logger.js');
 const fs = require('fs');
 const path = require('path');
 let tf = null;
@@ -8,7 +9,7 @@ function getTf() {
     try {
       tf = require('@tensorflow/tfjs-node');
     } catch (err) {
-      console.warn('Optional tfjs-node dependency is unavailable:', err.message);
+      logger.warn('Optional tfjs-node dependency is unavailable: ' + err.message);
       tf = null;
     }
   }
@@ -89,7 +90,7 @@ class FederatedServer {
           timestamp: Date.now()
         });
         
-        console.log(`Received update from client ${clientId}. Total updates: ${this.clientUpdates.size}`);
+        logger.info(`Received update from client ${clientId}. Total updates: ${this.clientUpdates.size}`);
         
         // Check if we have enough updates to aggregate
         if (this.clientUpdates.size >= this.minClients) {
@@ -102,7 +103,7 @@ class FederatedServer {
           pendingUpdates: this.clientUpdates.size 
         });
       } catch (error) {
-        console.error('Error processing update:', error);
+        logger.error('Error processing update', { error: error.message || error });
         res.status(500).json({ error: error.message });
       }
     });
@@ -125,7 +126,7 @@ class FederatedServer {
         this.clientUpdates.clear();
         this.roundStartTime = Date.now();
         
-        console.log(`Initialized round ${this.currentRound}`);
+        logger.info(`Initialized round ${this.currentRound}`);
         
         res.json({ 
           success: true, 
@@ -173,7 +174,7 @@ class FederatedServer {
 
   // Federated Averaging (FedAvg) algorithm
   async aggregateUpdates() {
-    console.log(`Aggregating ${this.clientUpdates.size} client updates...`);
+    logger.info(`Aggregating ${this.clientUpdates.size} client updates...`);
     
     const updates = Array.from(this.clientUpdates.values());
     const totalExamples = updates.reduce((sum, update) => sum + update.numExamples, 0);
@@ -251,8 +252,7 @@ class FederatedServer {
     
     this.clientUpdates.clear();
     
-    console.log(`Aggregation complete for round ${this.currentRound}`);
-    console.log(`Average metrics:`, avgMetrics);
+    logger.info(`Aggregation complete for round ${this.currentRound}`, { avgMetrics });
   }
 
   // Calculate average metrics across all updates
@@ -279,12 +279,12 @@ class FederatedServer {
           throw new Error('TensorFlow backend unavailable for federated server model loading');
         }
         this.globalModel = await tfjs.loadLayersModel('file://' + pathToLoad);
-        console.log('Loaded existing model');
+        logger.info('Loaded existing model');
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error loading model:', error.message);
+      logger.error('Error loading model: ' + error.message);
       return false;
     }
   }
@@ -292,8 +292,8 @@ class FederatedServer {
   // Start server
   start() {
     this.app.listen(this.port, () => {
-      console.log(`Federated learning server running on port ${this.port}`);
-      console.log(`Minimum clients for aggregation: ${this.minClients}`);
+      logger.info(`Federated learning server running on port ${this.port}`);
+      logger.info(`Minimum clients for aggregation: ${this.minClients}`);
     });
   }
 }

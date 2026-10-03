@@ -190,3 +190,63 @@ export function exportHistoricalBalances(history, filename = "portfolio-history"
   });
   exportCsv(rows, filename, ["Timestamp", "Balance", "Asset"]);
 }
+
+/**
+ * Export an array of objects to a Parquet file.
+ * Requires parquet-wasm and apache-arrow to be available.
+ * @param {Object[]} rows       - Data rows
+ * @param {string}   filename   - Download filename (without extension)
+ */
+export async function exportParquet(rows, filename) {
+  if (!rows || rows.length === 0) {
+    throw new Error("Cannot export empty data to Parquet.");
+  }
+
+  let arrow, parquet;
+  try {
+    arrow = await import("apache-arrow");
+    parquet = await import("parquet-wasm");
+  } catch (err) {
+    throw new Error("Parquet export is not supported in this environment (missing dependencies).");
+  }
+
+  try {
+    await parquet.default();
+
+    const columns = {};
+    const keys = Object.keys(rows[0]);
+    keys.forEach((k) => {
+      columns[k] = rows.map((r) => (r[k] == null ? "" : String(r[k])));
+    });
+
+    const table = arrow.tableFromArrays(columns);
+    const ipc = arrow.tableToIPC(table);
+    const parquetBytes = parquet.writeParquet(ipc);
+
+    const blob = new Blob([parquetBytes], { type: "application/vnd.apache.parquet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.parquet`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    throw new Error("Parquet serialization failed: " + err.message);
+  }
+}
+
+/**
+ * Export an array of objects to a JSON array file.
+ * @param {Object[]} rows       - Data rows
+ * @param {string}   filename   - Download filename (without extension)
+ */
+export function exportRowsJson(rows, filename) {
+  if (!rows || rows.length === 0) {
+    downloadFile("[]", `${filename}.json`, "application/json");
+    return;
+  }
+  exportJson(rows, filename);
+}
+

@@ -13,12 +13,7 @@ import {
   type FeatureFlagStatus,
 } from '../../lib/featureFlagLifecycle';
 
-const ENVIRONMENTS: FeatureFlagEnvironment[] = [
-  'development',
-  'staging',
-  'production',
-  'test',
-];
+const ENVIRONMENTS: FeatureFlagEnvironment[] = ['development', 'staging', 'production', 'test'];
 
 const STATUS_COLOR: Record<FeatureFlagStatus, string> = {
   draft: 'var(--text-muted)',
@@ -80,6 +75,69 @@ export default function FeatureFlags() {
   });
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [evalResult, setEvalResult] = useState<string>('');
+  const [remoteAIEnabled, setRemoteAIEnabled] = useState<boolean | null>(null);
+  const [operatorToken, setOperatorToken] = useState('');
+  const [aiReason, setAIReason] = useState('');
+  const [aiControlBusy, setAIControlBusy] = useState(false);
+  const [aiControlMessage, setAIControlMessage] = useState('');
+  const [remoteAudit, setRemoteAudit] = useState<
+    Array<{
+      enabled: boolean;
+      previousEnabled: boolean;
+      updatedAt: string;
+      actor: string;
+      reason: string;
+    }>
+  >([]);
+
+  const refreshAIControl = useCallback(async () => {
+    try {
+      const [statusResponse, auditResponse] = await Promise.all([
+        fetch('/api/v1/ai-controls', { cache: 'no-store' }),
+        fetch('/api/v1/ai-controls/audit', { cache: 'no-store' }),
+      ]);
+      if (!statusResponse.ok || !auditResponse.ok)
+        throw new Error('Runtime controls unavailable; check API and shared-store configuration.');
+      const status = await statusResponse.json();
+      const auditPayload = await auditResponse.json();
+      if (typeof status?.data?.enabled !== 'boolean' || !Array.isArray(auditPayload?.data))
+        throw new Error('Invalid runtime control response.');
+      setRemoteAIEnabled(status.data.enabled);
+      setRemoteAudit(auditPayload.data);
+      setAIControlMessage('');
+    } catch (error) {
+      setRemoteAIEnabled(null);
+      setAIControlMessage(error instanceof Error ? error.message : 'Runtime controls unavailable.');
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshAIControl();
+  }, [refreshAIControl]);
+
+  const setGlobalAIEnabled = async (enabled: boolean) => {
+    setAIControlBusy(true);
+    setAIControlMessage('');
+    try {
+      const response = await fetch('/api/v1/ai-controls', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${operatorToken}` },
+        body: JSON.stringify({ enabled, reason: aiReason }),
+      });
+      const payload = await response.json();
+      if (!response.ok)
+        throw new Error(payload?.message || `Control update failed (${response.status}).`);
+      setRemoteAIEnabled(payload.data.enabled);
+      setOperatorToken('');
+      setAIReason('');
+      setAIControlMessage(`Global AI panels ${enabled ? 'enabled' : 'disabled'}.`);
+      await refreshAIControl();
+    } catch (error) {
+      setAIControlMessage(error instanceof Error ? error.message : 'Control update failed.');
+    } finally {
+      setAIControlBusy(false);
+    }
+  };
 
   const inputStyle: React.CSSProperties = {
     background: 'var(--bg-input)',
@@ -143,7 +201,7 @@ export default function FeatureFlags() {
             .map((s) => s.trim())
             .filter(Boolean),
         },
-        'dashboard-ui',
+        'dashboard-ui'
       );
       setMessage({ type: 'ok', text: `Created draft flag "${flag.key}"` });
       setForm({
@@ -182,7 +240,7 @@ export default function FeatureFlags() {
       });
       setEvalResult(
         `${result.enabled ? 'ENABLED' : 'DISABLED'} — ${result.reason}` +
-          (result.flag ? ` [${result.flag.status}]` : ''),
+          (result.flag ? ` [${result.flag.status}]` : '')
       );
       refresh();
     } catch (err) {
@@ -210,6 +268,108 @@ export default function FeatureFlags() {
         </div>
       </div>
 
+      <Card title="Global AI panel kill switch">
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              color:
+                remoteAIEnabled === null
+                  ? 'var(--amber)'
+                  : remoteAIEnabled
+                    ? 'var(--green)'
+                    : 'var(--red)',
+            }}
+          >
+            {remoteAIEnabled === null
+              ? 'Status unavailable (panels fail closed)'
+              : `AI panels ${remoteAIEnabled ? 'enabled' : 'disabled'}`}
+          </div>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+            This server-controlled switch applies globally without redeploying. Enter the configured
+            operator token to change it; credentials are held only in this form and are never
+            stored.
+          </p>
+          <input
+            type="password"
+            autoComplete="off"
+            style={inputStyle}
+            placeholder="Operator token"
+            aria-label="Operator token"
+            value={operatorToken}
+            onChange={(event) => setOperatorToken(event.target.value)}
+          />
+          <input
+            style={inputStyle}
+            maxLength={240}
+            placeholder="Reason for audit history (optional)"
+            aria-label="Reason for AI control change"
+            value={aiReason}
+            onChange={(event) => setAIReason(event.target.value)}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              style={btnStyle()}
+              disabled={aiControlBusy || !operatorToken || remoteAIEnabled === false}
+              onClick={() => void setGlobalAIEnabled(false)}
+            >
+              Disable all AI panels
+            </button>
+            <button
+              type="button"
+              style={btnStyle(true)}
+              disabled={aiControlBusy || !operatorToken || remoteAIEnabled === true}
+              onClick={() => void setGlobalAIEnabled(true)}
+            >
+              Re-enable AI panels
+            </button>
+            <button type="button" style={btnStyle()} onClick={() => void refreshAIControl()}>
+              Refresh status
+            </button>
+          </div>
+          {aiControlMessage && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                fontSize: 12,
+                color:
+                  aiControlMessage.includes('unavailable') || aiControlMessage.includes('failed')
+                    ? 'var(--red)'
+                    : 'var(--text-muted)',
+              }}
+            >
+              {aiControlMessage}
+            </div>
+          )}
+          {remoteAudit.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 5,
+                fontSize: 11,
+                color: 'var(--text-muted)',
+              }}
+            >
+              <strong>Recent global switch changes</strong>
+              {remoteAudit.slice(0, 10).map((entry, index) => (
+                <div key={`${entry.updatedAt}-${index}`}>
+                  {new Date(entry.updatedAt).toLocaleString()} ·{' '}
+                  {entry.previousEnabled ? 'enabled' : 'disabled'} →{' '}
+                  {entry.enabled ? 'enabled' : 'disabled'} · {entry.actor}
+                  {entry.reason ? ` · ${entry.reason}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <div style={{ height: 16 }} />
+
       {message && (
         <div
           style={{
@@ -218,8 +378,7 @@ export default function FeatureFlags() {
             borderRadius: 'var(--radius-sm)',
             fontSize: 12,
             border: `1px solid ${message.type === 'ok' ? 'var(--green)' : 'var(--red)'}`,
-            background:
-              message.type === 'ok' ? 'var(--green-glow-sm)' : 'var(--red-glow-sm, #311)',
+            background: message.type === 'ok' ? 'var(--green-glow-sm)' : 'var(--red-glow-sm, #311)',
             color: message.type === 'ok' ? 'var(--green)' : 'var(--red)',
           }}
         >

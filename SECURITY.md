@@ -1,43 +1,118 @@
 # Security Policy
 
-## Federation and SEP endpoint trust
+## Supported Versions
 
-Federation and SEP endpoints discovered through `stellar.toml` are restricted
-to the originating home domain and configured trusted domains. See
-[`docs/security/endpoint-allowlist.md`](docs/security/endpoint-allowlist.md)
-for compatibility and migration guidance.
+Security fixes are applied to the latest release on the default branch. Older
+releases may not receive backports; please upgrade to the latest version before
+reporting an issue.
+
+## Wallet session idle timeout
+
+Connected wallets are disconnected after a configurable idle period (default
+15 minutes) with a confirmation prompt first. See
+[`docs/security/wallet-idle-timeout.md`](docs/security/wallet-idle-timeout.md).
+
+## Code owners for security-sensitive paths
+
+Wallet, authentication, cryptography, and CI paths require review from the
+owners listed in [`.github/CODEOWNERS`](.github/CODEOWNERS). Coverage is
+enforced in CI; see [`docs/contributing.md`](docs/contributing.md#code-owners).
 
 ## Overview
+
 This document outlines the security architecture and threat model for the `stellar-dev-dashboard`. Our security strategy focuses on frontend hardening, automated dependency management, and restrictive communication policies.
 
-## Threat Model Matrix
+A passkey smart wallet is a Soroban contract account (C-address) whose `__check_auth` function verifies P-256 (secp256r1) WebAuthn signatures instead of classical Ed25519 signatures. The dashboard creates credentials, derives signing challenges, and routes signed auth entries through a fee-sponsor relayer.
 
-| Threat Vector | Description | Remediation Strategy | Automated Compliance |
-| :--- | :--- | :--- | :--- |
-| **Cross-Site Scripting (XSS)** | Injection of malicious scripts via user input or third-party dependencies. | Restrictive CSP (no `unsafe-inline`), nonce-based execution, and input sanitisation. | NPM Audit CI Gate, CSP Header Validation. |
-| **Dependency Vulnerabilities** | Exploitation of known vulnerabilities in project dependencies. | Daily automated audits and proactive dependency updates. | Dependabot, GitHub Actions (`dependency-check.yml`). |
-| **Data Exfiltration** | Unauthorised transmission of sensitive data to malicious endpoints. | Strict `connect-src` CSP directive limiting traffic to Stellar and CoinGecko APIs. | Nginx CSP Enforcement. |
-| **Clickjacking** | Embedding the dashboard in malicious frames to trick users. | `X-Frame-Options: SAMEORIGIN` and `frame-ancestors: 'none'` CSP directive. | Nginx Header Injection. |
-| **Insecure Connections** | Downgrade attacks or unencrypted data transmission. | Forced HTTPS via `upgrade-insecure-requests` CSP directive. | Nginx Configuration. |
+### Passkey Threat Model Matrix
 
-## Security Architecture Blueprint
+| Threat Vector                                         | Description                                                                                                                           | Remediation Strategy                                                                                                                                                                                                                                                                            |
+| :---------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Credential theft via XSS**                          | An XSS attacker injects a script that calls `navigator.credentials.get()` to silently obtain a signed assertion.                      | The authenticator requires user-presence (UP) and user-verification (UV) gestures for every assertion. Silent signing without the user touching the authenticator is impossible. CSP (no `unsafe-inline`) prevents the injection vector.                                                        |
+| **Phishing via origin spoofing**                      | A phishing site at `stellar-dev-dashb0ard.com` tricks the user into asserting a credential registered at `stellar-dev-dashboard.com`. | WebAuthn credentials are bound to the RP ID (origin hostname). A different origin cannot obtain a valid assertion for our credential, and the contract verifies the clientDataJSON origin on-chain.                                                                                             |
+| **Relayer compromise / transaction substitution**     | A malicious or compromised relayer substitutes a different transaction before broadcasting.                                           | The authenticator signs the hash of the Soroban auth entry (not the full transaction). The smart wallet contract verifies the signed hash on-chain; any substitution is detected and rejected by `__check_auth`. The relayer can only manipulate fee-bump wrappers, not the inner auth payload. |
+| **Credential ID enumeration**                         | An attacker enumerates stored credential IDs from localStorage to construct targeted assertions.                                      | Credential IDs are opaque random identifiers. Possessing a credential ID alone is insufficient without the platform authenticator. The ID is not a secret, but it cannot be replayed without user interaction.                                                                                  |
+| **Sign-count replay (authenticator clone detection)** | An attacker clones the authenticator and replays an old assertion with a lower sign count.                                            | Smart wallet contracts that track and enforce monotonically increasing sign counts will reject replays. The dashboard surface the `signCount` field in the auth payload so contract developers can implement counter enforcement.                                                               |
+| **Lost / inaccessible authenticator**                 | The user loses their device or passkey and is locked out of the smart wallet.                                                         | Recovery is a contract-level concern. Users should deploy smart wallets with recovery mechanisms (multisig guardians, social recovery, backup keys). The dashboard surfaces this requirement in the Compatibility & Security Notes panel.                                                       |
+| **Unsupported browser downgrade**                     | A user on an unsupported browser silently falls back to an insecure path.                                                             | `isPasskeySupported()` is checked before every passkey operation. An incompatibility banner and explicit errors are shown; there is no silent fallback.                                                                                                                                         |
+| **Relayer SSRF / injection**                          | Malicious auth entry XDR causes the relayer to perform unintended actions.                                                            | The relayer receives only the unsigned XDR and the auth payload. Auth entry XDR is opaque binary data; the relayer does not interpret it. CSP `connect-src` must include the relayer endpoint.                                                                                                  |
 
-### 1. Content Security Policy (CSP)
-We enforce a strict CSP through both Nginx and React-level meta tags. 
-- **Nonces**: Cryptographically strong nonces are generated for inline scripts and styles.
-- **Restrictions**: `'unsafe-inline'` is prohibited in production.
-- **Allowed Sources**: 
-  - Scripts/Styles: `'self'`
-  - API Connections/Wallets: `https://*.stellar.org`, `wss://*.stellar.org`, `https://*.sorobanrpc.com`, `https://api.coingecko.com`, `wss://*.walletconnect.com`, `https://*.walletconnect.com`, `https://*.walletconnect.org`, `https://albedo.link`, `https://*.albedo.link`
-  - Inline Scripts: Allowed via strict SHA-256 hash validation for the theme initialization script.
+### Signing Challenge Integrity
 
-### Adding New Wallet or API Endpoints
-To add a new endpoint or wallet integration, update the `Content-Security-Policy` header in `nginx.conf` and the corresponding meta tag in `index.html`. Add the domains to `connect-src` (for APIs/WebSocket) or `frame-src` (for iframes).
+The WebAuthn challenge passed to `navigator.credentials.get()` is derived deterministically as:
+
+```
+challenge = SHA-256( network_passphrase || auth_entry_xdr )
+```
+
+This means:
+
+1. The authenticator commits to the exact auth entry the contract will verify.
+2. The contract can reproduce the same hash on-chain and confirm the user authorised exactly this operation.
+3. Changing the network or the auth entry yields a different challenge, preventing cross-network replay.
+
+### Freighter Threat Model Matrix
+
+The dashboard interfaces with the Freighter browser extension for account connection and Ed25519 transaction envelope signing. Complete threat analysis, failure paths, and developer guidance are documented in [`docs/security/wallet-threat-model.md`](docs/security/wallet-threat-model.md).
+
+| Threat Vector                                 | Category        | Description                                                                                                                                       | Remediation Strategy                                                                                                                                                                                                                                                                                             |
+| :-------------------------------------------- | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Provider spoofing / DOM API tampering**     | Wallet Spoofing | Malicious scripts inject or mutate `window.freighterApi` before connector initialization to hijack transaction requests or intercept public keys. | Content Security Policy prohibits `unsafe-inline` scripts. Connector validates provider methods (`isConnected`, `requestAccess`, `getAddress`, `signTransaction`) and cryptographically validates public keys using `StrKey.isValidEd25519PublicKey`. Corrupt or spoofed keys are rejected with explicit errors. |
+| **Phishing via origin spoofing & fake dApps** | Phishing        | Phishing domains (e.g. `stellar-dev-dashb0ard.com`) impersonate the dashboard to prompt authorization for unauthorized operations.                | Freighter enforces origin-based authorization gates (`isAllowed`, `setAllowed`). Each origin must be explicitly approved by the user within the extension. The connector monitors authorization status continuously (`isFreighterAllowed`).                                                                      |
+| **Malicious memo & destination phishing**     | Phishing        | Attackers send transactions with memos or recipients containing deceptive URLs, homoglyph domains, or malicious redirects.                        | Pre-sign verification executes heuristic and neural phishing models (`memoHasPhishingPattern`, `detectDomainImpersonation`). Phishing cues escalate to `CRITICAL` risk and halt signing until reviewed.                                                                                                          |
+| **Blind signing & obscure Soroban contracts** | Malicious dApp  | Malicious dApps request signing of complex or obfuscated Soroban transaction XDR without decoded operation descriptions.                          | Pre-Sign Risk Review parses and decodes every operation in the envelope. Irreversible and high-risk operations (account merge, master key disable, unapproved contracts) require explicit two-step confirmation.                                                                                                 |
+| **Cross-network signature replay**            | Malicious dApp  | A signature acquired for a testnet transaction is replayed on public network (mainnet) or futurenet.                                              | Strict network identifier mapping (`normalizeFreighterNetwork`) commits the target network passphrase to the transaction hash during signing. Cross-network submission fails on-chain.                                                                                                                           |
+| **Replay & sequence number collision**        | Malicious dApp  | Repeated broadcast of previously signed envelopes to duplicate state alterations.                                                                 | Mandatory transaction `timebounds` and sequence reservation track in-flight submissions and warn on duplicate or colliding sequences.                                                                                                                                                                            |
+| **Extension locked / user rejection**         | Failure Path    | User rejects connection or signing, or the extension is locked.                                                                                   | Connector cleanly normalizes error codes (`User declined access`, `Freighter is locked`), avoids unhandled rejections, and emits audit log events.                                                                                                                                                               |
+
+### Ledger Hardware Wallet Threat Model Matrix
+
+Ledger hardware wallets manage keys inside an isolated EAL5+ Secure Element and communicate via WebUSB or WebHID. See [`docs/security/wallet-threat-model.md`](docs/security/wallet-threat-model.md) for full architecture.
+
+| Threat Vector                            | Category                | Description                                                                                                                            | Remediation Strategy                                                                                                                                                                             |
+| :--------------------------------------- | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rogue USB device / WebUSB spoofing**   | Wallet Spoofing         | Malicious USB peripherals attempt to mimic Ledger's vendor ID (`0x2c97`) to capture transaction inputs or return attacker public keys. | WebUSB requires explicit user device selection in browser dialogs. The dashboard initiates cryptographic handshakes with the authentic Stellar Ledger app on the device.                         |
+| **Derivation path manipulation**         | Wallet Spoofing         | Malicious payloads request signatures using non-standard or arbitrary BIP-44 derivation paths.                                         | Derivation paths are validated against canonical BIP-44 Stellar paths (`^44'/148'/\d+'?$`). Malformed or out-of-spec paths fail before reaching device transport.                                |
+| **Host DOM address tampering**           | Phishing                | Host machine malware modifies displayed recipient addresses or payment amounts in the dashboard DOM.                                   | Ledger enforces What-You-See-Is-What-You-Sign (WYSIWYS). The user verifies destination addresses, memos, and amounts directly on the hardware device screen before physical button confirmation. |
+| **Blind signing of Soroban invocations** | Malicious dApp          | Smart contract calls with complex parameters exceed hardware display parsing capacity.                                                 | Ledger displays explicit "Blind Signing" warnings. The dashboard pre-computes resource diffs, footprint entries, and invocation previews for review prior to device confirmation.                |
+| **Firmware vulnerability exploitation**  | Wallet Spoofing         | Devices with outdated firmware (< 2.1.0) containing known memory corruption or timing vulnerabilities are connected.                   | `HardwareWalletSecurityManager` checks device model and firmware against the known CVE vulnerability database and recommends updates via Ledger Live.                                            |
+| **Unsupported browser fallback**         | Unsupported Environment | Users on Firefox or Safari attempt WebUSB/WebHID connection.                                                                           | `isLedgerSupported()` detects environment capabilities and surfaces clear, actionable guidance directing users to Chromium browsers without silent fallback.                                     |
+| **Device lock & mid-session disconnect** | Failure Path            | Device locks via PIN timeout (`0x6b0c`), Stellar app is closed (`0x6d00`), user rejects (`0x6985`), or cable unplugs.                  | Specific APDU status codes are translated into human-readable instructions, sessions are cleanly torn down, and security audit log events are recorded.                                          |
+
+### CSP Additions Required
 
 ### 2. Automated Guardrails
+
 - **Dependabot**: Monitors `npm` and `github-actions` ecosystems daily for updates.
-- **CI Security Audit**: Every push and pull request triggers an `npm audit --audit-level=high` check. Failure to meet this threshold blocks the deployment pipeline.
+- **CI Security Audit (#832)**: Every push, pull request, and daily scheduled run audits production dependencies (`pnpm audit --prod`) against remediation SLAs (critical 7 days, high 30 days, moderate 90 days, low 180 days). High and critical advisories fail CI once their SLA elapses and are reported as warnings until then; moderate advisories always warn. Empty or invalid audit output fails the job. Thresholds are configurable via `VULN_FAIL_ON`, `VULN_WARN_ON`, and `VULN_SLA_DAYS` - see [docs/security/dependency-vulnerability-sla.md](docs/security/dependency-vulnerability-sla.md).
 - **Intelligent Dependency Management (#602)**: In-app analysis engine (`src/lib/dependencyManagement.ts`) correlates vulnerability databases / npm audit data, produces risk-scored update recommendations, detects version conflicts, and exposes a dashboard tab (`Dependencies`) plus the Security Dashboard dependency panel.
 
 ## Reporting a Vulnerability
+
 If you discover a security vulnerability within this project, please send an e-mail to security@stellar-dev-dashboard.org. All security vulnerabilities will be promptly addressed.
+
+### 3. Pre-Sign Risk Review
+
+Signing is treated as a privileged action, because it usually is one. Before any
+transaction reaches a wallet, it is parsed and run through a declarative ruleset
+([`docs/api/riskRules.md`](docs/api/riskRules.md)) that describes every
+operation in plain language.
+
+- **Coverage:** all four signing surfaces — `<TransactionSigner>` (including
+  XDR pasted from outside the dashboard), `<SignatureCollector>`,
+  `<AnchorIntegration>` (SEP-10 challenges), and
+  `signAndSubmitTransaction()`.
+- **Gating:** irreversible operations — disabling the master key, changing
+  thresholds or signers, merging the account, removing or unlimiting a
+  trustline, spending a large share of the account, or calling an unapproved
+  contract — are escalated to `high` and require an explicit acknowledgement.
+  The signing call is unreachable until the user confirms.
+- **Fail open, state the caveat:** a failed simulation or an unavailable account
+  snapshot degrades the summary and says so on screen; it never silently
+  presents an unverified transaction as verified, and never blocks a user
+  because a node was down.
+- **Allowlist by default:** the approved-contract list ships empty, so any
+  contract invocation is flagged until the user opts in.
+- **Full-transaction review:** every operation is shown, including those that
+  matched no rule, so a dangerous operation cannot hide between unremarkable
+  ones.

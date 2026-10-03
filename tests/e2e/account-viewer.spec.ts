@@ -24,6 +24,12 @@ async function connectAccount(page, address) {
   await page.getByRole('button', { name: /connect/i }).click();
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+  });
+});
+
 async function waitForAccountDetail(page) {
   await expect(page.getByText('Account Detail')).toBeVisible({ timeout: 20000 });
 }

@@ -12,6 +12,7 @@ import {
   AuditSeverity,
   subscribeAudit,
 } from '../utils/audit.js';
+import { getCspReporter, installCspReporting } from './cspReporting';
 
 // ─── Canonical security event types ──────────────────────────────────────────
 
@@ -215,15 +216,22 @@ export function installSecurityEventListeners() {
   if (_listenersInstalled || typeof window === 'undefined') return;
   _listenersInstalled = true;
 
-  document.addEventListener('securitypolicyviolation', (e) => {
+  // CSP violations are captured through the sampled + sanitised reporter
+  // (Issue #831) so noisy or sensitive reports never reach the audit trail.
+  const reporter = getCspReporter();
+  installCspReporting(reporter);
+  reporter.subscribe((violation) => {
     trackSecurityEvent(SecurityEventType.CSP_VIOLATION, {
-      target: e.violatedDirective,
+      target: violation.violatedDirective,
       outcome: 'denied',
       metadata: {
-        blockedURI: e.blockedURI,
-        violatedDirective: e.violatedDirective,
-        sourceFile: e.sourceFile,
-        lineNumber: e.lineNumber,
+        blockedURI: violation.blockedUri,
+        documentURI: violation.documentUri,
+        violatedDirective: violation.violatedDirective,
+        effectiveDirective: violation.effectiveDirective,
+        sourceFile: violation.sourceFile,
+        lineNumber: violation.lineNumber,
+        columnNumber: violation.columnNumber,
       },
     });
   });

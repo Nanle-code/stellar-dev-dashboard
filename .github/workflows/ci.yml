@@ -64,6 +64,33 @@ jobs:
 
       - name: Type check
         run: pnpm run type-check
+        # Hard gate: non-zero exit from `tsc --noEmit` blocks the merge.
+        # The wrapper in scripts/type-check.mjs exits:
+        #   0 - pass, 1 - type errors found, 2 - invalid input/env.
+
+  strict-type-check:
+    name: Strict TypeScript Ratchet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate strict allowlist ratchet
+        run: pnpm run check:strict-tsconfig
+
+      - name: Type check strict allowlist
+        run: pnpm run type-check:strict
 
   test:
     name: Unit & Integration Tests (Node ${{ matrix.node-version }})
@@ -181,7 +208,10 @@ jobs:
           retention-days: 14
 
       - name: Comment on PR with failure details
-        if: failure() && github.event_name == 'pull_request'
+        if: >-
+          failure() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         with:
           script: |

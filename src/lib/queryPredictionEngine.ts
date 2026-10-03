@@ -15,7 +15,8 @@
  *         contextually appropriate, continuously learning.
  */
 
-import * as tf from '@tensorflow/tfjs'
+import type { LayersModel, Tensor } from '@tensorflow/tfjs'
+import { loadTfRuntime, requireTfRuntime } from './mlRuntime'
 import { classifyIntent, type SearchIntent } from './nlpSearchEngine'
 
 // ---------------------------------------------------------------------------
@@ -249,7 +250,7 @@ function extractPredictionFeatures(
 export class QueryPredictionEngine {
   private config: QueryPredictionConfig
   private searchHistory: HistoricalSearchPattern[] = []
-  private model: tf.LayersModel | null = null
+  private model: LayersModel | null = null
   private feedbackLog: Array<{
     query: string
     clicked: boolean
@@ -686,9 +687,10 @@ export class QueryPredictionEngine {
     if (candidateQueries.length === 0 || !this.model) return
 
     try {
+      const tf = requireTfRuntime()
       const features = extractPredictionFeatures(context, this.searchHistory, candidateQueries)
       const tensor = tf.tensor2d(features)
-      const scores = this.model.predict(tensor) as tf.Tensor
+      const scores = this.model.predict(tensor) as Tensor
       const scoreData = Array.from(scores.dataSync())
 
       tensor.dispose()
@@ -819,30 +821,45 @@ export class QueryPredictionEngine {
   // ML Model
   // -----------------------------------------------------------------------
 
-  /** Initialize the TFJS prediction model */
+  /**
+   * Initialize the TFJS prediction model.
+   *
+   * The runtime arrives through the lazy `mlRuntime` facade (#969) — this module
+   * is imported by `useQueryPrediction`, so a static tfjs import would put the
+   * library in the initial bundle. If the runtime cannot be loaded the engine
+   * keeps predicting heuristically.
+   */
   async initModel(): Promise<void> {
     try {
-      this.model = await tf.loadLayersModel('indexeddb://stellar-query-prediction-model')
-      this.model.compile({
-        optimizer: 'adam',
-        loss: 'binaryCrossentropy',
-        metrics: ['accuracy'],
-      })
+      const tf = await loadTfRuntime()
+
+      try {
+        this.model = await tf.loadLayersModel('indexeddb://stellar-query-prediction-model')
+        this.model.compile({
+          optimizer: 'adam',
+          loss: 'binaryCrossentropy',
+          metrics: ['accuracy'],
+        })
+      } catch {
+        const model = tf.sequential()
+        model.add(tf.layers.dense({ units: 24, activation: 'relu', inputShape: [9] }))
+        model.add(tf.layers.dropout({ rate: 0.2 }))
+        model.add(tf.layers.dense({ units: 16, activation: 'relu' }))
+        model.add(tf.layers.dropout({ rate: 0.1 }))
+        model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }))
+
+        model.compile({
+          optimizer: 'adam',
+          loss: 'binaryCrossentropy',
+          metrics: ['accuracy'],
+        })
+
+        this.model = model
+      }
     } catch {
-      const model = tf.sequential()
-      model.add(tf.layers.dense({ units: 24, activation: 'relu', inputShape: [9] }))
-      model.add(tf.layers.dropout({ rate: 0.2 }))
-      model.add(tf.layers.dense({ units: 16, activation: 'relu' }))
-      model.add(tf.layers.dropout({ rate: 0.1 }))
-      model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }))
-
-      model.compile({
-        optimizer: 'adam',
-        loss: 'binaryCrossentropy',
-        metrics: ['accuracy'],
-      })
-
-      this.model = model
+      // ML runtime unavailable (offline / blocked chunk): stay heuristic-only.
+      // The facade records the failure for the loading-state hook.
+      this.model = null
     }
   }
 
@@ -856,6 +873,11 @@ export class QueryPredictionEngine {
       await this.initModel()
     }
 
+    const model = this.model
+    if (!model) {
+      return { accuracy: 0, loss: 0 }
+    }
+
     const allQueries = [...positiveQueries, ...negativeQueries]
     const labels = [
       ...positiveQueries.map(() => 1),
@@ -866,12 +888,13 @@ export class QueryPredictionEngine {
       return { accuracy: 0, loss: 0 }
     }
 
+    const tf = requireTfRuntime()
     const features = extractPredictionFeatures(context, this.searchHistory, allQueries)
 
     const xs = tf.tensor2d(features)
     const ys = tf.tensor2d(labels.map(l => [l]))
 
-    const history = await this.model!.fit(xs, ys, {
+    const history = await model.fit(xs, ys, {
       epochs: 10,
       batchSize: Math.min(8, allQueries.length),
       shuffle: true,
@@ -879,7 +902,7 @@ export class QueryPredictionEngine {
     })
 
     try {
-      await this.model!.save('indexeddb://stellar-query-prediction-model')
+      await model.save('indexeddb://stellar-query-prediction-model')
     } catch {
       // Ignore save errors in test environments
     }

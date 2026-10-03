@@ -9,6 +9,7 @@
  */
 
 import ThroughputForecaster from './throughputForecaster.js';
+import { logger } from '../lib/logging';
 
 const HORIZON_URLS = {
   testnet: 'https://horizon-testnet.stellar.org',
@@ -19,7 +20,7 @@ async function fetchLedgers(network, count) {
   const baseUrl = HORIZON_URLS[network] || HORIZON_URLS.testnet;
   const url = `${baseUrl}/ledgers?order=desc&limit=${Math.min(count, 200)}&cursor=`;
   
-  console.log(`Fetching ${count} ledgers from ${network}...`);
+  logger.info(`Fetching ${count} ledgers from ${network}...`);
   
   const response = await fetch(url);
   if (!response.ok) {
@@ -29,7 +30,7 @@ async function fetchLedgers(network, count) {
   const data = await response.json();
   const ledgers = data._embedded?.records || [];
   
-  console.log(`Fetched ${ledgers.length} ledgers`);
+  logger.info(`Fetched ${ledgers.length} ledgers`);
   return ledgers.map(l => ({
     sequence: l.sequence,
     operation_count: parseInt(l.operation_count || '0', 10),
@@ -52,14 +53,12 @@ function computeAccuracy(predicted, actual, tolerance) {
 }
 
 async function backtest(network, totalLedgers, trainRatio = 0.7) {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`ThroughputForecaster Backtest — ${network}`);
-  console.log(`${'='.repeat(60)}\n`);
+  logger.info(`ThroughputForecaster Backtest — ${network}`);
 
   const ledgers = await fetchLedgers(network, totalLedgers);
   
   if (ledgers.length < 20) {
-    console.error('Insufficient ledger data for backtesting (need at least 20)');
+    logger.error('Insufficient ledger data for backtesting (need at least 20)');
     process.exit(1);
   }
 
@@ -68,8 +67,8 @@ async function backtest(network, totalLedgers, trainRatio = 0.7) {
   const trainData = sortedLedgers.slice(0, trainSize);
   const testData = sortedLedgers.slice(trainSize);
 
-  console.log(`Training set: ${trainData.length} ledgers (sequences ${trainData[0].sequence}–${trainData[trainData.length-1].sequence})`);
-  console.log(`Test set:     ${testData.length} ledgers (sequences ${testData[0].sequence}–${testData[testData.length-1].sequence})\n`);
+  logger.info(`Training set: ${trainData.length} ledgers (sequences ${trainData[0].sequence}–${trainData[trainData.length-1].sequence})`);
+  logger.info(`Test set:     ${testData.length} ledgers (sequences ${testData[0].sequence}–${testData[testData.length-1].sequence})`);
 
   // Build forecaster from training data
   const forecaster = new ThroughputForecaster({
@@ -82,14 +81,14 @@ async function backtest(network, totalLedgers, trainRatio = 0.7) {
     forecaster.addLedgerData(ledger);
   }
 
-  console.log('Fitting model...');
+  logger.info('Fitting model...');
   const fitted = forecaster.fit();
   if (!fitted) {
-    console.error('Failed to fit model');
+    logger.error('Failed to fit model');
     process.exit(1);
   }
 
-  console.log(`Model fitted: level=${forecaster.level.toFixed(2)}, trend=${forecaster.trend.toFixed(4)}, variance=${forecaster.variance.toFixed(4)}\n`);
+  logger.info(`Model fitted: level=${forecaster.level.toFixed(2)}, trend=${forecaster.trend.toFixed(4)}, variance=${forecaster.variance.toFixed(4)}`);
 
   // Evaluate predictions against test data
   let totalAccuracy = 0;
@@ -98,9 +97,6 @@ async function backtest(network, totalLedgers, trainRatio = 0.7) {
   let within30pct = 0;
   let totalError = 0;
   const results = [];
-
-  console.log(`${'Sequence'.padEnd(12)} ${'Actual TPS'.padEnd(12)} ${'Predicted'.padEnd(12)} ${'Error %'.padEnd(10)} ${'Accuracy'.padEnd(10)}`);
-  console.log('-'.repeat(58));
 
   for (let i = 0; i < testData.length; i++) {
     const ledger = testData[i];
@@ -122,12 +118,8 @@ async function backtest(network, totalLedgers, trainRatio = 0.7) {
     
     results.push({ sequence: ledger.sequence, actualTps, predictedTps, errorPct, accuracy });
     
-    console.log(
-      `${String(ledger.sequence).padEnd(12)} ` +
-      `${actualTps.toFixed(2).padEnd(12)} ` +
-      `${predictedTps.toFixed(2).padEnd(12)} ` +
-      `${errorPct.toFixed(1)}%.padEnd(10) ` +
-      `${(accuracy * 100).toFixed(1)}%`
+    logger.debug(
+      `Seq ${ledger.sequence}: actual=${actualTps.toFixed(2)}, predicted=${predictedTps.toFixed(2)}, error=${errorPct.toFixed(1)}%, acc=${(accuracy * 100).toFixed(1)}%`
     );
 
     // Update model with actual observation (online learning)
@@ -155,39 +147,35 @@ async function backtest(network, totalLedgers, trainRatio = 0.7) {
   }
   const avgWindowAccuracy = windowCount > 0 ? windowAccuracy / windowCount : 0;
 
-  console.log(`\n${'='.repeat(60)}`);
-  console.log('RESULTS');
-  console.log(`${'='.repeat(60)}`);
-  console.log(`Test samples:          ${testData.length}`);
-  console.log(`Average accuracy:      ${(avgAccuracy * 100).toFixed(1)}%`);
-  console.log(`Average error:         ${avgError.toFixed(1)}%`);
-  console.log(`Within 10% error:      ${within10pct}/${testData.length} (${(within10pct/testData.length*100).toFixed(0)}%)`);
-  console.log(`Within 20% error:      ${within20pct}/${testData.length} (${(within20pct/testData.length*100).toFixed(0)}%)`);
-  console.log(`Within 30% error:      ${within30pct}/${testData.length} (${(within30pct/testData.length*100).toFixed(0)}%)`);
-  console.log(`Windowed (daily) acc:  ${(avgWindowAccuracy * 100).toFixed(1)}% (${windowCount} windows of ${windowSize})`);
-  
   const meetsTarget = avgWindowAccuracy >= 0.85 || avgAccuracy >= 0.85;
-  console.log(`\n85% accuracy target:   ${meetsTarget ? 'MET ✓' : 'NOT MET ✗'}`);
-  console.log(`  Per-ledger:          ${avgAccuracy >= 0.85 ? 'MET' : 'NOT MET'} (${(avgAccuracy * 100).toFixed(1)}%)`);
-  console.log(`  Daily horizon:       ${avgWindowAccuracy >= 0.85 ? 'MET' : 'NOT MET'} (${(avgWindowAccuracy * 100).toFixed(1)}%)`);
+  logger.info('Backtest results', {
+    testSamples: testData.length,
+    averageAccuracy: `${(avgAccuracy * 100).toFixed(1)}%`,
+    averageError: `${avgError.toFixed(1)}%`,
+    within10pct: `${within10pct}/${testData.length}`,
+    within20pct: `${within20pct}/${testData.length}`,
+    within30pct: `${within30pct}/${testData.length}`,
+    windowedAccuracy: `${(avgWindowAccuracy * 100).toFixed(1)}%`,
+    meetsTarget,
+  });
   
   // Capacity utilization test
-  console.log(`\n--- Capacity Utilization Forecast ---`);
   const capacity = forecaster.forecastCapacityUtilization(1);
-  console.log(`Current utilization:   ${(capacity.currentUtilization * 100).toFixed(1)}%`);
-  console.log(`Avg utilization (1h):  ${(capacity.avgUtilization * 100).toFixed(1)}%`);
-  console.log(`Max utilization (1h):  ${(capacity.maxUtilization * 100).toFixed(1)}%`);
-  console.log(`Scaling scenario:      ${capacity.scalingScenario}`);
+  logger.info('Capacity utilization forecast', {
+    currentUtilization: `${(capacity.currentUtilization * 100).toFixed(1)}%`,
+    avgUtilization1h: `${(capacity.avgUtilization * 100).toFixed(1)}%`,
+    maxUtilization1h: `${(capacity.maxUtilization * 100).toFixed(1)}%`,
+    scalingScenario: capacity.scalingScenario,
+  });
 
   // Scaling analysis
   const scaling = forecaster.analyzeScalingScenario();
-  console.log(`\n--- Scaling Analysis ---`);
-  console.log(`Scenario:              ${scaling.scenario}`);
-  console.log(`Risk level:            ${scaling.riskLevel}`);
-  console.log(`Recommendation:        ${scaling.recommendation}`);
+  logger.info('Scaling analysis', {
+    scenario: scaling.scenario,
+    riskLevel: scaling.riskLevel,
+    recommendation: scaling.recommendation,
+  });
 
-  console.log(`\n${'='.repeat(60)}`);
-  
   return { avgAccuracy, avgError, meetsTarget, within10pct, within20pct, within30pct, avgWindowAccuracy };
 }
 
@@ -202,6 +190,6 @@ for (let i = 0; i < args.length; i++) {
 }
 
 backtest(network, ledgers).catch(err => {
-  console.error('Backtest failed:', err.message);
+  logger.error('Backtest failed: ' + err.message);
   process.exit(1);
 });

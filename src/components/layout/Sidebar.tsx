@@ -7,21 +7,21 @@ import {
   updateCustomNetworkConfig,
   switchToCustomProfile,
   loadCustomNetworkProfiles,
+  validateHorizonEndpoint,
+  validateSorobanEndpoint,
+  type EndpointValidationResult
 } from '../../lib/stellar';
 import { getActiveProfile } from '../../lib/userPreferences';
 import { preloadTab } from '../../hooks/usePreload';
-import { getNavGroups, isRouteVisible, type AppRoute } from '../../routes/routes';
+import { getNavGroups, isRouteVisible, type RouteGroup } from '../../routes/routes';
 import { useAdaptiveComponents } from '../../hooks/useAdaptiveComponents';
 import { useExpertiseTracking } from '../../hooks/useExpertiseTracking';
 import { useSidebarArrowNav } from '../../hooks/useSidebarArrowNav';
+import { loadCollapsedSidebarGroups, saveCollapsedSidebarGroups } from '../../lib/sidebarPreferences';
 import ExpertiseBadge from '../expertise/ExpertiseBadge';
 import ExpertiseProgressPanel from '../expertise/ExpertiseProgressPanel';
 
 const SESSION_API_KEY = 'stellar_custom_api_key';
-
-type SidebarNavItem =
-  | { type: 'header'; label: string }
-  | { type: 'link'; route: AppRoute };
 
 export interface SidebarProps {
   isMobile?: boolean;
@@ -51,36 +51,50 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
   const { getAdaptation, sidebarAdaptation, isNovice, isExpert } = useAdaptiveComponents();
   const { trackFeatureInteraction } = useExpertiseTracking({ enabled: true });
   const [showExpertisePanel, setShowExpertisePanel] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<RouteGroup[]>(loadCollapsedSidebarGroups);
+
+  useEffect(() => {
+    saveCollapsedSidebarGroups(collapsedGroups);
+  }, [collapsedGroups]);
 
   const expertiseLevel = isExpert ? 'expert' : isNovice ? 'novice' : 'intermediate';
-  const navItems = React.useMemo<SidebarNavItem[]>(() => {
-    const items: SidebarNavItem[] = [];
-    for (const group of getNavGroups()) {
-      items.push({ type: 'header', label: group.label });
-      for (const route of group.routes) {
-        if (isRouteVisible(route, { expertiseLevel })) {
-          items.push({ type: 'link', route });
-        }
-      }
-    }
-    return items;
-  }, [expertiseLevel]);
+  const navGroups = React.useMemo(
+    () => getNavGroups().map((group) => ({
+      ...group,
+      routes: group.routes.filter((route) => isRouteVisible(route, { expertiseLevel })),
+    })).filter((group) => group.routes.length > 0),
+    [expertiseLevel],
+  );
 
   const [customProfiles, setCustomProfiles] = useState<CustomProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [customHeaderName, setCustomHeaderName] = useState<string>('');
   const [customHeaderValue, setCustomHeaderValue] = useState<string>('');
+  const [draftHorizon, setDraftHorizon] = useState<string>('');
+  const [draftSoroban, setDraftSoroban] = useState<string>('');
+  const [horizonValidation, setHorizonValidation] = useState<EndpointValidationResult | null>(null);
+  const [sorobanValidation, setSorobanValidation] = useState<EndpointValidationResult | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
 
   useSidebarArrowNav(asideRef, !isMobile || isMobileMenuOpen);
 
   useEffect(() => {
     if (network === 'custom') {
+      const currentHorizon = (NETWORKS as any).custom?.horizonUrl || '';
+      const currentSoroban = (NETWORKS as any).custom?.sorobanUrl || '';
+      setDraftHorizon(currentHorizon);
+      setDraftSoroban(currentSoroban);
+      setHorizonValidation(null);
+      setSorobanValidation(null);
+
       loadCustomNetworkProfiles().then((profiles: CustomProfile[]) => {
         setCustomProfiles(profiles);
         getActiveProfile().then((profile: CustomProfile | null) => {
           if (profile) {
             setActiveProfileId(profile.id);
+            setDraftHorizon(profile.horizonUrl || '');
+            setDraftSoroban(profile.sorobanUrl || '');
             updateCustomNetworkConfig({
               horizonUrl: profile.horizonUrl,
               sorobanUrl: profile.sorobanUrl,
@@ -92,9 +106,31 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
     }
   }, [network]);
 
+  const handleValidateAndApply = async () => {
+    setIsValidating(true);
+    const hResult = await validateHorizonEndpoint(draftHorizon);
+    const sResult = draftSoroban ? await validateSorobanEndpoint(draftSoroban) : null;
+    
+    setHorizonValidation(hResult);
+    setSorobanValidation(sResult);
+    
+    if (hResult.isValid && (!draftSoroban || sResult?.isValid)) {
+      updateCustomNetworkConfig({ horizonUrl: draftHorizon, sorobanUrl: draftSoroban });
+    }
+    setIsValidating(false);
+  };
+
   const handleNavClick = (tabId: string) => {
     navigate(`/${tabId}`);
     setMobileMenuOpen(false);
+  };
+
+  const toggleGroup = (group: RouteGroup) => {
+    setCollapsedGroups((current) => {
+      return current.includes(group)
+        ? current.filter((collapsed) => collapsed !== group)
+        : [...current, group];
+    });
   };
 
   const handleSwitchProfile = (id: string) => {
@@ -302,27 +338,60 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
               <label htmlFor="horizon-url" className="sr-only">
                 Horizon URL
               </label>
-              <input
-                id="horizon-url"
-                placeholder="Horizon URL"
-                key={`horizon-${activeProfileId}`}
-                defaultValue={(NETWORKS as any).custom?.horizonUrl}
-                style={customInputStyle}
-                aria-label="Custom Horizon URL"
-                onChange={(e) => updateCustomNetworkConfig({ horizonUrl: e.target.value.trim() })}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="horizon-url"
+                  placeholder="Horizon URL"
+                  key={`horizon-${activeProfileId}`}
+                  value={draftHorizon}
+                  style={customInputStyle}
+                  aria-label="Custom Horizon URL"
+                  onChange={(e) => setDraftHorizon(e.target.value.trim())}
+                />
+                {horizonValidation && (
+                  <div style={{ fontSize: '10px', color: horizonValidation.isValid ? 'var(--green)' : 'var(--red)', marginTop: '4px' }}>
+                    {horizonValidation.isValid ? `Healthy (${horizonValidation.latencyMs}ms)` : `Error: ${horizonValidation.error}`}
+                  </div>
+                )}
+              </div>
               <label htmlFor="soroban-url" className="sr-only">
                 Soroban RPC URL
               </label>
-              <input
-                id="soroban-url"
-                placeholder="Soroban RPC URL"
-                key={`soroban-${activeProfileId}`}
-                defaultValue={(NETWORKS as any).custom?.sorobanUrl}
-                style={customInputStyle}
-                aria-label="Custom Soroban RPC URL"
-                onChange={(e) => updateCustomNetworkConfig({ sorobanUrl: e.target.value.trim() })}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="soroban-url"
+                  placeholder="Soroban RPC URL"
+                  key={`soroban-${activeProfileId}`}
+                  value={draftSoroban}
+                  style={customInputStyle}
+                  aria-label="Custom Soroban RPC URL"
+                  onChange={(e) => setDraftSoroban(e.target.value.trim())}
+                />
+                {sorobanValidation && (
+                  <div style={{ fontSize: '10px', color: sorobanValidation.isValid ? 'var(--green)' : 'var(--red)', marginTop: '4px' }}>
+                    {sorobanValidation.isValid ? `Healthy (${sorobanValidation.latencyMs}ms)` : `Error: ${sorobanValidation.error}`}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleValidateAndApply}
+                disabled={isValidating || !draftHorizon}
+                style={{
+                  background: 'var(--cyan)',
+                  color: '#000',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: isValidating || !draftHorizon ? 'not-allowed' : 'pointer',
+                  opacity: isValidating || !draftHorizon ? 0.6 : 1,
+                  marginTop: '4px'
+                }}
+              >
+                {isValidating ? 'Validating...' : 'Validate & Activate'}
+              </button>
               <label htmlFor="network-passphrase" className="sr-only">
                 Network Passphrase
               </label>
@@ -368,96 +437,110 @@ export default function Sidebar({ isMobile = false }: SidebarProps) {
           style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}
         >
           <ul role="list" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {navItems.map((item, i) => {
-              if (item.type === 'header') {
-                return (
-                  <li key={`header-${i}`} role="presentation">
-                    <div
-                      style={{
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        color: 'var(--text-muted)',
-                        padding: '16px 16px 8px',
-                        letterSpacing: '1.2px',
-                        textTransform: 'uppercase',
-                        opacity: 0.8,
-                      }}
-                      aria-hidden="true"
-                    >
-                      {item.label}
-                    </div>
-                  </li>
-                );
-              }
-
-              const route = item.route;
-              const isActive = activeTab === route.id;
-              const isDisabled = route.id === 'faucet' && network === 'mainnet';
-
+            {navGroups.map((group) => {
+              const isCollapsed = collapsedGroups.includes(group.group);
+              const routesId = `sidebar-workspace-${group.group}`;
               return (
-                <li key={route.id}>
+                <li key={group.group}>
                   <button
                     type="button"
-                    onClick={() => !isDisabled && handleNavClick(route.id)}
-                    disabled={isDisabled}
-                    className="touch-target"
-                    aria-current={isActive ? 'page' : undefined}
-                    aria-disabled={isDisabled ? 'true' : undefined}
-                    aria-label={`${route.title}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
+                    onClick={() => toggleGroup(group.group)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={routesId}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
+                      display: 'block',
                       width: '100%',
-                      padding: '10px 16px',
-                      marginBottom: '1px',
-                      background: isActive ? 'var(--cyan-glow)' : 'transparent',
-                      border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
-                      borderRadius: 'var(--radius-md)',
-                      color: isActive
-                        ? 'var(--cyan)'
-                        : isDisabled
-                          ? 'var(--text-muted)'
-                          : 'var(--text-secondary)',
-                      fontSize: '13px',
-                      fontFamily: 'var(--font-mono)',
-                      cursor: isDisabled ? 'not-allowed' : 'pointer',
-                      transition: 'var(--transition)',
+                      padding: '16px 16px 8px',
+                      border: 0,
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
                       textAlign: 'left',
-                      opacity: isDisabled ? 0.4 : 1,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive && !isDisabled) {
-                        e.currentTarget.style.background = 'var(--bg-hover)';
-                        e.currentTarget.style.color = 'var(--text-primary)';
-                      }
-                      preloadTab(route.id);
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive && !isDisabled) {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'var(--text-secondary)';
-                      }
+                      fontSize: '9px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      letterSpacing: '1.2px',
+                      textTransform: 'uppercase',
                     }}
                   >
-                    <span aria-hidden="true" style={{ fontSize: '15px', opacity: 0.9 }}>
-                      {route.icon}
+                    <span>{group.label}</span>
+                    <span aria-hidden="true" style={{ float: 'right' }}>
+                      {isCollapsed ? '+' : '−'}
                     </span>
-                    {route.title}
-                    {isActive && (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          marginLeft: 'auto',
-                          width: '5px',
-                          height: '5px',
-                          borderRadius: '50%',
-                          background: 'var(--cyan)',
-                          boxShadow: '0 0 6px var(--cyan)',
-                        }}
-                      />
-                    )}
                   </button>
+                  <ul
+                    id={routesId}
+                    role="list"
+                    hidden={isCollapsed}
+                    style={{ listStyle: 'none', margin: 0, padding: 0 }}
+                  >
+                    {group.routes.map((route) => {
+                      const isActive = activeTab === route.id;
+                      const isDisabled = route.id === 'faucet' && network === 'mainnet';
+                      return (
+                        <li key={route.id}>
+                          <button
+                            type="button"
+                            onClick={() => !isDisabled && handleNavClick(route.id)}
+                            disabled={isDisabled}
+                            className="touch-target"
+                            aria-current={isActive ? 'page' : undefined}
+                            aria-disabled={isDisabled ? 'true' : undefined}
+                            aria-label={`${route.title}${isDisabled ? ' (unavailable on mainnet)' : ''}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              width: '100%',
+                              padding: '10px 16px',
+                              marginBottom: '1px',
+                              background: isActive ? 'var(--cyan-glow)' : 'transparent',
+                              border: `1px solid ${isActive ? 'var(--cyan-dim)' : 'transparent'}`,
+                              borderRadius: 'var(--radius-md)',
+                              color: isActive ? 'var(--cyan)' : isDisabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+                              fontSize: '13px',
+                              fontFamily: 'var(--font-mono)',
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              transition: 'var(--transition)',
+                              textAlign: 'left',
+                              opacity: isDisabled ? 0.4 : 1,
+                            }}
+                            onMouseEnter={(event) => {
+                              if (!isActive && !isDisabled) {
+                                event.currentTarget.style.background = 'var(--bg-hover)';
+                                event.currentTarget.style.color = 'var(--text-primary)';
+                              }
+                              preloadTab(route.id);
+                            }}
+                            onMouseLeave={(event) => {
+                              if (!isActive && !isDisabled) {
+                                event.currentTarget.style.background = 'transparent';
+                                event.currentTarget.style.color = 'var(--text-secondary)';
+                              }
+                            }}
+                          >
+                            <span aria-hidden="true" style={{ fontSize: '15px', opacity: 0.9 }}>
+                              {route.icon}
+                            </span>
+                            {route.title}
+                            {isActive && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  marginLeft: 'auto',
+                                  width: '5px',
+                                  height: '5px',
+                                  borderRadius: '50%',
+                                  background: 'var(--cyan)',
+                                  boxShadow: '0 0 6px var(--cyan)',
+                                }}
+                              />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </li>
               );
             })}

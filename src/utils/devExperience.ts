@@ -141,7 +141,7 @@ export function installShortcutListener(): () => void {
 
 // ─── Dev toolbar state ────────────────────────────────────────────────────────
 
-export type DevPanel = 'profiler' | 'memory' | 'shortcuts' | 'state' | 'network'
+export type DevPanel = 'profiler' | 'memory' | 'shortcuts' | 'state' | 'network' | 'subscriptions'
 
 export interface DevToolbarState {
   visible: boolean

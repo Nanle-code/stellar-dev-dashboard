@@ -18,6 +18,16 @@ Every token on Stellar other than XLM is a **custom asset** defined by a code an
 
 ## Creating an asset
 
+### Guided testnet issuance
+
+Use **Build → Asset Issuance** to create a testnet issuer and distributor, fund both accounts with Friendbot, configure the issuer, create the distributor trustline, authorize the holder when required, and issue the initial supply. Each signed transaction is built and displayed as XDR before submission. The wizard saves configuration, public addresses, and completed transaction hashes locally so an interrupted flow can resume.
+
+Secret keys are generated and signed in the browser and are never written to the resumable draft. Back them up before continuing. After a reload, enter both keys again; if they are lost, the wizard cannot sign for those accounts. Never use the generated keys on mainnet or send them to another service. Friendbot funding is testnet-only.
+
+The wizard checks asset code, home domain, supply precision, and the generated `[[CURRENCIES]]` entry with the SEP-1 field validator. The hosted `stellar.toml` must still be published over HTTPS at `/.well-known/stellar.toml` and inspected with the dashboard's SEP-1 Inspector; local validation cannot verify hosting, CORS, or the live issuer `home_domain`.
+
+`auth_required` makes new trustlines unauthorized until the issuer approves them; the flow adds a separate `allowTrust` transaction before issuance. `auth_revocable` allows the issuer to freeze/revoke authorization. Clawback enables token recovery and requires revocability, so it presents a material holder risk. Locking sets the generated issuer's master weight to zero and is irreversible; the wizard requires an explicit acknowledgement before signing. Only use it after all issuer actions are complete. The wizard is testnet-only and does not migrate or configure existing mainnet assets.
+
 ```js
 import { Asset } from '@stellar/stellar-sdk';
 

@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { matchRoute, getDocumentTitle, type TabComponent } from './routes';
+import { matchRoute, getDocumentTitle, ROUTES_BY_ID, buildPath, type TabComponent } from './routes';
 import { getRouteComponent } from './routeComponents';
 import NotFound from './NotFound';
 import Sidebar from '../components/layout/Sidebar';
@@ -109,12 +109,6 @@ function NotificationBell({
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const routeMatch = matchRoute(location.pathname);
-  const activeRoute = routeMatch?.route ?? null;
-  const isConnectRoute = location.pathname === '/connect';
-  const sharedView = useSharedView();
-  const demoSummary = getDemoFixtureSummarySafe();
   const {
     connectedAddress,
     activeTab,
@@ -220,13 +214,6 @@ export default function DashboardLayout() {
   useRouteFocus(activeTab);
   useStorageQuotaAlerts();
   useWalletSessionListeners();
-
-  const location = useLocation();
-  const routeMatch = matchRoute(location.pathname);
-  const activeRoute = routeMatch?.route;
-  const isConnectRoute = location.pathname === '/connect';
-  const sharedView = useSharedView();
-  const demoSummary = getDemoFixtureSummarySafe();
 
   useEffect(() => {
     // v2: full multi-layer cache initialization (warm, prune, SW bridge)

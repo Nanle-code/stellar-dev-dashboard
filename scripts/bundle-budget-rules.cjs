@@ -43,7 +43,7 @@ const DEFAULT_CHUNK_BUDGETS_KB = Object.freeze({
   'react-vendor': 200,
   'charts-vendor': 350,
   'graph-vendor': 400,
-  'ml-vendor': 450,
+  'ml-vendor': 300,
   'stellar-sdk': 400,
   index: 100, // Initial shell
   default: 150, // Route chunks / lazy chunks
@@ -149,11 +149,13 @@ function findHeavyLibraryPlacementViolations(bundleModuleMap, rules = HEAVY_LIBR
   return violations;
 }
 
-/** `assets/index-9f8a2b.js` -> `index` */
+/** `assets/index-9f8a2b.js` -> `index`, `ml-vendor-D7-ManFj.js` -> `ml-vendor` */
 function chunkNameFromFileName(fileName) {
-  const base = String(fileName).split('/').pop();
-  const match = base.match(/^(.+)-[A-Za-z0-9_-]+\.js$/);
-  return match ? match[1] : base.replace(/\.js$/, '');
+  const base = String(fileName).split('/').pop().replace(/\.js$/, '');
+  // Remove hash suffix: last dash followed by 8+ alphanumeric/dash characters
+  // Vite's [hash] typically produces 8 chars but may include dashes
+  const match = base.match(/^(.+)-[A-Za-z0-9_-]{8,}$/);
+  return match ? match[1] : base;
 }
 
 function budgetForChunk(chunkName, budgets = DEFAULT_CHUNK_BUDGETS_KB) {

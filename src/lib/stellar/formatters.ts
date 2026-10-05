@@ -1,25 +1,20 @@
 import { stellarCache } from './networks.js';
-
-// ─── Formatters ───────────────────────────────────────────────────────────────
+import {
+  formatXLM as coreFormatXLM,
+  shortAddress as coreShortAddress,
+  formatStroops as coreFormatStroops,
+  formatInstructions as coreFormatInstructions,
+  formatBytes as coreFormatBytes,
+} from '@stellar-dev-dashboard/core';
 
 export function formatXLM(amount: string | number): string {
-  return parseFloat(String(amount)).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 7,
-  });
+  return coreFormatXLM(amount);
 }
 
 export function shortAddress(addr: string | null | undefined, chars = 6): string {
-  if (!addr) return '';
-  return `${addr.slice(0, chars)}…${addr.slice(-chars)}`;
+  return coreShortAddress(addr, chars);
 }
 
-
-
-/**
- * Clear cache for specific pattern
- * @param {string} pattern - Key pattern to clear
- */
 export function clearCache(pattern: string | null = null) {
   if (pattern) {
     stellarCache.invalidatePrefix(pattern);
@@ -28,31 +23,18 @@ export function clearCache(pattern: string | null = null) {
   }
 }
 
-/**
- * Get cache statistics
- * @returns {object} Cache stats
- */
 export function getCacheStats() {
   return stellarCache.getStats();
 }
 
-
-
 export function formatInstructions(instructions: number): string {
-  if (instructions < 1000) return `${instructions}`;
-  if (instructions < 1000000) return `${(instructions / 1000).toFixed(2)}K`;
-  return `${(instructions / 1000000).toFixed(2)}M`;
+  return coreFormatInstructions(instructions);
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return coreFormatBytes(bytes);
 }
 
 export function formatStroops(stroops: unknown): string {
-  const num = typeof stroops === 'number' ? stroops : parseInt(String(stroops), 10);
-  if (isNaN(num)) return '—';
-  const xlm = (num / 10000000).toFixed(7);
-  return `${xlm} XLM (${num.toLocaleString('en-US')} stroops)`;
+  return coreFormatStroops(stroops);
 }

@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shared core package** ([#1006](https://github.com/Nanle-code/stellar-dev-dashboard/issues/1006)).
+  Extracted platform-agnostic Stellar logic into `@stellar-dev-dashboard/core` workspace package, eliminating duplicated code between web (`src/lib/stellar/`) and mobile (`mobile/src/services/stellar.ts`) apps.
+  - `packages/core/src/networks.ts` — Network configuration, `getServer`, `getSorobanServer`
+  - `packages/core/src/validation.ts` — Address, amount, memo, contract, URL, network validation
+  - `packages/core/src/formatters.ts` — XLM, address, stroop, instruction, byte, date formatting
+  - `packages/core/src/addresses.ts` — Address validation, parsing, SEP-29 memo check, federation resolution
+  - `packages/core/src/reserves.ts` — Account reserve calculations
+  - `packages/core/src/operationLabels.ts` — Operation type labels
+  - `packages/core/src/services.ts` — High-level data fetching with in-memory caching
+  - `packages/core/__tests__/` — Comprehensive test suite (networks, validation, formatters, addresses, reserves, operation labels, services)
+  - ESLint rules enforcing no DOM/React Native imports in core
+  - Both web and mobile now import from `@stellar-dev-dashboard/core`
+  - Updated `pnpm-workspace.yaml` to include core package
+  - Documentation: `packages/core/README.md`, updated root `README.md`
+
+### Added
+
 - **Cost attribution by application tag or memo prefix** ([#868](https://github.com/Nanle-code/stellar-dev-dashboard/issues/868)).
   Attributes transaction fees and asset transfer volumes to developer-defined project tags for project budgeting and threshold alerts.
   - `src/lib/costThresholdManager.ts` — `CostThresholdManager` implementation for tag definition, memo prefix and regex pattern matching, budget limits, volume tracking, threshold alerts (`ok`, `warning`, `exceeded`), JSON/CSV report exports, and SSR/unsupported environment fallbacks.

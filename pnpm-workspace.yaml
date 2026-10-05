@@ -1,6 +1,7 @@
 packages:
   - '.'
   - 'mobile'
+  - 'packages/core'
 allowBuilds:
   '@tensorflow/tfjs-node': set this to true or false
   core-js: set this to true or false

@@ -19,7 +19,7 @@ Thank you for taking the time to contribute! This guide covers everything you ne
 
 ### Prerequisites
 
-- Node.js 22–26 (enforced by `npm run check:node`; CI tests 22, 24 and 26)
+- Node.js 22–26 (enforced by `pnpm run check:node`; CI tests 22, 24 and 26)
 - pnpm ≥ 9 (the version CI uses is pinned in `package.json` → `packageManager`)
 
 ### Install & run
@@ -28,8 +28,10 @@ Thank you for taking the time to contribute! This guide covers everything you ne
 git clone https://github.com/Nanle-code/stellar-dev-dashboard.git
 cd stellar-dev-dashboard
 pnpm install
-pnpm run dev         # Vite dev server at http://localhost:5173
+pnpm run dev          # Vite dev server at http://localhost:5173
 ```
+
+> **Note**: This project strictly standardizes on `pnpm` and `pnpm-lock.yaml`. Do not commit `package-lock.json` or `yarn.lock`; CI checks will fail if non-pnpm lockfiles are committed.
 
 ### Environment
 
@@ -118,9 +120,9 @@ response cannot overwrite state after the user switches. Use a lease from
 ### Unit tests (Vitest + Testing Library)
 
 ```bash
-npm test              # run once
-npm run test:watch    # watch mode
-npm run test:coverage # with v8 coverage
+pnpm test              # run once
+pnpm run test:watch    # watch mode
+pnpm run test:coverage # with v8 coverage
 ```
 
 Test files live alongside the source they cover: `src/utils/export.test.js` tests `src/utils/export.js`.
@@ -132,8 +134,8 @@ New utility functions **must** have unit tests. New React components **should** 
 TypeScript is enforced as a **required CI gate** on every pull request. The `type-check` job runs `tsc --noEmit` and blocks merges when it fails.
 
 ```bash
-npm run type-check      # wrapper with input/env validation (recommended)
-npm run type-check:tsc  # raw tsc --noEmit
+pnpm run type-check      # wrapper with input/env validation (recommended)
+pnpm run type-check:tsc  # raw tsc --noEmit
 ```
 
 Exit codes from `scripts/type-check.mjs`:
@@ -142,19 +144,19 @@ Exit codes from `scripts/type-check.mjs`:
 | ---- | ------------------------------------------------------------------------------------ |
 | `0`  | Type check passed                                                                    |
 | `1`  | Type errors found — fix before merging                                               |
-| `2`  | Invalid input or unsupported environment (missing `tsc`, bad `--project`, Node < 18) |
+| `2`  | Invalid input or unsupported environment (missing `tsc`, bad `--project`, Node < 22) |
 
 **Compatibility notes:**
 
-- Node.js **≥ 18** is required (declared in `package.json` `engines`).
+- Node.js **22–26** is required (declared in `package.json` `engines`).
 - `tsc` is resolved from `node_modules/.bin/tsc` first, so the gate uses the compiler version pinned in `devDependencies`.
 - `tsconfig.json` covers `src/**/*.ts` and `src/**/*.tsx` with `strict` enabled. JavaScript files are not type-checked (`checkJs: false`), so the gate focuses on the TypeScript migration surface.
 
 ### End-to-end tests (Playwright)
 
 ```bash
-npm run test:e2e        # headless
-npm run test:e2e:ui     # Playwright UI mode
+pnpm run test:e2e        # headless
+pnpm run test:e2e:ui     # Playwright UI mode
 ```
 
 E2E tests live in `tests/e2e/`. They rely on Playwright's network route interception (`page.route()`) to mock responses from Horizon and Soroban RPC. This guarantees fast, deterministic tests without needing valid testnet credentials or environment variables.
@@ -168,7 +170,7 @@ E2E tests live in `tests/e2e/`. They rely on Playwright's network route intercep
    git checkout -b fix/your-description
    ```
 2. Make your changes, keeping each commit focused on one logical change.
-3. Run the checks CI will run: `pnpm run lint && pnpm run type-check && pnpm test && pnpm run governance:check`.
+3. Run the checks CI will run: `pnpm run check:package-manager && pnpm run lint && pnpm run type-check && pnpm test && pnpm run governance:check`.
    Add `pnpm run test:e2e` when you change UI flows.
 4. Open a PR targeting `master`. The [PR template](../.github/pull_request_template.md) is filled in
    automatically. Complete every section, and include:

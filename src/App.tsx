@@ -6,6 +6,7 @@ import './styles/responsive.css';
 import './styles/mobile-performance.css';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 import { ExpertiseProvider } from './context/ExpertiseContext';
+import { DashboardProvider } from './context/DashboardContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ChunkLoadErrorBoundary from './components/ChunkLoadErrorBoundary';
 import { DeveloperTools } from './components/DeveloperTools';
@@ -67,21 +68,23 @@ export default function App() {
     <I18nProvider>
       <AccessibilityProvider>
         <ExpertiseProvider>
-          <AIKillSwitchProvider>
-          <ErrorBoundary maxRetries={2}>
-            {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
-            {showConsentPrompt && <AnalyticsConsentPrompt onDecision={() => setShowConsentPrompt(false)} />}
-            <ChunkLoadErrorBoundary>
-              <Suspense fallback={<AppLoadingFallback />}>
-                <Routes>
-                  <Route path="/connect" element={<DashboardLayout />} />
-                  <Route path="/*" element={<DashboardLayout />} />
-                </Routes>
-              </Suspense>
-            </ChunkLoadErrorBoundary>
-            <DeveloperTools />
-          </ErrorBoundary>
-          </AIKillSwitchProvider>
+<DashboardProvider>
+            <AIKillSwitchProvider>
+              <ErrorBoundary maxRetries={2}>
+                {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
+                {showConsentPrompt && <AnalyticsConsentPrompt onDecision={() => setShowConsentPrompt(false)} />}
+                <ChunkLoadErrorBoundary>
+                  <Suspense fallback={<AppLoadingFallback />}>
+                    <Routes>
+                      <Route path="/connect" element={<DashboardLayout />} />
+                      <Route path="/*" element={<DashboardLayout />} />
+                    </Routes>
+                  </Suspense>
+                </ChunkLoadErrorBoundary>
+                <DeveloperTools />
+              </ErrorBoundary>
+            </AIKillSwitchProvider>
+          </DashboardProvider>
         </ExpertiseProvider>
       </AccessibilityProvider>
     </I18nProvider>

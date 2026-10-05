@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { useTranslation } from '../../hooks/useTranslation'
+import ContextScopeNotice from '../layout/ContextScopeNotice'
 import NetworkMetricsChart from '../charts/NetworkMetricsChart'
 import AccountActivityChart from '../charts/AccountActivityChart'
 import BalanceHistoryChart from '../charts/BalanceHistoryChart'
@@ -34,6 +35,7 @@ const ChartsTab: ComponentType = () => {
       >
         {t('charts.title')}
       </div>
+      <ContextScopeNotice />
       <ChartRecommenderPanel
         data={MOCK_RECOMMENDER_DATA}
         title="AI-Powered Analytics visualizer"

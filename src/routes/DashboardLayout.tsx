@@ -25,6 +25,7 @@ import { TourLauncher } from '../components/tutorial';
 import GlobalSearch from '../components/search/GlobalSearch';
 import UserPreferences from '../components/preferences/UserPreferences';
 import NetworkIndicator from '../components/layout/NetworkIndicator';
+import ContextBar from '../components/layout/ContextBar';
 import NetworkSafetyBadge from '../components/layout/NetworkSafetyBadge';
 import { useWriteGuard } from '../hooks/useWriteGuard';
 import SubmissionTray from '../components/dashboard/SubmissionTray';
@@ -170,13 +171,15 @@ export default function DashboardLayout() {
   }, [routeMatch, location.pathname, setActiveTab, setConnectedAddress, setContractId, setSelectedTxHash]);
 
   // Store → URL: direct `setActiveTab` calls elsewhere still update the address bar.
+  // The existing query string is preserved so the global network/time-range
+  // context (#987) survives every tab change and stays shareable.
   useEffect(() => {
     if (!routeMatch) return;
     const current = useStore.getState().activeTab;
     if (routeMatch.route.id !== current) {
-      navigate(buildPath(current), { replace: true });
+      navigate(`${buildPath(current)}${location.search}`, { replace: true });
     }
-  }, [activeTab, routeMatch, navigate]);
+  }, [activeTab, routeMatch, navigate, location.search]);
 
   // Connection gating based on the resolved route rather than the raw pathname.
   useEffect(() => {
@@ -383,7 +386,10 @@ export default function DashboardLayout() {
             >
               ⚙
             </button>
-          </Stack>
+</Stack>
+          <div style={{ marginBottom: '12px' }}>
+            <ContextBar />
+          </div>
           <div className="dashboard-price-section">
             <PriceTicker />
           </div>

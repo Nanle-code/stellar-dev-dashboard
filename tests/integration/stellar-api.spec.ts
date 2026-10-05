@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/server'
+import { Keypair } from '@stellar/stellar-sdk'
 import {
   fetchXLMPrice,
   fetchAssetPrice,
@@ -37,7 +38,7 @@ describe('Stellar API integration (MSW)', () => {
   })
 
   it('fetchAccount loads account data', async () => {
-    const publicKey = 'GTESTACCOUNT'
+    const publicKey = Keypair.random().publicKey()
     const account = await fetchAccount(publicKey)
     expect(account.account_id).toBe(publicKey)
     expect(account.balances?.length).toBeGreaterThan(0)
@@ -138,7 +139,10 @@ describe('Stellar API integration (MSW)', () => {
 
     it('handles RPC failures deterministically (500 error)', async () => {
       server.use(
-        http.post('https://soroban-testnet.stellar.org', () => {
+        http.head('https://soroban-testnet.stellar.org', () => {
+          return new HttpResponse(null, { status: 500 })
+        }),
+        http.get('https://soroban-testnet.stellar.org', () => {
           return new HttpResponse(null, { status: 500 })
         })
       )

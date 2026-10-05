@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { getGasPredictionService, type GasPredictionService } from '../lib/gasPredictionService'
 import type { GasPrediction } from '../lib/gasPredictionModel'
 import { useGasPredictionStore } from '../lib/gasPredictionStore'
@@ -22,7 +22,13 @@ export interface UseGasPredictionReturn {
 }
 
 export function useGasPrediction(options: UseGasPredictionOptions): UseGasPredictionReturn {
-  const { contractId, functionName, args = [], enabled = true } = options
+  const { contractId, functionName, args: argsOption, enabled = true } = options
+  // Callers usually pass a fresh array every render. The model only reads each
+  // argument's type and length, so key effects on those instead of array
+  // identity; depending on `args` directly re-ran the prediction (and its
+  // synchronous subscription) on every render, locking up the page.
+  const argsKey = JSON.stringify((argsOption ?? []).map((a) => [a.type, a.value.length]))
+  const args = useMemo(() => argsOption ?? [], [argsKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const [prediction, setPrediction] = useState<GasPrediction | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)

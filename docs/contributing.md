@@ -9,7 +9,9 @@ Thank you for taking the time to contribute! This guide covers everything you ne
 3. [Coding conventions](#coding-conventions)
 4. [Testing](#testing)
 5. [Pull request workflow](#pull-request-workflow)
-6. [Issue labels](#issue-labels)
+6. [Merge requirements](#merge-requirements)
+7. [Code owners](#code-owners)
+8. [Issue labels](#issue-labels)
 
 ---
 
@@ -17,8 +19,8 @@ Thank you for taking the time to contribute! This guide covers everything you ne
 
 ### Prerequisites
 
-- Node.js ≥ 22 and < 27 (Node.js 22, 24, 26 LTS/Current)
-- pnpm ≥ 9.0.0 (Standardized package manager)
+- Node.js 22–26 (enforced by `pnpm run check:node`; CI tests 22, 24 and 26)
+- pnpm ≥ 9 (the version CI uses is pinned in `package.json` → `packageManager`)
 
 ### Install & run
 
@@ -57,6 +59,18 @@ docs/
 ├── components.md     # Component catalogue
 └── contributing.md   # This file
 ```
+
+### Stellar library modules
+
+The stable Stellar API is exported from `src/lib/stellar.ts`, which forwards to
+the domain barrel at `src/lib/stellar/index.ts`. Existing imports from
+`src/lib/stellar` remain supported. New internal code may import a focused
+module such as `src/lib/stellar/networks.ts`, `horizon.ts`, `addresses.ts`,
+`soroban.ts`, `pricing.ts`, `claimableBalances.ts`, or `reserves.ts` when it
+needs only that domain. Prefer `getServer`; the `ee` alias is deprecated and
+retained temporarily for compatibility. Custom-network auth headers continue
+to be stored in session storage (not local storage); do not put wallet secrets
+or signing keys in network configuration.
 
 ---
 
@@ -115,6 +129,29 @@ Test files live alongside the source they cover: `src/utils/export.test.js` test
 
 New utility functions **must** have unit tests. New React components **should** have at least a smoke-render test.
 
+### TypeScript type check (CI gate)
+
+TypeScript is enforced as a **required CI gate** on every pull request. The `type-check` job runs `tsc --noEmit` and blocks merges when it fails.
+
+```bash
+pnpm run type-check      # wrapper with input/env validation (recommended)
+pnpm run type-check:tsc  # raw tsc --noEmit
+```
+
+Exit codes from `scripts/type-check.mjs`:
+
+| Code | Meaning                                                                              |
+| ---- | ------------------------------------------------------------------------------------ |
+| `0`  | Type check passed                                                                    |
+| `1`  | Type errors found — fix before merging                                               |
+| `2`  | Invalid input or unsupported environment (missing `tsc`, bad `--project`, Node < 22) |
+
+**Compatibility notes:**
+
+- Node.js **22–26** is required (declared in `package.json` `engines`).
+- `tsc` is resolved from `node_modules/.bin/tsc` first, so the gate uses the compiler version pinned in `devDependencies`.
+- `tsconfig.json` covers `src/**/*.ts` and `src/**/*.tsx` with `strict` enabled. JavaScript files are not type-checked (`checkJs: false`), so the gate focuses on the TypeScript migration surface.
+
 ### End-to-end tests (Playwright)
 
 ```bash
@@ -133,12 +170,15 @@ E2E tests live in `tests/e2e/`. They rely on Playwright's network route intercep
    git checkout -b fix/your-description
    ```
 2. Make your changes, keeping each commit focused on one logical change.
-3. Run checks: `pnpm run check:package-manager && pnpm run lint && pnpm test && pnpm run test:e2e`.
-4. Open a PR targeting `master`. Include:
+3. Run the checks CI will run: `pnpm run check:package-manager && pnpm run lint && pnpm run type-check && pnpm test && pnpm run governance:check`.
+   Add `pnpm run test:e2e` when you change UI flows.
+4. Open a PR targeting `master`. The [PR template](../.github/pull_request_template.md) is filled in
+   automatically. Complete every section, and include:
    - A clear title referencing the issue (`fix: add export panel (#114)`).
    - A summary of **what** changed and **why**.
    - `Closes #<issue-number>` for each resolved issue.
-5. Respond to review comments within a week; otherwise the PR may be closed.
+5. Before you ask for a merge, make sure the PR meets the [merge requirements](#merge-requirements).
+6. Respond to review comments within a week; otherwise the PR may be closed.
 
 ### Commit style
 
@@ -154,16 +194,126 @@ test: add validation tests for bumpSequence op
 
 ---
 
+## Merge Requirements
+
+A pull request can be merged only when **both** of these hold for its latest commit:
+
+1. **All required continuous integration checks must pass.** Failing, pending, or skipped
+   required checks are not acceptable for merge. Green checks on an earlier commit do not count.
+2. **The branch must be free of merge conflicts with the target branch** (`master`) at the time of merge.
+
+Do not request a merge, or re-request review, while any workflow is failing, any required
+check is skipped, or conflicts are unresolved. Maintainers will not merge such a PR, even
+when the change looks correct.
+
+### Required checks
+
+These jobs must succeed:
+
+| Workflow | Job |
+|----------|-----|
+| CI | Lint & Format Check |
+| CI | TypeScript Type Check |
+| CI | Unit & Integration Tests (Node 22, 24, 26) |
+| CI | E2E Tests |
+| CI | Build |
+| CI | Bundle Size Budget |
+| Governance | Governance Policy |
+
+Other workflows (visual regression, accessibility, Lighthouse, dependency checks) are
+advisory unless branch protection marks them as required. If one of them fails because
+of your change, fix it anyway.
+
+### Handling each situation
+
+| Situation | What to do |
+|-----------|------------|
+| A check **fails** | Open the job log, reproduce locally with the matching `pnpm run …` script, and push a fix. |
+| A check is **flaky** (it passes on re-run with no code change) | Re-run it once and mention the flake in a PR comment so it can be tracked. Don't re-run repeatedly until it passes. |
+| A check is **pending** | Wait. A PR from a first-time contributor's fork needs a maintainer to approve the workflow run; ask in a comment. Pending is not mergeable. |
+| A required check is **skipped** | Treated as not passing. A path filter or `if:` condition may have skipped it; ask a maintainer to run the workflow manually (`workflow_dispatch`) rather than merging. |
+| **Merge conflicts** | Update your branch from the target and resolve locally (see below), then re-run the checks. Don't resolve conflicts in the GitHub web editor for lockfiles. |
+| `skip-bundle-check` label | Maintainers only, and only with a written reason in the PR. It bypasses the bundle budget step; it does **not** make other failing checks acceptable. |
+
+### Resolving conflicts
+
+```bash
+git fetch origin
+git rebase origin/master          # or: git merge origin/master
+# fix conflicts, then
+git add <files> && git rebase --continue
+pnpm install --frozen-lockfile    # if pnpm-lock.yaml changed
+git push --force-with-lease       # only needed after a rebase
+```
+
+If `pnpm-lock.yaml` conflicts, don't hand-edit it. Take the target branch's version
+(`git checkout --theirs pnpm-lock.yaml` during a rebase), then run `pnpm install` to
+regenerate it from your `package.json`.
+
+### Maintainer settings
+
+The policy is enforced through branch protection on `master`, not by the PR template alone.
+Keep these enabled:
+
+- **Require status checks to pass before merging**, listing the jobs in the table above.
+- **Require branches to be up to date before merging**, so conflicts and stale checks are caught.
+- **Require review from Code Owners** (see [Code owners](#code-owners)).
+- **Do not allow bypassing the above settings**, for administrators too.
+
+GitHub matches required checks by **job name**. If you rename a job in a workflow, update
+branch protection in the same PR. Otherwise the old name stays "Expected — waiting for
+status" and blocks every PR.
+
+---
+
+## Code Owners
+
+[`.github/CODEOWNERS`](../.github/CODEOWNERS) assigns designated reviewers to
+security-sensitive paths:
+
+- **wallet** connectors, signing, and session handling (`src/lib/wallet/`, `WalletConnect.tsx`, multisig)
+- **authentication**, identity, and access control (biometrics, DID auth, `src/accessControl/`)
+- **cryptography** and trust boundaries (`encryption.ts`, endpoint allowlist, phishing detection)
+- **security policy and pipeline integrity** (`SECURITY.md`, `nginx.conf` CSP headers, `.github/workflows/`)
+
+GitHub requests a code-owner review automatically when a PR touches these paths, and the
+PR cannot merge without that approval.
+
+`pnpm run governance:check` fails CI when a security-sensitive file has no owner. It
+checks the path list in `scripts/validate-governance.mjs` → `SECURITY_SENSITIVE_PATHS`
+against every tracked file. It also fails when:
+
+- a later CODEOWNERS rule has no owner, which silently removes ownership;
+- an owner handle is malformed;
+- a pattern uses syntax GitHub ignores (`!negation`, `[ranges]`).
+
+If you add a wallet, auth, or crypto module outside the directories already listed, add it
+to **both** CODEOWNERS and `SECURITY_SENSITIVE_PATHS`. CODEOWNERS applies the **last**
+matching rule, so put narrow overrides below broad ones.
+
+Compatibility note: CODEOWNERS entries must be users or teams with **write** access to the
+repository. Otherwise GitHub ignores them silently. The validator checks handle syntax only.
+It can't check permissions, so verify new owners on the repository's CODEOWNERS page on
+GitHub, which flags invalid entries.
+
+---
+
 ## Issue Labels
 
-| Label | Meaning |
-|-------|---------|
-| `Stellar Wave` | Active sprint / batch of issues |
-| `good first issue` | Straightforward, well-scoped |
-| `help wanted` | Extra attention needed |
-| `bug` | Something is broken |
-| `enhancement` | New feature or improvement |
-| `documentation` | Docs-only change |
+Every issue that is open for contribution has exactly one difficulty label:
+`difficulty: beginner`, `difficulty: intermediate` or `difficulty: advanced`.
+`good first issue` is reserved for beginner issues that meet the starter checklist:
+
+- single testable outcome
+- no security-sensitive paths
+- runs locally with no special setup
+- a named mentor
+
+See the [Issue labels and starter issues guide](./community/issue-labels.md) for:
+
+- the full label set;
+- how to claim an issue;
+- how maintainers change labels. The source of truth is `.github/labels.json`.
 
 ---
 
@@ -181,4 +331,3 @@ All pull requests that touch interactive UI components must satisfy the followin
 - [ ] Icons used as buttons have aria-label, not just title
 - [ ] ARIA live regions present for async feedback
 - [ ] Page has a logical heading hierarchy (h1 → h2 → h3)
-

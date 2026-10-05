@@ -23,3 +23,15 @@ results.
 Quotes can change between discovery and transaction submission as liquidity
 changes. Applications should refresh stale quotes and apply their own source or
 destination bounds when constructing the final path-payment operation.
+
+## Amount Conservation and Rounding Invariants
+
+When constructing path payments from discovered quotes, always enforce Stellar's mathematical invariants:
+
+- **Precision & Stroops**: Amounts are quantized to 7 decimal places ($10^7$ stroops). Internal calculations use integer stroops to eliminate floating-point drift.
+- **Strict Send (`destMin`)**: Always use **floor** rounding for `destMin` ($\text{destMin} \le \text{expectedDestAmount}$) so the recipient never receives less than the specified floor.
+- **Strict Receive (`sendMax`)**: Always use **ceiling** rounding for `sendMax` ($\text{sendMax} \ge \text{expectedSourceAmount}$) so the sender provides sufficient headroom for execution.
+- **Intermediate Hops**: Stellar transactions support a maximum of 5 intermediate hops (`MAX_PATH_HOPS = 5`).
+- **AMM Conservation**: Liquidity pool hops preserve constant-product invariant $(R_A + \Delta A \cdot (1-f))(R_B - \Delta B) \ge R_A \cdot R_B$.
+
+For developer details and property testing instructions, see the [Path Payment Invariants Guide](../../../docs/features/PATH_PAYMENT_INVARIANTS.md).

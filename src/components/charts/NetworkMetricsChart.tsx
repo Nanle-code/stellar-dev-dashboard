@@ -11,6 +11,8 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 import { RefreshCw, Download, Eye, EyeOff } from 'lucide-react'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
+import { getAnimationProps } from '../../utils/reducedMotion'
 
 const SERIES = [
   { id: 'txCount',  label: 'Successful', color: CHART_COLORS.green },
@@ -21,6 +23,7 @@ const SERIES = [
 export default function NetworkMetricsChart() {
   const { network } = useStore()
   const { isMobile } = useResponsive()
+  const animation = getAnimationProps(useReducedMotion())
   const [ledgerData, setLedgerData] = useState([])
   const [loading, setLoading] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
@@ -154,10 +157,10 @@ export default function NetworkMetricsChart() {
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
                   <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 11, paddingTop: isMobile ? 6 : 0 }} />
                   {!isHidden('txCount') && (
-                    <Bar dataKey="txCount" name="Successful" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="txCount" name="Successful" fill={CHART_COLORS.green} radius={[2, 2, 0, 0]} {...animation} />
                   )}
                   {!isHidden('failedTx') && (
-                    <Bar dataKey="failedTx" name="Failed" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="failedTx" name="Failed" fill={CHART_COLORS.red} radius={[2, 2, 0, 0]} {...animation} />
                   )}
                   <Brush
                     dataKey="label"
@@ -189,7 +192,7 @@ export default function NetworkMetricsChart() {
                     <Area
                       type="monotone" dataKey="opCount" name="Operations"
                       stroke={CHART_COLORS.cyan} fill={CHART_COLORS.cyan}
-                      fillOpacity={0.15} strokeWidth={2}
+                      fillOpacity={0.15} strokeWidth={2} {...animation}
                     />
                     <Brush
                       dataKey="label"

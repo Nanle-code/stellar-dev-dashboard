@@ -2,17 +2,18 @@
  * MobileChartContainer – wrapper for charts with touch gestures.
  * Adds pinch-to-zoom support and horizontal panning for wide charts on mobile.
  */
-import React, { useState } from 'react'
-import { useResponsive } from '../../hooks/useResponsive'
-import { usePinchZoom } from '../../hooks/usePinchZoom'
+import React, { useState } from 'react';
+import { useResponsive } from '../../hooks/useResponsive';
+import { usePinchZoom } from '../../hooks/usePinchZoom';
 
 interface MobileChartContainerProps {
-  children: React.ReactNode
-  /** Allow horizontal panning for wide content. Default true on mobile. */
-  allowPan?: boolean
-  /** Allow pinch-to-zoom. Default true on mobile. */
-  allowZoom?: boolean
-  minHeight?: number
+  children: React.ReactNode;
+  /** Allow horizontal panning for wide content. Default true on mobile/landscape. */
+  allowPan?: boolean;
+  /** Allow pinch-to-zoom. Default true on mobile/landscape. */
+  allowZoom?: boolean;
+  minHeight?: number;
+  landscapeMinHeight?: number;
 }
 
 export default function MobileChartContainer({
@@ -20,24 +21,33 @@ export default function MobileChartContainer({
   allowPan = true,
   allowZoom = true,
   minHeight = 200,
+  landscapeMinHeight = 180,
 }: MobileChartContainerProps) {
-  const { isMobile } = useResponsive()
-  const [zoom, setZoom] = useState(1)
-  const { ref: zoomRef, scale, reset } = usePinchZoom<HTMLDivElement>({
+  const { isMobile, isTablet, isLandscape } = useResponsive();
+  const [, setZoom] = useState(1);
+  const {
+    ref: zoomRef,
+    scale,
+    reset,
+  } = usePinchZoom<HTMLDivElement>({
     minScale: 0.7,
     maxScale: 3,
     onScaleChange: (s) => setZoom(s),
-  })
+  });
 
-  if (!isMobile) {
-    return <div style={{ minHeight }}>{children}</div>
+  const isTouchDevice = isMobile || isTablet || isLandscape;
+  const effectiveMinHeight = isLandscape ? landscapeMinHeight : minHeight;
+
+  if (!isTouchDevice) {
+    return <div style={{ minHeight: effectiveMinHeight }}>{children}</div>;
   }
 
   return (
     <div
       ref={allowZoom ? zoomRef : null}
       style={{
-        minHeight,
+        minHeight: effectiveMinHeight,
+        maxHeight: isLandscape ? '60vh' : undefined,
         overflow: allowPan ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
@@ -73,5 +83,5 @@ export default function MobileChartContainer({
         </button>
       )}
     </div>
-  )
+  );
 }

@@ -6,6 +6,7 @@ import {
   ROUTES_BY_ID,
   buildPath,
   getDocumentTitle,
+  getMobileNavGroups,
   getMobileNavRoutes,
   getNavGroups,
   getNavRoutes,
@@ -145,7 +146,13 @@ describe('route registry (#959)', () => {
 
     it('groups nav routes under labelled group headers', () => {
       const groups = getNavGroups();
-      expect(groups[0]?.label).toBe(GROUP_LABELS.analytics);
+      expect(groups.map((group) => group.group)).toEqual(['explore', 'build', 'monitor', 'admin']);
+      expect(groups.map((group) => group.label)).toEqual([
+        GROUP_LABELS.explore,
+        GROUP_LABELS.build,
+        GROUP_LABELS.monitor,
+        GROUP_LABELS.admin,
+      ]);
       for (const group of groups) {
         expect(group.routes.length).toBeGreaterThan(0);
         for (const route of group.routes) {
@@ -153,12 +160,17 @@ describe('route registry (#959)', () => {
           expect(route.nav).not.toBe(false);
         }
       }
+      expect(groups.find((group) => group.group === 'admin')?.label).toBe('Admin / Diagnostics');
+      expect(groups.find((group) => group.group === 'admin')?.routes.map((route) => route.id)).toContain('cacheStats');
+      expect(groups.find((group) => group.group === 'build')?.routes.map((route) => route.id)).toContain('contracts');
     });
 
     it('resolves the mobile drawer subset from the registry', () => {
       const mobile = getMobileNavRoutes();
+      const groupedMobile = getMobileNavGroups().flatMap((group) => group.routes);
       expect(mobile.length).toBeGreaterThan(0);
       expect(mobile.map((route) => route.id)).toContain('overview');
+      expect(groupedMobile.map((route) => route.id)).toEqual(mobile.map((route) => route.id));
       for (const route of mobile) {
         expect(ROUTES_BY_ID[route.id]).toBe(route);
       }

@@ -27,6 +27,7 @@ import type {
   StreamStatusChange,
   StreamUnsubscribe,
 } from './StreamTypes'
+import { registerSubscription } from '../subscriptionRegistry'
 
 const RECONNECT_BASE_DELAY_MS = 1_000
 const RECONNECT_MAX_DELAY_MS = 30_000
@@ -46,6 +47,7 @@ interface StreamState {
   reconnectAttempts: number
   reconnectTimer: ReturnType<typeof setTimeout> | null
   lastMessageAt?: number
+  registryCleanup: (() => void) | null
 }
 
 function streamKey(accountId: string, channel: AccountStreamChannel, network: NetworkName) {
@@ -91,6 +93,7 @@ export class AccountStreamManager {
           listeners: new Set(),
           reconnectAttempts: 0,
           reconnectTimer: null,
+          registryCleanup: registerSubscription('sse', `account:${accountId}:${channel}`),
         }
         this.streams.set(key, state)
         this.openStream(state)
@@ -282,6 +285,8 @@ export class AccountStreamManager {
       }
       state.closeStream = null
     }
+    state.registryCleanup?.()
+    state.registryCleanup = null
     this.setStatus(state, 'disconnected')
   }
 

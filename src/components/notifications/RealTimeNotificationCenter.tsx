@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import SmartNotificationCenter from './SmartNotificationCenter'
 import RealTimeNotification from './RealTimeNotification'
+import LedgerLiveRegion from './LedgerLiveRegion'
 import { useStore } from '../../lib/store'
 import { useSmartNotifications } from '../../hooks/useSmartNotifications'
 import { Sparkles } from 'lucide-react'
@@ -37,10 +38,13 @@ export default function RealTimeNotificationCenter({ open, onClose }) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, onClose])
 
-  if (!open) return null
-
   return (
     <>
+      {/* Announce ledger/transaction stream updates even while the panel is
+          closed, without overwhelming screen readers (issue #872). */}
+      <LedgerLiveRegion />
+      {open && (
+        <>
       <div
         onClick={onClose}
         aria-hidden="true"
@@ -141,6 +145,8 @@ export default function RealTimeNotificationCenter({ open, onClose }) {
         {smartMode ? <SmartView /> : <ClassicView />}
         </aside>
       </FocusManager>
+        </>
+      )}
     </>
   )
 }

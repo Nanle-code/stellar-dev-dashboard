@@ -37,6 +37,12 @@ import {
   type DataStory,
   type StoryMetricKind,
 } from '../../lib/dataStorytelling'
+import {
+  createAnalysisSnapshot,
+  parseAnalysisSnapshot,
+  serializeAnalysisSnapshot,
+  type AnalysisSnapshot,
+} from '../../lib/analysisSnapshots'
 
 const METRICS: Array<{ id: StoryMetricKind; label: string }> = [
   { id: 'operations', label: 'Operations' },
@@ -100,6 +106,17 @@ export default function DataStorytelling() {
   const [story, setStory] = useState<DataStory>(() => runStory('operations'))
   const [chapterIdx, setChapterIdx] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [snapshots, setSnapshots] = useState<AnalysisSnapshot[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = JSON.parse(window.localStorage.getItem('stellar:analysis-snapshots') ?? '[]')
+      return Array.isArray(raw) ? raw.flatMap((item) => {
+        try { return [parseAnalysisSnapshot(JSON.stringify(item))] } catch { return [] }
+      }) : []
+    } catch { return [] }
+  })
+  const [snapshotId, setSnapshotId] = useState('')
+  const [snapshotMessage, setSnapshotMessage] = useState('')
 
   const activeChapter = story.chapters[chapterIdx] ?? story.chapters[0]
   const engagement = useMemo(() => storyEngagementScore(story), [story])
@@ -151,6 +168,43 @@ export default function DataStorytelling() {
       setBusy(false)
     }, 250)
   }, [])
+
+  const saveSnapshot = useCallback(() => {
+    try {
+      const snapshot = createAnalysisSnapshot({
+        title: story.title,
+        query: { metric, filters: { chapter: chapterIdx }, capturedAt: new Date().toISOString() },
+        chart: { type: 'area', series: [metric], config: { chapter: chapterIdx, points: chartData.length } },
+      })
+      const next = [snapshot, ...snapshots].slice(0, 20)
+      setSnapshots(next)
+      window.localStorage.setItem('stellar:analysis-snapshots', JSON.stringify(next))
+      setSnapshotId(snapshot.id)
+      setSnapshotMessage('Snapshot saved locally.')
+    } catch (error) {
+      setSnapshotMessage(error instanceof Error ? error.message : 'Unable to save snapshot.')
+    }
+  }, [chapterIdx, chartData.length, metric, snapshots, story.title])
+
+  const loadSnapshot = useCallback((id: string) => {
+    setSnapshotId(id)
+    const snapshot = snapshots.find((item) => item.id === id)
+    if (!snapshot) return
+    const nextMetric = METRICS.some((item) => item.id === snapshot.query.metric) ? snapshot.query.metric as StoryMetricKind : 'operations'
+    setMetric(nextMetric)
+    setChapterIdx(Number(snapshot.query.filters.chapter) || 0)
+    setSnapshotMessage(`Loaded ${snapshot.title}. Regenerate the story to apply its metric.`)
+  }, [snapshots])
+
+  const copySnapshot = useCallback(async () => {
+    const snapshot = snapshots.find((item) => item.id === snapshotId)
+    if (!snapshot || typeof navigator === 'undefined' || !navigator.clipboard) {
+      setSnapshotMessage('Select a saved snapshot in a browser with clipboard support.')
+      return
+    }
+    await navigator.clipboard.writeText(serializeAnalysisSnapshot(snapshot))
+    setSnapshotMessage('Snapshot JSON copied to the clipboard.')
+  }, [snapshotId, snapshots])
 
   const goPrev = () => setChapterIdx((i) => Math.max(0, i - 1))
   const goNext = () => setChapterIdx((i) => Math.min(story.chapters.length - 1, i + 1))
@@ -226,6 +280,17 @@ export default function DataStorytelling() {
             {m.label}
           </button>
         ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-elevated)' }}>
+        <strong style={{ fontSize: '12px' }}>Analysis snapshots</strong>
+        <button type="button" onClick={saveSnapshot} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--cyan, #06b6d4)', background: 'rgba(6,182,212,0.12)', color: 'var(--cyan, #06b6d4)', fontSize: '11px', cursor: 'pointer' }}>Save current view</button>
+        <select aria-label="Saved analysis snapshots" value={snapshotId} onChange={(event) => loadSnapshot(event.target.value)} style={{ maxWidth: '240px', padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+          <option value="">Load a snapshot…</option>
+          {snapshots.map((item) => <option key={item.id} value={item.id}>{item.title} · {new Date(item.createdAt).toLocaleString()}</option>)}
+        </select>
+        <button type="button" onClick={copySnapshot} disabled={!snapshotId} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: '11px', cursor: snapshotId ? 'pointer' : 'not-allowed', opacity: snapshotId ? 1 : 0.5 }}>Copy JSON</button>
+        {snapshotMessage && <span role="status" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{snapshotMessage}</span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>

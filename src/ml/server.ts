@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { analyzeContractUpgrade } from './contract_upgrade_analysis/contractUpgradeAnalysis.js'
 import { scoreTransaction } from './scoringEngine.js'
 import { FederatedLearningIntegration } from './federated/integration.js'
+import { logger } from '../lib/logging/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -22,7 +23,7 @@ const federatedIntegration = new FederatedLearningIntegration({
 });
 
 // Initialize on startup
-federatedIntegration.initialize().catch(console.error);
+federatedIntegration.initialize().catch((err) => logger.error('Failed to initialize federated learning', { error: err }));
 
 app.post('/score', async (req, res) => {
   try {
@@ -82,5 +83,5 @@ app.post('/federated-sync', (req, res) => res.json({ status: 'not implemented' }
 
 const port = process.env.PORT || 4001
 app.listen(port, () => {
-  console.info('ML scoring server running on port', port)
+  logger.info(`ML scoring server running on port ${port}`)
 })

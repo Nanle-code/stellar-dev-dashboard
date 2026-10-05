@@ -18,6 +18,7 @@ import {
   calculatePerformanceMetrics,
   LEDGER_OPERATION_LIMIT
 } from '../../lib/networkMonitoring'
+import ProtocolUpgradeTracker from './ProtocolUpgradeTracker'
 
 export default function Network() {
   const { network, networkStats, setNetworkStats, statsLoading, setStatsLoading } = useStore()
@@ -329,6 +330,9 @@ export default function Network() {
           </div>
         </div>
       </div>
+
+      {/* Protocol upgrade tracker + testnet reset warnings (#985) */}
+      <ProtocolUpgradeTracker network={network} ledger={ledger} />
 
       {/* TAB 1: OVERVIEW & PERFORMANCE GRAPH */}
       {activeTab === 'overview' && (

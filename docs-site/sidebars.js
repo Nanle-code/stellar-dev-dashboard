@@ -14,6 +14,7 @@ const sidebars = {
         'getting-started/networks',
       ],
     },
+    'roadmap',
   ],
 
   apiReference: [
@@ -28,11 +29,6 @@ const sidebars = {
           label: 'Horizon REST API',
           items: [
             'api-reference/horizon/accounts',
-            'api-reference/horizon/transactions',
-            'api-reference/horizon/operations',
-            'api-reference/horizon/ledgers',
-            'api-reference/horizon/order-book',
-            'api-reference/horizon/path-finding',
             'api-reference/horizon/submit-transaction',
           ],
         },
@@ -46,28 +42,6 @@ const sidebars = {
             'api-reference/soroban/get-transaction',
             'api-reference/soroban/get-contract-data',
             'api-reference/soroban/get-events',
-          ],
-        },
-        {
-          type: 'category',
-          label: 'SDK Modules',
-          items: [
-            'api-reference/sdk/stellar-service',
-            'api-reference/sdk/transaction-builder',
-            'api-reference/sdk/contract-invoker',
-            'api-reference/sdk/dex',
-            'api-reference/sdk/encryption',
-            'api-reference/sdk/storage',
-            'api-reference/sdk/rate-limiter',
-            'api-reference/sdk/error-handling',
-          ],
-        },
-        {
-          type: 'category',
-          label: 'External Services',
-          items: [
-            'api-reference/external/coingecko',
-            'api-reference/external/friendbot',
           ],
         },
         'api-reference/error-reference',
@@ -84,6 +58,7 @@ const sidebars = {
       items: [
         'guides/getting-started-guide',
         'guides/sending-payments',
+        'guides/sep-0007-payment-requests',
         'guides/working-with-assets',
         'guides/soroban-smart-contracts',
         'guides/dex-trading',
@@ -93,6 +68,7 @@ const sidebars = {
         'guides/rate-limiting',
         'guides/horizon-pagination',
         'guides/offline-support',
+        'guides/architecture-decision-records',
         'guides/advanced-tutorials',
         'guides/wallet-connection-troubleshooting',
         'guides/troubleshooting',

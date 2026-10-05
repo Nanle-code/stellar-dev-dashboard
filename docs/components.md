@@ -222,6 +222,11 @@ XLM balance over time using the Recharts `AreaChart`.
 
 React error boundary that catches render errors and shows `<ErrorFallback>`.
 
+### `<ContextualEmptyState>`
+**File:** `src/components/common/ContextualEmptyState.tsx`
+
+Replaces blank panels with a title, a reason and up to three next-best actions that link to related tools. Actions come from presets in `src/lib/emptyStates.ts` and are filtered by route registry, network, expertise and feature flags. See [EMPTY_STATES.md](./EMPTY_STATES.md).
+
 ### `<CopyableValue>`
 **File:** `src/components/dashboard/CopyableValue.jsx`
 
@@ -231,3 +236,80 @@ Inline component that copies its `value` prop to the clipboard on click.
 **File:** `src/components/I18nProvider.jsx`
 
 Wraps the app in react-i18next context. Supports `en`, `es`, and `zh` out of the box.
+
+## Security Components
+
+Every envelope is passed through [`usePreSignRiskSummary`](#usepresignrisksummary) before the
+wallet sees it, so an operation pasted from outside the dashboard gets the same
+review as one the dashboard built.
+
+### `<RiskSummaryPanel>`
+
+**File:** `src/components/security/RiskSummaryPanel.jsx`
+
+Pre-sign risk review dialog. Describes every operation in a parsed transaction
+in plain language, before the transaction reaches a wallet. Implemented for
+[#982](https://github.com/Nanle-code/stellar-dev-dashboard/issues/982).
+
+| Prop              | Type          | Default               | Description                                                    |
+| ----------------- | ------------- | --------------------- | -------------------------------------------------------------- |
+| `summary`         | `RiskSummary` | —                     | Output of `computeRiskSummary()`. Renders nothing when falsy.  |
+| `onAcknowledged`  | `Function`    | —                     | Called when the user proceeds. Only route to the signing call. |
+| `onCancel`        | `Function`    | —                     | Called on Cancel, Escape, or backdrop click.                   |
+| `onTrustContract` | `Function`    | —                     | Optional. Enables "add this contract to my known list".        |
+| `proceedLabel`    | `string`      | `'Proceed to wallet'` | Label for the proceed button.                                  |
+| `sourceLabel`     | `string`      | —                     | Context line describing the signer or flow.                    |
+
+Behaviour:
+
+- When `summary.requiresAcknowledgement` is `true`, the proceed button stays
+  disabled until the acknowledgement checkbox is ticked. A low-risk transaction
+  is **not** slowed down by an extra step.
+- `role="alertdialog"` with `aria-modal`, `aria-labelledby` and
+  `aria-describedby`; focus moves into the dialog on open and is restored on
+  close via `FocusManager`.
+- Escape and backdrop click cancel. Body scroll is locked while open.
+- Severity is conveyed by the design tokens `--red`, `--amber` and `--green`
+  (with `--red-glow` / `--amber-glow` / `--green-glow` backgrounds); every
+  severity is also spelled out in text, so colour is never the only signal.
+
+```jsx
+import RiskSummaryPanel from './components/security/RiskSummaryPanel';
+
+<RiskSummaryPanel
+  summary={summary}
+  proceedLabel="Sign Transaction"
+  onAcknowledged={() => onAcknowledged(performSign)}
+  onCancel={cancelReview}
+/>;
+```
+
+See [`api/riskSummary.md`](./api/riskSummary.md) for the summary shape and
+[`api/riskRules.md`](./api/riskRules.md) for the ruleset.
+
+### `usePreSignRiskSummary`
+
+**File:** `src/hooks/usePreSignRiskSummary.js`
+
+Hook that owns the shared pre-sign state machine — parse, load the account,
+simulate, summarise, present, await acknowledgement. Every signing surface uses
+it, which is what makes pasted XDR and dashboard-built XDR behave identically.
+
+| Returned field                       | Type                  | Description                                              |
+| ------------------------------------ | --------------------- | -------------------------------------------------------- |
+| `beginReview(xdr, networkOverride?)` | `Promise<'shown' \| 'pass' \| 'error'>` | Runs the review. `shown` when the panel is presenting, `pass` when nothing was flagged, `error` when the envelope could not be decoded and must not be signed. |
+| `cancelReview()`                     | `Function`            | Dismisses the panel.                                     |
+| `onAcknowledged(signFn)`             | `Promise`             | Clears the panel, then runs `signFn`.                    |
+| `onTrustContract()`                  | `Promise`             | Allowlists `summary.flaggedContracts[0]` and re-reviews. |
+| `summary`                            | `RiskSummary \| null` | The current summary.                                     |
+| `pendingXdr`                         | `string \| null`      | The envelope awaiting acknowledgement.                   |
+| `reviewing`                          | `boolean`             | True while parsing/simulating.                           |
+| `reviewError`                        | `string \| null`      | Set when the XDR could not be decoded.                   |
+| `knownContracts`                     | `string[]`            | The persisted allowlist.                                 |
+
+Also exports the framework-free `reviewTransaction(xdr, options)`, so a
+non-React caller can reuse the whole review.
+
+**Integrated into:** `<TransactionSigner>`, `<SignatureCollector>`,
+`<AnchorIntegration>` (SEP-10 challenge), and
+`signAndSubmitTransaction()` in `lib/transactionBuilder.ts`.

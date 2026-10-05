@@ -81,7 +81,7 @@ export interface MemoEntities {
   dates: string[];
 }
 
-const IDENTIFIER_PATTERN = /(?:#|\b(?:inv|invoice|ord|order|ref|po|case)[-_]?)\s?\d[\w-]{1,15}/gi;
+const IDENTIFIER_PATTERN = /(?:#|\b(?:inv|invoice|ord|order|ref|po|case)[-_]?)\s?\d[\w-]{0,15}/gi;
 const ISO_DATE_PATTERN = /\b\d{4}-\d{2}-\d{2}\b/g;
 
 /**

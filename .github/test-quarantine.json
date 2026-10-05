@@ -1,0 +1,13 @@
+{
+  "$schema": "./test-quarantine.schema.json",
+  "version": "1.0.0",
+  "description": "Registry of quarantined flaky tests with required owner assignments and reinstatement criteria.",
+  "policy": {
+    "flakinessThreshold": 2,
+    "requiredPassesForReinstatement": 5,
+    "requireOwnerBeforeReinstatement": true,
+    "maxQuarantineDays": 30
+  },
+  "lastUpdated": "2026-09-26T14:00:00.000Z",
+  "quarantinedTests": []
+}

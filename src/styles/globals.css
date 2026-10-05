@@ -37,6 +37,21 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 48px;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 16px;
+  --text-lg: 20px;
+
   --transition: 180ms ease;
 
   /* Responsive design tokens */

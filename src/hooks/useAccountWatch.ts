@@ -18,6 +18,7 @@ import type {
   RiskAlert,
   WatchRule,
   WatchedAccount,
+  WatchChange,
 } from '../types/accountWatch'
 
 export interface UseAccountWatchResult {
@@ -33,6 +34,9 @@ export interface UseAccountWatchResult {
   toggleRule: (id: string, enabled: boolean) => void
   setNetwork: (network: NetworkName) => void
   refresh: () => Promise<void>
+  changes: WatchChange[]
+  lastVisitAt: number
+  markAllSeen: () => void
 }
 
 export interface UseAccountWatchOptions {
@@ -53,6 +57,8 @@ export function useAccountWatch(
   const [insights, setInsights] = useState<AggregatedInsights | null>(null)
   const [alerts, setAlerts] = useState<RiskAlert[]>([])
   const [anomalies, setAnomalies] = useState<Anomaly[]>([])
+  const [changes, setChanges] = useState<WatchChange[]>([])
+  const [lastVisitAt, setLastVisitAt] = useState(() => accountWatchSystem.getLastVisit())
 
   // Mirror system state into React after a mutation.
   const syncMeta = useCallback(() => {
@@ -74,6 +80,8 @@ export function useAccountWatch(
       if (update.anomalies.length) {
         setAnomalies((prev) => [...update.anomalies, ...prev].slice(0, 100))
       }
+      setChanges(update.changes)
+      setLastVisitAt(update.lastVisitAt)
     })
 
     if (autoStart) accountWatchSystem.start()
@@ -134,6 +142,11 @@ export function useAccountWatch(
     await accountWatchSystem.refresh()
   }, [])
 
+  const markAllSeen = useCallback(() => {
+    setLastVisitAt(accountWatchSystem.markAllSeen())
+    setChanges([])
+  }, [])
+
   return {
     accounts,
     rules,
@@ -147,6 +160,9 @@ export function useAccountWatch(
     toggleRule,
     setNetwork,
     refresh,
+    changes,
+    lastVisitAt,
+    markAllSeen,
   }
 }
 

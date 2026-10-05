@@ -17,6 +17,12 @@ import {
 let accountFetchGeneration = 0
 
 function revokeSession(reason: string): void {
+  // Freighter lock/disconnect only ends a *Freighter* session. Without this
+  // guard the background poller also cleared read-only accounts entered by hand
+  // (and every session on browsers without Freighter) seconds after connecting.
+  const { walletConnected, walletType } = useStore.getState()
+  if (!walletConnected || walletType !== 'freighter') return
+
   accountFetchGeneration += 1
   useStore.getState().revokeWalletSession(reason)
 }

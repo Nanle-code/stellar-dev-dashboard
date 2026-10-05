@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const tf = require('@tensorflow/tfjs-node');
+const { logger } = require('../lib/logging/logger.js');
 
 // Phishing keywords/patterns for matching in memo
 const SUSPICIOUS_MEMOS = [
@@ -96,7 +97,7 @@ function generateDataset(size = 1500) {
 }
 
 async function trainAndSave() {
-  console.log("Generating dataset...");
+  logger.info("Generating dataset...");
   const data = generateDataset(2000);
   
   // Shuffle data
@@ -130,7 +131,7 @@ async function trainAndSave() {
     metrics: ['accuracy']
   });
   
-  console.log("Training model...");
+  logger.info("Training model...");
   await model.fit(xs, ys, {
     epochs: 25,
     batchSize: 32,
@@ -138,7 +139,7 @@ async function trainAndSave() {
     verbose: 0
   });
   
-  console.log("Evaluating model on validation set...");
+  logger.info("Evaluating model on validation set...");
   const predictions = model.predict(val_xs).dataSync();
   
   let tp = 0, fp = 0, tn = 0, fn = 0;
@@ -158,12 +159,12 @@ async function trainAndSave() {
   const fpr = fp / (fp + tn || 1);
   const accuracy = (tp + tn) / y_val.length;
   
-  console.log(`Validation Results:`);
-  console.log(`- Accuracy: ${(accuracy * 100).toFixed(2)}%`);
-  console.log(`- Precision: ${(precision * 100).toFixed(2)}%`);
-  console.log(`- Recall/Sensitivity: ${(recall * 100).toFixed(2)}%`);
-  console.log(`- F1 Score: ${(f1 * 100).toFixed(2)}%`);
-  console.log(`- False Positive Rate (FPR): ${(fpr * 100).toFixed(2)}%`);
+  logger.info(`Validation Results:`);
+  logger.info(`- Accuracy: ${(accuracy * 100).toFixed(2)}%`);
+  logger.info(`- Precision: ${(precision * 100).toFixed(2)}%`);
+  logger.info(`- Recall/Sensitivity: ${(recall * 100).toFixed(2)}%`);
+  logger.info(`- F1 Score: ${(f1 * 100).toFixed(2)}%`);
+  logger.info(`- False Positive Rate (FPR): ${(fpr * 100).toFixed(2)}%`);
   
   // Assertions for model quality
   if (precision < 0.95) {
@@ -173,7 +174,7 @@ async function trainAndSave() {
     throw new Error(`Model False Positive Rate (${(fpr * 100).toFixed(2)}%) is at or above the 2% threshold requirement.`);
   }
   
-  console.log("Acceptance criteria met! Saving weights to src/ml/model_weights.json...");
+  logger.info("Acceptance criteria met! Saving weights to src/ml/model_weights.json...");
   
   // Extract and save weights to a simple JSON structure for the lightweight JS client forward-pass
   const weights = {
@@ -192,7 +193,7 @@ async function trainAndSave() {
     JSON.stringify(weights, null, 2)
   );
   
-  console.log(`Model weights successfully saved to ${path.join(outputDir, 'model_weights.json')}`);
+  logger.info(`Model weights successfully saved to ${path.join(outputDir, 'model_weights.json')}`);
   
   // Cleanup tensors
   xs.dispose();
@@ -202,6 +203,6 @@ async function trainAndSave() {
 }
 
 trainAndSave().catch(err => {
-  console.error("Training failed:", err);
+  logger.error("Training failed:", undefined, undefined, err);
   process.exit(1);
 });

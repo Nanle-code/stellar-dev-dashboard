@@ -1,228 +1,86 @@
-closes #550
-
 # Stellar Dev Dashboard
 
-A real-time developer dashboard for the Stellar network with advanced features including AI-enhanced transaction fee prediction.
+Real-time developer dashboard for the Stellar network: accounts, contracts, fees, activity, and tooling.
 
-## Package manager policy
+Full guides live in the docs site under docs-site/. This README is only the entry point.
 
-This repository standardizes on pnpm for deterministic dependency resolution. Use the repo lockfile and do not rely on npm-generated `package-lock.json` files.
+## Requirements
 
-```bash
-corepack enable
-pnpm install
-pnpm run check:package-manager
-```
+- Node.js: 22.x to 26.x (engines: >=22 <27)
+- pnpm: 9+ (this repo package manager)
 
-- Supported: Node.js 22 LTS through 26 with pnpm 9+
-- Unsupported: npm or yarn installs, and Node.js versions outside the supported range (Node.js < 22 or > 26)
-- Migration note: if a working tree still contains `package-lock.json`, remove it before installing or this repo will reject the environment as unsupported
+Install:
 
-## Demo Mode (#875)
+    corepack enable
+    pnpm install
+    pnpm run check:node
+    pnpm run check:package-manager
 
-New visitors land on the connect screen, so the first impression of the dashboard
-shows no value. The **Try demo** button on the connect flow loads a curated,
-read-only set of public testnet accounts and contracts with rich history — no
-wallet, key, or network connection required.
+Supported: Node 22-26 with pnpm 9+ and the repo lockfile.
+Unsupported: npm or yarn as the main install path, or Node outside that range.
+If package-lock.json appears, remove it before install.
 
-- Clearly labeled as `READ-ONLY DEMO`, with a one-click **Exit demo** back to the
-  normal connect flow.
-- Fixture data is bundled at `src/fixtures/demo-fixtures.generated.json` and
-  validated by `src/lib/demoMode.ts`.
-- Regenerate fixtures after a testnet reset with `pnpm run demo:seed`; verify them
-  with `pnpm run demo:seed:check`.
-- Full maintainer and user guidance, including security and compatibility notes,
-  lives in [docs/DEMO_MODE.md](docs/DEMO_MODE.md).
+## Quick start
 
-## AI-Enhanced Transaction Fee Prediction (Feature #535)
+    git clone https://github.com/Nanle-code/stellar-dev-dashboard.git
+    cd stellar-dev-dashboard
+    corepack enable
+    pnpm install
+    pnpm dev
 
-The fee prediction system uses machine learning to provide optimal transaction fee recommendations.
+Open the URL Vite prints (usually http://localhost:5173).
 
-### Key Features
+Useful commands:
 
-1. **Real-time Fee Predictions**: ML models predict optimal fees based on network conditions
-2. **Priority-based Recommendations**: Users can specify confirmation time targets (slow, standard, priority, instant)
-3. **Accuracy Tracking**: Historical accuracy is tracked to improve predictions over time
-4. **Multi-model Architecture**: Combines Isolation Forest for anomaly detection with TFJS classifiers for pattern recognition
+- pnpm dev — local app
+- pnpm test — unit tests
+- pnpm run type-check — TypeScript
+- pnpm run build — production build
 
-### Integration Points
+## Features
 
-- **Fee Prediction API**: Accessible via `/api/v1/transactions/fee-prediction`
-- **Transaction Builder Integration**: Automatic fee optimization in `buildTransaction` and `simulateTransaction`
-- **Real-time Monitoring**: Continuous network state updates via WebSocket
+- Network-aware account and contract views
+- Transaction building and simulation helpers
+- Fee insights and related tooling
+- Demo / read-only explore flows where enabled
 
-### Technical Implementation
+Details and how-tos are in docs-site, not in long root markdown files.
 
-1. **FeePredictor Class** (`src/lib/feePredictor.ts`):
-   - Extensible fee prediction models using ML
-   - Network condition monitoring
-   - Real-time feature extraction
-   - Alternative fee generation (slow, standard, priority, emergency)
+## Documentation
 
-2. **FeePredictionIntegration Service** (`src/lib/feePredictionIntegration.ts`):
-   - Caches predictions for performance
-   - Tracks historical accuracy
-   - Updates predictions based on network changes
-   - Provides metrics for model improvement
+- Docs site: docs-site/
+- Contributing: CONTRIBUTING.md
+- Security: SECURITY.md
+- Code of conduct: CODE_OF_CONDUCT.md
+- Changelog: CHANGELOG.md
 
-3. **Enhanced Pattern Analysis** (`src/lib/transactionPatternAnalysis.ts`):
-   - Extended documentation for fee prediction enhancements
-   - Additional ML model training capabilities
+Root one-off guides were moved under docs-site/docs so there is one navigable docs home.
 
-### API Usage
+## Architecture: Shared Core Package
 
-```typescript
-// Basic fee prediction
-const { FeePredictor } = await import('./lib/feePredictor')
+Since 2026, platform-agnostic Stellar logic is extracted into a shared workspace package:
 
-const predictor = new FeePredictor()
-const prediction = await predictor.predictFee({
-  operations: [paymentOp, ...],
-  userPreferences: { targetConfirmationTime: 'priority' }
-})
+- **`packages/core/`** — `@stellar-dev-dashboard/core`
+  - Network configuration (`NETWORKS`, `getServer`, `getSorobanServer`)
+  - Validation (addresses, amounts, memos, contracts, URLs)
+  - Formatters (XLM, addresses, stroops, dates, relative time)
+  - Address utilities (validation, resolution, SEP-29 memo check)
+  - Reserve calculations
+  - Operation labels
+  - High-level services (`fetchAccount`, `fetchTransactions`, `fetchNetworkStats`, `fetchXLMPrice`)
+  - Comprehensive test suite
 
-// Transaction builder integration
-const { FeePredictionIntegration } = await import('./lib/feePredictionIntegration')
+- **Web app (`src/`)** — Imports from `@stellar-dev-dashboard/core`, keeps web-specific code (rate limiting, request coalescing, browser storage, network probing)
+- **Mobile app (`mobile/`)** — Imports from `@stellar-dev-dashboard/core`, keeps mobile-specific code (AsyncStorage caching, React Native hooks)
 
-const integration = new FeePredictionIntegration({
-  enableRealTimeMonitoring: true,
-  cachePredictions: true
-})
+This eliminates parity issues (#883) by ensuring both platforms share identical validation, formatting, and data-access logic.
 
-const { transaction, prediction } = await integration.predictFeeForTransaction({
-  sourceAccount: 'GD...',
-  operations: [paymentOp, ...],
-  userPreferences: { targetConfirmationTime: 'instant' }
-})
-```
+See `packages/core/README.md` for full API reference and migration notes.
 
-### Models Performance
+## License
 
-- **Historical Accuracy**: 95% within 10% of actual fees
-- **Prediction Latency**: < 50ms for real-time recommendations
-- **Model Updates**: Automatic retraining based on accumulated feedback
-
-### Configuration
-
-## ML Training Pipeline
-
-The ML training pipeline is configured as follows:
-
-```bash
-# Train models
-pnpm run ml:train
-
-# Start scoring server
-pnpm run ml:server
-```
-
-The training uses historical transaction data to train:
-
-1. Isolation Forest for anomaly detection
-2. TensorFlow.js classifier for pattern recognition
-3. Fee-specific prediction models
-
-## Testing
-
-Run tests to verify the fee prediction functionality:
-
-```bash
-# Unit tests for fee prediction
-pnpm run test:unit
-
-# Integration tests
-pnpm run test:integration
-
-# Run ML-specific tests
-pnpm test -w src/lib/feePredictor.ts -w src/lib/feePredictionIntegration.ts
-```
-
-## Ledger Hardware Wallet Support
-
-The dashboard supports Ledger signing in Chromium-based browsers through WebUSB/WebHID. The sign flow expects a connected Ledger session, a valid Stellar app context, and an unsigned transaction XDR or fee-bump envelope built for the selected network passphrase.
-
-### Compatibility
-
-- Supported: Chrome, Edge, and other Chromium browsers with WebUSB/WebHID enabled
-- Required: Ledger device unlocked and "Stellar" app open
-- Not supported: Firefox and Safari for native Ledger connection
-
-### Security notes
-
-- The app validates that the XDR is parseable and the network passphrase is set before attempting a device interaction.
-- The signing path uses the active Ledger derivation path returned from the device session and attaches the resulting signature to the full envelope before returning XDR.
-- Reject/recovery errors are surfaced in a user-friendly way instead of leaking raw Ledger transport details.
-
-## Smart Contract Interaction Improvements
-
-The dashboard provides auto-generated controls for smart contract interaction when reading the published on-chain spec.
-
-### Key Features
-
-1. **Auto-Generated Argument Controls**: When an explicit contract spec is found, the generic type selection dropdown is hidden.
-2. **Type Inference**: Boolean arguments automatically render a `True`/`False` dropdown, while numbers and addresses retain specific formatting placeholders based on their type.
-3. **Fallback to Manual Selection**: For ad-hoc invocations without a spec, the dashboard correctly falls back to a generic manual type selection.
-
-### Compatibility & Migration Notes
-
-- Compatible with existing `ContractInteraction` components. No migration of user settings is necessary.
-- Security-wise, generating argument controls ensures less likelihood of user error when invoking standard contract functions (e.g. incorrect mapping of manual types to required ABI types).
-
-## Development
-
-### Node.js support
-
-This project supports Node.js **22 through 26**. Node 22 is the minimum
-supported LTS release, Node 24 is the recommended LTS release for local
-development and production, and Node 26 is tested as the current release.
-Older/EOL releases such as Node 18 and 20 are unsupported and may expose
-unpatched vulnerabilities or fail as dependencies evolve.
-
-Use `pnpm run check:node` to validate the active runtime. CI exercises Node 22,
-24, and 26; changes must remain compatible with all three release lines. When
-Node changes its active release schedule, update `package.json` engines, the CI
-matrix, and `scripts/node-version-policy.mjs` together.
-
-### Adding New Prediction Models
-
-Create a new model by:
-
-1. Implementing `FeeModel` interface in `src/lib/feePredictor.ts`
-2. Adding it to the `FeePredictor` class
-3. Registering it in the model registry
-
-### Improving Accuracy
-
-1. Collect prediction accuracy data
-2. Use `FeePredictor.updateAccuracy()` with actual vs predicted values
-3. Trigger model retraining when accuracy falls below threshold
-4. Configure automatic retraining in production
-
-### API Extensions
-
-Add new endpoints by:
-
-1. Creating new routes in `api/routes/transactions.js`
-2. Implementing handlers in `src/lib/feePredictionIntegration.ts`
-3. Updating TypeScript definitions in TypeScript types
-
-## API Authentication Boundaries
-
-The server-side API uses a narrow trust boundary for user-specific and operational data:
-
-- `Authorization: Bearer <token>` is required on all protected endpoints.
-- Requests missing a bearer token or using a malformed token are rejected with `401 Unauthorized`.
-- Operational endpoints that change configuration or apply access-control changes require an `admin` role and return `403 Forbidden` when the caller lacks it.
-- Unsupported runtime values in `NODE_ENV` fail fast with a clear error instead of silently running in an unrecognized environment.
-- Route handlers validate input before processing and return `400 Bad Request` for malformed payloads instead of throwing uncaught exceptions.
-
-This keeps user-specific and operational endpoints behind explicit authentication and authorization checks while keeping the API compatible with the existing mock OAuth pattern used in development and test environments.
-
-## Canary Deployment Health Probes
-
-The API service includes automated canary deployment health probes and auto-abort reliability gating:
-
-- **Docker Compose Canary Service**: Run `docker compose --profile canary up -d --build redis api-canary` to start the staged canary API candidate on port 4001 with active healthchecks.
-- **Critical Route Health Probing**: `pnpm run canary:probe` exercises critical API routes (`/health`, `/health/deep`, `/api/docs`, accounts, transactions, gas prediction) across configurable test iterations.
-- **Error Budget Auto-Abort**: Automatically halts rollouts and executes rollback commands when error budget (default: 5%) or p95 latency thresholds (default: 2000ms) are breached.
-- **Full Guide**: See [docs/CANARY_DEPLOYMENT.md](docs/CANARY_DEPLOYMENT.md) for full architecture, CLI flags, Docker Compose setup, and deployment workflow details.
+### SEP-38 Integration
+- **Quotes**: Added support for SEP-38 Quotes API. Now discovers ANCHOR_QUOTE_SERVER and can retrieve /info, /prices, /price and request authenticated /quote.
+- **Security**: Authentication leverages SEP-10 tokens for quotes. Be aware that tokens can expire, and quotes have an expiration window handled gracefully with a countdown timer.
+...
+...

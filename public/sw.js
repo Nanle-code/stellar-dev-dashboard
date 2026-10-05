@@ -12,14 +12,16 @@
  *   stellar-api-v3          Cacheable Horizon / Soroban GET responses
  *
  * Messaging protocol (postMessage from client):
- *   { type: 'SKIP_WAITING' }             — activate immediately
+ *   { type: 'SKIP_WAITING' }             — activate immediately (legacy)
+ *   { type: 'RESUME_ACTIVATION' }        — activate immediately (clears deferral)
+ *   { type: 'DEFER_ACTIVATION' }         — postpone activation (client is in a
+ *                                          critical signing flow, #886)
  *   { type: 'CACHE_PUT', url, data }     — store a pre-fetched value
  *   { type: 'CACHE_DELETE', url }        — evict a specific URL
  *   { type: 'CACHE_CLEAR_API' }          — flush the API cache bucket
  *   { type: 'GET_STATS' }                — reply with { type:'STATS', stats }
  *   { type: 'WARM_URLS', urls }          — pre-fetch a list of URLs into API cache
  */
-
 
 const SHELL_CACHE  = 'stellar-shell-v4';
 const API_CACHE    = 'stellar-api-v4';
@@ -62,6 +64,14 @@ const API_CACHE_TTL_MS = 30_000; // 30 s
 
 // Max entries in the API cache bucket before oldest entries are evicted
 const API_CACHE_MAX_ENTRIES = 150;
+
+// ─── Deferred activation state (#886) ─────────────────────────────────────────
+// A client in a critical signing flow asks us to postpone activation so the
+// signature is not interrupted by a controller transition. The worker stays in
+// the browser's "waiting" state until RESUME_ACTIVATION (or legacy
+// SKIP_WAITING) arrives — the browser then moves it to active, fires the
+// activate handler below, and the controlled pages reload into the new version.
+let activationDeferred = false;
 
 // ─── Stats counters ───────────────────────────────────────────────────────────
 const stats = {
@@ -313,7 +323,23 @@ self.addEventListener('message', (event) => {
   if (!msg) return;
 
   switch (msg.type) {
+    // #886 — Postpone activation while a critical signing flow is active.
+    // The worker remains in the waiting state; the browser will not activate
+    // it until we are told to resume. Never auto-activates on a timer.
+    case 'DEFER_ACTIVATION':
+      activationDeferred = true;
+      break;
+
+    // Activate immediately and clear any pending deferral.
+    case 'RESUME_ACTIVATION':
+      activationDeferred = false;
+      self.skipWaiting();
+      break;
+
+    // Legacy immediate activation (pre-#886 clients). Clearing the deferral
+    // flag keeps the two paths consistent.
     case 'SKIP_WAITING':
+      activationDeferred = false;
       self.skipWaiting();
       break;
 

@@ -1,6 +1,6 @@
-import React, { lazy, Suspense, useEffect, useState, useCallback, type CSSProperties } from 'react';
+import React, { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { matchRoute, buildPath, getDocumentTitle, type TabComponent } from './routes';
+import { matchRoute, getDocumentTitle, ROUTES_BY_ID, buildPath, type TabComponent } from './routes';
 import { getRouteComponent } from './routeComponents';
 import NotFound from './NotFound';
 import Sidebar from '../components/layout/Sidebar';
@@ -12,6 +12,7 @@ import RealTimeNotificationCenter from '../components/notifications/RealTimeNoti
 import { useRealTimeNotifications } from '../hooks/useRealTimeNotifications';
 import { initCache } from '../lib/cacheInit';
 import ErrorBoundary from '../components/ErrorBoundary';
+import RouteErrorBoundary from '../components/routes/RouteErrorBoundary';
 import { useStore } from '../lib/store';
 import { useResponsive } from '../hooks/useResponsive';
 import { initializeErrorReporting, addBreadcrumb } from '../lib/errorReporting';
@@ -24,6 +25,9 @@ import { TourLauncher } from '../components/tutorial';
 import GlobalSearch from '../components/search/GlobalSearch';
 import UserPreferences from '../components/preferences/UserPreferences';
 import NetworkIndicator from '../components/layout/NetworkIndicator';
+import NetworkSafetyBadge from '../components/layout/NetworkSafetyBadge';
+import { useWriteGuard } from '../hooks/useWriteGuard';
+import SubmissionTray from '../components/dashboard/SubmissionTray';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import KeyboardNavigation from '../components/accessibility/KeyboardNavigation';
 import SkipLink from '../components/accessibility/SkipLink';
@@ -32,6 +36,7 @@ import ThemeToggle from '../components/layout/ThemeToggle';
 import OfflineBanner from '../components/layout/OfflineBanner';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import SWUpdatePrompt from '../components/SWUpdatePrompt';
+import WalletIdlePrompt from '../components/security/WalletIdlePrompt';
 import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import DevToolbar from '../components/dashboard/DevToolbar';
 import DebugAssistantButton from '../components/debug/DebugAssistantButton';
@@ -45,56 +50,40 @@ import ExpertiseBadge from '../components/expertise/ExpertiseBadge';
 import PredictiveFeatureSuggestions from '../components/dashboard/PredictiveFeatureSuggestions';
 import TipButton from '../components/ai/TipButton';
 import { useWalletSessionListeners } from '../hooks/useWalletSessionListeners';
+import ShareViewButton from '../components/share/ShareViewButton';
+import SharedViewBanner from '../components/share/SharedViewBanner';
+import { useSharedView } from '../hooks/useSharedView';
+import { useAIKillSwitch } from '../context/AIKillSwitchContext';
 import {
   DEMO_MODE_LABEL,
   DEMO_MODE_BADGE,
   getDemoFixtureSummarySafe,
 } from '../lib/demoMode';
+import { Badge, Card, Skeleton, Stack } from '../design-system/components';
+import './DashboardLayout.css';
 
 interface SearchResult {
   type?: string;
 }
 
-const TransactionDetail = lazy(() => import('../components/dashboard/TransactionDetail'));
-
 function TabLoadingFallback() {
   return (
-    <div
-      aria-busy="true"
-      aria-live="polite"
-      style={{
-        minHeight: '420px',
-        display: 'grid',
-        gap: '16px',
-        gridTemplateRows: '32px 120px 1fr',
-      }}
-    >
-      <div
-        style={{
-          width: '180px',
-          height: '24px',
-          borderRadius: '6px',
-          background: 'var(--bg-elevated)',
-        }}
-      />
-      <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)' }} />
-      <div
-        style={{
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          background: 'var(--bg-card)',
-        }}
-      />
-    </div>
+    <Card className="dashboard-loading-card" aria-busy="true" aria-live="polite">
+      <Stack gap="md">
+        <Skeleton shape="heading" />
+        <Skeleton shape="panel" />
+        <Skeleton shape="panel" />
+      </Stack>
+    </Card>
   );
 }
 
 function NotificationBell({
   onClick,
-  bottomOffset = '20px',
+  mobile = false,
 }: {
   onClick: () => void;
-  bottomOffset?: string;
+  mobile?: boolean;
 }) {
   const { unreadCount } = useRealTimeNotifications();
   return (
@@ -102,45 +91,17 @@ function NotificationBell({
       type="button"
       onClick={onClick}
       aria-label={`Open notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
-      style={{
-        position: 'fixed',
-        right: '20px',
-        bottom: bottomOffset,
-        width: '48px',
-        height: '48px',
-        borderRadius: '50%',
-        border: '1px solid var(--border)',
-        background: 'var(--bg-card)',
-        color: 'var(--text-primary)',
-        cursor: 'pointer',
-        boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
-        zIndex: 1050,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '18px',
-      }}
+      className={`dashboard-notification-bell${mobile ? ' dashboard-notification-bell--mobile' : ''}`}
     >
       <span aria-hidden="true">🔔</span>
       {unreadCount > 0 && (
-        <span
+        <Badge
           aria-hidden="true"
-          style={{
-            position: 'absolute',
-            top: '-4px',
-            right: '-4px',
-            background: 'var(--cyan, #06b6d4)',
-            color: '#0a0a0a',
-            borderRadius: '999px',
-            fontSize: '10px',
-            fontWeight: 700,
-            padding: '2px 6px',
-            minWidth: '18px',
-            textAlign: 'center',
-          }}
+          className="dashboard-notification-count"
+          tone="info"
         >
           {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
+        </Badge>
       )}
     </button>
   );
@@ -167,6 +128,7 @@ export default function DashboardLayout() {
     exitDemoMode,
   } = useStore() as any;
   const { isMobile, isTablet } = useResponsive();
+  const { enabled: aiEnabled, ready: aiControlReady } = useAIKillSwitch();
   const { level, isNovice, setLevel, updateSignals } = useExpertise();
   const { trackFeatureInteraction } = useExpertiseTracking({ enabled: true });
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
@@ -237,13 +199,25 @@ export default function DashboardLayout() {
     document.title = getDocumentTitle(activeRoute);
   }, [activeRoute]);
 
+  // Route ids the app can actually render, handed to the shared-view decoder so
+  // an unrecognised `t=` in a link degrades to the overview instead of routing
+  // somewhere unexpected (#988).
+  const shareableTabs = React.useMemo(() => Object.keys(ROUTES_BY_ID), []);
+  const sharedView = useSharedView({ knownTabs: shareableTabs });
+
+  // #875 — counts shown in the read-only demo banner.
+  const demoSummary = isDemoMode ? getDemoFixtureSummarySafe() : null;
+
+  // #983 — mainnet write guard (shared across child tabs via context or prop-drilling)
+  const { isReadOnlyLocked, lockReadOnly, unlockReadOnly } = useWriteGuard();
+
   useRouteFocus(activeTab);
   useStorageQuotaAlerts();
   useWalletSessionListeners();
 
   useEffect(() => {
     // v2: full multi-layer cache initialization (warm, prune, SW bridge)
-    initCache(useStore.getState().network, useStore.getState().connectedAddress ?? undefined).catch(
+    initCache(useStore.getState().network.networkId, useStore.getState().connectedAddress ?? undefined).catch(
       () => {}
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -327,42 +301,8 @@ export default function DashboardLayout() {
     : null;
   const txHash = activeRoute?.id === 'transactions' ? routeMatch?.params.hash : undefined;
   const isNotFound = Boolean(connectedAddress) && !routeMatch && !isConnectRoute;
-
-  const getMainStyles = (): CSSProperties => {
-    const baseStyles: CSSProperties = {
-      flex: 1,
-      width: '100%',
-      transition: 'margin-left var(--transition), padding var(--transition)',
-    };
-
-    if (isMobile) {
-      return {
-        ...baseStyles,
-        marginLeft: 0,
-        padding: 'var(--content-padding-mobile)',
-        paddingTop: 'calc(var(--header-height) + var(--content-padding-mobile) + 16px)',
-        maxWidth: '100%',
-      };
-    }
-
-    if (isTablet) {
-      return {
-        ...baseStyles,
-        marginLeft: 'var(--sidebar-width)',
-        padding: 'var(--content-padding-tablet)',
-        paddingTop: 'calc(var(--content-padding-tablet) + 16px)',
-        maxWidth: '1100px',
-      };
-    }
-
-    return {
-      ...baseStyles,
-      marginLeft: 'var(--sidebar-width)',
-      padding: 'var(--content-padding)',
-      paddingTop: 'calc(var(--content-padding) + 16px)',
-      maxWidth: '1100px',
-    };
-  };
+  const aiPanelRoutes = new Set(['liquidityPrediction', 'pathExplorer', 'personalization', 'txPatterns']);
+  const isDisabledAIPanel = Boolean(activeRoute && aiPanelRoutes.has(activeRoute.id) && (!aiEnabled || !aiControlReady));
 
   const handleRetry = async (): Promise<void> => {
     addBreadcrumb('App-level retry attempted', 'user_action');
@@ -393,36 +333,35 @@ export default function DashboardLayout() {
   return (
     <ErrorBoundary onRetry={handleRetry} maxRetries={3}>
       <SkipLink />
-      <OfflineBanner />
+      <OfflineBanner routeId={routeMatch?.route.id ?? activeTab} />
       <PWAInstallBanner />
       <SWUpdatePrompt />
-      <div
-        style={{
-          display: 'flex',
-          minHeight: '100vh',
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
+      <div className="dashboard-layout-root">
         {isMobile && <MobileHeader />}
         {isMobile ? <MobileSidebar /> : <Sidebar />}
         <main
           id="main-content"
           tabIndex={-1}
           aria-label="Dashboard content"
-          style={getMainStyles()}
+          className={`dashboard-main${isMobile ? ' dashboard-main--mobile' : isTablet ? ' dashboard-main--tablet' : ''}`}
           ref={isMobile ? swipeAreaRef : null}
         >
           <KeyboardNavigation />
-          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ flex: 1 }}>
+          <Stack direction="row" gap="sm" align="center" className="dashboard-toolbar">
+            <div className="dashboard-toolbar__search">
               <GlobalSearch onSelectResult={handleSearchResult} />
             </div>
             <ThemeToggle />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <NetworkIndicator />
+              {/* #983 – NetworkSafetyBadge replaces NetworkIndicator; amber chrome on mainnet */}
+              <NetworkSafetyBadge
+                isReadOnlyLocked={isReadOnlyLocked}
+                onLockToggle={isReadOnlyLocked ? unlockReadOnly : lockReadOnly}
+              />
+              {/* Keep the compact dot indicator for quick reference in dense layouts */}
+              <NetworkIndicator compact />
             </div>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <div className="dashboard-toolbar__expertise">
               <ExpertiseBadge
                 onLevelChange={() => {
                   trackFeatureInteraction('expertise-badge');
@@ -440,70 +379,37 @@ export default function DashboardLayout() {
               aria-haspopup="dialog"
               aria-expanded={preferencesOpen}
               title="User Preferences"
-              style={{
-                width: '36px',
-                height: '36px',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                flexShrink: 0,
-                transition: 'var(--transition)',
-              }}
+              className="dashboard-preferences-trigger"
             >
               ⚙
             </button>
-          </div>
-          <div style={{ marginBottom: '16px' }}>
+          </Stack>
+          <div className="dashboard-price-section">
             <PriceTicker />
           </div>
+          <SharedViewBanner
+            view={sharedView}
+            onExit={sharedView.exitSharedView}
+            onSwitchNetwork={sharedView.switchToSnapshotNetwork}
+          />
           {isDemoMode && (
             <div
               data-testid="demo-mode-banner"
               role="status"
               aria-label={`${DEMO_MODE_LABEL}: read-only testnet portfolio`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap',
-                marginBottom: '16px',
-                padding: '10px 14px',
-                background: 'var(--amber-glow)',
-                border: '1px solid var(--amber)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '12px',
-                color: 'var(--text-primary)',
-              }}
+              className="dashboard-demo-banner"
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                    border: '1px solid var(--amber)',
-                    color: 'var(--amber)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '10px',
-                    letterSpacing: '1px',
-                    fontWeight: 700,
-                  }}
-                >
+              <Stack direction="row" gap="sm" align="center" wrap className="dashboard-demo-banner__content">
+                <Badge tone="warning" className="dashboard-demo-banner__badge">
                   {DEMO_MODE_BADGE}
-                </span>
+                </Badge>
                 <strong>{DEMO_MODE_LABEL}</strong>
-                <span style={{ color: 'var(--text-secondary)' }}>
+                <span className="dashboard-demo-banner__description">
                   {demoSummary
                     ? `${demoSummary.accountCount} testnet accounts, ${demoSummary.contractCount} contracts. No wallet connected.`
                     : 'Read-only testnet portfolio. No wallet connected.'}
                 </span>
-              </div>
+              </Stack>
               <button
                 type="button"
                 data-testid="exit-demo-button"
@@ -512,17 +418,7 @@ export default function DashboardLayout() {
                   addBreadcrumb('Exited demo mode', 'user_action');
                   navigate('/connect', { replace: true });
                 }}
-                style={{
-                  padding: '7px 14px',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-bright)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
+                className="dashboard-demo-banner__exit"
               >
                 Exit demo
               </button>
@@ -535,95 +431,78 @@ export default function DashboardLayout() {
               <NotFound />
             ) : txHash ? (
               <Suspense fallback={<TabLoadingFallback />}>
-                <TransactionDetail txHash={txHash} onClose={() => navigate('/transactions')} />
+                <div style={{ padding: '40px', textAlign: 'center' }}>
+                  <p>Transaction detail view not available. <a href="/transactions" onClick={(e) => { e.preventDefault(); navigate('/transactions'); }}>View all transactions</a></p>
+                </div>
               </Suspense>
+            ) : isDisabledAIPanel ? (
+              <div role="status" style={{ padding: 24, color: 'var(--text-muted)' }}>
+                {aiControlReady
+                  ? 'AI-assisted panels are temporarily disabled by the operator.'
+                  : 'AI-assisted panels are unavailable because runtime status could not be verified.'}
+              </div>
             ) : ActiveComponent ? (
-              <Suspense fallback={<TabLoadingFallback />}>
-                <ActiveComponent />
-              </Suspense>
+              <RouteErrorBoundary
+                routeName={activeRoute?.title || activeTab}
+                routePath={location.pathname}
+                onRetry={handleRetry}
+                onNavigateHome={() => navigate('/overview')}
+                maxRetries={2}
+              >
+                <Suspense fallback={<TabLoadingFallback />}>
+                  <ActiveComponent />
+                </Suspense>
+              </RouteErrorBoundary>
             ) : (
               <NotFound />
             )}
           </ErrorBoundary>
         </main>
         <TourLauncher />
+        {/* Issue #981: submission progress lives in a module-level tracker, so
+            this survives every route change below it. */}
+        <SubmissionTray />
         <DevToolbar />
-        <PredictiveFeatureSuggestions onNavigate={(tab: string) => navigate(`/${tab}`)} />
+        {aiEnabled && aiControlReady && (
+          <PredictiveFeatureSuggestions onNavigate={(tab: string) => navigate(`/${tab}`)} />
+        )}
         <NotificationBell
           onClick={() => setNotificationsOpen(true)}
-          bottomOffset={isMobile ? 'calc(60px + 16px)' : '20px'}
+          mobile={isMobile}
         />
         <RealTimeNotificationCenter
           open={notificationsOpen}
           onClose={() => setNotificationsOpen(false)}
         />
-        <DebugAssistantButton
-          onClick={() => toggleDebugAssistant()}
-          isOpen={debugAssistantOpen}
-          issueCount={debugAssistantIssueCount}
-        />
-        {debugAssistantOpen && <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />}
+        {aiEnabled && aiControlReady && (
+          <>
+            <DebugAssistantButton
+              onClick={() => toggleDebugAssistant()}
+              isOpen={debugAssistantOpen}
+              issueCount={debugAssistantIssueCount}
+            />
+            {debugAssistantOpen && <DebugAssistantPanel onClose={() => toggleDebugAssistant()} />}
+          </>
+        )}
 
         {/* Conversational Navigation Button */}
-        <button
+        {aiEnabled && aiControlReady && <button
           type="button"
           onClick={() => setConversationOpen(!conversationOpen)}
           aria-label={conversationOpen ? 'Close navigation assistant' : 'Open navigation assistant'}
-          style={{
-            position: 'fixed',
-            right: '20px',
-            bottom: isMobile ? 'calc(60px + 78px)' : '78px',
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            border: `2px solid ${conversationOpen ? 'var(--cyan)' : 'var(--border)'}`,
-            background: conversationOpen ? 'var(--cyan-glow)' : 'var(--bg-card)',
-            color: conversationOpen ? 'var(--cyan)' : 'var(--text-primary)',
-            cursor: 'pointer',
-            boxShadow: conversationOpen
-              ? '0 0 20px var(--cyan-glow)'
-              : '0 6px 18px rgba(0, 0, 0, 0.25)',
-            zIndex: 1061,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            transition: 'all 180ms ease',
-          }}
-          onMouseEnter={(e) => {
-            if (!conversationOpen) {
-              e.currentTarget.style.borderColor = 'var(--cyan-dim)';
-              e.currentTarget.style.boxShadow = '0 0 12px var(--cyan-glow)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!conversationOpen) {
-              e.currentTarget.style.borderColor = 'var(--border)';
-              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.25)';
-            }
-          }}
+          className={`dashboard-conversation-trigger${conversationOpen ? ' dashboard-conversation-trigger--open' : ''}${isMobile ? ' dashboard-conversation-trigger--mobile' : ''}`}
         >
           <span aria-hidden="true">{conversationOpen ? '✕' : '💬'}</span>
-        </button>
+        </button>}
 
-        <ConversationPanel isOpen={conversationOpen} onClose={() => setConversationOpen(false)} />
+        {aiEnabled && aiControlReady && <ConversationPanel isOpen={conversationOpen} onClose={() => setConversationOpen(false)} />}
 
         {isMobile && <MobileNavigation />}
-        <TipButton />
+        {aiEnabled && aiControlReady && <TipButton />}
         {preferencesOpen && (
           <div
             role="presentation"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              backdropFilter: 'blur(4px)',
-              zIndex: 1100,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px',
-            }}
+            className="dashboard-preferences-overlay"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setPreferencesOpen(false);

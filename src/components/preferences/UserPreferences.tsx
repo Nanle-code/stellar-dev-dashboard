@@ -2,10 +2,29 @@ import React, { useState } from 'react'
 import { usePreferences } from '../../hooks/usePreferences'
 import AddressBook from './AddressBook'
 import ThemeSettings from './ThemeSettings'
+import NotificationPreferences from './NotificationPreferences'
 import AccessibilitySettings from '../accessibility/AccessibilitySettings'
+import PreferenceUndoBanner from './PreferenceUndoBanner'
 import { showTestNotification } from '../../utils/offline'
-import { Bell, Globe2 } from 'lucide-react'
+import {
+  Bell,
+  Globe2,
+  SlidersHorizontal,
+  Download,
+  Upload,
+  Share2,
+  RefreshCw,
+} from 'lucide-react'
 import { useI18nContext } from '../I18nProvider.jsx'
+import {
+  PREFERENCE_PRESETS,
+  applyPreferencePreset,
+  exportPreferences,
+  saveImportedPreferences,
+  sharePreferencePreset,
+  validatePreferences,
+  getPreferenceSyncStatus,
+} from '../../lib/userPreferences'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -17,7 +36,7 @@ const TABS = [
 ]
 
 export default function UserPreferences({ onClose }) {
-  const { preferences, update, reset, loading } = usePreferences()
+  const { preferences, update, save, reset, loading } = usePreferences()
   const {
     changeLanguage,
     currentLanguage,
@@ -33,6 +52,9 @@ export default function UserPreferences({ onClose }) {
   const [activeTab, setActiveTab] = useState('general')
   const [saved, setSaved] = useState(false)
   const [shareToken, setShareToken] = useState('')
+  const [transferError, setTransferError] = useState('')
+  const [selectedPresetId, setSelectedPresetId] = useState(PREFERENCE_PRESETS[0]?.id ?? '')
+  const [showAccessibility, setShowAccessibility] = useState(false)
   const validation = validatePreferences(preferences)
   const syncStatus = getPreferenceSyncStatus(preferences)
 
@@ -45,6 +67,51 @@ export default function UserPreferences({ onClose }) {
   const handleLanguageChange = async (languageCode) => {
     await changeLanguage(languageCode)
     await handleChange('language', languageCode)
+  }
+
+  const handlePreset = async (presetId) => {
+    try {
+      setTransferError('')
+      setSelectedPresetId(presetId)
+      const next = applyPreferencePreset(presetId, preferences, preferences.customPresets || [])
+      await save(next)
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : 'Failed to apply preset')
+    }
+  }
+
+  const handleExport = () => {
+    setTransferError('')
+    const json = exportPreferences(preferences)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'stellar-preferences.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = async () => {
+    const payload = window.prompt('Paste the exported preferences JSON:')
+    if (!payload || !payload.trim()) return
+    try {
+      setTransferError('')
+      const savedPrefs = await saveImportedPreferences(payload)
+      await save(savedPrefs)
+      setShareToken('')
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : 'Failed to import preferences')
+    }
+  }
+
+  const handleSharePreset = (preset) => {
+    setTransferError('')
+    try {
+      setShareToken(sharePreferencePreset(preset))
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : 'Failed to share preset')
+    }
   }
 
   if (loading) {
@@ -112,7 +179,10 @@ export default function UserPreferences({ onClose }) {
         ))}
       </div>
 
+      <PreferenceUndoBanner style={{ margin: '12px 18px 0 18px' }} />
+
       <div style={{ padding: '18px' }}>
+
         {activeTab === 'general' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <PreferenceRow label="Default Network">
@@ -324,7 +394,14 @@ export default function UserPreferences({ onClose }) {
                 <Upload size={14} />
                 Import JSON
               </button>
-              <button onClick={handleSharePreset} style={actionButtonStyle}>
+              <button
+                onClick={() => {
+                  const preset = PREFERENCE_PRESETS.find((entry) => entry.id === selectedPresetId) || PREFERENCE_PRESETS[0]
+                  if (preset) handleSharePreset(preset)
+                }}
+                style={actionButtonStyle}
+                disabled={!selectedPresetId}
+              >
                 <Share2 size={14} />
                 Share Preset
               </button>
@@ -350,11 +427,40 @@ export default function UserPreferences({ onClose }) {
                 {shareToken}
               </div>
             )}
+
+            {transferError && (
+              <div style={{
+                padding: '10px',
+                border: '1px solid var(--red)',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(239,68,68,.10)',
+                color: 'var(--red)',
+                fontSize: '11px',
+                overflowWrap: 'anywhere',
+              }}>
+                {transferError}
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === 'accessibility' && (
-          <AccessibilitySettings />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+              Control reduced motion, high contrast, font sizing, and adaptive rendering.
+            </p>
+            <button
+              onClick={() => setShowAccessibility(true)}
+              style={{ ...actionButtonStyle, alignSelf: 'flex-start' }}
+            >
+              Open Accessibility Settings
+            </button>
+            {showAccessibility && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 3000 }}>
+                <AccessibilitySettings onClose={() => setShowAccessibility(false)} />
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'notifications' && (
@@ -433,7 +539,7 @@ const selectStyle = {
   outline: 'none',
 }
 
-const presetButtonStyle = {
+const presetButtonStyle: React.CSSProperties = {
   padding: '10px',
   background: 'var(--bg-elevated)',
   border: '1px solid var(--border)',

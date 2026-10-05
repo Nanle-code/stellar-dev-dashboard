@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, X } from 'lucide-react';
-import { subscribeToSWUpdates, applySWUpdate } from '../utils/offline';
+import {
+  subscribeToSWUpdates,
+  applySWUpdate,
+  isCriticalSigningActive,
+} from '../utils/offline';
 
 export default function SWUpdatePrompt() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  // #886 — Track that the user asked to update while a critical signing flow
+  // was active, so the banner can confirm the deferral instead of silently
+  // doing nothing.
+  const [deferred, setDeferred] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToSWUpdates((available) => {
       setUpdateAvailable(available);
-      if (available) setDismissed(false);
+      if (available) {
+        setDismissed(false);
+        setDeferred(false);
+      }
     });
     return unsubscribe;
   }, []);
@@ -18,7 +29,15 @@ export default function SWUpdatePrompt() {
 
   const handleUpdate = async () => {
     setDismissed(true);
-    await applySWUpdate();
+    const result = await applySWUpdate();
+
+    // #886 — While a critical signing flow is active the activation is
+    // deferred (it happens automatically when the flow ends). Tell the user
+    // instead of appearing to do nothing.
+    if (result === 'deferred' || isCriticalSigningActive()) {
+      setDeferred(true);
+      setDismissed(false);
+    }
   };
 
   return (
@@ -32,22 +51,35 @@ export default function SWUpdatePrompt() {
       </div>
 
       <div className="flex-1 min-w-0">
-        <h4 className="text-white font-bold text-sm tracking-tight">Update Available</h4>
-        <p className="text-gray-400 text-xs mt-1 leading-relaxed">
-          A new version of the dashboard is ready. Update now to get the latest features and fixes.
-        </p>
+        <h4 className="text-white font-bold text-sm tracking-tight">
+          {deferred ? 'Update scheduled' : 'Update Available'}
+        </h4>
+        {deferred ? (
+          <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+            You're signing a transaction. The update will be applied
+            automatically once it completes — no need to do anything.
+          </p>
+        ) : (
+          <p className="text-gray-400 text-xs mt-1 leading-relaxed">
+            A new version of the dashboard is ready. Update now to get the
+            latest features and fixes.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={handleUpdate}
-          className="px-4 py-2 bg-cyan-500 text-white font-bold text-xs rounded-lg hover:bg-cyan-400 transition-colors shadow-sm"
-        >
-          Update
-        </button>
+        {!deferred && (
+          <button
+            onClick={handleUpdate}
+            className="px-4 py-2 bg-cyan-500 text-white font-bold text-xs rounded-lg hover:bg-cyan-400 transition-colors shadow-sm"
+          >
+            Update
+          </button>
+        )}
         <button
           onClick={() => setDismissed(true)}
           className="p-2 text-gray-500 hover:text-white transition-colors rounded-lg"
+          aria-label="Dismiss update notification"
         >
           <X size={18} />
         </button>

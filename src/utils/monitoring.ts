@@ -24,7 +24,11 @@ import {
 } from '../lib/errorReporting';
 import { initPerformanceMonitoring } from '../lib/performance';
 import { createLogger } from './logger';
-import { loadPreferences } from './preferences';
+import {
+  hasCurrentAnalyticsConsent,
+  subscribeToAnalyticsConsent,
+} from './analyticsConsent';
+import { setProviderPolicy, type ProviderFailurePolicy } from './providerCircuitBreaker';
 
 const logger = createLogger('Monitoring');
 
@@ -43,6 +47,13 @@ export interface MonitoringConfig {
   replaySampleRate: number;
   /** Optional RUM endpoint for the existing performance pipeline. */
   rumEndpoint?: string;
+  /**
+   * Circuit-breaker failure policy per external provider.
+   * Keys are provider names (e.g. `analytics`, `rum`, `errorReporting`,
+   * `sentry`); values are `fail-open` (drop, keep the app running) or
+   * `fail-closed` (propagate so the caller can retry).
+   */
+  providerPolicies?: Record<string, ProviderFailurePolicy>;
 }
 
 const defaultConfig: MonitoringConfig = {
@@ -55,19 +66,22 @@ const defaultConfig: MonitoringConfig = {
 };
 
 let _initialised = false;
+let sentryStarted = false;
+let activeMonitoringConfig: MonitoringConfig | null = null;
+let unsubscribeConsent: (() => void) | null = null;
+const webVitalsObservers: PerformanceObserver[] = [];
 
 // ─── Sentry init ──────────────────────────────────────────────────────────────
 
-function initialiseSentry(cfg: MonitoringConfig): void {
-  const prefs = loadPreferences();
-  if (prefs.diagnosticsConsent !== true) {
+function initialiseSentry(cfg: MonitoringConfig): boolean {
+  if (!hasCurrentAnalyticsConsent()) {
     logger.info('Sentry initialization skipped: user has not granted diagnostics consent.');
-    return;
+    return false;
   }
 
   if (!cfg.sentryDsn) {
     logger.warn('Sentry DSN not set – error tracking disabled.', { env: cfg.environment });
-    return;
+    return false;
   }
 
   Sentry.init({
@@ -100,6 +114,7 @@ function initialiseSentry(cfg: MonitoringConfig): void {
     // ── Scrubbing ────────────────────────────────────────────────────────────
     // Strip PII / secrets from outgoing event payloads.
     beforeSend(event) {
+      if (!hasCurrentAnalyticsConsent()) return null;
       // Remove auth tokens from request headers recorded in the event
       if (event.request?.headers) {
         const h = event.request.headers as Record<string, string>;
@@ -121,6 +136,9 @@ function initialiseSentry(cfg: MonitoringConfig): void {
       }
       return event;
     },
+    beforeSendTransaction(event) {
+      return hasCurrentAnalyticsConsent() ? event : null;
+    },
 
     // Drop Sentry's own internal traffic and localhost noise
     denyUrls: [/localhost/, /127\.0\.0\.1/, /extensions\//i],
@@ -131,6 +149,7 @@ function initialiseSentry(cfg: MonitoringConfig): void {
     release: cfg.release ?? 'unknown',
     tracesSampleRate: cfg.tracesSampleRate,
   });
+  return true;
 }
 
 // ─── Global error listeners ───────────────────────────────────────────────────
@@ -141,6 +160,7 @@ function initialiseSentry(cfg: MonitoringConfig): void {
  */
 function attachGlobalErrorHandlers(): void {
   window.addEventListener('error', (event: ErrorEvent) => {
+    if (!hasCurrentAnalyticsConsent()) return;
     const err = event.error instanceof Error ? event.error : new Error(event.message);
 
     // Sentry already captures window.onerror via its SDK, but we add extra
@@ -164,6 +184,7 @@ function attachGlobalErrorHandlers(): void {
   });
 
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+    if (!hasCurrentAnalyticsConsent()) return;
     const reason = event.reason;
     const err = reason instanceof Error ? reason : new Error(String(reason ?? 'Unhandled rejection'));
 
@@ -188,7 +209,8 @@ function attachGlobalErrorHandlers(): void {
  * and also emits a Sentry breadcrumb for quick triage.
  */
 function attachWebVitalsBridge(): void {
-  if (typeof PerformanceObserver === 'undefined') return;
+  if (!hasCurrentAnalyticsConsent() || !sentryStarted || webVitalsObservers.length > 0
+    || typeof PerformanceObserver === 'undefined') return;
 
   // LCP
   try {
@@ -201,6 +223,7 @@ function attachWebVitalsBridge(): void {
       addBreadcrumb(`LCP: ${value}ms`, 'performance', { value });
     });
     lcpObs.observe({ type: 'largest-contentful-paint', buffered: true });
+    webVitalsObservers.push(lcpObs);
   } catch { /* observer not supported */ }
 
   // CLS
@@ -215,6 +238,7 @@ function attachWebVitalsBridge(): void {
       addBreadcrumb(`CLS: ${cls}`, 'performance', { value: cls });
     });
     clsObs.observe({ type: 'layout-shift', buffered: true });
+    webVitalsObservers.push(clsObs);
   } catch { /* observer not supported */ }
 
   // FID / INP
@@ -228,7 +252,13 @@ function attachWebVitalsBridge(): void {
       }
     });
     inputObs.observe({ type: 'first-input', buffered: true });
+    webVitalsObservers.push(inputObs);
   } catch { /* observer not supported */ }
+}
+
+function detachWebVitalsBridge(): void {
+  webVitalsObservers.forEach(observer => observer.disconnect());
+  webVitalsObservers.length = 0;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -243,15 +273,46 @@ export function initMonitoring(userConfig: Partial<MonitoringConfig> = {}): void
   _initialised = true;
 
   const cfg: MonitoringConfig = { ...defaultConfig, ...userConfig };
+  activeMonitoringConfig = cfg;
 
-  // 1. Sentry SDK
-  initialiseSentry(cfg);
+  // 0. Circuit-breaker failure policies for external providers
+  if (cfg.providerPolicies) {
+    Object.entries(cfg.providerPolicies).forEach(([provider, policy]) => {
+      setProviderPolicy(provider, policy);
+    });
+  }
+
+  // 1. Optional providers start only after the current policy has been accepted.
+  if (hasCurrentAnalyticsConsent()) {
+    try {
+      sentryStarted = initialiseSentry(cfg);
+    } catch (error) {
+      logger.warn('Sentry could not be initialized; monitoring remains unavailable.', { error });
+      sentryStarted = false;
+    }
+  }
+
+  unsubscribeConsent?.();
+  unsubscribeConsent = subscribeToAnalyticsConsent(allowed => {
+    if (!allowed) {
+      revokeSentryConsent();
+      return;
+    }
+
+    if (!activeMonitoringConfig || sentryStarted) return;
+    try {
+      sentryStarted = initialiseSentry(activeMonitoringConfig);
+    } catch (error) {
+      logger.warn('Sentry could not be initialized after consent was granted.', { error });
+    }
+    attachWebVitalsBridge();
+  });
 
   // 2. Global error capture (bridges into errorReporting + Sentry)
-  attachGlobalErrorHandlers();
+  if (typeof window !== 'undefined') attachGlobalErrorHandlers();
 
   // 3. Web Vitals → Sentry measurements + breadcrumbs
-  attachWebVitalsBridge();
+  if (typeof window !== 'undefined') attachWebVitalsBridge();
 
   // 4. Existing performance monitoring (LCP/CLS/FID budgets, RUM endpoint)
   initPerformanceMonitoring({ rumEndpoint: cfg.rumEndpoint });
@@ -263,10 +324,19 @@ export function initMonitoring(userConfig: Partial<MonitoringConfig> = {}): void
 }
 
 export function revokeSentryConsent(): void {
-  logger.info('User revoked diagnostics consent, closing Sentry client.');
-  const client = Sentry.getClient();
-  if (client) {
-    client.close(2000); // 2 second flush then close
+  logger.info('User revoked diagnostics consent, closing Sentry client without flushing queued events.');
+  detachWebVitalsBridge();
+  sentryStarted = false;
+  try {
+    Sentry.setUser(null);
+    const client = Sentry.getClient();
+    if (client) {
+      void Promise.resolve(client.close(0)).catch(error => {
+        logger.warn('Sentry shutdown failed after consent was revoked.', { error });
+      });
+    }
+  } catch (error) {
+    logger.warn('Sentry could not be closed after consent was revoked.', { error });
   }
 }
 
@@ -280,7 +350,9 @@ export function setMonitoringUser(
   stellarAddress: string | null,
   extra?: Record<string, unknown>,
 ): void {
-  if (stellarAddress) {
+  if (!hasCurrentAnalyticsConsent()) {
+    Sentry.setUser(null);
+  } else if (stellarAddress) {
     Sentry.setUser({ id: stellarAddress, ...extra });
   } else {
     Sentry.setUser(null);
@@ -300,6 +372,7 @@ export async function withSpan<T>(
   fn: () => T | Promise<T>,
   attributes?: Record<string, string | number | boolean>,
 ): Promise<T> {
+  if (!hasCurrentAnalyticsConsent()) return await fn();
   return Sentry.startSpan({ name, attributes }, () => fn());
 }
 
@@ -311,6 +384,7 @@ export function captureError(
   err: unknown,
   context?: Record<string, unknown>,
 ): void {
+  if (!hasCurrentAnalyticsConsent()) return;
   Sentry.withScope(scope => {
     if (context) {
       Object.entries(context).forEach(([k, v]) => scope.setExtra(k, v));
@@ -345,13 +419,14 @@ export interface HealthSnapshot {
  * Collect a synchronous snapshot of basic health metrics.
  */
 export function collectHealthSnapshot(): HealthSnapshot {
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  const mem = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
+  const mem = typeof performance === 'undefined'
+    ? undefined
+    : (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
   return {
     cpu: undefined,
     memory: mem ? mem.usedJSHeapSize / (mem.totalJSHeapSize || 1) : undefined,
     latency: 0,
-    uptime: performance.now(),
+    uptime: typeof performance === 'undefined' ? undefined : performance.now(),
     errors: [],
   };
 }
@@ -361,6 +436,7 @@ export function collectHealthSnapshot(): HealthSnapshot {
  */
 export async function collectSystemHealthSnapshot(): Promise<HealthSnapshot> {
   const base = collectHealthSnapshot();
+  if (typeof performance === 'undefined') return base;
   const entries = performance.getEntriesByType('navigation');
   const nav = entries[0] as PerformanceNavigationTiming | undefined;
   return {
@@ -413,3 +489,8 @@ export default {
   SentryErrorBoundary,
   revokeSentryConsent,
 };
+
+// ─── External provider circuit-breaker API ───────────────────────────────────
+// Re-exported here so `src/utils/monitoring.ts` remains the single entry point
+// for external analytics / monitoring provider protection. See Issue #828.
+export * from './providerCircuitBreaker';

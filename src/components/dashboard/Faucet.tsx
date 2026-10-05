@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useStore } from '../../lib/store'
 import { fundTestnetAccount, isValidPublicKey } from '../../lib/stellar'
 import CopyableValue from './CopyableValue'
+import { useWriteGuard } from '../../hooks/useWriteGuard'
+import MainnetConfirmDialog from '../security/MainnetConfirmDialog'
 
 interface FaucetResult {
   success: boolean
@@ -11,11 +13,12 @@ interface FaucetResult {
 }
 
 export default function Faucet() {
-  const { connectedAddress, faucetLoading, setFaucetLoading, faucetResult, setFaucetResult } = useStore()
+  const { connectedAddress, network, faucetLoading, setFaucetLoading, faucetResult, setFaucetResult } = useStore()
   const [input, setInput] = useState(connectedAddress || '')
   const [error, setError] = useState('')
+  const { guard, isReadOnlyLocked, dialogProps } = useWriteGuard()
 
-  async function handleFund() {
+  async function doFund() {
     const addr = input.trim()
     if (!isValidPublicKey(addr)) { setError('Invalid public key'); return }
     setError('')
@@ -31,12 +34,37 @@ export default function Faucet() {
     }
   }
 
+  function handleFund() {
+    const addr = input.trim()
+    if (!isValidPublicKey(addr)) { setError('Invalid public key'); return }
+    guard({ action: 'fund account', onConfirm: doFund })
+  }
+
   return (
+    <>
+    <MainnetConfirmDialog {...dialogProps} />
     <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, marginBottom: '4px' }}>Testnet Faucet</div>
         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Fund any testnet account with 10,000 XLM via Friendbot</div>
       </div>
+
+      {/* #983 — read-only lock banner */}
+      {isReadOnlyLocked && (
+        <div style={{
+          background: 'rgba(255,23,68,0.08)',
+          border: '1px solid var(--red)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          fontSize: '12px',
+          color: 'var(--red)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          🔒 Mainnet read-only lock is active — write actions are blocked this session.
+        </div>
+      )}
 
       <div style={{
         background: 'var(--bg-card)',
@@ -162,5 +190,6 @@ export default function Faucet() {
         </div>
       </div>
     </div>
+    </>
   )
 }

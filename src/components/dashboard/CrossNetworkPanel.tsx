@@ -3,6 +3,7 @@ import { useStore } from '../../lib/store'
 import { probeNetworkStatuses, compareAccountsAcrossNetworks, NETWORK_LABELS, NETWORK_ORDER } from '../../lib/crossNetwork'
 import { shortAddress } from '../../lib/stellar'
 import { Globe, CheckCircle, XCircle, RefreshCw, Activity, X } from 'lucide-react'
+import NetworkHealthScorecard from './NetworkHealthScorecard'
 
 interface ProbeResult {
   network: string;
@@ -200,6 +201,9 @@ export default function CrossNetworkPanel({ onClose }: CrossNetworkPanelProps) {
               </div>
             )}
           </div>
+
+          {/* Comparative health scorecard (#867): Testnet vs Mainnet side by side. */}
+          <NetworkHealthScorecard />
 
           <div style={{ borderTop: '1px solid #1a2332', paddingTop: '8px', fontSize: '9px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
             <strong>Network-aware actions:</strong>

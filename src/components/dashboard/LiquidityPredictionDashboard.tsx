@@ -1,21 +1,13 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Brain,
   TrendingUp,
-  AlertTriangle,
   Zap,
   RefreshCw,
   Sliders,
   CheckCircle2,
   ShieldAlert,
-  ArrowRightLeft,
-  Clock,
-  Layers,
   Activity,
-  Maximize2,
-  ArrowUpRight,
-  ArrowDownRight,
-  Info,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,9 +18,9 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
-  ReferenceLine,
 } from 'recharts';
 import { useStore } from '../../lib/store';
+import { useAIKillSwitch } from '../../context/AIKillSwitchContext';
 import {
   predictLiquidityFlow,
   PredictionResult,
@@ -36,6 +28,7 @@ import {
 } from '../../ml/liquidityPredictionModel';
 
 export default function LiquidityPredictionDashboard() {
+  const { enabled, ready } = useAIKillSwitch();
   const { network } = useStore();
   const [sellingAsset, setSellingAsset] = useState<string>('native');
   const [buyingAsset, setBuyingAsset] = useState<string>(
@@ -49,42 +42,44 @@ export default function LiquidityPredictionDashboard() {
   const [selectedStrategy, setSelectedStrategy] = useState<TradingRecommendation | null>(null);
   const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
 
-  async function fetchPrediction() {
+  const fetchPrediction = useCallback(async () => {
+    if (!enabled || !ready) return;
     setLoading(true);
     try {
       const result = await predictLiquidityFlow(sellingAsset, buyingAsset, {
         horizonHours,
         tradeAmount,
-        network,
+        network: network.networkId,
       });
       setData(result);
-      if (result.recommendations.length > 0 && !selectedStrategy) {
-        setSelectedStrategy(result.recommendations[0]);
+      const firstRecommendation = result.recommendations[0];
+      if (firstRecommendation) {
+        setSelectedStrategy((current) => current ?? firstRecommendation);
       }
     } catch (err) {
       console.error('Failed to load liquidity prediction:', err);
     } finally {
       setLoading(false);
     }
-  }
+  }, [enabled, ready, sellingAsset, buyingAsset, horizonHours, tradeAmount, network.networkId]);
 
   useEffect(() => {
-    fetchPrediction();
-  }, [sellingAsset, buyingAsset, horizonHours, tradeAmount, network]);
+    if (enabled && ready) fetchPrediction();
+  }, [enabled, ready, fetchPrediction]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh || !enabled || !ready) return;
     const interval = setInterval(() => {
       fetchPrediction();
     }, 15000);
     return () => clearInterval(interval);
-  }, [autoRefresh, sellingAsset, buyingAsset, horizonHours, tradeAmount, network]);
+  }, [autoRefresh, enabled, ready, fetchPrediction]);
+
+  if (!enabled || !ready) return null;
 
   const applyStrategy = (strategy: TradingRecommendation) => {
     setSelectedStrategy(strategy);
-    setAppliedNotice(
-      `Applied Strategy: ${strategy.title}. Parameters updated for DEX execution.`
-    );
+    setAppliedNotice(`Applied Strategy: ${strategy.title}. Parameters updated for DEX execution.`);
     setTimeout(() => setAppliedNotice(null), 4000);
   };
 
@@ -221,7 +216,9 @@ export default function LiquidityPredictionDashboard() {
         }}
       >
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          <span
+            style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+          >
             Selling Asset
           </span>
           <input
@@ -241,7 +238,9 @@ export default function LiquidityPredictionDashboard() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          <span
+            style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+          >
             Buying Asset
           </span>
           <input
@@ -261,7 +260,9 @@ export default function LiquidityPredictionDashboard() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          <span
+            style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+          >
             Forecast Horizon
           </span>
           <select
@@ -285,7 +286,9 @@ export default function LiquidityPredictionDashboard() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          <span
+            style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+          >
             Simulated Trade Size (XLM)
           </span>
           <input
@@ -308,7 +311,13 @@ export default function LiquidityPredictionDashboard() {
 
       {/* Model Accuracy & Overview Stats Cards */}
       {data && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '12px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+            gap: '12px',
+          }}
+        >
           {/* Card 1: 1h Forecast Accuracy Target */}
           <div
             style={{
@@ -322,7 +331,9 @@ export default function LiquidityPredictionDashboard() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              <span
+                style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+              >
                 1h Forecast Model Accuracy
               </span>
               <span
@@ -372,7 +383,9 @@ export default function LiquidityPredictionDashboard() {
               justifyContent: 'space-between',
             }}
           >
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            <span
+              style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+            >
               Order Book Depth & Bias
             </span>
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
@@ -387,9 +400,20 @@ export default function LiquidityPredictionDashboard() {
                 {(data.metrics.totalBidDepth + data.metrics.totalAskDepth).toLocaleString()} XLM
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '6px' }}>
-              <span style={{ color: 'var(--green)' }}>Bids: {data.metrics.totalBidDepth.toLocaleString()}</span>
-              <span style={{ color: 'var(--red)' }}>Asks: {data.metrics.totalAskDepth.toLocaleString()}</span>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginTop: '6px',
+              }}
+            >
+              <span style={{ color: 'var(--green)' }}>
+                Bids: {data.metrics.totalBidDepth.toLocaleString()}
+              </span>
+              <span style={{ color: 'var(--red)' }}>
+                Asks: {data.metrics.totalAskDepth.toLocaleString()}
+              </span>
             </div>
           </div>
 
@@ -405,7 +429,9 @@ export default function LiquidityPredictionDashboard() {
               justifyContent: 'space-between',
             }}
           >
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            <span
+              style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+            >
               Large Trade Impact Risk
             </span>
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
@@ -447,7 +473,9 @@ export default function LiquidityPredictionDashboard() {
               justifyContent: 'space-between',
             }}
           >
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            <span
+              style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+            >
               Spread & Buy Volume Ratio
             </span>
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
@@ -466,7 +494,8 @@ export default function LiquidityPredictionDashboard() {
               </span>
             </div>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              VWAP: {data.metrics.vwap} | 24h Vol: {data.metrics.tradeVolume24h.toLocaleString()} XLM
+              VWAP: {data.metrics.vwap} | 24h Vol: {data.metrics.tradeVolume24h.toLocaleString()}{' '}
+              XLM
             </div>
           </div>
         </div>
@@ -505,14 +534,23 @@ export default function LiquidityPredictionDashboard() {
                 <TrendingUp size={18} style={{ color: 'var(--cyan)' }} />
                 Real-Time Liquidity Depth Forecast ({data.pair} - {horizonHours}h Horizon)
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
                 Predictive depth trajectory (Bids vs Asks) with 95% AI Confidence Bands
               </div>
             </div>
           </div>
 
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={data.forecastSeries} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={data.forecastSeries}
+              margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+            >
               <defs>
                 <linearGradient id="bidGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
@@ -561,7 +599,13 @@ export default function LiquidityPredictionDashboard() {
 
       {/* Grid: Liquidity Alerts & Large Trade Simulator */}
       {data && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '14px',
+          }}
+        >
           {/* Active Liquidity Alerts */}
           <div
             style={{
@@ -601,8 +645,8 @@ export default function LiquidityPredictionDashboard() {
                         alert.severity === 'high'
                           ? 'var(--red, #ef4444)'
                           : alert.severity === 'medium'
-                          ? 'var(--amber, #f59e0b)'
-                          : 'var(--border)'
+                            ? 'var(--amber, #f59e0b)'
+                            : 'var(--border)'
                       }`,
                       borderRadius: 'var(--radius-md)',
                       padding: '10px 12px',
@@ -635,7 +679,9 @@ export default function LiquidityPredictionDashboard() {
                         {alert.timestamp}
                       </span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    <div
+                      style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}
+                    >
                       {alert.description}
                     </div>
                     <div
@@ -690,7 +736,9 @@ export default function LiquidityPredictionDashboard() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>PREDICTED SLIPPAGE</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    PREDICTED SLIPPAGE
+                  </div>
                   <div
                     style={{
                       fontSize: '18px',
@@ -707,7 +755,9 @@ export default function LiquidityPredictionDashboard() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>EST. ABSORPTION TIME</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    EST. ABSORPTION TIME
+                  </div>
                   <div
                     style={{
                       fontSize: '18px',
@@ -746,7 +796,8 @@ export default function LiquidityPredictionDashboard() {
                     color: getRiskBadgeColor(data.largeTradeAnalysis.riskLevel),
                   }}
                 >
-                  {data.largeTradeAnalysis.riskLevel} ({data.largeTradeAnalysis.whaleImpactScore}/100)
+                  {data.largeTradeAnalysis.riskLevel} ({data.largeTradeAnalysis.whaleImpactScore}
+                  /100)
                 </span>
               </div>
             </div>
@@ -787,7 +838,13 @@ export default function LiquidityPredictionDashboard() {
                 <Sliders size={18} style={{ color: 'var(--cyan)' }} />
                 AI Trading Strategy Recommendations
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
                 Optimized order routing, execution timing, TWAP chunking & slippage protection
               </div>
             </div>
@@ -871,7 +928,9 @@ export default function LiquidityPredictionDashboard() {
                       {rec.actionSummary}
                     </div>
 
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    <div
+                      style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4 }}
+                    >
                       {rec.detail}
                     </div>
                   </div>

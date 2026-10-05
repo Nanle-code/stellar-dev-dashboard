@@ -18,10 +18,8 @@ The feature is accessible from two places:
 3. Choose an export action:
    - **Export Dashboard Backup (JSON)** — downloads a `stellar-<key>-backup.json` file containing
      theme, network, and account preferences. Use this to restore your dashboard state later.
-   - **Export Transactions (CSV)** — downloads all currently loaded transactions as
-     `stellar-transactions.csv`. Requires at least one transaction to be loaded.
-   - **Export Balances (CSV)** — downloads the account's asset balances as
-     `stellar-balances.csv`. Requires at least one balance entry.
+   - **Export Transactions** — downloads all currently loaded transactions. Format can be selected (CSV, JSON, Parquet). Requires at least one transaction to be loaded.
+   - **Export Balances** — downloads the account's asset balances. Format can be selected (CSV, JSON, Parquet). Requires at least one balance entry.
 
 ### Importing
 
@@ -83,6 +81,14 @@ Serialise `data` to pretty-printed JSON and trigger a browser download as `filen
 Convert an array of objects to CSV and download as `filename.csv`. Column order follows the
 `columns` array, or `Object.keys(rows[0])` if omitted. Values containing commas, quotes, or
 newlines are properly escaped (RFC 4180).
+
+#### `exportRowsJson(rows, filename)`
+
+Serialise tabular `rows` to JSON and trigger download as `filename.json`.
+
+#### `exportParquet(rows, filename)`
+
+Convert an array of objects to Apache Parquet format using `apache-arrow` and `parquet-wasm`. Downloads as `filename.parquet`. Throws an error if required dependencies are missing, supporting graceful degradation in unsupported environments.
 
 #### `buildBackupPayload(state)`
 
@@ -187,8 +193,8 @@ const {
   importError,         // string | null — last import error message
   importSuccess,       // boolean — true after a successful import
   exportDashboard,     // () => void  — downloads JSON backup
-  exportTransactions,  // (txs: Object[]) => void — downloads CSV
-  exportBalances,      // (balances: Object[]) => void — downloads CSV
+  exportTransactions,  // async (txs: Object[], format?: ExportFormat) => void — downloads tabular data
+  exportBalances,      // async (balances: Object[], format?: ExportFormat) => void — downloads tabular data
   importBackup,        // async (file: File) => void
 } = useDataExport();
 ```

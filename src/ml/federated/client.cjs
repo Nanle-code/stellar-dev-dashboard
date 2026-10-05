@@ -5,7 +5,7 @@ function getTf() {
     try {
       tf = require('@tensorflow/tfjs-node');
     } catch (err) {
-      console.warn('Optional tfjs-node dependency is unavailable:', err.message);
+      logger.warn('Optional tfjs-node dependency is unavailable: ' + err.message);
       tf = null;
     }
   }
@@ -13,6 +13,7 @@ function getTf() {
 }
 
 const { extractFeatures } = require('../feature_extraction.cjs');
+const { logger } = require('../../lib/logging/logger.js');
 const crypto = require('crypto');
 
 class FederatedClient {
@@ -64,7 +65,7 @@ class FederatedClient {
     try {
       const response = await fetch(`${this.serverUrl}/global-model`);
       if (!response.ok) {
-        console.log('No global model available, initializing local model');
+        logger.info('No global model available, initializing local model');
         return null;
       }
       
@@ -75,12 +76,12 @@ class FederatedClient {
         }
         await this.model.setWeights(modelData.modelWeights);
         this.currentRound = modelData.round || 0;
-        console.log(`Loaded global model for round ${this.currentRound}`);
+        logger.info(`Loaded global model for round ${this.currentRound}`);
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error loading global model:', error.message);
+      logger.error('Error loading global model: ' + error.message);
       return false;
     }
   }
@@ -197,17 +198,17 @@ class FederatedClient {
       }
 
       const result = await response.json();
-      console.log('Update sent successfully:', result);
+      logger.info('Update sent successfully', { result });
       return result;
     } catch (error) {
-      console.error('Error sending update:', error.message);
+      logger.error('Error sending update: ' + error.message);
       throw error;
     }
   }
 
   // Complete federated learning round
   async participateInRound(data, labels) {
-    console.log(`Client ${this.clientId} starting federated learning round`);
+    logger.info(`Client ${this.clientId} starting federated learning round`);
     
     // Load global model
     await this.loadGlobalModel();

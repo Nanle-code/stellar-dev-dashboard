@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useStore } from "../../lib/store";
 import { fetchOrderBook, fetchTrades, parseAssetString } from "../../lib/dex";
+import { evaluateReadSourceCapabilities } from "../../lib/stellar";
+import DataSourceCapabilityBadge from "../common/DataSourceCapabilityBadge";
 import type { OrderBookEntry, SpreadInfo } from "./types";
 import LiquidityPools from "./LiquidityPools";
 import LiquidityPredictionDashboard from "./LiquidityPredictionDashboard";
@@ -152,13 +154,16 @@ export default function DEXExplorer() {
   return (
     <div className="animate-in" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-        <div>
-          <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700 }}>
-            DEX Explorer
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700 }}>
+              DEX Explorer
+            </div>
+            <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "4px", fontFamily: "var(--font-mono)" }}>
+              Order books, trades, and AMM liquidity pools
+            </div>
           </div>
-          <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "4px", fontFamily: "var(--font-mono)" }}>
-            Order books, trades, and AMM liquidity pools
-          </div>
+          <DataSourceCapabilityBadge network={network} showCapabilities />
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
           <ViewButton active={activeView === "orderbook"} onClick={() => setActiveView("orderbook")}>
@@ -172,6 +177,22 @@ export default function DEXExplorer() {
           </ViewButton>
         </div>
       </div>
+
+      {!evaluateReadSourceCapabilities(network).capabilities.accountOffers && activeView === "orderbook" && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: "var(--radius-md)",
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            color: "var(--red)",
+            fontSize: "13px",
+            fontFamily: "var(--font-sans)",
+          }}
+        >
+          <strong>View Unavailable:</strong> Order books and account offers are not supported on RPC-only network profiles. Connect to a Horizon-capable network profile to view DEX order books.
+        </div>
+      )}
 
       {activeView === "prediction" ? (
         <LiquidityPredictionDashboard />
@@ -259,6 +280,7 @@ export default function DEXExplorer() {
         sellingAsset={selling}
         buyingAsset={buying}
         orderbook={book}
+        trades={trades}
       />
 
       <div

@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict'
-import test from 'node:test'
+import { describe, expect, it } from 'vitest'
 
 import {
   resolvePackageManager,
@@ -7,194 +6,174 @@ import {
   FORBIDDEN_LOCKFILES,
 } from '../../scripts/validate-package-manager.mjs'
 
-test('accepts the repo-standard pnpm flow on supported Node.js versions', () => {
-  // Test intermediate LTS (24)
-  const result24 = resolvePackageManager('pnpm', {
-    nodeVersion: '24.1.0',
-    hasWorkspaceFile: true,
-    hasLockfile: true,
-    hasPackageLock: false,
-    hasYarnLock: false,
+describe('packageManager validator', () => {
+  it('accepts the repo-standard pnpm flow on supported Node.js versions', () => {
+    // Test intermediate LTS (24)
+    const result24 = resolvePackageManager('pnpm', {
+      nodeVersion: '24.1.0',
+      hasWorkspaceFile: true,
+      hasLockfile: true,
+      hasPackageLock: false,
+      hasYarnLock: false,
+    })
+
+    expect(result24).toEqual({
+      packageManager: 'pnpm',
+      lockfile: 'pnpm-lock.yaml',
+      workspaceFile: 'pnpm-workspace.yaml',
+    })
+
+    // Test case-insensitivity and whitespace trimming
+    const resultTrim = resolvePackageManager('  PNPM  ', {
+      nodeVersion: '24.0.0',
+      hasWorkspaceFile: true,
+      hasLockfile: true,
+      hasPackageLock: false,
+      hasYarnLock: false,
+    })
+
+    expect(resultTrim.packageManager).toBe('pnpm')
   })
 
-  assert.deepStrictEqual(result24, {
-    packageManager: 'pnpm',
-    lockfile: 'pnpm-lock.yaml',
-    workspaceFile: 'pnpm-workspace.yaml',
+  it('boundary: accepts minimum and maximum supported Node.js major versions', () => {
+    // Minimum supported: Node 22
+    const minResult = resolvePackageManager('pnpm', {
+      nodeVersion: `v${SUPPORTED_NODE_RANGE.min}.0.0`,
+      hasWorkspaceFile: true,
+      hasLockfile: true,
+      hasPackageLock: false,
+      hasYarnLock: false,
+    })
+    expect(minResult.packageManager).toBe('pnpm')
+
+    // Maximum supported: Node 26
+    const maxResult = resolvePackageManager('pnpm', {
+      nodeVersion: `${SUPPORTED_NODE_RANGE.max}.99.1`,
+      hasWorkspaceFile: true,
+      hasLockfile: true,
+      hasPackageLock: false,
+      hasYarnLock: false,
+    })
+    expect(maxResult.packageManager).toBe('pnpm')
   })
 
-  // Test case-insensitivity and whitespace trimming
-  const resultTrim = resolvePackageManager('  PNPM  ', {
-    nodeVersion: '24.0.0',
-    hasWorkspaceFile: true,
-    hasLockfile: true,
-    hasPackageLock: false,
-    hasYarnLock: false,
-  })
+  it('failure: rejects presence of package-lock.json or yarn.lock (#962)', () => {
+    // Verify forbidden lockfiles list includes package-lock.json and yarn.lock
+    const forbiddenFiles = FORBIDDEN_LOCKFILES.map((entry) => entry.file)
+    expect(forbiddenFiles).toContain('package-lock.json')
+    expect(forbiddenFiles).toContain('yarn.lock')
 
-  assert.equal(resultTrim.packageManager, 'pnpm')
-})
-
-test('boundary: accepts minimum and maximum supported Node.js major versions', () => {
-  // Minimum supported: Node 22
-  const minResult = resolvePackageManager('pnpm', {
-    nodeVersion: `v${SUPPORTED_NODE_RANGE.min}.0.0`,
-    hasWorkspaceFile: true,
-    hasLockfile: true,
-    hasPackageLock: false,
-    hasYarnLock: false,
-  })
-  assert.equal(minResult.packageManager, 'pnpm')
-
-  // Maximum supported: Node 26
-  const maxResult = resolvePackageManager('pnpm', {
-    nodeVersion: `${SUPPORTED_NODE_RANGE.max}.99.1`,
-    hasWorkspaceFile: true,
-    hasLockfile: true,
-    hasPackageLock: false,
-    hasYarnLock: false,
-  })
-  assert.equal(maxResult.packageManager, 'pnpm')
-})
-
-test('failure: rejects presence of package-lock.json or yarn.lock (#962)', () => {
-  // Verify forbidden lockfiles list includes package-lock.json and yarn.lock
-  const forbiddenFiles = FORBIDDEN_LOCKFILES.map((entry) => entry.file)
-  assert.ok(forbiddenFiles.includes('package-lock.json'))
-  assert.ok(forbiddenFiles.includes('yarn.lock'))
-
-  // Rejects package-lock.json
-  assert.throws(
-    () =>
+    // Rejects package-lock.json
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: true,
-      }),
-    /package-lock\.json|remove|reject/i
-  )
+      })
+    ).toThrow(/package-lock\.json|remove|reject/i)
 
-  // Rejects yarn.lock
-  assert.throws(
-    () =>
+    // Rejects yarn.lock
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
         hasYarnLock: true,
-      }),
-    /yarn\.lock|remove|reject/i
-  )
-})
+      })
+    ).toThrow(/yarn\.lock|remove|reject/i)
+  })
 
-test('failure: rejects invalid or unsupported manager input', () => {
-  assert.throws(
-    () =>
+  it('failure: rejects invalid or unsupported manager input', () => {
+    expect(() =>
       resolvePackageManager('npm', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /pnpm|unsupported/i
-  )
+      })
+    ).toThrow(/pnpm|unsupported/i)
 
-  assert.throws(
-    () =>
+    expect(() =>
       resolvePackageManager('yarn', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /pnpm|unsupported/i
-  )
+      })
+    ).toThrow(/pnpm|unsupported/i)
 
-  assert.throws(
-    () =>
+    expect(() =>
       resolvePackageManager('bun', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /pnpm|unsupported/i
-  )
+      })
+    ).toThrow(/pnpm|unsupported/i)
 
-  assert.throws(
-    () =>
+    expect(() =>
       resolvePackageManager('', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /required|pnpm/i
-  )
-})
+      })
+    ).toThrow(/required|pnpm/i)
+  })
 
-test('failure: rejects Node.js versions outside published support range (22-26)', () => {
-  // Legacy Node 18
-  assert.throws(
-    () =>
+  it('failure: rejects Node.js versions outside published support range (22-26)', () => {
+    // Legacy Node 18
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '18.20.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /unsupported Node\.js/i
-  )
+      })
+    ).toThrow(/unsupported Node\.js/i)
 
-  // Legacy Node 20
-  assert.throws(
-    () =>
+    // Legacy Node 20
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '20.11.1',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /unsupported Node\.js/i
-  )
+      })
+    ).toThrow(/unsupported Node\.js/i)
 
-  // Future unsupported Node 27
-  assert.throws(
-    () =>
+    // Future unsupported Node 27
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '27.0.0',
         hasWorkspaceFile: true,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /unsupported Node\.js/i
-  )
-})
+      })
+    ).toThrow(/unsupported Node\.js/i)
+  })
 
-test('failure: rejects missing pnpm configuration files', () => {
-  // Missing workspace file
-  assert.throws(
-    () =>
+  it('failure: rejects missing pnpm configuration files', () => {
+    // Missing workspace file
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: false,
         hasLockfile: true,
         hasPackageLock: false,
-      }),
-    /pnpm-workspace\.yaml|missing/i
-  )
+      })
+    ).toThrow(/pnpm-workspace\.yaml|missing/i)
 
-  // Missing lockfile
-  assert.throws(
-    () =>
+    // Missing lockfile
+    expect(() =>
       resolvePackageManager('pnpm', {
         nodeVersion: '24.0.0',
         hasWorkspaceFile: true,
         hasLockfile: false,
         hasPackageLock: false,
-      }),
-    /pnpm-lock\.yaml|missing|generate/i
-  )
+      })
+    ).toThrow(/pnpm-lock\.yaml|missing|generate/i)
+  })
 })

@@ -766,6 +766,5 @@ export default function AuditLog() {
           )}
         </div>
       </div>
-    </div>
   );
 }

@@ -227,7 +227,7 @@ export function getServer(network: NetworkName = 'testnet'): StellarSdk.Horizon.
 
 export const ee = getServer;
 
-export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.SorobanRpc.Server {
+export function getSorobanServer(network: NetworkName = 'testnet'): StellarSdk.rpc.Server {
   const config = NETWORKS[network];
   if (network === 'custom' && !config.sorobanUrl) {
     throw new Error('Custom Soroban RPC URL not configured');

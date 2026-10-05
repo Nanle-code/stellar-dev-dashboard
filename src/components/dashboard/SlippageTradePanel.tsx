@@ -5,12 +5,16 @@ import {
   type AmmPoolData,
   type SlippageCalculationResult,
 } from '../../lib/slippageProtection'
+import { useFillProbability } from '../../hooks/useFillProbability'
+import type { TradeRecord } from '../../lib/fillProbability'
 
 export interface SlippageTradePanelProps {
   sellingAsset?: string
   buyingAsset?: string
   orderbook?: OrderBookData | null
   pool?: AmmPoolData | null
+  /** Recent trades from Horizon — used to estimate limit order fill probability */
+  trades?: TradeRecord[] | null
   onBuildTrade?: (result: SlippageCalculationResult & { operationParams: any }) => void
 }
 
@@ -19,6 +23,7 @@ export function SlippageTradePanel({
   buyingAsset = 'USDC:G...',
   orderbook,
   pool,
+  trades,
   onBuildTrade,
 }: SlippageTradePanelProps) {
   const [tradeType, setTradeType] = useState<'sell' | 'buy'>('sell')
@@ -52,6 +57,32 @@ export function SlippageTradePanel({
 
   const sellCode = parseCode(sellingAsset)
   const buyCode = parseCode(buyingAsset)
+
+  // Fill probability — uses the execution price as the proposed limit price so
+  // the estimate reflects what the user would actually submit to the DEX.
+  const fillEst = useFillProbability({
+    side: tradeType,
+    limitPrice: calculation.executionPrice > 0 ? calculation.executionPrice : calculation.spotPrice,
+    quantity: Number(amount) || 0,
+    bids: orderbook?.bids as any,
+    asks: orderbook?.asks as any,
+    trades: trades as any,
+  })
+
+  const fillTierColor = (tier: string) => {
+    switch (tier) {
+      case 'very_high':
+      case 'high':
+        return 'var(--green, #22c55e)'
+      case 'medium':
+        return 'var(--amber, #f59e0b)'
+      case 'low':
+      case 'very_low':
+        return 'var(--red, #ef4444)'
+      default:
+        return 'var(--text-secondary)'
+    }
+  }
 
   const handleBuildTrade = () => {
     if (!calculation.isValid) return
@@ -233,7 +264,7 @@ export function SlippageTradePanel({
           borderRadius: 'var(--radius-md)',
           padding: '12px',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(5, 1fr)',
           gap: '10px',
         }}
       >
@@ -265,6 +296,28 @@ export function SlippageTradePanel({
           <div style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 700, fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
             {calculation.minimumReceived > 0 ? calculation.minimumReceived.toFixed(4) : '—'}
           </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fill Probability</div>
+          {fillEst ? (
+            <div
+              aria-label={`Fill probability ${fillEst.probabilityLabel}`}
+              title={`Depth score: ${(fillEst.depthScore * 100).toFixed(0)}% · Cadence: ${fillEst.tradesPerMinute.toFixed(1)} trades/min`}
+              style={{
+                fontSize: '12px',
+                color: fillTierColor(fillEst.tier),
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono)',
+                marginTop: '2px',
+                cursor: 'default',
+              }}
+            >
+              {fillEst.probabilityLabel}
+            </div>
+          ) : (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>—</div>
+          )}
         </div>
       </div>
 

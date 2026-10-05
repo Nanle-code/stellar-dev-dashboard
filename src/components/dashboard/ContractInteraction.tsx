@@ -13,6 +13,7 @@ import { getContractInteractions } from "../../lib/storage";
 import { Sparkles, AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
 import GasCostEstimator from "./GasCostEstimator";
 import ResourceMetrics from "./ResourceMetrics";
+import AuthorizationTree from "./AuthorizationTree";
 import MainnetReviewModal from "../security/MainnetReviewModal";
 import MainnetConfirmDialog from "../security/MainnetConfirmDialog";
 import { useWriteGuard } from "../../hooks/useWriteGuard";
@@ -1085,6 +1086,7 @@ export default function ContractInteraction() {
             network={network}
             inclusionFee={100} // Basic minimum inclusion fee
           />
+          <AuthorizationTree authEntries={simulationResult.authEntries ?? []} />
         </div>
       )}
 

@@ -13,6 +13,7 @@ import OnboardingFlow from './components/onboarding/OnboardingFlow';
 import { TipProvider } from './components/ai/TipProvider';
 import AnalyticsConsentPrompt from './components/AnalyticsConsentPrompt';
 import { needsAnalyticsConsentReview } from './utils/analyticsConsent';
+import { AIKillSwitchProvider } from './context/AIKillSwitchContext';
 
 const DashboardLayout = lazy(() => import('./routes/DashboardLayout'));
 
@@ -66,6 +67,7 @@ export default function App() {
     <I18nProvider>
       <AccessibilityProvider>
         <ExpertiseProvider>
+          <AIKillSwitchProvider>
           <ErrorBoundary maxRetries={2}>
             {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
             {showConsentPrompt && <AnalyticsConsentPrompt onDecision={() => setShowConsentPrompt(false)} />}
@@ -79,6 +81,7 @@ export default function App() {
             </ChunkLoadErrorBoundary>
             <DeveloperTools />
           </ErrorBoundary>
+          </AIKillSwitchProvider>
         </ExpertiseProvider>
       </AccessibilityProvider>
     </I18nProvider>

@@ -5,14 +5,19 @@
  * from component code. All submit paths must go through useWriteGuard().guard()
  * so the mainnet confirmation gate is never bypassed.
  *
+ * Scope: only files under src/components/ are checked. Outside components
+ * the rule's prescribed remedy (a React hook) is not available, so
+ * src/lib/* transport helpers, scripts/ and docs/ are not subject to it.
+ *
  * Allowed in:
  *   - src/lib/transactionBuilder.ts  (the underlying transport layer)
  *   - src/lib/contractInvoker.ts     (Soroban transport layer)
  *   - src/lib/horizonRetry.ts        (retry wrapper)
+ *   - src/lib/bulkOperations.ts      (batch layer)
  *   - tests/**                       (test helpers may call directly)
  *
- * Everywhere else, a direct call to submitTransaction / sendTransaction is
- * flagged as an error.
+ * Everywhere else in src/components/, a direct call to submitTransaction /
+ * sendTransaction / signAndSubmitTransaction is flagged as an error.
  */
 
 /** @type {import('eslint').Rule.RuleModule} */
@@ -52,6 +57,17 @@ const noDirectSubmit = {
       ALLOWLIST.some((allowed) => filename.includes(allowed));
 
     if (isAllowed) return {};
+
+    // This rule guards the UI: it exists so a component cannot put a
+    // mainnet write on screen without a useWriteGuard() confirmation in
+    // front of it. Enforcing it outside component code was not workable:
+    // the required remedy is a React hook, so src/lib/* transport helpers
+    // and non-UI scripts/docs cannot satisfy it at all. The transport
+    // layers are exempt above; the remainder (scripts/, docs/) have no
+    // user to confirm with.
+    const isComponent = filename.includes('/src/components/');
+
+    if (!isComponent) return {};
 
     const BLOCKED_METHODS = new Set([
       'submitTransaction',

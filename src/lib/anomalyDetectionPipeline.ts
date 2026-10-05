@@ -1,4 +1,4 @@
-import { IsolationForest } from '../ml/isolation_forest.js';
+import { IsolationForest } from './isolationForest.js';
 
 export class AnomalyDetectionPipeline {
   private model: IsolationForest;

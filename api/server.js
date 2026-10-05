@@ -14,6 +14,7 @@ import { router as notificationSummariesRouter } from './routes/notificationSumm
 import { router as gasPredictionRouter } from './routes/gasPrediction.js';
 import { router as analyticsRouter } from './routes/analytics.js';
 import { router as migrationRouter } from './routes/migration.js';
+import { router as aiControlsRouter } from './routes/aiControls.js';
 
 export const app = express();
 export const server = createServer(app);
@@ -25,6 +26,8 @@ app.use('/api/health', healthRouter);
 app.use(apiVersioningMiddleware);
 app.use(idempotencyMiddleware);
 app.use(rateLimiter);
+// Public read-only status; mutation authorization is enforced by the route itself.
+app.use('/api/v1/ai-controls', aiControlsRouter);
 
 getRuntimeEnvironment();
 
@@ -56,6 +59,7 @@ app.get('/api/docs', (req, res) => {
       '/api/v1/transactions': 'GET - Query transactions (query params: accountId, limit)',
       '/api/v1/liquidity': 'GET - Liquidity predictions and metrics',
       '/api/v1/behavior': 'Behavior prediction, suggestions, personalization',
+      '/api/v1/ai-controls': 'GET/PUT - Global AI panel kill switch (operator token required for writes)',
       '/api/v1/behavior/predict/intent': 'POST - Predict user intent',
       '/api/v1/behavior/predict/next-action': 'POST - Predict next user action',
       '/api/v1/behavior/profile': 'GET - Get behavior profile',

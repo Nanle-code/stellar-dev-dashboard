@@ -1,6 +1,7 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { NETWORKS, getServer, type NetworkName } from './networks.js';
 import { fetchAccount } from './horizon.js';
+import { coalescedHorizonFetch } from './requestCoalescing.js';
 import type { PathAsset } from './paths.js';
 
 // ─── Liquidity pools ─────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ function horizonUrl(network: NetworkName, path: string): string {
 }
 
 async function horizonJson<T>(network: NetworkName, path: string): Promise<T> {
-  const response = await fetch(horizonUrl(network, path));
+  const response = await coalescedHorizonFetch(horizonUrl(network, path));
   if (!response.ok) throw new Error(`Horizon request failed: ${response.status}`);
   return response.json() as Promise<T>;
 }

@@ -7,7 +7,9 @@ import { useStore } from '../../lib/store';
 import { suggestRebalancing } from '../../lib/defiAnalytics';
 import { fetchPrices, calculatePortfolioValue } from '../../lib/priceFeed';
 import { getServer, NETWORKS } from '../../lib/stellar';
-import { buildTransaction, signAndSubmitTransaction, simulateTransaction } from '../../lib/transactionBuilder';
+import { buildTransaction, signAndSubmitTransaction as submitSignedTransaction, simulateTransaction } from '../../lib/transactionBuilder';
+import { useWriteGuard } from '../../hooks/useWriteGuard';
+import MainnetConfirmDialog from '../security/MainnetConfirmDialog';
 import { 
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   Legend, CartesianGrid
@@ -79,6 +81,10 @@ export default function PortfolioRebalancer() {
   const [executing, setExecuting] = useState(false);
   const [simulationResult, setSimulationResult] = useState<any>(null);
   const [showXDR, setShowXDR] = useState(false);
+
+  // #983 — mainnet write guard. Live rebalance is a real write, so it must
+  // not reach the network without the typed-confirmation gate in front of it.
+  const { guard, dialogProps } = useWriteGuard();
 
   // Chart data
   const [historyData, setHistoryData] = useState<any[]>([]);
@@ -566,7 +572,13 @@ export default function PortfolioRebalancer() {
   }
 
   // Execute Live Rebalance on network
-  async function handleLiveExecute() {
+  function handleLiveExecute() {
+    // #983 — route through the central write guard; it handles mainnet
+    // confirmation and the session read-only lock before any submission.
+    guard({ action: 'rebalance portfolio on network', onConfirm: runLiveExecute });
+  }
+
+  async function runLiveExecute() {
     if (!connectedAddress || !secretKey) return;
     setExecuting(true);
     setError('');
@@ -586,8 +598,8 @@ export default function PortfolioRebalancer() {
         baseFee: '100',
       });
 
-      // Sign & Submit
-      const result = await signAndSubmitTransaction(tx, secretKey, network);
+      // Sign & Submit (already gated by handleLiveExecute above)
+      const result = await submitSignedTransaction(tx, secretKey, network);
 
       if (result.successful) {
         setSuccessMsg(`Live rebalancing transaction submitted successfully! Hash: ${result.hash.slice(0, 16)}...`);
@@ -1143,6 +1155,8 @@ export default function PortfolioRebalancer() {
           </div>
         </div>
       )}
+
+      <MainnetConfirmDialog {...dialogProps} />
 
     </div>
   );

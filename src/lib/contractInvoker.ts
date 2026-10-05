@@ -85,6 +85,25 @@ const TERMINAL_TRANSACTION_STATUSES = new Set(["SUCCESS", "FAILED"]);
 const wait = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+// Use spec.funcArgsToScVals when available — handles Vec, Map, enums, structs.
+// Falls back to null so callers can use their own manual encoder.
+function tryEncodeWithSpec(spec, functionName, args) {
+  if (!spec || typeof spec.funcArgsToScVals !== 'function') return null;
+  if (!args.every(a => a.name)) return null;
+  try {
+    const namedArgs = {};
+    for (const arg of args) {
+      const val = arg.value.trim();
+      if (arg.type === 'bool') namedArgs[arg.name] = val === 'true';
+      else if (arg.type === 'int') namedArgs[arg.name] = BigInt(val);
+      else namedArgs[arg.name] = val;
+    }
+    return spec.funcArgsToScVals(functionName, namedArgs);
+  } catch {
+    return null;
+  }
+}
+
 export async function waitForTransaction(
   server,
   hash,
@@ -624,6 +643,7 @@ export async function invokeContractFunction({
   network = "testnet",
   onStatus,
   polling,
+  spec,
 }) {
   if (!isValidContractId(contractId)) {
     throw new Error("Invalid contract ID");
@@ -654,20 +674,28 @@ export async function invokeContractFunction({
   const account = await horizon.loadAccount(sourceAccount);
   const contract = new StellarSdk.Contract(contractId);
 
-  const scArgs = args.map((arg) => {
-    switch (arg.type) {
-      case "string":
-        return StellarSdk.nativeToScVal(arg.value, { type: "string" });
-      case "int":
-        return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i128" });
-      case "address":
-        return StellarSdk.Address.fromString(arg.value).toScVal();
-      case "bool":
-        return StellarSdk.nativeToScVal(arg.value === "true", { type: "bool" });
-      default:
-        throw new Error(`Unsupported argument type: ${arg.type}`);
-    }
-  });
+  // Prefer spec-driven encoding when spec is available — handles Vec, Map, enums,
+  // structs and other complex types the manual switch can't cover.
+  let scArgs: StellarSdk.xdr.ScVal[];
+  const specArgs = tryEncodeWithSpec(spec, functionName, args);
+  if (specArgs) {
+    scArgs = specArgs;
+  } else {
+    scArgs = args.map((arg) => {
+      switch (arg.type) {
+        case "string":
+          return StellarSdk.nativeToScVal(arg.value, { type: "string" });
+        case "int":
+          return StellarSdk.nativeToScVal(BigInt(arg.value), { type: "i128" });
+        case "address":
+          return StellarSdk.Address.fromString(arg.value).toScVal();
+        case "bool":
+          return StellarSdk.nativeToScVal(arg.value === "true", { type: "bool" });
+        default:
+          throw new Error(`Unsupported argument type: ${arg.type}`);
+      }
+    });
+  }
 
   const transaction = new StellarSdk.TransactionBuilder(account, {
     fee: StellarSdk.BASE_FEE.toString(),

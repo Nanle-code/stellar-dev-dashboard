@@ -595,6 +595,7 @@ export default function Contracts() {
           <TemplateLibrary />
         </div>
       )}
+
         {contractError && (
           <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--red)' }}>
             {contractError}

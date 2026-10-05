@@ -21,6 +21,14 @@ export interface AuditEntry {
   id: string;
   timestamp: string;
   action: string;
+  /**
+   * Human-readable description.
+   *
+   * Present on entries produced by `auditTrail.logEvent`, which is what
+   * `AuditLog` renders, but absent from the older persisted entry shape, so it
+   * stays optional and consumers must handle its absence.
+   */
+  message?: string;
   category: AuditCategory;
   severity: AuditSeverity;
   actor: string | null;

@@ -94,4 +94,22 @@ describe('wallet session listeners', () => {
     expect(state.walletConnected).toBe(false)
     expect(state.walletSessionRevokedReason).toBe('unsupported_network')
   })
+
+  it('does not clear a read-only account when no Freighter session is active', () => {
+    useStore.setState({ walletConnected: false, walletType: null, walletPublicKey: null, connectedAddress: 'GREADONLY' }, false)
+    startWalletSessionListeners()
+    window.__lockCallback()
+
+    const state = useStore.getState()
+    expect(state.connectedAddress).toBe('GREADONLY')
+    expect(state.walletSessionRevokedReason).toBeNull()
+  })
+
+  it('does not revoke a session owned by another wallet', () => {
+    useStore.setState({ walletType: 'ledger' }, false)
+    startWalletSessionListeners()
+    window.__lockCallback()
+
+    expect(useStore.getState().walletConnected).toBe(true)
+  })
 })

@@ -202,7 +202,12 @@ function readInitialNetwork(): NetworkName {
 // ─── Store interface ──────────────────────────────────────────────────────────
 
 export interface StoreState extends NetworkSlice, SessionSlice, AccountSlice, UiSlice, PreferencesSlice {
-  network: NetworkSlice
+  /**
+   * Active network id. Most components read this as a string, so it stays a
+   * top-level alias of `networkId`; the nested slice lives under `networkState`.
+   */
+  network: NetworkName
+  networkState: NetworkSlice
   session: SessionSlice
   account: AccountSlice
   ui: UiSlice
@@ -418,7 +423,8 @@ export const useStore = create<StoreState>((set, get) => {
     ...initialUiSlice,
     ...initialPreferencesSlice,
 
-    network: initialNetworkSlice,
+    network: initialNetworkSlice.networkId,
+    networkState: initialNetworkSlice,
     session: initialSessionSlice,
     account: initialAccountSlice,
     ui: initialUiSlice,
@@ -512,7 +518,8 @@ export const useStore = create<StoreState>((set, get) => {
         
         return {
           ...networkUpdate,
-          network: { ...state.network, ...networkUpdate },
+          network: networkId,
+          networkState: { ...state.networkState, ...networkUpdate },
           ...accountUpdate,
           account: { ...state.account, ...accountUpdate },
         } as Partial<StoreState>
@@ -537,7 +544,7 @@ export const useStore = create<StoreState>((set, get) => {
       }
       return {
         ...update,
-        network: { ...state.network, ...update },
+        networkState: { ...state.networkState, ...update },
       }
     }),
     clearNetworkScopedData: () => set((state) => {
@@ -563,7 +570,7 @@ export const useStore = create<StoreState>((set, get) => {
       }
       return {
         ...networkUpdate,
-        network: { ...state.network, ...networkUpdate },
+        networkState: { ...state.networkState, ...networkUpdate },
         ...accountUpdate,
         account: { ...state.account, ...accountUpdate },
       }
@@ -626,20 +633,20 @@ export const useStore = create<StoreState>((set, get) => {
       return {
         networkStats: val,
         statsLoading: false,
-        network: { ...state.network, networkStats: val, statsLoading: false }
+        networkState: { ...state.networkState, networkStats: val, statsLoading: false }
       }
     }),
-    setStatsLoading: (v) => set(s => ({ statsLoading: v, network: { ...s.network, statsLoading: v } })),
+    setStatsLoading: (v) => set(s => ({ statsLoading: v, networkState: { ...s.networkState, statsLoading: v } })),
 
     setActiveTab: (tab) => set(s => ({ activeTab: tab, ui: { ...s.ui, activeTab: tab } })),
 
-    setFaucetLoading: (v) => set(s => ({ faucetLoading: v, network: { ...s.network, faucetLoading: v } })),
-    setFaucetResult: (r) => set(s => ({ faucetResult: r, network: { ...s.network, faucetResult: r } })),
+    setFaucetLoading: (v) => set(s => ({ faucetLoading: v, networkState: { ...s.networkState, faucetLoading: v } })),
+    setFaucetResult: (r) => set(s => ({ faucetResult: r, networkState: { ...s.networkState, faucetResult: r } })),
 
-    setContractId: (id) => set(s => ({ contractId: id, network: { ...s.network, contractId: id } })),
-    setContractData: (data) => set(s => ({ contractData: data, contractError: null, network: { ...s.network, contractData: data, contractError: null } })),
-    setContractLoading: (v) => set(s => ({ contractLoading: v, network: { ...s.network, contractLoading: v } })),
-    setContractError: (e) => set(s => ({ contractError: e, network: { ...s.network, contractError: e } })),
+    setContractId: (id) => set(s => ({ contractId: id, networkState: { ...s.networkState, contractId: id } })),
+    setContractData: (data) => set(s => ({ contractData: data, contractError: null, networkState: { ...s.networkState, contractData: data, contractError: null } })),
+    setContractLoading: (v) => set(s => ({ contractLoading: v, networkState: { ...s.networkState, contractLoading: v } })),
+    setContractError: (e) => set(s => ({ contractError: e, networkState: { ...s.networkState, contractError: e } })),
 
     // Analytics
     generateDataInsights: () => set((state) => {
@@ -647,7 +654,7 @@ export const useStore = create<StoreState>((set, get) => {
       return { analytics: summary, isGeneratingInsights: false, account: { ...state.account, analytics: summary, isGeneratingInsights: false } }
     }),
 
-    setDeploymentStatus: (v) => set(s => ({ deploymentStatus: v, network: { ...s.network, deploymentStatus: v } })),
+    setDeploymentStatus: (v) => set(s => ({ deploymentStatus: v, networkState: { ...s.networkState, deploymentStatus: v } })),
 
     setSavedSearches: (v) => set(s => ({ savedSearches: v, preferences: { ...s.preferences, savedSearches: v } })),
 
@@ -659,9 +666,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     setGlobalError: (err) => set(s => ({ globalError: err, ui: { ...s.ui, globalError: err } })),
 
-    setPrices: (prices) => set(s => ({ prices, pricesError: null, network: { ...s.network, prices, pricesError: null } })),
-    setPricesLoading: (loading) => set(s => ({ pricesLoading: loading, network: { ...s.network, pricesLoading: loading } })),
-    setPricesError: (error) => set(s => ({ pricesError: error, network: { ...s.network, pricesError: error } })),
+    setPrices: (prices) => set(s => ({ prices, pricesError: null, networkState: { ...s.networkState, prices, pricesError: null } })),
+    setPricesLoading: (loading) => set(s => ({ pricesLoading: loading, networkState: { ...s.networkState, pricesLoading: loading } })),
+    setPricesError: (error) => set(s => ({ pricesError: error, networkState: { ...s.networkState, pricesError: error } })),
 
     setSearchFilters: (filters) => set((state) => {
       const newFilters = { ...state.searchFilters, ...filters }
@@ -779,15 +786,15 @@ export const useStore = create<StoreState>((set, get) => {
     }),
     clearNotificationHistory: () => set(s => ({ notificationHistory: [], unreadNotificationCount: 0, ui: { ...s.ui, notificationHistory: [], unreadNotificationCount: 0 } })),
 
-    setStreamStatus: (status) => set(s => ({ streamStatus: status, network: { ...s.network, streamStatus: status } })),
+    setStreamStatus: (status) => set(s => ({ streamStatus: status, networkState: { ...s.networkState, streamStatus: status } })),
     addStreamLedger: (l) => set((state) => {
       const exists = state.streamLedgers.some((s) => s.sequence === l.sequence)
       if (exists) return {}
       const ledgers = [l, ...state.streamLedgers].slice(0, 50)
-      return { streamLedgers: ledgers, network: { ...state.network, streamLedgers: ledgers } }
+      return { streamLedgers: ledgers, networkState: { ...state.networkState, streamLedgers: ledgers } }
     }),
-    clearStreamLedgers: () => set(s => ({ streamLedgers: [], network: { ...s.network, streamLedgers: [] } })),
-    setStreamError: (e) => set(s => ({ streamError: e, network: { ...s.network, streamError: e } })),
+    clearStreamLedgers: () => set(s => ({ streamLedgers: [], networkState: { ...s.networkState, streamLedgers: [] } })),
+    setStreamError: (e) => set(s => ({ streamError: e, networkState: { ...s.networkState, streamError: e } })),
 
     // Ledger stats widget (Issue #267)
     addLedgerStatsEntry: (entry) => set((state) => {
@@ -801,8 +808,8 @@ export const useStore = create<StoreState>((set, get) => {
         ledgerHistory: history,
         baseFeeHistory: baseFee,
         failedTxPercent: percent,
-        network: {
-          ...state.network,
+        networkState: {
+          ...state.networkState,
           ledgerHistory: history,
           baseFeeHistory: baseFee,
           failedTxPercent: percent,

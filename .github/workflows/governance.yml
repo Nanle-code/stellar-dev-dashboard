@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
@@ -33,6 +33,11 @@ jobs:
       # paths, labels.json, issue forms, and the merge-policy text.
       - name: Validate governance files
         run: node scripts/validate-governance.mjs
+
+      # Dependency-free: validates .github/roadmap.json and fails when the
+      # docs-site roadmap page drifts from it (#1005).
+      - name: Validate roadmap
+        run: node scripts/roadmap.mjs --check
 
   sync-labels:
     name: Sync issue labels

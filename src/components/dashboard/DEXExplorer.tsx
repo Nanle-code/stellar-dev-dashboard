@@ -280,6 +280,7 @@ export default function DEXExplorer() {
         sellingAsset={selling}
         buyingAsset={buying}
         orderbook={book}
+        trades={trades}
       />
 
       <div
